@@ -18,6 +18,38 @@
 | **回归** | `tests/runtime/checkpointing/test_load_fallback.py` 11 例，用 `create_checkpointer` 建出的真实 SQLite 检查点（往返、挂起写入、`adelete_thread` 真删、`sync_checkpoint_messages(saver, "chat-1", [])` 返回 2 并删掉 `chat-1` 与 `chat_chat-1` 两个线程、损坏的检查点内容返回 `None` 并留警告、无关异常照常抛出、识别口径的三种路径与存储故障不被误判），四个变异体（备份、改写、跑测试、逐字节复原）各被至少一例打红；`tests/toolkits/browser/session/test_storage_state.py` 13 例；`tests/toolkits/browser/test_observability_bandwidth_integration.py`（真实 Chromium，本地服务返回 5000 字节：改回同步写法该例跑红，现在统计到的字节数 ≥ 5000） |
 | **代码位置** | `runtime/checkpointing/load_fallback.py::LoadFallbackCheckpointer` · `runtime/checkpointing/factory.py::_build_sqlite_saver` · `toolkits/browser/session/storage_state.py` · `toolkits/browser/observability.py::_on_request_finished` |
 
+### BUG-HARNESS-2026-10-14-015 · 本地开发模式下上下文清理永远扫描只读的 `/persistent/.context`，文件访问追踪器在同一个只读目录下开库；会话活动规则依赖的线程注册表从没被填充
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（沿「每日上下文清理到底扫描哪个目录」追查，本地模式启动后读 `execution_paths.CONTEXT_ROOT` 与各导入方持有的值） |
+| **修复时间** | 2026-10-14 |
+| **症状** | ① 本地开发模式在启动时重绑 `execution_paths.CONTEXT_ROOT`，但清理、追踪器等模块在导入时按值复制了这个常量：孤儿清理与会话清理扫描 `/persistent/.context`，在本地不存在，等于从不清理；② 文件访问追踪器的数据库路径同样取自复制值，位于只读的 `/persistent` 之下，打不开；追踪器观察者把导入失败吞掉，读取记录无从建立，「近期读过的文件不清理」的规则无从谈起；③ 清理有两套保留依据（会话活动与读取 / 修改时间），其中会话活动依赖的 `ThreadStore` 注册表从未被填充，规则从未保护过任何文件，却让清理多建一个检查点、让文档写成两条规则 |
+| **关联产品** | myrm-agent-harness `runtime/context`（`cleanup`、`cleanup_ops`、`file_access_tracker`、`instance_metrics`、`offload`）、`runtime/paths`、`runtime/artifacts`；server 的每日上下文清理任务（`app/lifecycle/schedulers.py`） |
+| **根因** | 路径常量按值导入，而启动时的重绑只改了原模块；清理与追踪器在调用时没有再读一遍 |
+| **修复** | ① 清理与追踪器一律在调用时通过 `get_context_root()` 读根目录，追踪器的数据库放在现行上下文根之内；② 保留规则只剩一个窗口 `CONTEXT_RETENTION_DAYS`（14 天）：一个文件在窗口内被读过，或修改时间在窗口内，就保留；删除会话活动规则（`runtime/context/session/session_activity.py`）与没有任何消费者的 `runtime/artifacts` 检查点协议包、`CheckpointForkManagerProtocol`；③ `track_context_file_access_if_needed` 移到 `runtime/paths/access_tracking.py`，让 `execution_paths.py` 保持在行数上限之内；④ server 的每日清理任务不再为已删除的规则构建检查点，读取追踪器起不来时记警告（清理改按修改时间判断），不再是一条 debug 日志 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 新增的端到端用例经观察者走完「读文件 → 追踪器记录 → 清理」整条链路：观察者吞掉导入失败，只看清理或追踪器单个环节不会红；② 追踪器观察者吞掉导入失败，是这个问题长期没暴露的原因，没有改它的吞异常行为（观察者不应拖垮工具调用），而是让 server 在追踪器不可用时写警告 |
+| **回归** | `tests/runtime/test_context_root_local_dev.py` 5 例（孤儿清理与会话清理扫描重绑后的根目录、未显式传路径的追踪器用重绑后的根目录、共享追踪器的库在根目录之内、读过的文件在同龄下得以保留而没读过的被清）· `test_cleanup_integration.py` 12 例、`test_cleanup_local.py` 7 例、`test_context_metrics.py` 55 例（随单一窗口改写）· server `tests/lifecycle/test_context_cleanup_job.py` 2 例 |
+| **代码位置** | `runtime/context/cleanup.py::CONTEXT_RETENTION_DAYS` · `runtime/context/file_access_tracker.py` · `runtime/paths/access_tracking.py::track_context_file_access_if_needed` · `runtime/paths/execution_paths.py::get_context_root` |
+
+### BUG-HARNESS-2026-10-14-014 · 本地模式放行了「只到被显式导航过的私网源」，但解析到环回 / 链路本地地址的主机名没有被判定，指向云元数据地址的主机名也认不出
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（沿 `BUG-HARNESS-2026-10-14-010` 的残余边界追查：守卫只看 URL 里的字面 IP） |
+| **修复时间** | 2026-10-14 |
+| **症状** | 本地模式（`allow_private_networks=True`）的会话只放行它被显式导航到的私网源，经重定向或脚本到别的私网地址仍被拦。但 DNS 返回 `127.0.0.1` 的主机名（`rebind.test`）在重定向与脚本导航中都按公网放行，会话因此到达该环回服务；返回 `169.254.169.254` 的主机名也没有被当作云元数据地址；`web_fetch` 的本地守卫同理 |
+| **关联产品** | myrm-agent-harness `core/security/redirect_hop_guard`（`hop_evaluator`、新增 `name_resolution`）、`toolkits/browser`（`navigation/ssrf_guard`、`domain_filter/http_filter`）、`toolkits/web_fetch/fetchers/target_guard` |
+| **根因** | `RedirectHopEvaluator` 只对 URL 里的字面 IP 与 `localhost` 一类固定名判定，不解析主机名 |
+| **修复** | 新增 `name_resolution.resolve_addresses`（有界、短暂缓存：2 秒超时、15 秒缓存、最多 256 个主机，失败与超时都返回空，从不抛异常）与 `RedirectHopEvaluator.evaluate_hop_resolved`：只对普通主机名、且有放行名单时才解析一次；只有环回、链路本地、未指定与云元数据的结果才算数，RFC 1918、CGNAT 与 `198.18.0.0/15` 不判（假 IP 代理与 VPN 会给公网域名返回这些地址）；解析失败或太慢时什么都不判。浏览器导航守卫、上下文请求过滤器与 `web_fetch` 本地守卫都走它 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 没有把私网各段都拦：代理与 fake-IP 会把公网域名映射到 RFC 1918、CGNAT、`198.18.0.0/15`（`BROWSER_SYSTEM.md` 已写明），全拦会让这类网络下的浏览整体失败，所以只认环回、链路本地、未指定与云元数据；② 同一次导航里守卫会对同一个主机问好几次，不缓存会让每次导航多出几次解析，失败的结果也要缓存，否则 DNS 不应答的环境每次都等满超时（该延迟在 DNS 被丢包的真实网络里未实测）；③ 残余边界：本次查询与 Chromium 自己的查询之间 DNS 仍可能改变答案（DNS rebinding），只有出站网络层才能彻底阻止，已写进 `BROWSER_SYSTEM.md` 的剩余边界 |
+| **回归** | `tests/core/security/test_hop_name_resolution.py` 10 例（真实解析 `localhost`、顺序、IPv6 作用域、无法解析、超时被截断、取消不被吞、同一次导航共用一次查询、失败也被记住）· `test_redirect_hop_evaluator.py` 24 例 · `tests/toolkits/web_fetch/test_target_guard.py` 21 例 · 真实 Chromium：`tests/toolkits/browser/test_hostname_resolution_policy_integration.py` 5 例（用 `--host-resolver-rules` 把假域名映射到环回夹具，并替换进程内 `socket.getaddrinfo` 充当攻击者控制的 DNS：重定向被拦且标签页回到 `about:blank`、脚本导航在发出请求前被拦、元数据地址即使显式导航也被拦、显式导航到解析为环回的主机名仍可用、代理 / DNS 给出的其他地址不被判） |
+| **代码位置** | `core/security/redirect_hop_guard/name_resolution.py::resolve_addresses` · `core/security/redirect_hop_guard/hop_evaluator.py::evaluate_hop_resolved` · `toolkits/browser/navigation/ssrf_guard.py` · `toolkits/browser/domain_filter/http_filter.py` · `toolkits/web_fetch/fetchers/target_guard.py` |
+
 ### BUG-HARNESS-2026-10-14-013 · 记忆写入门（PIISafetyGateway）自带一套与隐私管线不一致的正则：19 位与分组的银联卡、Amex 分组、分组 IBAN、主流厂商密钥、口语里的密码都放行，物流单号被当 IBAN，遮罩模式把没通过 Luhn 的数字也一并遮掉
 
 | 字段 | 内容 |
