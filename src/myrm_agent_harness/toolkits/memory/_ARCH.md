@@ -75,7 +75,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | tool_guidance/ | Deterministic, cache-stable synthesis of procedural tool memory (traps) into bounded, zero-LLM tool guidance. See [tool_guidance/_ARCH.md](tool_guidance/_ARCH.md). |
 | git_okf/ | Git-native loader for Google OKF v0.2 knowledge bundles. See [git_okf/_ARCH.md](git_okf/_ARCH.md). |
 | hybrid_engine/ | Orchestrates zero-config SQLite FTS5, offline synonym expansion,. See [hybrid_engine/_ARCH.md](hybrid_engine/_ARCH.md). |
-| business_templates/ | Pre-seeded industrial business experience templates. See [business_templates/_ARCH.md](business_templates/_ARCH.md). |
 | ephemeral_delta/ | In-memory, session-scoped transient buffer for prompt-cache-preserving deltas. See [ephemeral_delta/_ARCH.md](ephemeral_delta/_ARCH.md). |
 | experience_observability/ | Zero-refactor host lifecycle plugin adapter. See [experience_observability/_ARCH.md](experience_observability/_ARCH.md). |
 | failure_retrieval/ | Error fingerprint extractor for failure-triggered session retrieval. See [failure_retrieval/_ARCH.md](failure_retrieval/_ARCH.md). |

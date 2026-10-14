@@ -39,12 +39,6 @@ from myrm_agent_harness.toolkits.memory.budget_packing import (
     TokenAccountingReport,
     estimate_tokens,
 )
-from myrm_agent_harness.toolkits.memory.business_templates import (
-    BusinessExperienceTemplate,
-    BusinessTemplateEngine,
-    EscalationEvaluationContext,
-    TemplateCategory,
-)
 from myrm_agent_harness.toolkits.memory.chunking import (
     ChunkingConfig,
     ChunkSourceHydrator,
@@ -479,10 +473,6 @@ __all__ = [
     "ProcedureMemoryEntry",
     "ProcedureProtocolEngine",
     "RetrievalNodeKind",
-    "BusinessExperienceTemplate",
-    "BusinessTemplateEngine",
-    "EscalationEvaluationContext",
-    "TemplateCategory",
     "HostAccessChannel",
     "SessionTraceEvidence",
     "ExperienceObservabilityMetric",
