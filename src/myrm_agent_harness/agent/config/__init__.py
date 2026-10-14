@@ -11,6 +11,22 @@
 - exceptions: 配置异常定义（ConfigIncompleteError, InvalidConfigError）
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.config.exceptions import (
+        ConfigIncompleteError,
+        ConfigValidationError,
+        InvalidConfigError,
+    )
+    from myrm_agent_harness.agent.config.file_io import DEFAULT_FILE_IO_CONFIG, FileIOConfig
+    from myrm_agent_harness.agent.config.llm import AgentConfig, LLMConfig
+    from myrm_agent_harness.agent.config.llm_safety import normalize_messages
+    from myrm_agent_harness.agent.config.parsers import parse_litellm_model, to_litellm_model
+    from myrm_agent_harness.agent.config.presets import BUILTIN_PRESETS, ConfigPreset
+    from myrm_agent_harness.agent.config.readiness import ConfigReadinessChecker, ConfigReadinessResult
+    from myrm_agent_harness.agent.config.validator import ConfigIssue, check_config_health
+
 __all__ = [
     "BUILTIN_PRESETS",
     "DEFAULT_FILE_IO_CONFIG",

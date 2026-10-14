@@ -13,13 +13,13 @@
 - LocalStorageBackend: local file system storage backend
 
 [POS]
-Local file system storage backend. Stores files on local filesystem, suitable for development and
-single-machine deployments. Inherits BaseFileSystemBackend; common I/O operations and errno error handling
+Local file system storage backend. Stores files under a single root directory; used for local development,
+single-machine deployments and cloud sandboxes whose root is the persistent volume. Inherits BaseFileSystemBackend; common I/O operations and errno error handling
 provided by base class. This class only handles path resolution (_resolve_key_to_path) and local-specific
 logic (chmod, list).
 
 Naming convention:
-- Provider: protocol/interface defining the contract (e.g. StorageProvider)
+- Provider: abstract interface defining the contract (e.g. StorageProvider)
 - Backend: concrete implementation, directly usable (e.g. LocalStorageBackend)
 """
 
@@ -56,12 +56,12 @@ class LocalStorageBackend(BaseFileSystemBackend):
     def __init__(self, base_path: str | Path):
         self.base_path = Path(base_path).resolve()
         self.base_path.mkdir(parents=True, exist_ok=True)
-        logger.info(f" LocalStorageBackend Initialize: {self.base_path}")
+        logger.info("LocalStorageBackend initialized: %s", self.base_path)
 
     def _resolve_key_to_path(self, key: str) -> Path:
-        """ParseStorageKey to LocalFile系统Path
+        """Resolve a storage key to a local filesystem path.
 
-        使用 safe_join_path 确保路径安全，防止路径遍历、空字节和符号链接攻击。
+        Uses safe_join_path to guard against path traversal, null bytes and symlink escapes.
         """
         from myrm_agent_harness.core.security.path import safe_join_path
 
@@ -72,7 +72,7 @@ class LocalStorageBackend(BaseFileSystemBackend):
             raise StorageError(str(e)) from e
 
     async def write(self, key: str, content: bytes, content_type: str | None = None) -> None:
-        """写入File（SetSecurityPermission 0o600）"""
+        """Write a file and restrict its permissions to 0o600."""
         await super().write(key, content, content_type)
 
         path = self._resolve_key_to_path(key)
@@ -81,7 +81,7 @@ class LocalStorageBackend(BaseFileSystemBackend):
         except OSError as e:
             logger.debug(f"chmod failed for {key}: {e}")
 
-        logger.info(f" 写入File: {key} ({len(content)} bytes)")
+        logger.info("Wrote file: %s (%d bytes)", key, len(content))
 
     async def list(self, prefix: str = "", recursive: bool = True) -> list[str]:
         """List files under the storage root.
@@ -113,29 +113,29 @@ class LocalStorageBackend(BaseFileSystemBackend):
         return result
 
     async def delete(self, key: str) -> None:
-        """DeleteFile"""
+        """Delete a file or directory."""
         await super().delete(key)
-        logger.info(f" DeleteFile: {key}")
+        logger.info("Deleted: %s", key)
 
     async def copy(self, src_key: str, dst_key: str) -> None:
-        """CopyFile"""
+        """Copy a file or directory."""
         await super().copy(src_key, dst_key)
-        logger.info(f" CopyFile: {src_key} -> {dst_key}")
+        logger.info("Copied: %s -> %s", src_key, dst_key)
 
     async def move(self, src_key: str, dst_key: str) -> None:
-        """MoveFile"""
+        """Move a file or directory."""
         await super().move(src_key, dst_key)
-        logger.info(f" MoveFile: {src_key} -> {dst_key}")
+        logger.info("Moved: %s -> %s", src_key, dst_key)
 
     def resolve_absolute_path(self, key: str) -> str:
-        """GetFile 绝对Path
+        """Get the absolute filesystem path of a key.
 
-         for  need  directly 访问File系统 Scenario。
+        For callers that need to access the filesystem directly.
 
         Args:
             key: File path/key
 
         Returns:
-            绝对PathString
+            Absolute path string
         """
         return str(self._resolve_key_to_path(key))

@@ -127,13 +127,13 @@ async def test_replace_text_preserves_crlf() -> None:
     crlf_content = "line1\r\nline2\r\nline3\r\n"
     storage = AsyncMock()
     storage.exists = AsyncMock(return_value=True)
-    storage.get_text = AsyncMock(return_value=crlf_content)
-    storage.put_text = AsyncMock()
+    storage.read_text = AsyncMock(return_value=crlf_content)
+    storage.write_text = AsyncMock()
 
     strategy = StorageBackendStrategy(storage)
     await strategy.replace_text("test.txt", "line2", "replaced")
 
-    written = storage.put_text.call_args[0][1]
+    written = storage.write_text.call_args[0][1]
     assert "\r\n" in written
     assert "replaced\r\n" in written
     assert "\n" not in written.replace("\r\n", "")
@@ -149,13 +149,13 @@ async def test_replace_text_lf_unchanged() -> None:
     lf_content = "line1\nline2\nline3\n"
     storage = AsyncMock()
     storage.exists = AsyncMock(return_value=True)
-    storage.get_text = AsyncMock(return_value=lf_content)
-    storage.put_text = AsyncMock()
+    storage.read_text = AsyncMock(return_value=lf_content)
+    storage.write_text = AsyncMock()
 
     strategy = StorageBackendStrategy(storage)
     await strategy.replace_text("test.txt", "line2", "replaced")
 
-    written = storage.put_text.call_args[0][1]
+    written = storage.write_text.call_args[0][1]
     assert "\r\n" not in written
     assert "replaced\n" in written
 
@@ -170,8 +170,8 @@ async def test_replace_text_fuzzy_preserves_crlf() -> None:
     crlf_content = "  line1\r\n  line2\r\n  line3\r\n"
     storage = AsyncMock()
     storage.exists = AsyncMock(return_value=True)
-    storage.get_text = AsyncMock(return_value=crlf_content)
-    storage.put_text = AsyncMock()
+    storage.read_text = AsyncMock(return_value=crlf_content)
+    storage.write_text = AsyncMock()
 
     fuzzy_result = MagicMock()
     fuzzy_result.success = True
@@ -186,7 +186,7 @@ async def test_replace_text_fuzzy_preserves_crlf() -> None:
     ):
         await strategy.replace_text("test.txt", "line2_typo", "replaced")
 
-    written = storage.put_text.call_args[0][1]
+    written = storage.write_text.call_args[0][1]
     assert "\r\n" in written
     assert "\n" not in written.replace("\r\n", "")
 
@@ -201,13 +201,13 @@ async def test_replace_text_single_line_no_normalization() -> None:
     content = "single line no newline"
     storage = AsyncMock()
     storage.exists = AsyncMock(return_value=True)
-    storage.get_text = AsyncMock(return_value=content)
-    storage.put_text = AsyncMock()
+    storage.read_text = AsyncMock(return_value=content)
+    storage.write_text = AsyncMock()
 
     strategy = StorageBackendStrategy(storage)
     await strategy.replace_text("test.txt", "single", "replaced")
 
-    written = storage.put_text.call_args[0][1]
+    written = storage.write_text.call_args[0][1]
     assert written == "replaced line no newline"
     assert "\r\n" not in written
 

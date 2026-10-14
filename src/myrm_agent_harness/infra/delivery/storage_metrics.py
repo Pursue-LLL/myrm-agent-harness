@@ -6,9 +6,11 @@
 - 支持Prometheus导出
 
 [INPUT]
+- storage_resilience::StorageOperationCallback, StorageMetrics (POS: StorageProvider resilience layer. Ensures production availability with typed errors and retry logic.)
 
 [OUTPUT]
 - StorageMetricsCollector: 指标收集器
+- MonitoredStorageCallback: 记录日志并向指标收集器上报的存储操作回调
 - 操作延迟histogram
 - 错误率counter
 - 重试次数counter
@@ -22,8 +24,10 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+
+from .storage_resilience import StorageOperationCallback
 
 if TYPE_CHECKING:
     from .storage_resilience import StorageMetrics
@@ -40,11 +44,7 @@ class OperationStats:
     failure_count: int = 0
     total_duration_ms: float = 0.0
     total_retries: int = 0
-    error_types: dict[str, int] = None
-
-    def __post_init__(self) -> None:
-        if self.error_types is None:
-            self.error_types = {}
+    error_types: dict[str, int] = field(default_factory=dict)
 
 
 class StorageMetricsCollector:
@@ -116,7 +116,7 @@ class StorageMetricsCollector:
         self._stats.clear()
 
 
-class MonitoredStorageCallback:
+class MonitoredStorageCallback(StorageOperationCallback):
     """带监控的存储回调
 
     同时记录日志和收集指标。

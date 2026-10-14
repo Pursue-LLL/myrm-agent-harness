@@ -11,10 +11,11 @@
 - toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, and info query. Method names use read/write (not get/put).)
 
 [OUTPUT]
-- StorageBackendStrategy: class — Storage Backend Strategy
+- StorageBackendStrategy: FileSystemStrategy implementation that serves file tool operations through a StorageProvider
 
 [POS]
-Provides StorageBackendStrategy.
+File tool strategy over StorageProvider. Implements read, write, replace, delete, list and size operations
+on any StorageProvider (ExecutorStorageAdapter, LocalStorageBackend, business-layer backends).
 """
 
 from __future__ import annotations
@@ -57,7 +58,7 @@ class StorageBackendStrategy(FileSystemStrategy):
             raise FileNotFoundError(f"File not found: {path}")
 
         try:
-            content = await self.storage.get_text(path)
+            content = await self.storage.read_text(path)
             lines = content.split("\n")
 
             # 应用视图范围（如果指定）
@@ -72,7 +73,7 @@ class StorageBackendStrategy(FileSystemStrategy):
 
     async def write_file(self, path: str, content: str) -> None:
         """写入文件"""
-        await self.storage.put_text(path, content)
+        await self.storage.write_text(path, content)
 
     async def delete_file(self, path: str) -> None:
         """删除文件"""
@@ -85,7 +86,7 @@ class StorageBackendStrategy(FileSystemStrategy):
         if not await self.storage.exists(path):
             raise FileNotFoundError(f"File not found: {path}")
 
-        content = await self.storage.get_text(path)
+        content = await self.storage.read_text(path)
 
         from ..core.batch_str_replace import apply_batch_str_replace
         from ..core.operation_context import StrReplaceEdit
@@ -110,7 +111,7 @@ class StorageBackendStrategy(FileSystemStrategy):
                 path,
             )
 
-        await self.storage.put_text(path, new_content)
+        await self.storage.write_text(path, new_content)
 
     async def is_directory(self, path: str) -> bool:
         """检查路径是否为目录"""
@@ -164,7 +165,7 @@ class StorageBackendStrategy(FileSystemStrategy):
             return info.size
         except Exception:
             # 回退：读取内容计算大小
-            content = await self.storage.get_text(path)
+            content = await self.storage.read_text(path)
             return len(content.encode("utf-8"))
 
     def get_actual_path(self, path: str) -> str:
@@ -173,8 +174,9 @@ class StorageBackendStrategy(FileSystemStrategy):
         如果 storage_backend 支持路径解析（如 ExecutorStorageAdapter），返回实际路径。
         否则返回相对路径（对于云存储等没有本地路径的存储）。
         """
-        if hasattr(self.storage, "_get_full_path") and callable(self.storage._get_full_path):
-            return self.storage._get_full_path(path)  # type: ignore[attr-defined]
+        get_full_path = getattr(self.storage, "_get_full_path", None)
+        if callable(get_full_path):
+            return str(get_full_path(path))
 
         # 对于其他 StorageProvider，返回路径本身
         # （云存储等没有"实际路径"的概念）

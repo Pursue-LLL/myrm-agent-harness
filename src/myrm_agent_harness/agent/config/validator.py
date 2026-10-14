@@ -96,7 +96,7 @@ def check_config_health(config: AgentConfig) -> list[ConfigIssue]:
     # 3. Check for missing dependencies (MCP configs)
     if config.mcp_configs:
         for i, mcp_cfg in enumerate(config.mcp_configs):
-            if not hasattr(mcp_cfg, "name") or not mcp_cfg.name:
+            if not getattr(mcp_cfg, "name", None):
                 issues.append(
                     ConfigIssue(
                         level="error",

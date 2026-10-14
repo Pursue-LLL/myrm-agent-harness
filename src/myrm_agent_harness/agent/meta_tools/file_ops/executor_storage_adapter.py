@@ -53,22 +53,10 @@ class ExecutorStorageAdapter(StorageProvider):
     async def read_text(self, key: str, encoding: str = "utf-8") -> str:
         return await self._executor.read_file(key)
 
-    async def get_text(self, key: str, encoding: str = "utf-8") -> str:
-        return await self._executor.read_file(key)
-
     async def write(self, key: str, content: bytes, content_type: str | None = None) -> None:
         await self._executor.write_file(key, content.decode("utf-8"))
 
     async def write_text(
-        self,
-        key: str,
-        content: str,
-        encoding: str = "utf-8",
-        content_type: str | None = None,
-    ) -> None:
-        await self._executor.write_file(key, content)
-
-    async def put_text(
         self,
         key: str,
         content: str,

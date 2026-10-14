@@ -37,7 +37,7 @@ def _get_default_storage_path() -> str:
 class StorageConfig:
     """Storage configuration."""
 
-    # Key layout under the root is owned by paths.py and the consumers; workspaces belong to the sandbox, not here.
+    # The key layout under the root is defined by paths.py and its consumers.
     base_path: str = field(default_factory=_get_default_storage_path)
 
     def get_base_path(self) -> Path:

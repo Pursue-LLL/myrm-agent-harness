@@ -22,7 +22,7 @@
 │  app/platform_utils/__init__.py                          │
 │    └─ get_storage_provider()                             │
 │       └─ 框架层 get_storage_provider()                   │
-│          (LocalStorageBackend，根目录 MYRM_DATA_DIR/storage) │
+│          (LocalStorageBackend，根目录 MYRM_DATA_DIR)     │
 │                                                          │
 │  app/core/storage/service.py                             │
 │    └─ FilesService (文件上传/下载/管理)                  │
@@ -160,7 +160,7 @@ class StorageConfig:
 
 路径解析策略：从 `MYRM_DATA_DIR` 环境变量读取根目录，自动派生存储路径。
 
-**单一存储根**：所有存储 key（`files/`、`skills/`、`config/`、`goals/`、`media/` 等）都落在 `{MYRM_DATA_DIR}/storage` 下，不按路径前缀分流到其他目录。云端沙箱容器的根文件系统只读、仅持久卷可写，部署层把 `MYRM_DATA_DIR` 指向该持久卷即可，存储层不探测运行环境。
+**单一存储根**：所有存储 key（`files/`、`skills/`、`config/`、`goals/`、`media/` 等）都落在 `{MYRM_DATA_DIR}/storage` 下，路径前缀只决定子目录，存储根仅由 `MYRM_DATA_DIR` 决定。云端沙箱容器的根文件系统只读、仅持久卷可写，部署层把 `MYRM_DATA_DIR` 指向该持久卷；存储层不探测运行环境。
 
 ---
 

@@ -391,9 +391,6 @@ async def test_file_read_tool_redacts_secrets(tmp_path: Path) -> None:
     async def _is_dir(p: str) -> bool:
         return Path(p).is_dir()
 
-    async def _get_text(p: str, encoding: str = "utf-8") -> str:
-        return Path(p).read_text(encoding=encoding)
-
     async def _read_file(p: str) -> str:
         return Path(p).read_text(encoding="utf-8")
 
@@ -402,7 +399,6 @@ async def test_file_read_tool_redacts_secrets(tmp_path: Path) -> None:
 
     mock_executor.file_exists = _file_exists
     mock_executor.is_dir = _is_dir
-    mock_executor.get_text = _get_text
     mock_executor.read_file = _read_file
     mock_executor.read_file_bytes = _read_file_bytes
 

@@ -4,7 +4,7 @@ Provides the common aiofiles I/O implementation for LocalStorageBackend.
 Subclasses only need to implement the `_resolve_key_to_path(key)` template method for path resolution.
 
 [INPUT]
-- base::StorageProvider, FileInfo, StorageError (POS: storage protocol and types)
+- base::StorageProvider, FileInfo, StorageError (POS: storage provider abstract base class, file info type and storage error type)
 - aiofiles, aiofiles.os (POS: true async file I/O)
 - asyncio, errno, shutil, mimetypes (POS: Python standard library)
 
@@ -36,23 +36,23 @@ logger = logging.getLogger(__name__)
 
 
 class BaseFileSystemBackend(StorageProvider):
-    """File系统Storage后端Base class
+    """File system storage backend base class.
 
-    Subclass需implements `_resolve_key_to_path(key)` 以定义PathParseStrategy。
+    Subclasses implement `_resolve_key_to_path(key)` to define how keys map to filesystem paths.
     """
 
     @abstractmethod
     def _resolve_key_to_path(self, key: str) -> Path:
-        """将StorageKeyParse is File系统绝对Path
+        """Resolve a storage key to an absolute filesystem path.
 
         Args:
-            key: StorageKey（如 "artifacts/report.pdf"）
+            key: Storage key (e.g. "artifacts/report.pdf")
 
         Returns:
-            Parse后 绝对Path
+            Resolved absolute path
 
         Raises:
-            StorageError: Path越界
+            StorageError: The key escapes the storage root
         """
         ...
 
@@ -189,7 +189,7 @@ class BaseFileSystemBackend(StorageProvider):
 
     @staticmethod
     def _translate_os_error(e: OSError, key: str) -> Exception:
-        """将 OSError 翻译 is 更Concrete ExceptionType"""
+        """Translate an OSError into a more specific exception type."""
         if e.errno == errno.ENOSPC:
             return OSError(f"No space left on device: {key}")
         if e.errno == errno.ENAMETOOLONG:

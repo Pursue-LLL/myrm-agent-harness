@@ -17,7 +17,7 @@ enable_planning or workspace todos exist), wiki tools, and RUNTIME_ONLY hooks.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from langchain_core.tools import BaseTool
 
@@ -31,6 +31,8 @@ from myrm_agent_harness.toolkits.storage import storage_config
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from myrm_agent_harness.agent.tool_management import ToolRegistry
     from myrm_agent_harness.backends.skills.types import SkillInstance
     from myrm_agent_harness.toolkits.wiki import WikiCompiler, WikiStructure
@@ -180,9 +182,10 @@ class SkillAgentToolsMixin:
             all_middlewares.extend(mw for mw in cached_mws if id(mw) not in seen_ids)
 
         for middleware in all_middlewares:
-            if hasattr(middleware, "get_tools") and callable(middleware.get_tools):
+            get_tools = getattr(middleware, "get_tools", None)
+            if callable(get_tools):
                 try:
-                    mw_tools = middleware.get_tools()
+                    mw_tools = cast("Sequence[BaseTool] | None", get_tools())
                     if mw_tools:
                         for t in mw_tools:
                             is_internal = t.name.startswith("_")

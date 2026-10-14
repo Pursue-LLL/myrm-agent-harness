@@ -170,7 +170,8 @@ class PersistenceManager:
         Returns:
             (persistent_rules, wildcard_rules, persistent_heap)
         """
-        assert self._storage_provider is not None
+        storage = self._storage_provider
+        assert storage is not None
 
         from myrm_agent_harness.infra.delivery.storage_metrics import (
             MonitoredStorageCallback,
@@ -179,7 +180,7 @@ class PersistenceManager:
         from myrm_agent_harness.infra.delivery.storage_resilience import resilient_storage_operation
 
         async def _load() -> tuple[dict[str, PersistentRule], dict[str, FetcherType], list[HeapEntry]]:
-            content = await self._storage_provider.read_text(self._storage_key)
+            content = await storage.read_text(self._storage_key)
             data = json.loads(content)
 
             raw_rules = data.get("exact", {})
@@ -259,7 +260,8 @@ class PersistenceManager:
         self, persistent_rules: dict[str, PersistentRule], wildcard_rules: dict[str, FetcherType]
     ) -> None:
         """Save to StorageProvider（Cloudoriginal生Mode）"""
-        assert self._storage_provider is not None
+        storage = self._storage_provider
+        assert storage is not None
 
         from myrm_agent_harness.infra.delivery.storage_metrics import (
             MonitoredStorageCallback,
@@ -275,7 +277,7 @@ class PersistenceManager:
 
         async def _write() -> None:
             content = json.dumps(data, indent=2, ensure_ascii=False)
-            await self._storage_provider.write_text(self._storage_key, content)
+            await storage.write_text(self._storage_key, content)
 
         callback = MonitoredStorageCallback(get_global_storage_metrics())
         try:

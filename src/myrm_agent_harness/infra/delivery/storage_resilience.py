@@ -7,7 +7,7 @@
 - 可观测性指标
 
 [INPUT]
-- myrm_agent_harness.toolkits.storage.base::StorageProvider (POS: Provides FileOperationObserver.)
+- myrm_agent_harness.toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, and info query. Method names use read/write (not get/put).)
 
 [OUTPUT]
 - resilient_storage_operation: 弹性存储操作装饰器

@@ -14,7 +14,7 @@ Workspace path layout::
 
 [INPUT]
 - toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, and info query. Method names use read/write (not get/put).)
-- toolkits.storage.local::LocalStorageBackend (POS: Local file system storage backend. Stores files on local filesystem, suitable for development and single-machine deployments. Inherits BaseFileSystemBackend; common I/O operations and errno error handling provided by base class. This class only handles path resolution (_resolve_key_to_path) and local-specific logic (chmod, list). Naming convention: Provider: protocol/interface defining the contract (e.g. StorageProvider) Backend: concrete implementation, directly usable (e.g. LocalStorageBackend))
+- toolkits.storage.local::LocalStorageBackend (POS: Local file system storage backend. Stores files under a single root directory; used for local development, single-machine deployments and cloud sandboxes whose root is the persistent volume. Inherits BaseFileSystemBackend; common I/O operations and errno error handling provided by base class. This class only handles path resolution (_resolve_key_to_path) and local-specific logic (chmod, list). Naming convention: Provider: abstract interface defining the contract (e.g. StorageProvider) Backend: concrete implementation, directly usable (e.g. LocalStorageBackend))
 
 [OUTPUT]
 - WorkspaceService: Workspace service for code execution sessions.

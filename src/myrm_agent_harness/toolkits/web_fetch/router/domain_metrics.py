@@ -177,9 +177,9 @@ class DomainMetricsManager:
 
     async def load_metrics_async(self) -> None:
         """Async-load domain metrics (StorageProvider mode)."""
-        if not self._storage_provider:
+        storage = self._storage_provider
+        if storage is None:
             raise RuntimeError("load_metrics_async requires StorageProvider mode")
-
         from myrm_agent_harness.infra.delivery.storage_metrics import (
             MonitoredStorageCallback,
             get_global_storage_metrics,
@@ -187,7 +187,7 @@ class DomainMetricsManager:
         from myrm_agent_harness.infra.delivery.storage_resilience import resilient_storage_operation
 
         async def _load() -> dict[str, DomainMetrics]:
-            data_bytes = await self._storage_provider.read(self._storage_key)
+            data_bytes = await storage.read(self._storage_key)
             data = json.loads(data_bytes.decode("utf-8"))
             return {domain: DomainMetrics.from_dict(metrics_data) for domain, metrics_data in data.items()}
 
@@ -225,8 +225,8 @@ class DomainMetricsManager:
 
     async def _save_metrics_async(self) -> None:
         """Async-save domain metrics to StorageProvider."""
-        assert self._storage_provider is not None
-
+        storage = self._storage_provider
+        assert storage is not None
         from myrm_agent_harness.infra.delivery.storage_metrics import (
             MonitoredStorageCallback,
             get_global_storage_metrics,
@@ -238,7 +238,7 @@ class DomainMetricsManager:
 
         async def _write() -> None:
             data_bytes = json.dumps(snapshot, indent=2).encode("utf-8")
-            await self._storage_provider.write(self._storage_key, data_bytes)
+            await storage.write(self._storage_key, data_bytes)
 
         callback = MonitoredStorageCallback(get_global_storage_metrics())
         try:
