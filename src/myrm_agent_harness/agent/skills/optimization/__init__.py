@@ -32,8 +32,6 @@ ab_result = await ABTestEngine(config.ab_test).start_ab_test(
     candidate_content=candidate_content,
 )
 ```
-
-## Exports
 """
 
 from .ab_test import ABTestEngine
@@ -54,10 +52,10 @@ from .observability import (
 from .optimizer import SkillOptimizer
 from .protocols import (
     SkillExecutionProvider,
-    SkillExecutionSample,
     SkillOptimizationStorage,
     StorageError,
 )
+from .quality_calculator import SkillExecutionSample
 from .result_comparator import ComparisonDetail, ResultComparator, StructuredComparator
 from .security import SkillSecurityValidator
 from .types import (

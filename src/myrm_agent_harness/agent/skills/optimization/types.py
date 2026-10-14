@@ -81,7 +81,7 @@ class SkillQualityScore:
     4. user_satisfaction: 用户满意度（0-1，基于点赞/点踩 + 隐式反馈）
     5. call_frequency: 调用频率（归一化）
 
-    成本追踪字段（新增）：
+    成本追踪字段：
     - prompt_tokens: LLM调用的输入token数
     - completion_tokens: LLM调用的输出token数
     - total_tokens: 总token数（prompt + completion）
