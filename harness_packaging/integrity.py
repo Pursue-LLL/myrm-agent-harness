@@ -85,7 +85,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "tracking",
                 "downshift",
                 "working_memory",
-                "auto_archive",
                 "omni_reference",
                 "pinning",
                 "title_recovery",
