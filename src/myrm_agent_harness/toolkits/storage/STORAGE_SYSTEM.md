@@ -68,7 +68,7 @@
 | `move` | `(src_key, dst_key) -> None` | 移动文件 |
 | `get_url` | `(key: str, expires_in?) -> str` | 获取文件访问 URL |
 
-### 3.2 命名空间隔离
+### 3.2 命名空间前缀
 
 `StorageProvider` 内置 namespace 支持，自动为所有路径添加前缀：
 
@@ -79,6 +79,8 @@ await storage.write("file.txt", b"content")
 ```
 
 内部通过 `_get_full_key()` / `_strip_namespace()` 透明处理。
+
+namespace 只是路径前缀，不是安全边界：越界校验以后端根目录为准，`..` 可以跳出 namespace 目录，但不能跳出根目录（见 §10）。
 
 ---
 
@@ -239,7 +241,7 @@ class StorageConfig:
 
 `LocalStorageBackend._resolve_key_to_path()` 和 `PersistentStorageBackend._route_path()` 均通过 `core.security.path.safe_join_path()` 解析 key：
 
-1. **输入校验**: 拒绝空字节、绝对路径和多行文本内容
+1. **输入校验**: 拒绝空字节与多行文本内容；key 开头的 `/` 先被去除，按相对路径处理
 2. **`os.path.normpath()`**: 得到规范化的虚拟路径（不展开符号链接），Docker 挂载卷与软链接工作区的路径前缀保持不变
 3. **`resolve()` + `is_relative_to(base)`**: 用物理路径校验结果仍在根目录内，拦截 `..` 越界与符号链接逃逸
 
