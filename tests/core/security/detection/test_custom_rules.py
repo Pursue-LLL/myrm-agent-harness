@@ -189,7 +189,7 @@ _TOO_LARGE_TO_BUILD = {
     "three_levels": r"(?:(?:a{100}){100}){100}",
     "single_exact": r"a{10000000}",
     "single_class": r"\d{99999999}",
-    "past_the_budget": r"a{10001}",
+    "past_the_budget": r"a{10002}",
 }
 
 
@@ -207,7 +207,8 @@ class TestPatternSize:
     @pytest.mark.parametrize(
         "pattern",
         [
-            r"a{10000}",
+            r"a{10001}",
+            "|".join(f"customer{number}" for number in range(5000)),
             r"\d{17}[\dXx]",
             r"[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}",
             r"(?:\d{3}-){3}\d{4}",

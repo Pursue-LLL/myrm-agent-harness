@@ -55,10 +55,12 @@ logger = logging.getLogger(__name__)
 _PATTERN_TIMEOUT_SECONDS = 1.0
 
 # ``regex`` lays out every copy of a counted repeat when it compiles (``a{10000000}`` takes 2.7 GB where ``re`` stores the
-# count), and the repeats of one pattern multiply (``(?:a{1000}){1000}`` is a million atoms, ~300 MB). A pattern needing
-# more atoms than this is refused; real patterns need tens, and the limit keeps one compile to a few megabytes.
-_MAX_EXPANDED_ATOMS = 10_000
+# count), and the repeats of one pattern multiply (``(?:a{1000}){1000}`` is a million atoms, ~300 MB). A pattern whose
+# repeats add more atoms than this to the ones it spells out is refused; real patterns add tens, and the limit keeps
+# the memory of one compile to a few megabytes.
+_MAX_REPEAT_ATOMS = 10_000
 _COUNTED_REPEAT = regex.compile(r"\{(\d{0,9})(?:,\d{0,9})?\}")
+_REPEAT_SYNTAX = regex.compile(r"[\\\[(){]")  # the characters the repeat scan must stop at; any other is one atom
 
 # Characters of the scripts that separate words with spaces: a keyword edge in one of them has a word boundary.
 _SPACED_WORD = "0-9A-Za-z_\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u024f\u0370-\u03ff\u0400-\u04ff"
@@ -150,7 +152,7 @@ def _keyword_regex(keyword: str) -> regex.Pattern[str]:
 @lru_cache(maxsize=512)
 def _pattern_regex(pattern: str) -> regex.Pattern[str] | None:
     # A pattern the engine rejects as malformed, too large to build or nested too deep never matches; none may raise.
-    if _expanded_atoms(pattern) > _MAX_EXPANDED_ATOMS:
+    if _repeat_atoms(pattern) > _MAX_REPEAT_ATOMS:
         return None
     try:
         return regex.compile(pattern, regex.IGNORECASE)
@@ -158,27 +160,37 @@ def _pattern_regex(pattern: str) -> regex.Pattern[str] | None:
         return None
 
 
-def _expanded_atoms(pattern: str) -> int:
-    """How many atoms *pattern* has once its counted repeats are laid out; a group repeated n times counts n times.
+def _repeat_atoms(pattern: str) -> int:
+    """How many atoms the counted repeats of *pattern* add to the ones it spells out; a group repeated n times is n copies.
 
     Only the least number of copies of a repeat matters: ``{n}``, ``{n,}`` and ``{n,m}`` lay out ``n`` of them (at least
     one), ``?``, ``*``, ``+`` and ``{,m}`` one. The scan reads just enough of the syntax to know what a repeat applies
     to, errs on the high side (a group header such as ``?:`` counts as atoms) and stops once the budget is spent.
     """
+    added = 0
     groups = [0]  # atoms of the groups still open, the innermost last
     last = 0  # atoms of the item a following repeat applies to
     position = 0
     while position < len(pattern):
+        syntax = _REPEAT_SYNTAX.search(pattern, position)
+        plain_end = syntax.start() if syntax else len(pattern)
+        if plain_end > position:
+            groups[-1] += plain_end - position
+            last = 1
+            position = plain_end
+            continue
         char = pattern[position]
         if char == "(":
             groups.append(0)
             position += 1
-            continue
-        if char == "{" and (repeat := _COUNTED_REPEAT.match(pattern, position)):
+        elif char == "{" and (repeat := _COUNTED_REPEAT.match(pattern, position)):
             extra = last * (max(int(repeat[1] or 0), 1) - 1)
             groups[-1] += extra
             last += extra
+            added += extra
             position = repeat.end()
+            if added > _MAX_REPEAT_ATOMS:
+                break
         else:
             if char == ")":
                 last = groups.pop() if len(groups) > 1 else 0
@@ -190,9 +202,7 @@ def _expanded_atoms(pattern: str) -> int:
                 last = 1
                 position += 2 if char == "\\" else 1
             groups[-1] += last
-        if groups[-1] > _MAX_EXPANDED_ATOMS:
-            break
-    return sum(groups)
+    return added
 
 
 def _class_end(pattern: str, start: int) -> int:
