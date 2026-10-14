@@ -338,8 +338,11 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ProviderBalanceProbeProtocol": ("myrm_agent_harness.toolkits.llms.probe", "ProviderBalanceProbeProtocol"),
     "ProviderBalanceResult": ("myrm_agent_harness.toolkits.llms.probe", "ProviderBalanceResult"),
     "ProviderBalanceStatus": ("myrm_agent_harness.toolkits.llms.probe", "ProviderBalanceStatus"),
-    "WorkingMemorySnapshot": ("myrm_agent_harness.toolkits.memory", "WorkingMemorySnapshot"),
-    "create_consolidation_cleanup_task": ("myrm_agent_harness.toolkits.memory", "create_consolidation_cleanup_task"),
+    "WorkingMemorySnapshot": ("myrm_agent_harness.toolkits.memory.consolidation", "WorkingMemorySnapshot"),
+    "create_consolidation_cleanup_task": (
+        "myrm_agent_harness.toolkits.memory.consolidation",
+        "create_consolidation_cleanup_task",
+    ),
     "TaintedEgressGateway": ("myrm_agent_harness.core.security.egress", "TaintedEgressGateway"),
     "TaintedEgressDecision": ("myrm_agent_harness.core.security.egress", "TaintedEgressDecision"),
     "TaintedEgressBlockedError": ("myrm_agent_harness.core.security.egress", "TaintedEgressBlockedError"),
