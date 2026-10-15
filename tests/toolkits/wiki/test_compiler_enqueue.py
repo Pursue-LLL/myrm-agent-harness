@@ -114,6 +114,45 @@ async def test_the_change_check_hashes_the_sources_off_the_event_loop_thread(
 
 
 @pytest.mark.asyncio
+async def test_a_source_being_compiled_is_left_processing(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
+    (wiki_structure.raw_dir / "a.md").write_text("Machine learning is powerful.")
+    (wiki_structure.raw_dir / "b.md").write_text("Data science content.")
+    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
+    await compiler.enqueue_changed_sources()
+    in_flight = next(item for item in compiler._queue.get_pending_items() if Path(item["file_path"]).name == "a.md")
+    compiler._queue.mark_processing(in_flight["id"])
+
+    queued = await compiler.enqueue_changed_sources()
+
+    assert queued == 1
+    stats = compiler._queue.get_stats()
+    assert (stats["processing"], stats["pending"]) == (1, 1)
+
+
+@pytest.mark.asyncio
+async def test_a_source_claimed_while_the_change_check_runs_is_left_processing(
+    wiki_structure: WikiStructure, mock_llm: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (wiki_structure.raw_dir / "a.md").write_text("Machine learning is powerful.")
+    (wiki_structure.raw_dir / "b.md").write_text("Data science content.")
+    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
+    await compiler.enqueue_changed_sources()
+    check_changed = compiler._filter_changed_files
+
+    async def worker_claims_a_while_checking(raw_files: list[Path]) -> list[Path]:
+        changed = await check_changed(raw_files)
+        claimed = next(item for item in compiler._queue.get_pending_items() if Path(item["file_path"]).name == "a.md")
+        compiler._queue.mark_processing(claimed["id"])
+        return changed
+
+    monkeypatch.setattr(compiler, "_filter_changed_files", worker_claims_a_while_checking)
+
+    assert await compiler.enqueue_changed_sources() == 1
+    stats = compiler._queue.get_stats()
+    assert (stats["processing"], stats["pending"]) == (1, 1)
+
+
+@pytest.mark.asyncio
 async def test_a_full_compile_queues_every_source_again(
     wiki_structure: WikiStructure, mock_llm: AsyncMock, mock_indexer: AsyncMock
 ) -> None:

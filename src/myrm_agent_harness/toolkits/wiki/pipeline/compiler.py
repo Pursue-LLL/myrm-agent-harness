@@ -376,7 +376,9 @@ class WikiCompiler:
     async def enqueue_changed_sources(self) -> int:
         """Queue the raw files a compile has to read: the new or changed ones, or all of them for a full strategy.
 
-        Nothing is compiled here; the background worker (``start_background_worker``) drains the queue.
+        Nothing is compiled here; the background worker (``start_background_worker``) drains the queue. A file the
+        worker is compiling right now is left alone: queueing it again would put it back to pending while the worker
+        still holds it, and the queue would report no work in progress.
 
         Returns:
             How many files were queued.
@@ -386,12 +388,12 @@ class WikiCompiler:
         )
 
         raw_files = CorpusEligibilityFilter(self._structure).filter_raw_paths(self._structure.list_raw_files())
-        if self._config.compile_strategy == "incremental":
-            files = await self._filter_changed_files(raw_files)
-            logger.info(f"Incremental compile: adding {len(files)} changed files to queue")
-        else:
-            files = raw_files
-            logger.info(f"Full compile: adding {len(files)} files to queue")
+        incremental = self._config.compile_strategy == "incremental"
+        files = await self._filter_changed_files(raw_files) if incremental else raw_files
+        # Read after the last await, so the worker cannot claim a file between this check and the write below.
+        in_flight = set(self._queue.list_processing_file_paths())
+        files = [path for path in files if str(path) not in in_flight]
+        logger.info(f"{'Incremental' if incremental else 'Full'} compile: adding {len(files)} files to queue")
         if files:
             self._queue.add_batch(files)
         return len(files)
@@ -547,7 +549,7 @@ class WikiCompiler:
             logger.warning(f"Failed to read metadata: {e}")
             return raw_files
 
-        # Hashing every raw file takes seconds on a large vault; off the event loop it no longer stalls SSE and requests.
+        # Hashing every raw file takes seconds on a large vault; on a worker thread it does not stall SSE or requests.
         return await asyncio.to_thread(self._changed_by_hash, raw_files, known_hashes)
 
     def _changed_by_hash(self, raw_files: list[Path], known_hashes: dict[str, str]) -> list[Path]:

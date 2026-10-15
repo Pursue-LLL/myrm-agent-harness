@@ -151,13 +151,16 @@ class WikiIngestionQueue:
             )
 
     def list_pending_file_paths(self) -> list[str]:
+        return self._file_paths_with_status("pending")
+
+    def list_processing_file_paths(self) -> list[str]:
+        return self._file_paths_with_status("processing")
+
+    def _file_paths_with_status(self, status: str) -> list[str]:
         with self._get_conn() as conn:
             cursor = conn.execute(
-                """
-                SELECT file_path FROM ingestion_queue
-                WHERE status = 'pending'
-                ORDER BY created_at ASC
-                """
+                "SELECT file_path FROM ingestion_queue WHERE status = ? ORDER BY created_at ASC",
+                (status,),
             )
             return [str(row["file_path"]) for row in cursor.fetchall()]
 
