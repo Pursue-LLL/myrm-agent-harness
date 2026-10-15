@@ -13,7 +13,6 @@ myrm_agent_harness/agent/context_management/strategies/summary/summarizer.py	915
 myrm_agent_harness/agent/context_management/tracking/task_metrics_model.py	570
 myrm_agent_harness/agent/dynamic_workflow/__init__.py	692
 myrm_agent_harness/agent/dynamic_workflow/tools.py	790
-myrm_agent_harness/agent/errors/diagnostics/engine.py	547
 myrm_agent_harness/agent/event_log/analytics_queries.py	597
 myrm_agent_harness/agent/file_snapshot/shadow_git_store.py	649
 myrm_agent_harness/agent/goals/continuation.py	656

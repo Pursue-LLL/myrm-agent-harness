@@ -2,6 +2,7 @@
 
 [INPUT]
 - diagnostics.i18n::get_locale_manager (POS: Framework-level i18n for LLM error diagnostics)
+- diagnostics.recovery_actions::build_recovery_actions (POS: Recovery action catalogue of the diagnostics engine)
 - diagnostics.types::DiagnosticResult, ErrorContext (POS: Error diagnostic data structures)
 - infra.tls_compat::is_tls_strict_error, get_tls_remediation_hint (POS: Enterprise TLS compatibility)
 
@@ -14,9 +15,9 @@ with localized user messages and resolution steps.
 """
 
 import re
-from typing import ClassVar
 
 from myrm_agent_harness.agent.errors.diagnostics.i18n import get_locale_manager
+from myrm_agent_harness.agent.errors.diagnostics.recovery_actions import build_recovery_actions
 from myrm_agent_harness.agent.errors.diagnostics.types import (
     DiagnosticResult,
     ErrorContext,
@@ -189,6 +190,8 @@ class LLMErrorDiagnostic:
             "account is deactivated",
             "top up your credits",
             "run out of credits",
+            "used all available credits",
+            "grok subscription",
             "余额不足",
             "额度不足",
             "欠费",
@@ -444,61 +447,10 @@ class LLMErrorDiagnostic:
             locale=locale,
         )
 
-    _RECOVERY_ACTION_DEFS: ClassVar[dict[str, list[tuple[str, str]]]] = {
-        "api_key": [("update_key", "/settings")],
-        "billing": [("top_up", "/settings")],
-        "model": [("change_model", "/settings")],
-        "custom_model_not_found": [("change_model", "/settings")],
-    }
-
-    _RECOVERY_LABELS: ClassVar[dict[str, str]] = {
-        "update_key": "Update API Key",
-        "top_up": "Top Up Balance",
-        "change_model": "Change Model",
-    }
-
-    _RECOVERY_LABELS_I18N: ClassVar[dict[str, dict[str, str]]] = {
-        "zh-CN": {"update_key": "更新 API 密钥", "top_up": "充值余额", "change_model": "切换模型"},
-        "ja": {"update_key": "APIキーを更新", "top_up": "残高をチャージ", "change_model": "モデルを変更"},
-        "ko": {"update_key": "API 키 업데이트", "top_up": "잔액 충전", "change_model": "모델 변경"},
-        "de": {
-            "update_key": "API-Schlüssel aktualisieren",
-            "top_up": "Guthaben aufladen",
-            "change_model": "Modell wechseln",
-        },
-    }
-
     @staticmethod
     def get_recovery_actions(error_type: str, locale: str | None = "en") -> list[dict[str, str]]:
-        """Return localized actionable recovery buttons for the given error type.
-
-        Each action is a dict with {id, label, url} matching the frontend RecoveryAction type.
-        Only error types with clear, single-click resolutions produce actions.
-        ``None`` locale falls back to framework auto-detection (mirrors ``diagnose``).
-        """
-        if not locale:
-            locale = get_locale_manager().detect_locale()
-
-        defs = LLMErrorDiagnostic._RECOVERY_ACTION_DEFS.get(error_type)
-        if not defs:
-            return []
-
-        locale_labels = LLMErrorDiagnostic._RECOVERY_LABELS_I18N.get(locale, {})
-        if not locale_labels:
-            lang = locale.split("-")[0].split("_")[0]
-            for key in LLMErrorDiagnostic._RECOVERY_LABELS_I18N:
-                if key.split("-")[0] == lang:
-                    locale_labels = LLMErrorDiagnostic._RECOVERY_LABELS_I18N[key]
-                    break
-
-        return [
-            {
-                "id": action_id,
-                "label": locale_labels.get(action_id, LLMErrorDiagnostic._RECOVERY_LABELS[action_id]),
-                "url": url,
-            }
-            for action_id, url in defs
-        ]
+        """Return localized actionable recovery buttons for the given error type."""
+        return build_recovery_actions(error_type, locale)
 
     @staticmethod
     def _infer_service_name(base_url: str | None) -> str:

@@ -504,6 +504,7 @@ get_locale_manager().register_translations(
 | `toolkits/llms/errors/classifier.py` | LLM错误分类器（`classify_error()`，`ErrorKind` enum） |
 | `toolkits/llms/errors/error_types.py` | 三层分类体系（RecoverabilityLevel / FailoverReason / ProbePolicy） |
 | `agent/errors/diagnostics/engine.py` | `LLMErrorDiagnostic`：LLM 异常 → 本地化 `DiagnosticResult` |
+| `agent/errors/diagnostics/recovery_actions.py` | 恢复按钮目录：`api_key` / `billing` / `model` 等有单击修复的错误类型 → 本地化 `{id, label, url}` |
 | `agent/errors/diagnostics/types.py` | `DiagnosticResult` / `ErrorContext` 数据结构 |
 | `agent/errors/diagnostics/i18n/manager.py` | `LocaleManager`（locale 检测 + 捆绑 JSON + `register_translations()` 扩展） |
 | `agent/errors/diagnostics/i18n/__init__.py` | `get_locale_manager()` 全局单例 |

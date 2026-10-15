@@ -142,9 +142,9 @@ _OVERLOADED_503_RE = re.compile(
 )
 
 _BILLING_RE = re.compile(
-    r"billing|insufficient.?(?:balance|funds|credits|quota)|payment.?required"
-    r"|exceeded.?(?:plan|budget|quota)|credit.?balance|\b402\b"
-    r"|余额不足|额度不足|请充Value|欠费|无可用资源包|account is deactivated|top up your credits",
+    r"billing|insufficient.?(?:balance|funds|credits|quota)|payment.?required|exceeded.?(?:plan|budget|quota)"
+    r"|credit.?balance|\b402\b|run out of credits|used all available credits|grok subscription"
+    r"|余额不足|额度不足|请充值|欠费|无可用资源包|account is deactivated|top up your credits",
     re.IGNORECASE,
 )
 
@@ -394,7 +394,7 @@ _CLOUDFLARE_CHALLENGE_RE = _WAF_CHALLENGE_RE
 class NormalizedError:
     status_code: int | None
     message: str
-    body: dict
+    body: dict[str, object]
 
 
 def _extract_status_code(error: Exception) -> int | None:
@@ -413,7 +413,7 @@ def _extract_status_code(error: Exception) -> int | None:
     return None
 
 
-def _extract_error_body(error: Exception) -> dict:
+def _extract_error_body(error: Exception) -> dict[str, object]:
     body = getattr(error, "body", None)
     if isinstance(body, dict):
         return body
