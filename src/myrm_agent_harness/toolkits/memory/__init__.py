@@ -51,22 +51,7 @@ from myrm_agent_harness.toolkits.memory.four_tier_fts import (
     MemoryScope,
     SqliteFts5MemoryEngine,
 )
-from myrm_agent_harness.toolkits.memory.git_okf import (
-    OKFBundleLoader,
-    OKFConcept,
-    OKFDisclosureSummary,
-    OKFSearchResult,
-    OKFValidationReport,
-)
 from myrm_agent_harness.toolkits.memory.hermes_bridge import import_hermes_bundle
-from myrm_agent_harness.toolkits.memory.job_compounding import (
-    CompoundedRule,
-    CompoundingMaturityTracker,
-    JobDescriptionBuilder,
-    JobDescriptionSpec,
-    PreferenceCompoundingEngine,
-    RuleType,
-)
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.mem_cube import (
     CubeMemoryRecord,
@@ -103,14 +88,6 @@ from myrm_agent_harness.toolkits.memory.onboarding import (
     OnboardingSourceRegistry,
 )
 from myrm_agent_harness.toolkits.memory.private_notebook import ModelPrivateNotebookManager
-from myrm_agent_harness.toolkits.memory.reconciliation import (
-    DiskMemoryFtsReconciler,
-    FtsReconciledHit,
-    MemoryWriteGate,
-    ReconciliationReport,
-    WriteGateCheckResult,
-    WriteGatePolicy,
-)
 from myrm_agent_harness.toolkits.memory.reliability import (
     MemoryArchiveManifest,
     MemoryArchivePayload,
@@ -139,15 +116,6 @@ from myrm_agent_harness.toolkits.memory.reliability import (
     MemoryRepairExecutionResult,
     summarize_recall_benchmark,
 )
-from myrm_agent_harness.toolkits.memory.revocable_provenance import (
-    DreamDiaryRecorder,
-    ProvenanceDreamDiaryEntry,
-    ProvenanceMemoryStore,
-    ProvenanceMetadata,
-    ProvenanceQualifiedMemory,
-    RevocableForgetEngine,
-)
-from myrm_agent_harness.toolkits.memory.screen_observation import ObservationPayload, ScreenObservationMemoryManager
 from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
 from myrm_agent_harness.toolkits.memory.strategies import (
     DynamicPreferenceFitter,
@@ -162,11 +130,6 @@ from myrm_agent_harness.toolkits.memory.temporal_graph import (
     TemporalFactEdge,
 )
 from myrm_agent_harness.toolkits.memory.tool_guidance import ToolGuidanceItem, synthesize_tool_guidance
-from myrm_agent_harness.toolkits.memory.triad_trajectory import (
-    AntiLoopPromptInjector,
-    TaskTriadTrajectoryManager,
-    TrajectoryTaskStatus,
-)
 from myrm_agent_harness.toolkits.memory.two_layer_dialectic import (
     BaseContextPayload,
     DialecticConflictCandidate,
@@ -186,17 +149,6 @@ from myrm_agent_harness.toolkits.memory.types import (
 )
 
 __all__ = [
-    "OKFBundleLoader",
-    "OKFConcept",
-    "OKFDisclosureSummary",
-    "OKFSearchResult",
-    "OKFValidationReport",
-    "DiskMemoryFtsReconciler",
-    "FtsReconciledHit",
-    "MemoryWriteGate",
-    "ReconciliationReport",
-    "WriteGateCheckResult",
-    "WriteGatePolicy",
     "SqliteTemporalGraphStore",
     "TemporalDecayScorer",
     "TemporalEntityNode",
@@ -208,22 +160,7 @@ __all__ = [
     "FtsSearchResult",
     "MemoryScope",
     "SqliteFts5MemoryEngine",
-    "DreamDiaryRecorder",
-    "ProvenanceDreamDiaryEntry",
-    "ProvenanceMemoryStore",
-    "ProvenanceMetadata",
-    "ProvenanceQualifiedMemory",
-    "RevocableForgetEngine",
-    "CompoundedRule",
-    "CompoundingMaturityTracker",
-    "JobDescriptionBuilder",
-    "JobDescriptionSpec",
-    "PreferenceCompoundingEngine",
-    "RuleType",
     "ModelPrivateNotebookManager",
-    "AntiLoopPromptInjector",
-    "TaskTriadTrajectoryManager",
-    "TrajectoryTaskStatus",
     "DynamicPreferenceFitter",
     "DynamicPreferenceVector",
     "EmbeddingCache",
@@ -294,8 +231,6 @@ __all__ = [
     "MigrationSourceType",
     "MultiPlatformMigrationEngine",
     "MultiPlatformParserMatrix",
-    "ObservationPayload",
-    "ScreenObservationMemoryManager",
     "BaseContextPayload",
     "DialecticConflictCandidate",
     "DialecticReconciliationConfig",
