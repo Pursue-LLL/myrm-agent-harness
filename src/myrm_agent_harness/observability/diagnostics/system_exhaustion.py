@@ -4,12 +4,14 @@
 
 [OUTPUT]
 - check_system_exhaustion: Monitor Swap/Pagefile pressure, memory commit limits, and FD exhaustion.
+- SystemExhaustionSnapshot: Typed shape of the telemetry snapshot.
 - get_system_exhaustion_snapshot: Compact structured telemetry snapshot for agent causal reasoning.
 
 [POS]
 Host-level system resource exhaustion probe. Detects virtual memory (Swap / Pagefile)
 saturation, system commit limit exhaustion (Linux Committed_AS / CommitLimit), and file
-descriptor (FD / Handle) leaks. Registered into diagnostic manager and doctor API.
+descriptor (FD / Handle) leaks. Swap fullness alone is a warning; it fails only while
+physical memory is also short. Registered into diagnostic manager and doctor API.
 """
 
 from __future__ import annotations
@@ -19,19 +21,37 @@ import platform
 import resource
 import sys
 from pathlib import Path
+from typing import NotRequired, TypedDict
 
 try:
     import psutil
 except ImportError:
-    psutil = None
+    psutil = None  # type: ignore[assignment]  # optional dependency; callers check for None
 
 from myrm_agent_harness.observability.diagnostics.manager import register_diagnostic
 from myrm_agent_harness.observability.diagnostics.protocols import HealthReport
 
 _SWAP_WARN_THRESHOLD = 70.0
 _SWAP_FAIL_THRESHOLD = 90.0
+# A nearly full swap only means thrashing while memory is also short: macOS sizes swap on demand, so
+# "almost full" is its steady state, and idle pages parked in swap cost nothing until they are touched.
+_LOW_AVAILABLE_MEMORY_PERCENT = 10.0
 _FD_WARN_THRESHOLD = 75.0
 _FD_FAIL_THRESHOLD = 90.0
+
+
+class SystemExhaustionSnapshot(TypedDict):
+    platform: str
+    swap_total_mb: float
+    swap_used_mb: float
+    swap_percent: float
+    memory_available_percent: float | None
+    commit_exhausted: bool
+    committed_as_mb: NotRequired[float]
+    commit_limit_mb: NotRequired[float]
+    fd_allocated: int | None
+    fd_max: int | None
+    fd_usage_percent: float | None
 
 
 def _read_linux_commit_info() -> tuple[int | None, int | None]:
@@ -98,13 +118,27 @@ def _read_system_fd_usage() -> tuple[int | None, int | None, float | None]:
     return allocated_fds, max_fds, ratio
 
 
-def get_system_exhaustion_snapshot() -> dict[str, object]:
+def _read_available_memory_percent() -> float | None:
+    """Share of physical memory the OS can hand out without paging, or None when unreadable."""
+    if psutil is None:
+        return None
+    try:
+        memory = psutil.virtual_memory()
+    except (OSError, RuntimeError):
+        return None
+    if memory.total <= 0:
+        return None
+    return round(memory.available / memory.total * 100.0, 1)
+
+
+def get_system_exhaustion_snapshot() -> SystemExhaustionSnapshot:
     """Generate a compact structured telemetry snapshot for agent causal root-cause reasoning."""
-    snapshot: dict[str, object] = {
+    snapshot: SystemExhaustionSnapshot = {
         "platform": platform.system(),
         "swap_total_mb": 0.0,
         "swap_used_mb": 0.0,
         "swap_percent": 0.0,
+        "memory_available_percent": _read_available_memory_percent(),
         "commit_exhausted": False,
         "fd_allocated": None,
         "fd_max": None,
@@ -147,44 +181,50 @@ async def check_system_exhaustion() -> HealthReport:
 
     try:
         snapshot = await asyncio.to_thread(get_system_exhaustion_snapshot)
-        swap_percent = float(snapshot.get("swap_percent", 0.0) or 0.0)
-        swap_used_mb = float(snapshot.get("swap_used_mb", 0.0) or 0.0)
-        swap_total_mb = float(snapshot.get("swap_total_mb", 0.0) or 0.0)
-        commit_exhausted = bool(snapshot.get("commit_exhausted", False))
-        fd_ratio = snapshot.get("fd_usage_percent")
-        fd_allocated = snapshot.get("fd_allocated")
-        fd_max = snapshot.get("fd_max")
+        swap_percent = snapshot["swap_percent"]
+        swap_used_mb = snapshot["swap_used_mb"]
+        swap_total_mb = snapshot["swap_total_mb"]
+        commit_exhausted = snapshot["commit_exhausted"]
+        available_percent = snapshot["memory_available_percent"]
+        # Unknown availability cannot prove memory is ample, so it keeps the stricter verdict.
+        memory_short = available_percent is None or available_percent < _LOW_AVAILABLE_MEMORY_PERCENT
+        fd_ratio = snapshot["fd_usage_percent"]
+        fd_allocated = snapshot["fd_allocated"]
+        fd_max = snapshot["fd_max"]
 
         detail = f"Swap/Pagefile: {swap_percent:.1f}% ({swap_used_mb:.1f}/{swap_total_mb:.1f}MB)"
+        if available_percent is not None:
+            detail += f", Available memory: {available_percent:.1f}%"
         if fd_allocated is not None and fd_max is not None:
             detail += f", FD/Handles: {fd_allocated}/{fd_max}"
             if fd_ratio is not None:
-                detail += f" ({float(fd_ratio):.1f}%)"
+                detail += f" ({fd_ratio:.1f}%)"
         if commit_exhausted:
             detail += ", Linux CommitLimit Exceeded!"
 
         # 1. Critical Failure: FD exhaustion (EMFILE risk) or severe Swap saturation
-        if fd_ratio is not None and float(fd_ratio) >= _FD_FAIL_THRESHOLD:
+        if fd_ratio is not None and fd_ratio >= _FD_FAIL_THRESHOLD:
             return HealthReport(
                 component_name="SystemExhaustion",
                 status="fail",
                 message="File descriptor usage is critically high (EMFILE risk).",
                 detail=detail,
                 fix_suggestion="Close idle sockets and unclosed file handles in long-running tasks.",
-                measured=f"FD Usage {float(fd_ratio):.1f}%",
+                measured=f"FD Usage {fd_ratio:.1f}%",
                 expected=f"FD Usage <{_FD_FAIL_THRESHOLD:.0f}%",
                 cause="File descriptors near OS limit cause socket/file open failures (EMFILE).",
             )
 
-        if swap_total_mb > 0 and swap_percent >= _SWAP_FAIL_THRESHOLD:
+        if swap_total_mb > 0 and swap_percent >= _SWAP_FAIL_THRESHOLD and memory_short:
             return HealthReport(
                 component_name="SystemExhaustion",
                 status="fail",
                 message="Swap/Pagefile is critically saturated. System thrashing imminent.",
                 detail=detail,
                 fix_suggestion="Terminate orphan worker processes or increase available RAM/Swap.",
-                measured=f"Swap {swap_percent:.1f}%",
-                expected=f"Swap <{_SWAP_FAIL_THRESHOLD:.0f}%",
+                measured=f"Swap {swap_percent:.1f}%"
+                + (f", available memory {available_percent:.1f}%" if available_percent is not None else ""),
+                expected=f"Swap <{_SWAP_FAIL_THRESHOLD:.0f}% or available memory >={_LOW_AVAILABLE_MEMORY_PERCENT:.0f}%",
                 cause="Severe virtual memory exhaustion leads to excessive disk paging and agent stall.",
             )
 
@@ -201,14 +241,14 @@ async def check_system_exhaustion() -> HealthReport:
             )
 
         # 2. Warning: Elevated Swap or FD usage
-        if fd_ratio is not None and float(fd_ratio) > _FD_WARN_THRESHOLD:
+        if fd_ratio is not None and fd_ratio > _FD_WARN_THRESHOLD:
             return HealthReport(
                 component_name="SystemExhaustion",
                 status="warn",
                 message="File descriptor usage is elevated.",
                 detail=detail,
                 fix_suggestion="Inspect processes for unclosed file handles or connection leaks.",
-                measured=f"FD Usage {float(fd_ratio):.1f}%",
+                measured=f"FD Usage {fd_ratio:.1f}%",
                 expected=f"FD Usage <{_FD_WARN_THRESHOLD:.0f}%",
                 cause="Elevated FD consumption may exhaust file handles under high concurrency.",
             )
@@ -222,7 +262,11 @@ async def check_system_exhaustion() -> HealthReport:
                 fix_suggestion="Inspect orphan worker processes consuming virtual memory.",
                 measured=f"Swap {swap_percent:.1f}%",
                 expected=f"Swap <{_SWAP_WARN_THRESHOLD:.0f}%",
-                cause="High swap usage causes elevated I/O wait latency and slower response times.",
+                cause=(
+                    "High swap usage causes elevated I/O wait latency and slower response times."
+                    if memory_short
+                    else "Idle pages were moved to swap earlier; responses slow down only when they are needed again."
+                ),
             )
 
         return HealthReport(
