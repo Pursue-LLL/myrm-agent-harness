@@ -67,7 +67,6 @@ LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset(
         "wiki_maintain_tool",
         # Memory-governance / context meta-tools that ship with unit tests but have
         # no Turn1 mount: not in the Action Tool SSOT until a profile wires them.
-        "arbitrate_cross_agent_memory_conflict",
         "check_memory_ground_truth_drift",
         "inspect_context",
         "inspect_experience_gene_advice",

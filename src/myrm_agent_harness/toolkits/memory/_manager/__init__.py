@@ -16,9 +16,6 @@ from __future__ import annotations
 from myrm_agent_harness.toolkits.memory._manager.archival import MemoryManagerArchivalMixin
 from myrm_agent_harness.toolkits.memory._manager.convenience import MemoryManagerConvenienceMixin
 from myrm_agent_harness.toolkits.memory._manager.core import MemoryManagerCore
-from myrm_agent_harness.toolkits.memory._manager.cross_agent import (
-    MemoryManagerCrossAgentMixin,
-)
 from myrm_agent_harness.toolkits.memory._manager.deletion import MemoryManagerDeletionMixin
 from myrm_agent_harness.toolkits.memory._manager.drift_defense import (
     MemoryManagerDriftDefenseMixin,
@@ -67,7 +64,6 @@ class MemoryManager(
     MemoryManagerExperienceEvolutionMixin,
     MemoryManagerDriftDefenseMixin,
     MemoryManagerSovereignMigrationMixin,
-    MemoryManagerCrossAgentMixin,
     MemoryManagerKGScreeningMixin,
     MemoryManagerIntegrationPurgeMixin,
     MemoryManagerMutationsMixin,
