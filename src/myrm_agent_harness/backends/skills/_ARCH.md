@@ -17,6 +17,7 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | prerequisites/ | Core | Skill runtime prerequisites contract, host system dependency sniffing (OS/binaries/Python), and cross-platform one-click remediation command generators. | ✅ |
 | market_protocols.py | Core | SkillMarketBackend protocol and search/install result types. | ✅ |
 | factory.py | Core | SkillBackend factory for local, storage, memory, and composite backends. | ✅ |
+| curator_config.py | Core | `CuratorConfig`: curator knobs, defaults and construction-time range validation (`ValueError` outside the safe ranges). | ✅ |
 | forgetting_strategy.py | Core | Curator forgetting strategies (pinned, evolution lock, grace, source-aware). | ✅ |
 | local.py | Core | Local filesystem skill backend; filters archived skills via lifecycle stats. | ✅ |
 | memory.py | Core | In-memory skill backend for dynamic and MCP-generated skills. | ✅ |

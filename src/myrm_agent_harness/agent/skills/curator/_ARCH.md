@@ -21,7 +21,8 @@ Performs stateless sweeps: evaluates skills against CuratorConfig thresholds, ap
 
 ## Key Dependencies
 
-- `backends.skills.forgetting_strategy` (CuratorConfig, DefaultForgettingStrategy)
+- `backends.skills.curator_config` (CuratorConfig)
+- `backends.skills.forgetting_strategy` (DefaultForgettingStrategy)
 - `backends.skills.stats_collector` (SkillStatsCollector)
 - `backends.skills.types` (SkillMetadata, SkillLifecycleStatus)
 - `backends.skills.creation_protocols` (SkillWriteBackend — for consolidation execution)
@@ -41,6 +42,8 @@ Skills → Filter (eligible) → ClusterDetector (prefix + embedding)
 `run` / `run_async` take `protected_names`: skills the host depends on (e.g. bound by a scheduled job or an agent profile). A protected skill is never staled, archived, LRU-evicted or consolidated, and — like a pinned one — does not count toward `max_skills`. It is tallied in `CuratorRunResult.skipped_protected`; a pinned skill is tallied as `skipped_pinned` even when also protected. The harness stays ignorant of what binds a skill; the host decides.
 
 ## Configuration
+
+`CuratorConfig` validates its numeric fields on construction (a sweep runs unattended, so a zero-day stale window or a zero skill limit would move the whole library in one pass) and raises `ValueError` outside the safe ranges.
 
 All consolidation parameters are in `CuratorConfig`:
 - `consolidation_enabled`: Master switch (default: **False** — LLM consolidation is opt-in via Settings)

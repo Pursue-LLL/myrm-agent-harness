@@ -846,7 +846,7 @@ class TestCuratorEngineConsolidationIntegration:
     @pytest.mark.asyncio
     async def test_run_async_without_consolidation(self, tmp_path: Path) -> None:
         from myrm_agent_harness.agent.skills.curator.engine import SkillCurator
-        from myrm_agent_harness.backends.skills.forgetting_strategy import CuratorConfig
+        from myrm_agent_harness.backends.skills.curator_config import CuratorConfig
         from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
 
         skills_dir = tmp_path / "skills"
@@ -862,7 +862,7 @@ class TestCuratorEngineConsolidationIntegration:
     @pytest.mark.asyncio
     async def test_run_async_with_consolidation_deps(self, tmp_path: Path) -> None:
         from myrm_agent_harness.agent.skills.curator.engine import SkillCurator
-        from myrm_agent_harness.backends.skills.forgetting_strategy import CuratorConfig
+        from myrm_agent_harness.backends.skills.curator_config import CuratorConfig
         from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
 
         skills_dir = tmp_path / "skills"

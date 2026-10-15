@@ -13,7 +13,8 @@ Design principles:
 
 [INPUT]
 - backends.skills.types::SkillMetadata, SkillLifecycleStatus (POS: 技能元数据类型定义)
-- backends.skills.forgetting_strategy::DefaultForgettingStrategy, CuratorConfig (POS: Skill forgetting / curator strategies)
+- backends.skills.curator_config::CuratorConfig (POS: Skill curator configuration.)
+- backends.skills.forgetting_strategy::DefaultForgettingStrategy (POS: Skill forgetting / curator strategies)
 - backends.skills.stats_collector::SkillStatsCollector (POS: Skill usage statistics and lifecycle state collector)
 - .consolidation::SkillConsolidator (POS: Skill consolidation orchestrator)
 
@@ -31,10 +32,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.backends.skills.forgetting_strategy import (
-    CuratorConfig,
-    DefaultForgettingStrategy,
-)
+from myrm_agent_harness.backends.skills.curator_config import CuratorConfig
+from myrm_agent_harness.backends.skills.forgetting_strategy import DefaultForgettingStrategy
 from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
 from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus, SkillMetadata
 
