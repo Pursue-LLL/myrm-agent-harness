@@ -106,6 +106,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | `fleet_router/` | 跨机分布式舰队 Profile Rail 全景导航轨、多网关拓扑自愈、离线缓冲与跨机工件中继中枢（对标 Hermes Desktop PROFILE RAIL 舰队级扩展实践，提供 Darwin/Linux/Cloud 多网关连接池、心跳遥测与健康度自感知、断网离线指令 FIFO 缓冲与自愈排空重连 Auto-Healing Flush、Agent 宿主拓扑上下文自动注入、以及 SHA-256 跨网关安全工件中继验证）。 |
 | `graph_triage/` | 图工程自适应适用性评估门禁与并发 Token 预算熔断套件（对标 Graph Engineering 行业实践与成本失控治理规范，提供单步/探索对话/纯时序流水线/多路重型并行启发式准入评估门禁 `GraphApplicabilityTriageGate`、扇出前置 Token 预估与硬上限预算熔断器 `PredictiveBudgetGuard`、以及基于剩余预算的动态自适应并发节流与危急状态提前局部优雅归约引擎 `ElasticConcurrencyReducer`）。 |
 | `orthogonal_reviewer/` | 正交双视角审查门禁与零偏见盲审子代理（对标 Codex 双审查子代理实践，彻底终结大模型自我合理化偏见；提供注入完整设计意图的 Reviewer A、物理隔离历史 CoT 纯看 Diff 与契约的盲态 Reviewer B、以及缺陷语义去重、严重度裁决与定向自动修复闭环仲裁器 `OrthogonalReviewArbiter`）。 |
+| `live_transcript/` | 子 Agent 实时透明 Live Transcript 轨迹流、后台委派任务持久化恢复账本、单次命令绑定 Smart Approvals 与 /deny 交互反馈、以及 MoA 角色细粒度推理强度动态分配套件（对标 Hermes v0.19 委托透明与持久化体系，消除多 Agent 协作盲区与后台任务丢失风险）。 |
 
 
 
