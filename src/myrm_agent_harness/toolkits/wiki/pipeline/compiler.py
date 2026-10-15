@@ -373,6 +373,29 @@ class WikiCompiler:
                 del self.__class__._active_workers[user_key]
             logger.info(f"Wiki background worker stopped for {user_key}")
 
+    async def enqueue_changed_sources(self) -> int:
+        """Queue the raw files a compile has to read: the new or changed ones, or all of them for a full strategy.
+
+        Nothing is compiled here; the background worker (``start_background_worker``) drains the queue.
+
+        Returns:
+            How many files were queued.
+        """
+        from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.eligibility import (
+            CorpusEligibilityFilter,
+        )
+
+        raw_files = CorpusEligibilityFilter(self._structure).filter_raw_paths(self._structure.list_raw_files())
+        if self._config.compile_strategy == "incremental":
+            files = await self._filter_changed_files(raw_files)
+            logger.info(f"Incremental compile: adding {len(files)} changed files to queue")
+        else:
+            files = raw_files
+            logger.info(f"Full compile: adding {len(files)} files to queue")
+        if files:
+            self._queue.add_batch(files)
+        return len(files)
+
     async def compile_all(self, batch_size: int = 10) -> CompileResult:
         """
         Compile all raw documents to wiki using the persistent queue.
@@ -381,22 +404,9 @@ class WikiCompiler:
             CompileResult with statistics
         """
         start_time = datetime.now(UTC)
-        from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.eligibility import (
-            CorpusEligibilityFilter,
-        )
-
-        raw_files = CorpusEligibilityFilter(self._structure).filter_raw_paths(self._structure.list_raw_files())
 
         # Step 0: Add files to queue based on strategy
-        if self._config.compile_strategy == "incremental":
-            changed_files = await self._filter_changed_files(raw_files)
-            logger.info(f"Incremental compile: adding {len(changed_files)} changed files to queue")
-            if changed_files:
-                self._queue.add_batch(changed_files)
-        else:
-            logger.info(f"Full compile: adding {len(raw_files)} files to queue")
-            if raw_files:
-                self._queue.add_batch(raw_files)
+        await self.enqueue_changed_sources()
 
         pending_items = self._queue.get_pending_items(limit=batch_size)
 
