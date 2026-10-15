@@ -37,7 +37,7 @@ myrm_agent_harness/agent/skills/evolution/pipeline/screener.py	625
 myrm_agent_harness/agent/skills/market/service.py	852
 myrm_agent_harness/agent/streaming/recovery/stream_recovery.py	810
 myrm_agent_harness/agent/streaming/recovery/stream_recovery_oneshot.py	673
-myrm_agent_harness/agent/streaming/stream_executor.py	642
+myrm_agent_harness/agent/streaming/stream_executor.py	611
 myrm_agent_harness/agent/sub_agents/checkpoint/checkpoint_manager.py	502
 myrm_agent_harness/agent/sub_agents/event_forwarder.py	622
 myrm_agent_harness/agent/sub_agents/manager.py	608
@@ -121,6 +121,6 @@ myrm_agent_harness/utils/text_utils.py	503
 myrm_agent_harness/utils/token_economics/tracker.py	595
 myrm_agent_harness/utils/url_utils.py	505
 myrm_agent_harness/toolkits/wiki/core/structure.py	507
-myrm_agent_harness/agent/streaming/stream_dispatcher.py	534
+myrm_agent_harness/agent/streaming/stream_dispatcher.py	498
 myrm_agent_harness/toolkits/memory/strategies/merger.py	554
 myrm_agent_harness/toolkits/retriever/bm25_retrieval.py	501

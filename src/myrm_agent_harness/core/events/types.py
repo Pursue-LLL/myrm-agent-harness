@@ -158,7 +158,6 @@ class AgentEventType(StrEnum):
     WORKING_MEMORY = "working_memory"
     CUSTOM = "custom"
     CUSTOM_MESSAGE = "custom_message"
-    TTSR_TRIGGERED = "ttsr_triggered"
     ASYNC_USER_MESSAGE = "async_user_message"
 
 
