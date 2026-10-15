@@ -118,7 +118,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "conclusion_attribution",
                 "cross_agent",
                 "ephemeral_delta",
-                "experience_compounding",
                 "four_tier_fts",
                 "git_okf",
                 "hybrid_engine",

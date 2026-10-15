@@ -50,10 +50,6 @@ from myrm_agent_harness.toolkits.memory.dreaming import (
     DreamSessionFragment,
     GrowthDiaryEntry,
 )
-from myrm_agent_harness.toolkits.memory.experience_compounding import (
-    CompoundedExperienceItem,
-    ExperienceCompoundingSuite,
-)
 from myrm_agent_harness.toolkits.memory.four_tier_fts import (
     DreamCompactionReport,
     FourTierDreamCompactor,
@@ -373,6 +369,4 @@ __all__ = [
     "IncrementalIndexingPipeline",
     "MarkdownChunk",
     "MarkdownSlidingWindowChunker",
-    "CompoundedExperienceItem",
-    "ExperienceCompoundingSuite",
 ]
