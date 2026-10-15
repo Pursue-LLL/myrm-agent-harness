@@ -9,10 +9,10 @@ from collections.abc import Iterable
 import pytest
 
 from myrm_agent_harness.core.security.detection.leak_detector import _API_KEY_PATTERNS
-from myrm_agent_harness.core.security.detection.token_start import TokenStartPattern
+from myrm_agent_harness.core.security.detection.token_start import NUMBER_START, TOKEN_START, TokenStartPattern
 
 _SK = re.compile(r"sk-[a-zA-Z0-9_-]{8,}")
-_WITH_LOOKBEHIND = {name: re.compile(r"(?<![A-Za-z0-9])" + pattern.pattern) for name, pattern in _API_KEY_PATTERNS}
+_WITH_LOOKBEHIND = {name: re.compile(TOKEN_START + pattern.pattern) for name, pattern in _API_KEY_PATTERNS}
 
 _PIECES = (
     "sk-",
@@ -31,6 +31,10 @@ _PIECES = (
     "0123456789",
     " ",
     "\n",
+    "\\n",
+    "\\t",
+    "%3D",
+    "%20",
     "=",
     ":",
     "/",
@@ -61,13 +65,28 @@ def _spans(matches: Iterable[re.Match[str]]) -> list[tuple[int, int]]:
         ("(sk-abcdefgh12)", True),
         ("密钥sk-abcdefgh12", True),
         ("my_sk-abcdefgh12", True),
+        ("line\\nsk-abcdefgh12", True),
+        ("a\\r\\nsk-abcdefgh12", True),
+        ("a\\tsk-abcdefgh12", True),
+        ("token%3Dsk-abcdefgh12", True),
+        ("q%20sk-abcdefgh12", True),
         ("task-abcdefgh12", False),
         ("1sk-abcdefgh12", False),
+        ("\\xsk-abcdefgh12", False),
+        ("%3sk-abcdefgh12", False),
         ("nothing here", False),
     ],
 )
-def test_a_match_counts_only_where_no_letter_or_digit_precedes_it(text: str, found: bool) -> None:
+def test_a_match_counts_only_where_a_token_starts(text: str, found: bool) -> None:
     assert bool(TokenStartPattern(_SK).search(text)) is found
+
+
+@pytest.mark.parametrize(
+    ("text", "found"),
+    [("123456789:key", True), ("bot123456789:key", True), ("1123456789:key", False)],
+)
+def test_the_number_start_rules_out_only_a_longer_number(text: str, found: bool) -> None:
+    assert bool(TokenStartPattern(re.compile(r"\d{9}:key"), NUMBER_START).search(text)) is found
 
 
 def test_a_match_after_a_rejected_one_inside_the_same_run_is_still_found() -> None:
@@ -79,10 +98,20 @@ def test_a_match_after_a_rejected_one_inside_the_same_run_is_still_found() -> No
 
 
 def test_every_vendor_shape_gives_the_same_matches_as_a_lookbehind() -> None:
-    texts = _texts(400)
+    texts = _texts(1500)
+    matched = rejected = 0
     for name, pattern in _API_KEY_PATTERNS:
         wrapped, reference = TokenStartPattern(pattern), _WITH_LOOKBEHIND[name]
         for text in texts:
             assert _spans(wrapped.finditer(text)) == _spans(reference.finditer(text)), (name, text)
             assert (wrapped.search(text) is None) == (reference.search(text) is None), (name, text)
             assert wrapped.sub(lambda m: "[X]", text) == reference.sub(lambda m: "[X]", text), (name, text)
+            matched += reference.search(text) is not None
+            rejected += reference.search(text) is None and pattern.search(text) is not None
+    assert matched > 100, "the texts hold too few keys to show that the wrapper keeps what it should"
+    assert rejected > 50, "the texts hold too few mid-word prefixes to show that the wrapper drops what it should"
+
+
+def test_no_vendor_shape_matches_the_empty_string() -> None:
+    """A wrapper that resumes one character after a match would otherwise report an empty match at every position."""
+    assert [name for name, pattern in _API_KEY_PATTERNS if pattern.search("") is not None] == []

@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.core.security.detection.leak_detector import redact_leaks, scan_for_leaks
+from myrm_agent_harness.core.security.detection.leak_detector import (
+    _API_KEY_PATTERNS,
+    _NUMBER_LED_KEY_NAMES,
+    redact_leaks,
+    scan_for_leaks,
+)
 
 _OPENAI_BODY = ("aB3dE5fG7h" * 5)[:48]
 _OPENAI_KEY = f"sk-{_OPENAI_BODY}"
 _PROJECT_KEY = "sk-proj-" + ("aB3-dE5_fG7" * 14)[:150]
 _GITHUB_KEY = "ghp_" + "aB3dE5fG7h" * 4
 _AWS_KEY = "AKIA" + "ABCD3FGH5JKL7NOP"
+_TELEGRAM_KEY = "123456789:" + "aB3dE5fG7h" * 3 + "aB3dE"
 
 # ``sk-`` ends "task", "risk", "disk" and "ask": a hyphenated slug of 48+ characters has the shape of an OpenAI key.
 _SLUG_TEXTS = (
@@ -33,6 +39,12 @@ _PASTED_KEYS = (
     (f"我的密钥是{_OPENAI_KEY}，帮我配置", _OPENAI_KEY),
     (f"token {_GITHUB_KEY}", _GITHUB_KEY),
     (f"AWS key {_AWS_KEY}", _AWS_KEY),
+    (f"first line\\n{_OPENAI_KEY}\\nlast line", _OPENAI_KEY),
+    (f"a\\r\\n{_AWS_KEY}", _AWS_KEY),
+    (f"a\\t{_GITHUB_KEY}", _GITHUB_KEY),
+    (f"?token%3D{_OPENAI_KEY}", _OPENAI_KEY),
+    (f"q%20{_OPENAI_KEY}", _OPENAI_KEY),
+    (f"https://api.telegram.org/bot{_TELEGRAM_KEY}/getMe", _TELEGRAM_KEY),
 )
 
 # One real key per vendor shape that is not an identifier: the name the table reports for it.
@@ -64,3 +76,15 @@ def test_a_key_is_masked_wherever_it_is_pasted(text: str, key: str) -> None:
 def test_a_vendor_prefix_inside_a_word_is_not_that_vendors_key(name: str, key: str) -> None:
     assert name in scan_for_leaks(key)
     assert name not in scan_for_leaks(f"word{key}")
+
+
+@pytest.mark.parametrize("text", [f"12{_TELEGRAM_KEY}", f"123{_TELEGRAM_KEY}"])
+def test_a_longer_number_in_front_of_a_telegram_id_is_not_a_bot_token(text: str) -> None:
+    assert "telegram_bot" not in scan_for_leaks(text)
+    assert "telegram_bot" in scan_for_leaks(f"bot{_TELEGRAM_KEY}")
+
+
+def test_the_shapes_opening_with_digits_are_the_ones_named_for_the_number_start() -> None:
+    opening_with_digits = {name for name, pattern in _API_KEY_PATTERNS if pattern.pattern.startswith("\\d")}
+
+    assert opening_with_digits == _NUMBER_LED_KEY_NAMES

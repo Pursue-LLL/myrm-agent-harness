@@ -19,6 +19,7 @@ fully redacted (BEGIN to END) with type label preserved.
 - core.security.detection.secret_value::is_reference_value (POS: shared rules telling a secret from a reference to
   one: templates, identifiers, calls, class names, slugs, domains, query strings.)
 - core.security.detection.entropy_scan::scan_high_entropy (POS: unknown-credential tier of the leak detector.)
+- core.security.detection.token_start::TokenStartPattern (POS: the vendor-prefix shapes count only where a token starts.)
 
 [OUTPUT]
 - DISTINCTIVE_KEY_PATTERNS: the vendor-prefix shapes that identify a key on their own (name, pattern), for a caller that
@@ -40,7 +41,7 @@ from functools import partial
 
 from myrm_agent_harness.core.security.detection.entropy_scan import scan_high_entropy
 from myrm_agent_harness.core.security.detection.secret_value import is_reference_value
-from myrm_agent_harness.core.security.detection.token_start import TokenStartPattern
+from myrm_agent_harness.core.security.detection.token_start import NUMBER_START, TOKEN_START, TokenStartPattern
 
 logger = logging.getLogger(__name__)
 
@@ -254,9 +255,16 @@ def _scan_context_patterns(content: str) -> list[str]:
 
 # A vendor prefix marks a key only where a token starts: ``sk-`` also ends "task", "risk" and "disk", so without the
 # boundary a 48-character URL slug (``/blog/task-management-best-practices-...``) reads as an OpenAI key and is masked in
-# the text a caller stores. ``DISTINCTIVE_KEY_PATTERNS`` stays unbounded: a caller that joins it adds the boundary once.
+# the text a caller stores. ``DISTINCTIVE_KEY_PATTERNS`` stays unbounded: a caller that joins it adds ``TOKEN_START`` once.
+# A shape that opens with digits is written after letters (``bot`` + id in a Telegram API URL), so only a longer number
+# in front of it rules out a start.
+_NUMBER_LED_KEY_NAMES: frozenset[str] = frozenset({"telegram_bot"})
+
 _ALL_PREFIX_STRUCTURAL: tuple[tuple[str, re.Pattern[str] | TokenStartPattern], ...] = (
-    *((name, TokenStartPattern(pattern)) for name, pattern in _API_KEY_PATTERNS),
+    *(
+        (name, TokenStartPattern(pattern, NUMBER_START if name in _NUMBER_LED_KEY_NAMES else TOKEN_START))
+        for name, pattern in _API_KEY_PATTERNS
+    ),
     *_STRUCTURAL_PATTERNS,
 )
 
