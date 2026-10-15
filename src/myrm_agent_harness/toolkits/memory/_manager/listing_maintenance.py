@@ -10,14 +10,6 @@ if TYPE_CHECKING:
         DecayRerankItem,
         TierMigrationReport,
     )
-    from myrm_agent_harness.toolkits.memory.strategies.hindsight.reflection_buffer import (
-        HindsightReflectionBuffer,
-    )
-    from myrm_agent_harness.toolkits.memory.strategies.hindsight.types import (
-        FailureTurn,
-        HindsightRule,
-        PreExecutionWarning,
-    )
 
 from myrm_agent_harness.infra.cooperative_signals import (
     CooperativePauseSignal,
@@ -380,53 +372,3 @@ class MemoryManagerListingMaintenanceMixin:
             exclude_cold=exclude_cold,
             current_time=current_time,
         )
-
-    def get_hindsight_pre_execution_warnings(
-        self,
-        task_goal: str,
-        intended_tools: list[str] | None = None,
-        buffer: HindsightReflectionBuffer | None = None,
-        top_k: int = 3,
-    ) -> list[PreExecutionWarning]:
-        """Query proactive cautionary warnings from hindsight reflection buffer before task execution."""
-        from myrm_agent_harness.toolkits.memory.strategies.hindsight import (
-            HindsightReflectionBuffer,
-        )
-
-        active_buffer = buffer or HindsightReflectionBuffer()
-        return active_buffer.match_warnings(
-            task_goal=task_goal,
-            intended_tools=intended_tools,
-            top_k=top_k,
-        )
-
-    def reflect_on_failed_task(
-        self,
-        task_id: str,
-        task_goal: str,
-        error_message: str,
-        turns: list[FailureTurn] | None = None,
-        buffer: HindsightReflectionBuffer | None = None,
-    ) -> HindsightRule:
-        """Perform retrospective reflection and counterfactual extraction on a failed task trajectory."""
-        from myrm_agent_harness.toolkits.memory.strategies.hindsight import (
-            CounterfactualRuleExtractor,
-            FailureTrajectory,
-            FailureTrajectoryScrubber,
-            HindsightReflectionBuffer,
-        )
-
-        active_buffer = buffer or HindsightReflectionBuffer()
-        trajectory = FailureTrajectory(
-            task_id=task_id,
-            task_goal=task_goal,
-            turns=turns or [],
-            terminal_error=error_message,
-        )
-        scrubber = FailureTrajectoryScrubber()
-        turning_point = scrubber.locate_turning_point(trajectory)
-
-        extractor = CounterfactualRuleExtractor()
-        rule = extractor.extract_rule(trajectory=trajectory, turning_point=turning_point)
-        return active_buffer.record_rule(rule)
-

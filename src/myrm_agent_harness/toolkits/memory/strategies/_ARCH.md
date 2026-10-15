@@ -43,7 +43,6 @@ Optional memory strategies: forgetting, extraction, deduplication, consolidation
 | Submodule | Description |
 |-----------|-------------|
 | four_layer_promotion/ | Harness memory strategy implementing Hermes-grade four-layer progressive memory, two-step Map-Reduce consolidation, and tri-channel anti-poisoning governance. See [four_layer_promotion/_ARCH.md](four_layer_promotion/_ARCH.md). |
-| hindsight/ | Hindsight Experience Replay and Retrospective Reflection Buffer package. See [hindsight/_ARCH.md](hindsight/_ARCH.md). |
 
 ## Key Dependencies
 
