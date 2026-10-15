@@ -4,7 +4,6 @@ from myrm_agent_harness.core.events import (
     THINKING_TAG_NAMES,
     AgentEventType,
     AgentStreamEvent,
-    ApprovalInterceptedEventData,
     ContextBudgetSnapshot,
 )
 
@@ -214,18 +213,6 @@ class TestContextBudgetSnapshot:
         assert d["mcp_tools_tokens"] == 800
         assert d["skills_tools_tokens"] == 400
         assert d["builtin_tools_tokens"] == 200
-
-
-
-class TestApprovalInterceptedEventData:
-    def test_creation(self) -> None:
-        data = ApprovalInterceptedEventData(decision="approved")
-        assert data.decision == "approved"
-        assert data.original_text is None
-
-    def test_with_original_text(self) -> None:
-        data = ApprovalInterceptedEventData(decision="rejected", original_text="rm -rf /")
-        assert data.original_text == "rm -rf /"
 
 
 class TestThinkingTagNames:

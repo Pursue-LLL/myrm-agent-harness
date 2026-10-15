@@ -239,3 +239,98 @@ async def test_cancel_all_clears_resolved_keys() -> None:
     scheduler.resolve_if_first("all-1")
     scheduler.cancel_all()
     assert scheduler.resolve_if_first("all-1") is True
+
+
+# --- The timer path must survive its own claim ---
+
+
+@pytest.mark.asyncio
+async def test_timeout_callback_runs_to_completion_across_awaits() -> None:
+    """A real resume callback awaits I/O; the timer must not cancel itself while claiming the key."""
+    scheduler = ApprovalTimeoutScheduler.get()
+    stages: list[str] = []
+
+    async def callback(rv: dict[str, object]) -> None:
+        stages.append("started")
+        await asyncio.sleep(0.02)
+        stages.append("finished")
+
+    scheduler.schedule("run-1", timeout_seconds=0.02, behavior="deny", resume_callback=callback)
+    await asyncio.sleep(0.2)
+    assert stages == ["started", "finished"]
+    assert scheduler.pending_count == 0
+
+
+@pytest.mark.asyncio
+async def test_callback_can_schedule_next_timeout_for_same_key() -> None:
+    """The resumed run may stop at a new interrupt and arm the next timer for the same key."""
+    scheduler = ApprovalTimeoutScheduler.get()
+    stages: list[str] = []
+
+    async def second(rv: dict[str, object]) -> None:
+        stages.append("second")
+
+    async def first(rv: dict[str, object]) -> None:
+        stages.append("first-started")
+        scheduler.schedule("chain-1", timeout_seconds=10, behavior="deny", resume_callback=second)
+        await asyncio.sleep(0.02)
+        stages.append("first-finished")
+
+    scheduler.schedule("chain-1", timeout_seconds=0.02, behavior="deny", resume_callback=first)
+    await asyncio.sleep(0.2)
+    assert stages == ["first-started", "first-finished"]
+    assert scheduler.pending_count == 1
+
+    # The newly armed timer keeps its handle, so a manual resume still cancels it.
+    assert scheduler.resolve_if_first("chain-1") is True
+    assert scheduler.pending_count == 0
+
+
+@pytest.mark.asyncio
+async def test_manual_resolve_cancels_pending_timer_but_timer_claim_does_not_cancel_itself() -> None:
+    scheduler = ApprovalTimeoutScheduler.get()
+    fired: list[str] = []
+
+    async def callback(rv: dict[str, object]) -> None:
+        fired.append("timer")
+        await asyncio.sleep(0.02)
+        fired.append("timer-done")
+
+    scheduler.schedule("mix-1", timeout_seconds=0.02, behavior="deny", resume_callback=callback)
+    scheduler.schedule("mix-2", timeout_seconds=10, behavior="deny", resume_callback=callback)
+    assert scheduler.resolve_if_first("mix-2") is True
+    await asyncio.sleep(0.2)
+    assert fired == ["timer", "timer-done"]
+    assert scheduler.pending_count == 0
+
+
+# --- reopen: a fresh interrupt without a timer must accept its own resolution ---
+
+
+@pytest.mark.asyncio
+async def test_reopen_accepts_the_next_resolution() -> None:
+    scheduler = ApprovalTimeoutScheduler.get()
+
+    async def noop(rv: dict[str, object]) -> None:
+        pass
+
+    scheduler.schedule("reopen-1", timeout_seconds=10, behavior="deny", resume_callback=noop)
+    assert scheduler.resolve_if_first("reopen-1") is True
+    assert scheduler.resolve_if_first("reopen-1") is False
+
+    scheduler.reopen("reopen-1")
+    assert scheduler.resolve_if_first("reopen-1") is True
+    assert scheduler.resolve_if_first("reopen-1") is False
+
+
+@pytest.mark.asyncio
+async def test_reopen_leaves_a_pending_timer_untouched() -> None:
+    scheduler = ApprovalTimeoutScheduler.get()
+
+    async def noop(rv: dict[str, object]) -> None:
+        pass
+
+    scheduler.schedule("reopen-2", timeout_seconds=10, behavior="deny", resume_callback=noop)
+    scheduler.reopen("reopen-2")
+    assert scheduler.pending_count == 1
+    scheduler.cancel_all()

@@ -12,8 +12,5 @@ from myrm_agent_harness.core.events.types import (
     AgentStreamEvent as AgentStreamEvent,
 )
 from myrm_agent_harness.core.events.types import (
-    ApprovalInterceptedEventData as ApprovalInterceptedEventData,
-)
-from myrm_agent_harness.core.events.types import (
     ContextBudgetSnapshot as ContextBudgetSnapshot,
 )

@@ -561,22 +561,6 @@ async def run_agent_loop(
 
         thread_id = session_key or message_id
 
-        # Intercept approval text before processing query
-        from myrm_agent_harness.agent.middlewares.approval_interception import (
-            intercept_approval_text,
-        )
-
-        try:
-            query = await intercept_approval_text(
-                query=query,
-                checkpointer=agent_state.checkpointer,
-                thread_id=thread_id,
-                message_id=message_id,
-                output_queue=output_queue,
-            )
-        except Exception as e:
-            logger.warning(f"Approval text interception failed: {e}")
-
         agent_input: Command[Any] | AgentState[Any]
 
         if isinstance(query, Command):

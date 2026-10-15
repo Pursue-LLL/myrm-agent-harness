@@ -16,6 +16,7 @@ run agent stream, persist results).
 [OUTPUT]
 - Auto-resume callback execution on timeout
 - Idempotent resolution via `resolve_if_first` (prevents race between timeout and manual resume)
+- `reopen` re-arms resolution for a key whose resumed run stopped at a new interrupt without a timer
 
 [POS]
 Stateless in-memory scheduler. Timeouts are lost on process restart,
@@ -37,9 +38,10 @@ ResumeCallback = Callable[[dict[str, object]], Awaitable[None]]
 class ApprovalTimeoutScheduler:
     """Schedules auto-resume when approval requests timeout.
 
-    Uses ``resolve_if_first`` for idempotent resolution: whichever side
-    (timeout or manual resume) calls it first wins; the loser is a no-op.
-    This eliminates the race condition where both could fire concurrently.
+    Resolution is idempotent per key: whichever side (timeout or manual resume)
+    claims it first wins; the loser is a no-op. This eliminates the race
+    condition where both could fire concurrently. The manual path claims through
+    ``resolve_if_first`` (which also cancels the timer); the timer claims directly.
 
     Usage::
 
@@ -104,18 +106,30 @@ class ApprovalTimeoutScheduler:
         )
 
     def resolve_if_first(self, key: str) -> bool:
-        """Atomically resolve a pending approval key. Returns True only for the first caller.
+        """Atomically resolve a pending approval key on the manual path. Returns True only for the first caller.
 
-        Both the timeout callback and the manual resume path must call this
-        before proceeding. The loser (second caller) gets False and must abort.
+        The manual resume path must call this before proceeding; a True result
+        also cancels the pending timer. The loser (second caller) gets False and
+        must abort. The timer path claims the key itself and never cancels itself.
         """
+        if not self._claim(key):
+            return False
+        self.cancel(key)
+        return True
+
+    def reopen(self, key: str) -> None:
+        """Accept a fresh resolution for ``key`` after the run stopped at a new interrupt that carries no timer.
+
+        A pending timer is left untouched.
+        """
+        self._resolved_keys.discard(key)
+
+    def _claim(self, key: str) -> bool:
+        """Mark ``key`` resolved. Returns False when it already was."""
         if key in self._resolved_keys:
             logger.debug("Approval already resolved (duplicate): key=%s", key)
             return False
         self._resolved_keys.add(key)
-        task = self._tasks.pop(key, None)
-        if task and not task.done():
-            task.cancel()
         return True
 
     async def _run(
@@ -126,11 +140,15 @@ class ApprovalTimeoutScheduler:
         callback: ResumeCallback,
         resume_value_override: dict[str, object] | None,
     ) -> None:
+        task = asyncio.current_task()
         try:
             await asyncio.sleep(timeout)
-            if not self.resolve_if_first(key):
+            if not self._claim(key):
                 logger.info("Approval timeout lost race (already resolved): key=%s", key)
                 return
+            # Detach before resuming: the resumed run may stop at a new interrupt and arm the next
+            # timer for this key, and `schedule` cancels whatever task is registered under the key.
+            self._detach(key, task)
             resume_value: dict[str, object]
             if resume_value_override is not None:
                 resume_value = resume_value_override
@@ -154,7 +172,12 @@ class ApprovalTimeoutScheduler:
         except Exception:
             logger.exception("Approval timeout callback failed: key=%s", key)
         finally:
-            self._tasks.pop(key, None)
+            self._detach(key, task)
+
+    def _detach(self, key: str, task: asyncio.Task[None] | None) -> None:
+        """Drop the registry entry only if it still belongs to ``task`` (a newer timer may own the key)."""
+        if task is not None and self._tasks.get(key) is task:
+            del self._tasks[key]
 
     def cancel(self, key: str) -> bool:
         """Cancel a pending timeout. Returns True if a timer was actually cancelled."""

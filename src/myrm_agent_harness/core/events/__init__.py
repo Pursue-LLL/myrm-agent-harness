@@ -9,7 +9,6 @@ Re-exports:
 from myrm_agent_harness.core.events.types import (
     AgentEventType,
     AgentStreamEvent,
-    ApprovalInterceptedEventData,
     ContextBudgetSnapshot,
 )
 
@@ -17,7 +16,6 @@ __all__ = [
     "THINKING_TAG_NAMES",
     "AgentEventType",
     "AgentStreamEvent",
-    "ApprovalInterceptedEventData",
     "ContextBudgetSnapshot",
 ]
 

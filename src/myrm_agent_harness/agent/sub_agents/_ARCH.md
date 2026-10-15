@@ -103,6 +103,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | `bot_forge/` | 对话式智能体与团队工厂、确定性创建流水线与建造者权限安全边界套件（对标 Pi specs/pi-pi.md 与 Hermes Bot Forge 出货形态，提供 Anti-recursion 防递归繁衍守卫、Permission Attenuation 权限收敛边界门禁、名称唯一性与语义职责重叠分析、Zero-model 干跑就绪核验、以及原子化 Transactional Rollback 状态机事务回滚中枢）。 |
 | `external_bundle/` | 异构外部第三方 Agent 容器化收编与子代理 Profile Bundle 调度桥接器（对标 DeepSeek Harness RC.8 subagent-claude-code 与 subagent-codex 调度层，提供 Claude Code/Codex/Gemini CLI 规范封装、工作区沙箱目录继承与防越权校验、破除单一 backend 锁的无锁高并发多实例多路复用调度器、终端 ANSI 格式清洗与结构化工件统一重塑）。 |
 | `kanban_orchestrator/` | 多智能体持久任务看板调度中枢与卡片 DAG 依赖拓扑分发器（对标 Hermes Kanban 编排生产实践，提供 Backlog/Todo/In Progress/Review/Done/Blocked 六泳道状态机、DFS 无环依赖拓扑计算、卡片依赖完成自动解锁级联 Auto-Unblock Cascade、卡片级沙箱隔离目录 tasks/{card_id} 与工件原子挂载）。 |
+| `fleet_router/` | 跨机分布式舰队 Profile Rail 全景导航轨、多网关拓扑自愈、离线缓冲与跨机工件中继中枢（对标 Hermes Desktop PROFILE RAIL 舰队级扩展实践，提供 Darwin/Linux/Cloud 多网关连接池、心跳遥测与健康度自感知、断网离线指令 FIFO 缓冲与自愈排空重连 Auto-Healing Flush、Agent 宿主拓扑上下文自动注入、以及 SHA-256 跨网关安全工件中继验证）。 |
 
 
 

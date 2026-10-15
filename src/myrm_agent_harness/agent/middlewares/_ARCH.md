@@ -32,7 +32,6 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 |-----------|-------------|
 | `completion/` | Finish gate, verification checklist, external evidence, deliverable write checks. See [completion/_ARCH.md](completion/_ARCH.md). |
 | `approval/` | HITL approval queue, batch, scheduler. See [approval/_ARCH.md](approval/_ARCH.md). |
-| `approval_interception/` | Approval interception recognizer. See [approval_interception/_ARCH.md](approval_interception/_ARCH.md). |
 | `guardrails/` | Guardrail provider chain + GuardrailMiddleware. See [guardrails/_ARCH.md](guardrails/_ARCH.md). |
 | `tooling/` | Single interception point for all tool calls: interceptor, executor, history hygiene, dangling-call repair, skill attenuation, and their guards/helpers. See [tooling/_ARCH.md](tooling/_ARCH.md). |
 | `context_pipeline/` | Request-time context assembly and budget (compression intent, cache feedback, schema fingerprint). See [context_pipeline/_ARCH.md](context_pipeline/_ARCH.md). |
