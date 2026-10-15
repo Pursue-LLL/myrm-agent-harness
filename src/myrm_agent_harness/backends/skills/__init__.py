@@ -60,12 +60,6 @@ from myrm_agent_harness.backends.skills.market_protocols import (
     SkillSearchResult,
 )
 from myrm_agent_harness.backends.skills.memory import InMemorySkillBackend
-from myrm_agent_harness.backends.skills.model_resolver import (
-    DEFAULT_TIER_MODELS,
-    SkillModelResolutionResult,
-    SkillModelResolutionSource,
-    SkillModelResolver,
-)
 from myrm_agent_harness.backends.skills.permission_templates import (
     TEMPLATE_PERMISSIONS,
     PermissionTemplate,
@@ -110,7 +104,6 @@ from myrm_agent_harness.backends.skills.workflow_compiler import (
 
 __all__ = [
     "CompositeSkillBackend",
-    "DEFAULT_TIER_MODELS",
     "DependencyCheckItem",
     "DependencyStatus",
     "DesktopEvent",
@@ -129,9 +122,6 @@ __all__ = [
     "SkillInstallReceipt",
     "SkillInstallResult",
     "SkillMarketBackend",
-    "SkillModelResolutionResult",
-    "SkillModelResolutionSource",
-    "SkillModelResolver",
     "SkillPermission",
     "SkillPrerequisites",
     "SkillResourceWriteResult",

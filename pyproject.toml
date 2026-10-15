@@ -110,7 +110,7 @@ pdf-ocr = [
   "paddleocr>=3.2.0",   # PaddleOCR 引擎（含检测+识别模型）；3.7+ 的 paddlex 限制 numpy<2.4，与 retrieval 的 numpy>=2.5 冲突
   "paddlepaddle>=3.3.1", # PaddlePaddle 深度学习框架
 ]
-# infra/security/signature.py - FastAPI webhook signature verification
+# FastAPI pin for hosts that embed the harness behind FastAPI (no harness module imports it)
 fastapi = [
   "fastapi>=0.142.2",
 ]

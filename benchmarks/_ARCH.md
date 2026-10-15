@@ -9,7 +9,6 @@ Standalone benchmark probes for validating runtime and agent performance charact
 |------|------|-------------|-----|
 | bench_startup_performance.py | Diagnostic | Agent/toolkit import and startup latency regression gate | Yes |
 | bench_boundary_detection.py | Diagnostic | Harness/business boundary detection performance + regression vs `baseline_boundary.json` (scan cost compared per file, so tree growth is not read as a slowdown) | Yes |
-| bench_batch_performance.py | Diagnostic | Message delivery queue batch throughput (documented in ARCHITECTURE.md) | No |
 | context_archive_benchmark.py | Diagnostic | Context archive hash, gzip, atomic write, schema-v2 restore-map costs | No |
 | baseline_boundary.json | Baseline | Saved boundary-detection baseline for `--check-regression` | Yes |
 

@@ -1,18 +1,16 @@
 """Agent Secrets Backend Module.
 
 [INPUT]
-- .local_backend::LocalSecretBackend (POS: Local secret backend. Persists agent secrets as AES-256-GCM encrypted files on disk.)
-- .memory_backend::InMemorySecretBackend (POS: In-memory secret backend for testing and ephemeral sessions.)
 - .protocols::AgentSecretBackend (POS: Protocol for Agent Secret Storage Backend.)
+- core.security.external_secrets::resolve_external_secret and helpers (POS: external secret reference resolution)
 
 [OUTPUT]
 - AgentSecretBackend: Protocol for Agent Secret Storage Backend
-- InMemorySecretBackend: In-memory secret backend for testing
-- LocalSecretBackend: AES-256-GCM encrypted file persistent store
-- SecretEncryptionError: Exception raised when secret encryption/decryption fails
+- ExternalSecretResolutionError, is_external_secret_reference, resolve_external_secret, invalidate_external_secret: external secret reference helpers
 
 [POS]
-Agent secrets backend package entry point. Re-exports storage protocols and implementations.
+Agent secrets backend package entry point. Re-exports the storage protocol and external secret reference helpers;
+storage implementations are provided by the host.
 """
 
 from myrm_agent_harness.core.security.external_secrets import (
@@ -22,19 +20,11 @@ from myrm_agent_harness.core.security.external_secrets import (
     resolve_external_secret,
 )
 
-from .command_backend import CommandExecutionError, CommandSecretBackend
-from .local_backend import LocalSecretBackend, SecretEncryptionError
-from .memory_backend import InMemorySecretBackend
 from .protocols import AgentSecretBackend
 
 __all__ = [
     "AgentSecretBackend",
-    "CommandExecutionError",
-    "CommandSecretBackend",
     "ExternalSecretResolutionError",
-    "InMemorySecretBackend",
-    "LocalSecretBackend",
-    "SecretEncryptionError",
     "invalidate_external_secret",
     "is_external_secret_reference",
     "resolve_external_secret",

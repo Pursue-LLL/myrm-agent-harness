@@ -6,9 +6,7 @@ Provides monitoring and health inspection capabilities:
 - Health diagnostics and benchmarks (observability/diagnostics)
 - Request tracing context and log correlation (observability/tracing)
 - Runtime invariant assertions and registry (observability/invariants)
-- Task friction telemetry and Eval Lab co-evolution (observability/friction)
 - Skill compounding health evaluation (observability/digest)
-- Auto-approval trigger diagnostics and dual-track attribution (observability/approval_audit)
 
 [INPUT]
 - Exception (POS: LLM call exceptions for auth detection)
@@ -19,23 +17,13 @@ Provides monitoring and health inspection capabilities:
 - Diagnostics (from observability/diagnostics)
 - Tracing primitives (TracingContext, TracingLogFilter, JsonFormatter)
 - Invariant registry and types (from observability/invariants)
-- Task friction telemetry (FrictionCategory, TaskFrictionEvent, FrictionAggregator)
 - Skill health evaluation (SkillHealthEvaluator, SkillCompoundingMetrics)
-- Auto-approval auditing (AutoApprovalAuditor, ApprovalTriggerCategory, AutoApprovalAuditReport)
 
 [POS]
 Observability tools for Myrm Agent framework. Provides passive metric collection,
-active health probing, auth failure detection, request tracing context, runtime invariants, friction telemetry, and approval audit.
+active health probing, auth failure detection, request tracing context, and runtime invariants.
 """
 
-from .approval_audit import (
-    ApprovalTriggerCategory,
-    ApprovalTriggerEvent,
-    AutoApprovalAuditor,
-    AutoApprovalAuditReport,
-    DualTrackQuotaBreakdown,
-    TopOffenderItem,
-)
 from .audit_trail import (
     AuditSummaryStats,
     AuditTrailEntry,
@@ -52,14 +40,6 @@ from .digest import (
     SkillHealthEvaluator,
     SkillHealthScore,
     SkillHealthStatus,
-)
-from .friction import (
-    FrictionAggregator,
-    FrictionCategory,
-    FrictionExtractor,
-    FrictionSummary,
-    TaskFrictionEvent,
-    friction_to_eval_case,
 )
 from .invariants import (
     InvariantError,
@@ -90,24 +70,15 @@ from .storage_governance import (
 from .tracing import JsonFormatter, TracingContext, TracingLogFilter
 
 __all__ = [
-    "ApprovalTriggerCategory",
-    "ApprovalTriggerEvent",
     "AuditSummaryStats",
     "AuditTrailEntry",
-    "AutoApprovalAuditReport",
-    "AutoApprovalAuditor",
     "CompactionResult",
     "ComplianceOutcome",
     "ComplianceReport",
     "ComplianceTrailExporter",
     "DualTrackAuditCollector",
-    "DualTrackQuotaBreakdown",
     "FleetQuotaItem",
     "FourTierSpendControlEngine",
-    "FrictionAggregator",
-    "FrictionCategory",
-    "FrictionExtractor",
-    "FrictionSummary",
     "InterventionAction",
     "InvariantError",
     "InvariantMode",
@@ -131,12 +102,9 @@ __all__ = [
     "StorageCategoryBreakdown",
     "StorageGovernanceInspector",
     "StorageGovernanceReport",
-    "TaskFrictionEvent",
-    "TopOffenderItem",
     "TracingContext",
     "TracingLogFilter",
     "default_invariant_registry",
     "detect_auth_failure",
-    "friction_to_eval_case",
     "get_auth_error_hint",
 ]

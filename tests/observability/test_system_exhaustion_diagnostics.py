@@ -1,17 +1,11 @@
-"""Tests for system resource exhaustion diagnostics and process tree causal inspection."""
+"""Tests for system resource exhaustion diagnostics."""
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from myrm_agent_harness.observability.diagnostics.process_tree import (
-    ProcessNode,
-    detect_orphan_processes,
-    diagnose_process_tree_health,
-    inspect_process_lineage,
-)
 from myrm_agent_harness.observability.diagnostics.system_exhaustion import (
     check_system_exhaustion,
     get_system_exhaustion_snapshot,
@@ -192,134 +186,3 @@ class TestSystemExhaustionProbe:
         assert max_fd == 1048576
         assert ratio is not None
         assert round(ratio, 4) == round((1024 / 1048576) * 100, 4)
-
-
-class TestProcessTreeInspector:
-    def test_inspect_process_lineage_builds_ppid_chain(self) -> None:
-        proc1 = MagicMock()
-        proc1.pid = 100
-        proc1.ppid.return_value = 50
-        proc1.name.return_value = "child_worker"
-        proc1.status.return_value = "running"
-        proc1.create_time.return_value = 1000.0
-        proc1.memory_info.return_value = type("M", (), {"rss": 50 * 1024 * 1024})()
-        proc1.cpu_percent.return_value = 5.0
-        proc1.num_fds.return_value = 12
-
-        proc2 = MagicMock()
-        proc2.pid = 50
-        proc2.ppid.return_value = 1
-        proc2.name.return_value = "parent_runner"
-        proc2.status.return_value = "sleeping"
-        proc2.create_time.return_value = 900.0
-        proc2.memory_info.return_value = type("M", (), {"rss": 100 * 1024 * 1024})()
-        proc2.cpu_percent.return_value = 1.0
-        proc2.num_fds.return_value = 20
-
-        proc3 = MagicMock()
-        proc3.pid = 1
-        proc3.ppid.return_value = 0
-        proc3.name.return_value = "systemd"
-        proc3.status.return_value = "sleeping"
-        proc3.create_time.return_value = 10.0
-        proc3.memory_info.return_value = type("M", (), {"rss": 10 * 1024 * 1024})()
-        proc3.cpu_percent.return_value = 0.0
-        proc3.num_fds.return_value = 5
-
-        def mock_process_factory(pid: int) -> MagicMock:
-            if pid == 100:
-                return proc1
-            if pid == 50:
-                return proc2
-            if pid == 1:
-                return proc3
-            raise ValueError(f"Unknown pid {pid}")
-
-        with patch("myrm_agent_harness.observability.diagnostics.process_tree.psutil") as mock_psutil:
-            mock_psutil.Process.side_effect = mock_process_factory
-            lineage = inspect_process_lineage(100)
-
-        assert len(lineage) == 3
-        assert [node["pid"] for node in lineage] == [100, 50, 1]
-        assert lineage[0]["name"] == "child_worker"
-        assert lineage[1]["name"] == "parent_runner"
-        assert lineage[2]["name"] == "systemd"
-
-    def test_detect_orphan_processes_identifies_leaked_workers(self) -> None:
-        orphan_proc = MagicMock()
-        orphan_proc.info = {
-            "pid": 2048,
-            "ppid": 1,
-            "name": "camoufox-bin",
-            "cmdline": ["camoufox-bin", "--headless"],
-        }
-        orphan_proc.pid = 2048
-        orphan_proc.ppid.return_value = 1
-        orphan_proc.name.return_value = "camoufox-bin"
-        orphan_proc.status.return_value = "running"
-        orphan_proc.create_time.return_value = 100.0
-        orphan_proc.memory_info.return_value = type("M", (), {"rss": 256 * 1024 * 1024})()
-        orphan_proc.cpu_percent.return_value = 12.0
-        orphan_proc.num_fds.return_value = 45
-
-        non_orphan_proc = MagicMock()
-        non_orphan_proc.info = {
-            "pid": 4096,
-            "ppid": 100,  # normal child
-            "name": "firefox",
-            "cmdline": ["firefox"],
-        }
-
-        with (
-            patch("myrm_agent_harness.observability.diagnostics.process_tree.psutil") as mock_psutil,
-            patch("time.time", return_value=1000.0),
-        ):
-            mock_psutil.process_iter.return_value = [orphan_proc, non_orphan_proc]
-            mock_psutil.Process.return_value = orphan_proc
-            # Patch _get_process_node or let it execute
-            orphans = detect_orphan_processes(min_elapsed_seconds=120.0)
-
-        assert len(orphans) == 1
-        assert orphans[0]["pid"] == 2048
-        assert orphans[0]["name"] == "camoufox-bin"
-        assert orphans[0]["memory_rss_mb"] == 256.0
-
-    def test_diagnose_process_tree_health_clean_state(self) -> None:
-        with (
-            patch("myrm_agent_harness.observability.diagnostics.process_tree.psutil") as mock_psutil,
-            patch(
-                "myrm_agent_harness.observability.diagnostics.process_tree.detect_orphan_processes",
-                return_value=[],
-            ),
-        ):
-            mock_psutil.pids.return_value = [1, 2, 3]
-            diag = diagnose_process_tree_health()
-
-        assert diag["orphan_count"] == 0
-        assert diag["leaked_memory_mb"] == 0.0
-        assert "Zero leaked worker orphans" in diag["cause_summary"]
-
-    def test_diagnose_process_tree_health_with_orphans(self) -> None:
-        dummy_orphan: ProcessNode = {
-            "pid": 7777,
-            "ppid": 1,
-            "name": "chromium",
-            "status": "sleeping",
-            "elapsed_seconds": 600.0,
-            "memory_rss_mb": 512.5,
-            "cpu_percent": 0.5,
-            "num_fds": 30,
-        }
-        with (
-            patch("myrm_agent_harness.observability.diagnostics.process_tree.psutil") as mock_psutil,
-            patch(
-                "myrm_agent_harness.observability.diagnostics.process_tree.detect_orphan_processes",
-                return_value=[dummy_orphan],
-            ),
-        ):
-            mock_psutil.pids.return_value = [1, 7777]
-            diag = diagnose_process_tree_health()
-
-        assert diag["orphan_count"] == 1
-        assert diag["leaked_memory_mb"] == 512.5
-        assert "chromium(PID 7777, 512.5MB)" in diag["cause_summary"]

@@ -13,10 +13,8 @@ Framework-level self-inspection and health-check protocol. Supports structured i
 | probes.py | Core | Health diagnostic probes: Network, WorkspaceStorage (incl. ripgrep warn), Database, Qdrant, Tokenizer, HookSystem, DesktopControl (OS grants + capturable via `check_permissions(probe_capture=True)`; PASS only when `PermissionStatus.capture_ready`; WARN `WARN_DESKTOP_CAPTURE_NOT_READY` / missing; deeplink meta). GraphEmbedding. Server wiring: `test_doctor.py::test_desktop_control_probe_in_doctor`; permissions API: `tests/api/webui/test_desktop_permissions.py`; desktop health: `tests/observability/test_probes.py::TestCheckDesktopPermissionsHealth`. | ✅ |
 | system_resources.py | Core | Host-level resource probe `check_system_resources`: CPU / memory / PID utilization. Reads cgroup v1/v2 pids counters (`pids.current` / `pids.max`) with psutil fallback for local single-machine deployments; PID warn >70% / fail >=90% with browser process attribution. | ✅ |
 | system_exhaustion.py | Core | Host-level system resource exhaustion probe `check_system_exhaustion`: Swap / Pagefile pressure, Linux CommitLimit saturation, and system/process file descriptor (FD / Handle) leaks. | ✅ |
-| process_tree.py | Core | Process tree PPID lineage inspector (`inspect_process_lineage`), leaked orphan worker detection (`detect_orphan_processes`), and structured causal diagnostic reporting (`diagnose_process_tree_health`). | ✅ |
 | supply_chain.py | Core | Runtime dependency and supply chain security probe `check_supply_chain_health` (installed package scanning against offline advisories and OSV.dev). | ✅ |
 | protocols.py | Core | Provides HealthReport (with measured/expected/cause fields), DiagnosticProtocol, redact_health_report. | ✅ |
-| migration_reporter.py | Core | Migration progress tracking protocol, progress events, and malformed record diagnostic reporter. | ✅ |
 | gateway_health.py | Core | Gateway runtime vitals probe (event loop lag, process RSS, asyncio task count), zero-payload redacted health DTO, and OTLP posture detection. Registered into `/health/doctor`. | ✅ |
 
 ## Key Dependencies

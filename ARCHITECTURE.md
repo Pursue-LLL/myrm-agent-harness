@@ -61,8 +61,8 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 | Agent 核心 | `myrm_agent_harness/agent/`         | BaseAgent / SkillAgent 运行时；模块导航见 [agent/_ARCH.md](src/myrm_agent_harness/agent/_ARCH.md) |
 | SDK 入口   | `myrm_agent_harness/client.py`      | SDK Facade — `AgentClient` 便利层；**PyPI 稳定契约**见 `api/`                                                                                                                                                          |
 | ACP 薄入口 | `myrm_agent_harness/agent/acp/`    | 独立 ACP Server 的 default factory 与 CLI 入口；完整 ACP runtime 在 `toolkits/acp/`                                                                                                                                                |
-| 后端抽象层 | `myrm_agent_harness/backends/`      | Profile / Secret / Skill 三类存储后端的 Protocol 与 Local/Memory/Storage 实现；Skill 热重载失效信号持久化于 `MYRM_DATA_DIR/.skill_config_version`（server re-export）；公开扩展点见 `api/protocols`                                                                                                                      |
-| 基础设施层 | `myrm_agent_harness/infra/`         | 提供通用机制：统一文件锁、消息投递队列（StorageProvider + 弹性机制 + Metrics）、链路追踪、增量状态监控                                                                                                                             |
+| 后端抽象层 | `myrm_agent_harness/backends/`      | Profile / Secret / Skill 三类存储后端的 Protocol（Skill 另含 Storage 实现，Profile / Secret 的存储实现由宿主提供）；Skill 热重载失效信号持久化于 `MYRM_DATA_DIR/.skill_config_version`（server re-export）；公开扩展点见 `api/protocols`                                                                                                                      |
+| 基础设施层 | `myrm_agent_harness/infra/`         | 提供通用机制：消息投递持久化与死信重试（StorageProvider + 弹性机制 + Metrics）、链路追踪、增量状态监控                                                                                                                             |
 | 运行时层   | `myrm_agent_harness/runtime/`       | 单 Agent **实例守护**（checkpoint、内存压力、doctor、quota）及 `install_guard/` 双 wheel 安装门禁 — 非 Agent 推理循环，非 `toolkits/tasks/` 作业队列                                                                                                                             |
 | 功能标志   | `myrm_agent_harness/core/features/` | Feature Flag 引擎，支持功能生命周期管理与运行时动态配置查询                                                                                                                                                                        |
 | 诊断自检   | `myrm_agent_harness/observability/diagnostics/` | Diagnostic Protocol — 健康探针、benchmark hook 注册表，暴露各组件“为什么不能工作”的原因                                                                                                                                    |
@@ -86,7 +86,7 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 | 插件 | `toolkits/` | 完整能力包，`import` 即可，零 `agent/` 依赖 |
 | 大脑 | `agent/` | LLM 回合、会话、流式、HITL、meta_tools |
 | 实例守护 | `runtime/` | 单 Agent 实例存活：checkpoint、内存压力、doctor、quota |
-| 水管 | `infra/` | 锁、pubsub、delivery 等原子设施 |
+| 水管 | `infra/` | pubsub、delivery 等原子设施 |
 
 **一道判断题：** 定义时是否 import `agent/` 或绑定当前会话？是 → `agent/` 或宿主 server；否 → 完整能力包 → `toolkits/`；纯类型 → `core/`/`infra/`；管实例健康 → `runtime/`。异步媒体队列 → `toolkits/tasks/`。
 
@@ -117,7 +117,6 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 |------|------|------|
 | **Security** | `core/security/` | 框架无关安全原语（path policy、path pattern matching、redact、tool registry、detection/guards、credential vault） |
 | | `agent/security/` | Agent 安全引擎（HITL、rate limiter、transcript classifier）；多数模块 re-export `core/security/` |
-| | `infra/security/` | 基础设施层安全辅助（与 delivery/locks 协同） |
 | **Pub/Sub** | `infra/pubsub/` | Server 业务 SSE pub-sub（`PubSubBus`） |
 | **Tool broadcast** | `agent/streaming/broadcast/` | Hook 工具事件：`ToolCallBroadcaster` → EventLogger→SSE（UI）；`ToolBroadcastBus` 供 server 侧订阅 |
 | **Events (types)** | `core/events/` | 框架级事件类型与流式枚举（agent/ 与 toolkits/ 共享） |
@@ -436,24 +435,6 @@ class UserService:
 
 - 错误率控制：在单次委派 5-10 个并发子任务时，大模型 API 429 限流崩溃率降至 0%
 - 实现机制：底层基于 `asyncio.Semaphore(3)` 进行并发收束与平滑排队
-
-#### 消息投递队列（infra/delivery）
-
-**批处理并发化**：
-
-- 吞吐量：19.0 msg/s → 187.9 msg/s (**9.88x提升**)
-- 批处理延迟：500ms → 50ms (batch_size=10)
-- 测试命令：`uv run python benchmarks/bench_batch_performance.py`
-
-**紧急消息优先处理**：
-
-- 延迟降低：305ms → 51ms (**83.4%**)
-- 用户体验：紧急消息不受批处理影响
-
-**文件锁开销**：
-
-- 单次开销：~0.14ms
-- 影响：1000 msg/s时占用14% CPU
 
 #### LLM降级管理（toolkits/llms/fallback）
 

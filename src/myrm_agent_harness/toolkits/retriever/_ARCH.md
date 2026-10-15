@@ -18,9 +18,6 @@ Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 | `fusion_strategies.py` | Core | Score fusion utilities (deterministic RRF with tie-breaking, weighted RRF & recall debug) for hybrid lists | ✅ |
 | `hybrid_retriever.py` | Core | Stable public facade re-exporting the hybrid coordinator | ✅ |
 | `performance_monitor.py` | Core | `PerformanceMonitor` and `get_performance_monitor` hooks | ✅ |
-| `qdrant_retrieval.py` | Core | Qdrant-backed vector retriever with automatic text handling | ✅ |
-| relaxed_arm_fusion_engine.py | Core | Evaluates peak sharpness, entropy variance, and signal-to-noise ratio per retrieval arm. | ✅ |
-| relaxed_arm_fusion_types.py | Types | Types and models for relaxed arm fusion. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
@@ -32,7 +29,6 @@ Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 | `splitter/` | Document chunking strategies |
 | `sufficiency/` | RSG post-retrieval sufficiency guard — [sufficiency/_ARCH.md](sufficiency/_ARCH.md) |
 | `vector_search/` | In-memory / backend vector search helpers |
-| `ingest/` | Dual-Lane Ingest Pipeline with bounded backpressure — [ingest/_ARCH.md](ingest/_ARCH.md) |
 
 ## Key Dependencies
 

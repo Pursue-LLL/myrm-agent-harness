@@ -306,7 +306,7 @@ myrm-agent-harness/          # 本仓库根（示意）
 │       ├── core/                    # 框架无关基础层（security, events, hooks, config）
 │       ├── agent/                   # Agent 核心（BaseAgent, SkillAgent, 技能, 中间件, 元工具）
 │       ├── runtime/                 # 单实例守护（checkpoint、context 生命周期、quota、doctor）
-│       ├── infra/                   # 基础设施（文件锁、消息投递、链路追踪）
+│       ├── infra/                   # 基础设施（消息投递持久化、链路追踪）
 │       ├── observability/           # 全局监控与诊断（Prometheus, Diagnostic Protocol）
 │       ├── backends/                # 后端抽象（skills, storage, profiles, secrets）
 │       ├── toolkits/                # 通用工具包（不与 agent/ 耦合，可独立使用）

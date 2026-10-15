@@ -1,9 +1,9 @@
-"""Backend implementations — profiles, secrets, and skills adapters.
+"""Backend contracts and adapters — profiles, secrets, and skills.
 
 Import from subpackages directly (this package does not re-export symbols):
 
-  - ``backends.profiles``: AgentProfile, AgentProfileBackend, LocalProfileBackend, ...
-  - ``backends.secrets``: AgentSecretBackend, LocalSecretBackend, ...
+  - ``backends.profiles``: AgentProfile, AgentProfileBackend, BuiltInAgent
+  - ``backends.secrets``: AgentSecretBackend, external secret reference helpers
   - ``backends.skills``: SkillBackend (factory), SkillBackendProtocol, SkillMetadata (via types), ...
 
 For stable extension-point Protocols, prefer ``myrm_agent_harness.api.protocols``.

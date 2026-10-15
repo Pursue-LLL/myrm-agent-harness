@@ -1,12 +1,10 @@
 """Agent Profile Backend Protocol.
 
-Defines the storage protocol for Agent Profiles. The framework provides
-local file and in-memory implementations; business layers can implement
-database-backed versions.
+Defines the storage protocol for Agent Profiles. Host applications supply
+the implementation (for example database-backed storage).
 
 [INPUT]
 - .types::AgentProfile (POS: Agent Profile 数据类型定义)
-- .exceptions::ProfileAlreadyExistsError, ProfileNotFoundError (POS: Profile 后端异常类型)
 
 [OUTPUT]
 - AgentProfileBackend: Protocol for Agent Profile storage backends.
@@ -52,10 +50,8 @@ class AgentProfileBackend(Protocol):
             profile: The AgentProfile object to create.
 
         Returns:
-            The created AgentProfile object.
-
-        Raises:
-            ProfileAlreadyExistsError: If a profile with the same ID already exists.
+            The created AgentProfile object. A profile with the same ID is rejected with the
+            implementation's own error type.
         """
         ...
 
@@ -66,10 +62,8 @@ class AgentProfileBackend(Protocol):
             profile: The AgentProfile object to update.
 
         Returns:
-            The updated AgentProfile object.
-
-        Raises:
-            ProfileNotFoundError: If the profile does not exist.
+            The updated AgentProfile object. A missing profile is rejected with the
+            implementation's own error type.
         """
         ...
 

@@ -44,7 +44,6 @@ myrm_agent_harness/agent/sub_agents/manager.py	608
 myrm_agent_harness/agent/sub_agents/orchestrator.py	930
 myrm_agent_harness/agent/sub_agents/prompts.py	546
 myrm_agent_harness/agent/sub_agents/types.py	546
-myrm_agent_harness/backends/commerce/memory_backend.py	578
 myrm_agent_harness/backends/skills/_utils.py	837
 myrm_agent_harness/backends/skills/forgetting_strategy.py	545
 myrm_agent_harness/backends/skills/scanning/patterns.py	875
@@ -54,7 +53,6 @@ myrm_agent_harness/core/security/tool_registry/registry.py	587
 myrm_agent_harness/core/security/types.py	648
 myrm_agent_harness/eval/assertions.py	693
 myrm_agent_harness/eval/protocols.py	670
-myrm_agent_harness/infra/delivery/queue.py	604
 myrm_agent_harness/infra/delivery/storage.py	536
 myrm_agent_harness/infra/sqlite_salvage.py	621
 myrm_agent_harness/infra/tracing/tracer.py	700

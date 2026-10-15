@@ -18,7 +18,6 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | market_protocols.py | Core | SkillMarketBackend protocol and search/install result types. | ✅ |
 | factory.py | Core | SkillBackend factory for local, storage, memory, and composite backends. | ✅ |
 | forgetting_strategy.py | Core | Curator forgetting strategies (pinned, evolution lock, grace, source-aware). | ✅ |
-| instance_templates.py | Core | Predefined skill instance configuration templates. | ✅ |
 | local.py | Core | Local filesystem skill backend; filters archived skills via lifecycle stats. | ✅ |
 | memory.py | Core | In-memory skill backend for dynamic and MCP-generated skills. | ✅ |
 | permission_templates.py | Core | Out-of-the-box permission templates for skill declarations. | ✅ |
@@ -36,15 +35,12 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | local_skill_id.py | Core | Canonical path-hash local skill ID + install dir resolution. | ✅ |
 | credential_checker.py | Core | Credential expiry checker for JWT/OAuth tokens (`ExpiryStatus`, `ExpiryResult`, `CredentialExpiryChecker`). | ✅ |
 | credential_validator.py | Core | Credential file validator — workspace boundary checks for skill credentials (`CredentialValidationResult`, `CredentialValidator`). | ✅ |
-| model_resolver.py | Core | Skill Specialized Model Resolver — Model-As-A-Skill hybrid engine (`SkillModelResolutionSource`, `SkillModelResolutionResult`, `SkillModelResolver`). | ✅ |
-| runtime_modifiers.py | Core | Skill semantic modifiers parser and audience adapter runtime (`AudienceDepth`, `AudienceProfile`, `SkillModifierResult`). | ✅ |
 | workflow_compiler.py | Core | Desktop/multi-app workflow plan data structures and SKILL.md compiler. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
 | decorators/ | Version-aware and quarantine-aware SkillBackend decorators. See [decorators/_ARCH.md](decorators/_ARCH.md). |
 | scanning/ | Static/AST/LLM skill content security scanning. See [scanning/_ARCH.md](scanning/_ARCH.md). |
-| code_analysis/ | Static AST dependency and dead-code topology analysis. See [code_analysis/_ARCH.md](code_analysis/_ARCH.md). |
 
 ## Key Dependencies
 

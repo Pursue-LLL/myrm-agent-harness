@@ -25,7 +25,6 @@ Observability tools for Myrm Agent framework. Provides Prometheus metrics, auth 
 | Submodule | Description |
 |-----------|-------------|
 | audit_trail/ | Dual-track audit log, redaction, and compliance dossiers. |
-| debug_bundle/ | Session debug dossier assembler + single-variable rerun verdict. |
 | digest/ | Health evaluation digest. |
 | metrics/ | Generic metrics utilities; Prometheus counters require `[observability]` extra (NoOp fallback otherwise). |
 | diagnostics/ | Framework-level self-inspection — health probes (incl. gateway runtime vitals), benchmark probes, and diagnostic protocol. |

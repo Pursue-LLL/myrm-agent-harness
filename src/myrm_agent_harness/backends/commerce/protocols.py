@@ -4,8 +4,6 @@
 - .types::Product, ProductFilter, Cart, CartUpdateResult, Order, PolicySearchResult,
   PerformanceSummary, Listing, StagedChange, ApplyResult, PricingContext,
   InventoryAlert, VariantOption (POS: 商业领域 DTO 类型)
-- .exceptions::CommerceError, Unavailable, NotOffered, InvalidStagedChange,
-  ChangeNotApplicable (POS: 商业领域标准异常)
 
 [OUTPUT]
 - StorefrontBackendProtocol: C端导购与交易后端协议
@@ -136,11 +134,8 @@ class StorefrontBackendProtocol(Protocol):
             selected_options: Selected variant options.
 
         Returns:
-            CartUpdateResult containing the updated cart state.
-
-        Raises:
-            Unavailable: If the item or variant is out of stock.
-            CommerceError: If options are required but not provided.
+            CartUpdateResult containing the updated cart state. An out-of-stock item or variant,
+            or missing required options, is rejected with the implementation's own error type.
         """
         ...
 
@@ -227,10 +222,8 @@ class MerchantBackendProtocol(Protocol):
             proposed_values: Key-value tuple of proposed attributes.
 
         Returns:
-            Created StagedChange instance.
-
-        Raises:
-            ChangeNotApplicable: If the listing cannot accept the change.
+            Created StagedChange instance. A change the listing cannot accept is rejected with
+            the implementation's own error type.
         """
         ...
 
@@ -241,10 +234,8 @@ class MerchantBackendProtocol(Protocol):
             change_id: Unique staged change proposal identifier.
 
         Returns:
-            ApplyResult with audit tracking info.
-
-        Raises:
-            InvalidStagedChange: If the staged proposal does not exist or expired.
+            ApplyResult with audit tracking info. A staged proposal that does not exist or has
+            expired is rejected with the implementation's own error type.
         """
         ...
 

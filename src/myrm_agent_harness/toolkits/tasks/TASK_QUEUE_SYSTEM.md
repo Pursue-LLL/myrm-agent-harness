@@ -27,7 +27,7 @@ host application (Myrm server + frontend).
 │  Harness: toolkits/llms/media_task_types.py                 │  Payload/result DTOs
 ├─────────────────────────────────────────────────────────────┤
 │  Harness: toolkits/tasks/                                   │  Framework queue (this module)
-│  (Task, TaskStatus, SQLiteTaskStore, AsyncTaskExecutor)     │
+│  (Task, TaskStatus, SQLiteTaskStore)                        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,7 +123,7 @@ result_json = await tools.generate_image(prompt="...", chat_id="...")
 ## Extending task_type
 
 1. Add payload/result DTO in `toolkits/llms/media_task_types.py`
-2. Implement `AsyncTaskExecutor` in host server (`app/tasks/executors/`)
+2. Implement the worker's `TaskExecutor` protocol (`app/tasks/worker.py`) in host server (`app/tasks/executors/`)
 3. Register executor in `TaskWorker` — **queue layer unchanged**
 
 ## Key Files
@@ -132,7 +132,6 @@ result_json = await tools.generate_image(prompt="...", chat_id="...")
 |----------|------|
 | `toolkits/tasks/protocols.py` | `Task`, `TaskStatus`, retry policy |
 | `toolkits/tasks/store.py` | `SQLiteTaskStore` |
-| `toolkits/tasks/executor.py` | `AsyncTaskExecutor` protocol |
 | `toolkits/llms/image/async_image_engine.py` | Image enqueue |
 | `myrm-agent-server/app/tasks/worker.py` | Consumer loop |
 | `myrm-agent-server/app/lifecycle/task_worker.py` | Store singleton + startup |

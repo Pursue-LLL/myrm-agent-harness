@@ -6,10 +6,9 @@
 - .reranker::RerankerService (POS: reranking service)
 - .engine::RetrieverManager (POS: retrieval manager)
 - .hybrid_search::HybridSearchCoordinator (POS: hybrid search coordinator)
-- .qdrant_retrieval::QdrantRetriever (POS: Qdrant vector retriever)
 
 [OUTPUT]
-- RetrieverManager, HybridSearchCoordinator, QdrantRetriever, EmbeddingService, RerankerService
+- RetrieverManager, HybridSearchCoordinator, EmbeddingService, RerankerService
 
 [POS]
 Hybrid retrieval toolkit public facade re-exporting key entrypoints.
@@ -41,34 +40,6 @@ if TYPE_CHECKING:
     )
     from myrm_agent_harness.toolkits.retriever.hybrid_retriever import hybrid_retriever
     from myrm_agent_harness.toolkits.retriever.hybrid_search import HybridSearchCoordinator
-    from myrm_agent_harness.toolkits.retriever.ingest import (
-        BatchEmbedConsumer,
-        Chunk,
-        DirNode,
-        DirTreeBuilder,
-        DualLaneIngestPipeline,
-        EndOfTask,
-        IngestEvent,
-        IngestStats,
-        TaskEnvelope,
-        TaskStatus,
-        ancestor_dirs,
-        dir_depth,
-    )
-    from myrm_agent_harness.toolkits.retriever.qdrant_retrieval import QdrantRetriever
-    from myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_engine import (
-        ArmNoiseDetector,
-        RelaxedArmFusionEngine,
-    )
-    from myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types import (
-        AdaptiveFusionResult,
-        AdaptiveReturnConfig,
-        ArmCandidate,
-        ArmKind,
-        ArmTelemetryProfile,
-        FusedArmHit,
-        RetrievalArm,
-    )
     from myrm_agent_harness.toolkits.retriever.reranker import RerankerConfig, RerankerService, get_reranker_service
     from myrm_agent_harness.toolkits.retriever.splitter import TextChunker
     from myrm_agent_harness.toolkits.retriever.vector_search import (
@@ -85,8 +56,6 @@ __all__ = [
     "HybridSearchCoordinator",
     # purememoryvectorretrieval(recommended)
     "NumpyVectorRetriever",
-    # persistentvectorretrieval
-    "QdrantRetriever",
     # Reranker service
     "RerankerConfig",
     "RerankerService",
@@ -106,19 +75,6 @@ __all__ = [
     "preload_tokenizer",
     "search_with_numpy_retriever",
     "start_background_preload",
-    # Dual-Lane Ingest Pipeline
-    "DualLaneIngestPipeline",
-    "BatchEmbedConsumer",
-    "DirTreeBuilder",
-    "Chunk",
-    "EndOfTask",
-    "TaskEnvelope",
-    "DirNode",
-    "IngestStats",
-    "IngestEvent",
-    "TaskStatus",
-    "ancestor_dirs",
-    "dir_depth",
     # CJK Tokenizer
     "tokenize_cjk_bigram",
     "build_cjk_index_segment",
@@ -131,28 +87,9 @@ __all__ = [
     "RecallDebug",
     "SourceRank",
     "SourceDebugStats",
-    # Relaxed-Arm Fusion & Adaptive Return
-    "ArmKind",
-    "ArmCandidate",
-    "RetrievalArm",
-    "ArmTelemetryProfile",
-    "AdaptiveReturnConfig",
-    "FusedArmHit",
-    "AdaptiveFusionResult",
-    "ArmNoiseDetector",
-    "RelaxedArmFusionEngine",
 ]
 
 _LAZY_IMPORTS = {
-    "ArmKind": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "ArmKind"),
-    "ArmCandidate": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "ArmCandidate"),
-    "RetrievalArm": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "RetrievalArm"),
-    "ArmTelemetryProfile": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "ArmTelemetryProfile"),
-    "AdaptiveReturnConfig": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "AdaptiveReturnConfig"),
-    "FusedArmHit": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "FusedArmHit"),
-    "AdaptiveFusionResult": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_types", "AdaptiveFusionResult"),
-    "ArmNoiseDetector": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_engine", "ArmNoiseDetector"),
-    "RelaxedArmFusionEngine": ("myrm_agent_harness.toolkits.retriever.relaxed_arm_fusion_engine", "RelaxedArmFusionEngine"),
     "fuse_rrf_deterministic": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "fuse_rrf_deterministic"),
     "RankedList": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "RankedList"),
     "FusedHit": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "FusedHit"),
@@ -166,25 +103,12 @@ _LAZY_IMPORTS = {
         "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
         "build_cjk_query_token_tiers",
     ),
-    "DualLaneIngestPipeline": ("myrm_agent_harness.toolkits.retriever.ingest", "DualLaneIngestPipeline"),
-    "BatchEmbedConsumer": ("myrm_agent_harness.toolkits.retriever.ingest", "BatchEmbedConsumer"),
-    "DirTreeBuilder": ("myrm_agent_harness.toolkits.retriever.ingest", "DirTreeBuilder"),
-    "Chunk": ("myrm_agent_harness.toolkits.retriever.ingest", "Chunk"),
-    "EndOfTask": ("myrm_agent_harness.toolkits.retriever.ingest", "EndOfTask"),
-    "TaskEnvelope": ("myrm_agent_harness.toolkits.retriever.ingest", "TaskEnvelope"),
-    "DirNode": ("myrm_agent_harness.toolkits.retriever.ingest", "DirNode"),
-    "IngestStats": ("myrm_agent_harness.toolkits.retriever.ingest", "IngestStats"),
-    "IngestEvent": ("myrm_agent_harness.toolkits.retriever.ingest", "IngestEvent"),
-    "TaskStatus": ("myrm_agent_harness.toolkits.retriever.ingest", "TaskStatus"),
-    "ancestor_dirs": ("myrm_agent_harness.toolkits.retriever.ingest", "ancestor_dirs"),
-    "dir_depth": ("myrm_agent_harness.toolkits.retriever.ingest", "dir_depth"),
     "bm25_retrieval": ("myrm_agent_harness.toolkits.retriever.bm25_retrieval", "bm25_retrieval"),
     "preload_tokenizer": ("myrm_agent_harness.toolkits.retriever.bm25.tokenizer", "preload_tokenizer"),
     "EmbeddingService": ("myrm_agent_harness.toolkits.retriever.embedding", "EmbeddingService"),
     "get_embedding_service": ("myrm_agent_harness.toolkits.retriever.embedding", "get_embedding_service"),
     "hybrid_retriever": ("myrm_agent_harness.toolkits.retriever.hybrid_retriever", "hybrid_retriever"),
     "HybridSearchCoordinator": ("myrm_agent_harness.toolkits.retriever.hybrid_search", "HybridSearchCoordinator"),
-    "QdrantRetriever": ("myrm_agent_harness.toolkits.retriever.qdrant_retrieval", "QdrantRetriever"),
     "RerankerConfig": ("myrm_agent_harness.toolkits.retriever.reranker", "RerankerConfig"),
     "RerankerService": ("myrm_agent_harness.toolkits.retriever.reranker", "RerankerService"),
     "get_reranker_service": ("myrm_agent_harness.toolkits.retriever.reranker", "get_reranker_service"),

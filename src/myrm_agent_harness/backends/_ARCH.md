@@ -11,14 +11,14 @@ Backend implementations — profiles, secrets, and skills storage adapters betwe
 
 | Submodule | Description |
 |-----------|-------------|
-| profiles/ | Agent Profile 存储后端。AgentProfile 数据结构、CRUD Protocol、Local/InMemory 实现。 |
-| secrets/ | Agent 密钥/凭据存储后端。AgentSecretBackend Protocol、Local 加密文件 / InMemory / CommandSecretBackend（外部命令 Helper）实现。 |
+| profiles/ | Agent Profile 契约。AgentProfile 数据结构与 CRUD Protocol，存储实现由宿主提供。 |
+| secrets/ | Agent 密钥/凭据存储契约。AgentSecretBackend Protocol，存储实现由宿主提供。 |
 | skills/ | 技能系统后端。读/写/发现 Protocol、Local/Memory/Storage 实现、快照缓存与安全扫描。 |
-| commerce/ | 商业智能体双端后端体系。StorefrontBackend (C端) 与 MerchantBackend (B端) 核心协议、DTOs、InMemory 参考实现、变体与购物车门禁、经营风控防线、四行业启动套件、切片评测生成与回归。 |
+| commerce/ | 商业智能体双端后端契约。StorefrontBackend (C端) 与 MerchantBackend (B端) 核心协议与 DTOs，实现由宿主提供。 |
 
 ## Key Dependencies
 
-- `infra` (delivery, locks)
+- `infra` (atomic_write, tls_compat)
 - `utils` (crypto, db, coercion)
 - `toolkits` (storage, channels.core.exceptions for exception hierarchy)
 

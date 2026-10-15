@@ -1,14 +1,12 @@
-"""Commerce backend interfaces and reference implementations.
+"""Commerce backend interfaces.
 
 [INPUT]
-- .exceptions::CommerceError, NotOffered, Unavailable, ChangeNotApplicable, InvalidStagedChange
 - .types::CommerceRole, Money, VariantOption, ProductVariant, Product, ProductFilter,
   CartLine, Cart, CartUpdateResult, OrderStatus, OrderLine, Order, PolicyCategory,
   Policy, PolicySearchResult, TopProductMetric, PerformanceSummary, ListingStatus,
   Listing, ChangeType, StagedChange, ApplyResult, CompetitorPrice, PricingContext,
   InventoryAlertSeverity, InventoryAlert, ShoppingSessionState, MerchantSessionState
 - .protocols::StorefrontBackendProtocol, MerchantBackendProtocol
-- .memory_backend::InMemoryStorefrontBackend, InMemoryMerchantBackend
 
 [OUTPUT]
 - Public exports for dual-role commerce backend interfaces.
@@ -17,88 +15,9 @@
 Commerce backends entry point in myrm-agent-harness.
 """
 
-from myrm_agent_harness.backends.commerce.app_events import (
-    AppEvent,
-    AppEventType,
-    InMemoryAppEventQueue,
-    format_app_events_for_prompt,
-    process_out_of_band_payment_webhook,
-)
-from myrm_agent_harness.backends.commerce.catalog_normalization import (
-    GracefulFilterResult,
-    NormalizedMeasurement,
-    RelaxationAdvice,
-    extract_attributes_from_text,
-    filter_with_graceful_relaxation,
-    parse_measurement,
-)
-from myrm_agent_harness.backends.commerce.checkout_handoff import (
-    CheckoutCardPayload,
-    CheckoutHandoffMode,
-    CheckoutHandoffPayload,
-    CheckoutTarget,
-    ZeroTouchHandoffEnricher,
-    ZeroTouchHandoffEnvelope,
-    inject_checkout_url_to_card,
-    sanitize_checkout_for_model,
-)
-from myrm_agent_harness.backends.commerce.digest import (
-    AttentionCategory,
-    AttentionItem,
-    AttentionSeverity,
-    CommercialDigestCard,
-    CommercialDigestRunner,
-    DigestAction,
-    KpiComparison,
-)
-from myrm_agent_harness.backends.commerce.exceptions import (
-    CartCapExceeded,
-    ChangeNotApplicable,
-    CommerceError,
-    InvalidStagedChange,
-    NotOffered,
-    OptionsResolutionHeld,
-    Unavailable,
-)
-from myrm_agent_harness.backends.commerce.gates import (
-    CartCapCheckResult,
-    CartCapLimits,
-    CartOperationReceipt,
-    CartSessionLock,
-    GateDecision,
-    VariantOptionsResolution,
-    check_cart_cap,
-    extract_product_options_catalog,
-    gated_add_to_cart,
-    resolve_variant_options,
-)
-from myrm_agent_harness.backends.commerce.guardrails import (
-    GuardrailCheckResult,
-    GuardrailDecision,
-    GuardrailLimits,
-    GuardrailViolation,
-    MerchantGuardrailConfig,
-    check_guardrails,
-    check_merchant_guardrails,
-    evaluate_options_explosion,
-    validate_protected_fields,
-)
-from myrm_agent_harness.backends.commerce.memory_backend import (
-    InMemoryMerchantBackend,
-    InMemoryStorefrontBackend,
-)
 from myrm_agent_harness.backends.commerce.protocols import (
     MerchantBackendProtocol,
     StorefrontBackendProtocol,
-)
-from myrm_agent_harness.backends.commerce.slices import (
-    CommerceSessionSlice,
-    CommerceSliceEvalCase,
-    SliceAssertion,
-    SliceEvalResult,
-    SliceStep,
-    export_commerce_slice_eval,
-    run_commerce_slice_regression,
 )
 from myrm_agent_harness.backends.commerce.types import (
     ApplyResult,
@@ -132,15 +51,6 @@ from myrm_agent_harness.backends.commerce.types import (
     TopProductMetric,
     VariantOption,
 )
-from myrm_agent_harness.backends.commerce.verticals import (
-    CommerceStarterPack,
-    VerticalDomain,
-    create_entertainment_starter_pack,
-    create_retail_starter_pack,
-    create_telecom_starter_pack,
-    create_travel_starter_pack,
-    get_vertical_starter_pack,
-)
 
 # Backward-compatibility alias
 StorefrontBackend = StorefrontBackendProtocol
@@ -149,44 +59,20 @@ MerchantBackend = MerchantBackendProtocol
 __all__ = [
     "ApplyResult",
     "Cart",
-    "CartCapCheckResult",
-    "CartCapExceeded",
-    "CartCapLimits",
     "CartLine",
-    "CartOperationReceipt",
-    "CartSessionLock",
     "CartUpdateResult",
-    "ChangeNotApplicable",
     "ChangeType",
-    "CheckoutCardPayload",
-    "CommerceError",
     "CommerceRole",
-    "CommerceSessionSlice",
-    "CommerceSliceEvalCase",
-    "CommerceStarterPack",
     "CompetitorPrice",
-    "GateDecision",
-    "GracefulFilterResult",
-    "GuardrailCheckResult",
-    "GuardrailDecision",
-    "GuardrailLimits",
-    "GuardrailViolation",
-    "InMemoryMerchantBackend",
-    "InMemoryStorefrontBackend",
-    "InvalidStagedChange",
     "InventoryAlert",
     "InventoryAlertSeverity",
     "Listing",
     "ListingStatus",
     "MerchantBackend",
     "MerchantBackendProtocol",
-    "MerchantGuardrailConfig",
     "MerchantSessionContext",
     "MerchantSessionState",
     "Money",
-    "NormalizedMeasurement",
-    "NotOffered",
-    "OptionsResolutionHeld",
     "Order",
     "OrderLine",
     "OrderStatus",
@@ -198,68 +84,11 @@ __all__ = [
     "Product",
     "ProductFilter",
     "ProductVariant",
-    "RelaxationAdvice",
     "ShoppingSessionContext",
     "ShoppingSessionState",
-    "SliceAssertion",
-    "SliceEvalResult",
-    "SliceStep",
     "StagedChange",
     "StorefrontBackend",
     "StorefrontBackendProtocol",
     "TopProductMetric",
-    "Unavailable",
     "VariantOption",
-    "VariantOptionsResolution",
-    "VerticalDomain",
-    "check_cart_cap",
-    "check_guardrails",
-    "check_merchant_guardrails",
-    "create_entertainment_starter_pack",
-    "create_retail_starter_pack",
-    "create_telecom_starter_pack",
-    "create_travel_starter_pack",
-    "evaluate_options_explosion",
-    "export_commerce_slice_eval",
-    "extract_attributes_from_text",
-    "extract_product_options_catalog",
-    "filter_with_graceful_relaxation",
-    "format_app_events_for_prompt",
-    "gated_add_to_cart",
-    "get_vertical_starter_pack",
-    "inject_checkout_url_to_card",
-    "parse_measurement",
-    "resolve_variant_options",
-    "run_commerce_slice_regression",
-    "sanitize_checkout_for_model",
-    "validate_protected_fields",
-    "AppEvent",
-    "AppEventQueue",
-    "AppEventQueueProtocol",
-    "AppEventType",
-    "PAYMENT_HANDOFF_GATE",
-    "CheckoutHandoffMode",
-    "CheckoutHandoffPayload",
-    "CheckoutTarget",
-    "ZeroTouchHandoffEnricher",
-    "ZeroTouchHandoffEnvelope",
-    "InMemoryAppEventQueue",
-    "format_app_events_for_prompt",
-    "process_out_of_band_payment_webhook",
-    "CheckoutHandoff",
-    "HandoffMode",
-    "enrich_checkout_payloads",
-    "AppEventQueue",
-    "CommerceMorningDigest",
-    "DigestAttentionItem",
-    "DigestSeverity",
-    "HeadlessDigestRunner",
-    "format_digest_card_payload",
-    "AttentionCategory",
-    "AttentionItem",
-    "AttentionSeverity",
-    "CommercialDigestCard",
-    "CommercialDigestRunner",
-    "DigestAction",
-    "KpiComparison",
 ]

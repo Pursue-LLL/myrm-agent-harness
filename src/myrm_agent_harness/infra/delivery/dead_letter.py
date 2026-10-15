@@ -47,7 +47,7 @@ class DeadLetterQueue:
     - Manual retry support
     - Configurable retry intervals
     - Maximum retry limit
-    - Direct integration with DeliveryQueue via enqueue callback
+    - Direct integration with the host's delivery queue via enqueue callback
 
     Attributes:
         base_dir: Base state directory (local mode, optional)

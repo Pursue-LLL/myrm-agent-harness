@@ -1,24 +1,22 @@
-"""Message delivery queue with persistence and auto-recovery.
+"""Durable delivery storage, dead-letter retry and permanent-failure ledger.
 
-Provides reliable message delivery with disk persistence, automatic retry,
-and startup recovery.
+Provides disk persistence for pending and failed deliveries and a dead-letter queue
+with exponential-backoff retry. The delivery queue itself is owned by the host.
 
 [INPUT]
 (No external dependencies, pure asyncio + json)
 
 [OUTPUT]
 - QueuedDelivery: Queued delivery dataclass
-- DeliveryQueue: Main queue class with persistence and retry
+- DeadLetterQueue: Dead letter queue with retry and permanent-failure callback
+- save_delivery, ack_delivery, load_pending_deliveries, load_failed_deliveries, move_to_failed, move_to_pending: storage helpers
 
 [POS]
-Message delivery queue. Disk-persistent with automatic retry on failure and pending delivery recovery on startup.
+Durable delivery persistence and dead-letter recovery.
 
 """
 
 from .dead_letter import DeadLetterQueue
-from .file_lock import acquire_delivery_lock
-from .queue import DeliveryQueue
-from .recovery import compute_backoff_ms, is_permanent_error, recover_pending_deliveries
 from .storage import (
     QueuedDelivery,
     ack_delivery,
@@ -31,16 +29,11 @@ from .storage import (
 
 __all__ = [
     "DeadLetterQueue",
-    "DeliveryQueue",
     "QueuedDelivery",
     "ack_delivery",
-    "acquire_delivery_lock",
-    "compute_backoff_ms",
-    "is_permanent_error",
     "load_failed_deliveries",
     "load_pending_deliveries",
     "move_to_failed",
     "move_to_pending",
-    "recover_pending_deliveries",
     "save_delivery",
 ]

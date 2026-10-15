@@ -18,13 +18,11 @@ Infrastructure layer.
 | Submodule | Description |
 |-----------|-------------|
 | concurrency/ | Async coordination primitives for bounded parallel work and serialized state merges. |
-| delivery/ | Message delivery queue. Disk-persistent with automatic retry on failure and pending delivery recover |
+| delivery/ | Durable delivery persistence and dead-letter retry; the delivery queue is owned by the host. |
 | git/ | Pure-Python zero-subprocess Git metadata resolver (branch, commit, worktrees, detached HEAD) with mtime debounce. |
 | incremental/ | Incremental state tracking for monitoring data changes. |
 | health/ | Health checking infrastructure. Abstract interfaces for resource health checks and automatic recovery. |
-| locks/ | Unified locking mechanisms for concurrent operations. |
 | pubsub/ | Generic in-process pub-sub (`PubSubBus`); Server SSE / pairing / btw. Distinct from `runtime/events/` and `agent/streaming/broadcast/`. |
-| security/ | Infrastructure security module. |
 | tracing/ | OpenTelemetry distributed tracing. Distinct from `observability/tracing/` (stdlib log trace_id). |
 
 ## Key Dependencies
