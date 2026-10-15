@@ -152,12 +152,6 @@ from myrm_agent_harness.toolkits.memory.peer_cognition import (
     PeerRelationKind,
     PeerType,
 )
-from myrm_agent_harness.toolkits.memory.pitfall_alert import (
-    AlertSeverity,
-    PastPitfallRetriever,
-    ProactivePitfallAlertEngine,
-    ShadowDecisionIntentRecognizer,
-)
 from myrm_agent_harness.toolkits.memory.private_notebook import ModelPrivateNotebookManager
 from myrm_agent_harness.toolkits.memory.quadruple_retrieval import (
     ParsedTaskGoal,
@@ -473,10 +467,6 @@ __all__ = [
     "IncrementalIndexingPipeline",
     "MarkdownChunk",
     "MarkdownSlidingWindowChunker",
-    "AlertSeverity",
-    "PastPitfallRetriever",
-    "ProactivePitfallAlertEngine",
-    "ShadowDecisionIntentRecognizer",
     "CompoundedExperienceItem",
     "ExperienceCompoundingSuite",
 ]
