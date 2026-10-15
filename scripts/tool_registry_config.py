@@ -67,7 +67,6 @@ LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset(
         "wiki_maintain_tool",
         # Memory-governance / context meta-tools that ship with unit tests but have
         # no Turn1 mount: not in the Action Tool SSOT until a profile wires them.
-        "check_memory_ground_truth_drift",
         "inspect_context",
         "inspect_hindsight_warnings",
         "manage_integration_retained_context",
@@ -101,7 +100,6 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
         "create_code_impact_tool",
         "create_code_memory_compaction_tool",
         "create_cross_agent_arbitration_tool",
-        "create_ground_truth_drift_check_tool",
         "create_hindsight_reflection_tool",
         "create_integration_context_purge_tool",
         "create_kg_content_screening_tool",

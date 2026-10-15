@@ -17,7 +17,6 @@ directories:
   - agent/context_management/dependency_expansion
   - agent/context_management/project_state
   - toolkits/memory/decay
-  - toolkits/memory/drift_defense
   - toolkits/memory/profile_notes
 
 modules: []
