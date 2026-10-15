@@ -26,5 +26,4 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 | `reindex.py` | Mixin | Orphan collection detection and re-embedding after model switch | ✅ |
 | `helpers.py` | Internal | `_memory_ref`, `_infer_preference_category` | — |
 | `__init__.py` | Facade | Composes `MemoryManager` | ✅ |
-| `integration_purge.py` | Mixin | Connector-scoped retained-context auditing, selective purge and provenance revocation | ✅ |
 

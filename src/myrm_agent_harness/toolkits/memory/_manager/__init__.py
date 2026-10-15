@@ -21,9 +21,6 @@ from myrm_agent_harness.toolkits.memory._manager.governance_session import (
     MemoryManagerGovernanceSessionMixin,
 )
 from myrm_agent_harness.toolkits.memory._manager.import_export import MemoryManagerImportExportMixin
-from myrm_agent_harness.toolkits.memory._manager.integration_purge import (
-    MemoryManagerIntegrationPurgeMixin,
-)
 from myrm_agent_harness.toolkits.memory._manager.listing_maintenance import (
     MemoryManagerListingMaintenanceMixin,
 )
@@ -53,16 +50,12 @@ class MemoryManager(
     MemoryManagerQueriesMixin,
     MemoryManagerListingMaintenanceMixin,
     MemoryManagerSovereignMigrationMixin,
-    MemoryManagerIntegrationPurgeMixin,
     MemoryManagerMutationsMixin,
     MemoryManagerStorageMixin,
     MemoryManagerImportExportMixin,
     MemoryManagerReindexMixin,
 ):
     """Orchestrates all memory operations. Bound to a single user via ``user_id``."""
-
-
-
 
 
 __all__ = [

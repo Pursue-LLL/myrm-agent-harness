@@ -116,7 +116,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "chunking",
                 "ephemeral_delta",
                 "four_tier_fts",
-                "integration_purge",
                 "mem_cube",
                 "migration",
                 "private_notebook",
