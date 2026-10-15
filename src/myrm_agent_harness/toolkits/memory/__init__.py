@@ -100,14 +100,6 @@ from myrm_agent_harness.toolkits.memory.job_compounding import (
     RuleType,
 )
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-from myrm_agent_harness.toolkits.memory.markdown_curator import (
-    CuratedMemoryCategory,
-    CuratedMemoryEntry,
-    CuratedMemoryStatus,
-    CuratorStudioSummary,
-    MarkdownSyncDelta,
-    MemoryCuratorStudio,
-)
 from myrm_agent_harness.toolkits.memory.mem_cube import (
     CubeMemoryRecord,
     CubeQueryRequest,
@@ -362,12 +354,6 @@ __all__ = [
     "MultiPlatformParserMatrix",
     "ObservationPayload",
     "ScreenObservationMemoryManager",
-    "CuratedMemoryCategory",
-    "CuratedMemoryEntry",
-    "CuratedMemoryStatus",
-    "CuratorStudioSummary",
-    "MarkdownSyncDelta",
-    "MemoryCuratorStudio",
     "BaseContextPayload",
     "DialecticConflictCandidate",
     "DialecticReconciliationConfig",

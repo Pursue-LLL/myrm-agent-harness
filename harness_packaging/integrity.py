@@ -130,7 +130,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "integration_purge",
                 "job_compounding",
                 "kg_screening",
-                "markdown_curator",
                 "mem_cube",
                 "migration",
                 "private_notebook",
