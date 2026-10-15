@@ -16,15 +16,20 @@ Health diagnostic probes. Registered into the global diagnostic manager and exec
 by /health/doctor to produce the system health dashboard.
 """
 
+import asyncio
 import logging
 import os
 import sqlite3
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.observability.diagnostics.desktop_probe import check_desktop_permissions_health
-from myrm_agent_harness.observability.diagnostics.manager import register_diagnostic
+from myrm_agent_harness.observability.diagnostics.manager import DIAGNOSTIC_HOOK_TIMEOUT_S, register_diagnostic
 from myrm_agent_harness.observability.diagnostics.protocols import HealthReport
 from myrm_agent_harness.observability.diagnostics.vector_probe import check_qdrant_health
+
+if TYPE_CHECKING:
+    import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -34,40 +39,81 @@ _NETWORK_PROBE_URLS = (
     "https://www.gstatic.com/generate_204",
     "https://connectivitycheck.platform.hicloud.com/generate_204",
 )
+# A later URL opens only when the attempts before it are slow, so a healthy network still issues one request.
+_NETWORK_PROBE_STAGGER_S = 1.0
+_NETWORK_PROBE_REQUEST_TIMEOUT_S = 2.5
+# The probe must deliver its own verdict before the manager's per-hook limit cuts it off.
+_NETWORK_PROBE_BUDGET_S = DIAGNOSTIC_HOOK_TIMEOUT_S - 1.0
+
+
+async def _probe_url(client: "httpx.AsyncClient", url: str) -> tuple[str, str | None]:
+    """Return ``(url, None)`` when the URL answers, otherwise ``(url, failure description)``."""
+    try:
+        resp = await client.get(url, follow_redirects=True)
+    except Exception as exc:
+        return url, f"{type(exc).__name__}: {exc}"
+    if resp.status_code < 500:
+        return url, None
+    return url, f"HTTP {resp.status_code} from {url}"
+
+
+async def _first_reachable_url(client: "httpx.AsyncClient", failures: list[str]) -> str | None:
+    """Return the first URL that answers; a slow or blocked attempt never delays the fallbacks behind it."""
+    remaining = list(_NETWORK_PROBE_URLS)
+    pending: set[asyncio.Task[tuple[str, str | None]]] = set()
+    try:
+        while remaining or pending:
+            if not pending:
+                pending.add(asyncio.create_task(_probe_url(client, remaining.pop(0))))
+            done, pending = await asyncio.wait(
+                pending,
+                timeout=_NETWORK_PROBE_STAGGER_S if remaining else None,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if not done:
+                pending.add(asyncio.create_task(_probe_url(client, remaining.pop(0))))
+                continue
+            for task in done:
+                url, failure = task.result()
+                if failure is None:
+                    return url
+                failures.append(failure)
+    finally:
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+    return None
 
 
 async def check_network_health() -> HealthReport:
     """Verify outbound DNS resolution and TLS connectivity.
 
-    Tries multiple probe URLs with fallback to handle regional network restrictions.
+    Probes several URLs (later ones open when earlier ones are slow) so a single blocked endpoint,
+    common under regional network restrictions, cannot hide a working connection.
     """
     from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
-    last_failure: str | None = None
-    async with create_httpx_client(timeout=5.0) as client:
-        for url in _NETWORK_PROBE_URLS:
-            try:
-                resp = await client.get(url, follow_redirects=True)
-                if resp.status_code < 500:
-                    return HealthReport(
-                        component_name="Network",
-                        status="pass",
-                        message="Internet connection is healthy.",
-                        detail=f"Outbound connectivity verified via {url}.",
-                    )
-                last_failure = f"HTTP {resp.status_code} from {url}"
-            except Exception as e:
-                last_failure = f"{type(e).__name__}: {e}"
-                continue
+    failures: list[str] = []
+    reachable: str | None = None
+    async with create_httpx_client(timeout=_NETWORK_PROBE_REQUEST_TIMEOUT_S) as client:
+        try:
+            async with asyncio.timeout(_NETWORK_PROBE_BUDGET_S):
+                reachable = await _first_reachable_url(client, failures)
+        except TimeoutError:
+            failures.append(f"TimeoutError: no probe URL answered within {_NETWORK_PROBE_BUDGET_S:g}s")
 
-    detail = (
-        f"All probe URLs unreachable. Last failure: {last_failure}" if last_failure else "All probe URLs unreachable."
-    )
+    if reachable is not None:
+        return HealthReport(
+            component_name="Network",
+            status="pass",
+            message="Internet connection is healthy.",
+            detail=f"Outbound connectivity verified via {reachable}.",
+        )
     return HealthReport(
         component_name="Network",
         status="fail",
         message="Internet is not available. AI features that need web access may not work.",
-        detail=detail,
+        detail=f"All probe URLs unreachable. Failures: {'; '.join(failures)}",
         fix_suggestion="Check your network connection or firewall settings.",
     )
 

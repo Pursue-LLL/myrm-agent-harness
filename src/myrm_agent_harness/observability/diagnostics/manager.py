@@ -2,6 +2,7 @@
 - (none)
 
 [OUTPUT]
+- DIAGNOSTIC_HOOK_TIMEOUT_S: Per-hook time limit; probes that fan out must finish inside it.
 - register_diagnostic: Register an async health-check hook function.
 - register_protocol: Register a class instance that implements ``DiagnosticPro...
 - run_all_diagnostics: Run all registered diagnostic hooks concurrently and retu...
@@ -17,6 +18,8 @@ from collections.abc import Awaitable, Callable
 from .protocols import DiagnosticProtocol, HealthReport
 
 logger = logging.getLogger(__name__)
+
+DIAGNOSTIC_HOOK_TIMEOUT_S = 5.0
 
 _diagnostic_hooks: list[Callable[[], Awaitable[HealthReport]]] = []
 
@@ -40,7 +43,9 @@ async def run_all_diagnostics() -> list[HealthReport]:
     if not _diagnostic_hooks:
         return []
 
-    async def _safe_execute_hook(hook: Callable[[], Awaitable[HealthReport]], timeout: float = 5.0) -> HealthReport:
+    async def _safe_execute_hook(
+        hook: Callable[[], Awaitable[HealthReport]], timeout: float = DIAGNOSTIC_HOOK_TIMEOUT_S
+    ) -> HealthReport:
         try:
             async with asyncio.timeout(timeout):
                 return await hook()
@@ -49,9 +54,9 @@ async def run_all_diagnostics() -> list[HealthReport]:
             return HealthReport(
                 component_name=hook_name,
                 status="fail",
-                message="A system component is not responding.",
-                detail=f"Diagnostic timed out (>{timeout}s), component may be deadlocked.",
-                fix_suggestion="Try restarting the application.",
+                message="A system check did not finish in time.",
+                detail=f"Diagnostic timed out (>{timeout}s); the check may be blocked or the machine may be busy.",
+                fix_suggestion="Run the check again in a moment.",
             )
         except Exception as e:
             hook_name = getattr(hook, "__name__", "unknown_hook")

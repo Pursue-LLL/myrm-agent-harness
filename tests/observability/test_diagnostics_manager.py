@@ -145,6 +145,9 @@ class TestRunAllDiagnostics:
         assert len(reports) == 1
         assert reports[0].status == "fail"
         assert "timed out" in reports[0].detail.lower()
+        # A timeout proves nothing about a deadlock, so the report must not claim one or advise a restart.
+        assert "deadlock" not in reports[0].detail.lower()
+        assert "restart" not in reports[0].fix_suggestion.lower()
 
     @pytest.mark.asyncio
     async def test_exception_in_hook_produces_fail_report(self):
