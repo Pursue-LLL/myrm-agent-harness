@@ -1,7 +1,7 @@
 """Map wiki lint issue types to user-facing action kinds for health reports.
 
 [INPUT]
-- typing.Literal (POS: type hints)
+- collections.abc.Sequence, typing.Literal (POS: type hints)
 
 [OUTPUT]
 - WikiIssueActionKind, action_kind_for_issue_type, count_open_actions
@@ -13,6 +13,7 @@ action vocabulary used in wiki health reports.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Literal
 
 WikiIssueActionKind = Literal["repair", "recompile", "navigate", "info"]
@@ -36,7 +37,7 @@ def action_kind_for_issue_type(issue_type: str) -> WikiIssueActionKind:
     return _ISSUE_TYPE_ACTION.get(issue_type, "info")
 
 
-def count_open_actions(issues: list[object]) -> int:
+def count_open_actions(issues: Sequence[object]) -> int:
     """Count issues that require user or guided action (excludes informational only)."""
     total = 0
     for issue in issues:

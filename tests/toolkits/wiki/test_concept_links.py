@@ -162,6 +162,19 @@ async def test_capped_outlinks_are_ordered_by_name_whichever_index_the_planner_s
     assert outlinks == targets[:MAX_CONCEPT_LINKS]
 
 
+def test_weight_outranks_name_in_both_directions(tmp_path: Path) -> None:
+    """The name only breaks ties: a heavier link is listed before a lighter one that sorts first by name."""
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    indexer = WikiIndexer(structure, WikiConfig(enable_hybrid_search=False))
+    edges = [("hub", "a-light", 3.0), ("hub", "z-heavy", 3.5), ("a-light", "hub", 3.0), ("z-heavy", "hub", 3.5)]
+    with indexer._get_conn() as conn:
+        conn.executemany("INSERT INTO wiki_edges(source, target, weight) VALUES (?, ?, ?)", edges)
+    links = indexer.get_concept_links("hub")
+    assert [link["name"] for link in links["outlinks"]] == ["z-heavy", "a-light"]
+    assert [link["name"] for link in links["backlinks"]] == ["z-heavy", "a-light"]
+
+
 def test_extract_mention_record_edge_cases() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         base = Path(tmpdir)

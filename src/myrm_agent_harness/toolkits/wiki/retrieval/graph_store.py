@@ -344,7 +344,7 @@ class WikiGraphStore:
         """Fetch bidirectional links: outlinks, and backlinks with the snippet and section that mention the concept.
 
         Each direction is capped at `MAX_CONCEPT_LINKS`; `outlinks_has_more` / `backlinks_has_more` say whether more existed.
-        Edges tie on weight, so the name breaks the tie: which links survive the cap does not depend on write order.
+        Links of equal weight are ordered by name, so which of them survive the cap does not depend on the order the pages were written.
         """
         clean_name = concept_index_key(self._structure, concept_name.removesuffix(".md").strip())
         spellings = self._target_spellings(clean_name)
