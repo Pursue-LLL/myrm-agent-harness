@@ -11,9 +11,11 @@ External consumers import here instead of reaching into ``agent.security``.
 - toolkits.computer_use.screen_detector::ScreenDetector / get_default_screen_detector / hid_idle_seconds (POS: 桌面锁屏探针与硬件输入空闲读数)
 - toolkits.computer_use.capture_exclusion::exclude_capture_windows (POS: 宿主遮罩窗的截图排除注入)
 - toolkits.computer_use.types::ScreenLockState (POS: 锁屏状态共享类型)
+- core.security.guards.privacy_ladder::PrivacyFailClosedViolationError (POS: 隐私梯度阻断异常，宿主按类型拦截并提示用户)
+- core.security.missing_semantics::MissingSemanticsBlockedError (POS: 缺失语义门禁阻断异常，宿主按类型拦截并提示用户)
 
 [OUTPUT]
-- myrm_agent_harness.api.security → server 统一安全策略、隐私策略预演、挂机安全气囊、锁屏/在场探针与遮罩窗截图排除导出接口
+- myrm_agent_harness.api.security → server 统一安全策略、隐私策略预演、挂机安全气囊、锁屏/在场探针与遮罩窗截图排除、隐私与缺失语义门禁阻断异常导出接口
 """
 
 from __future__ import annotations
@@ -64,6 +66,8 @@ from myrm_agent_harness.core.security.egress.spend_governor import (
     SpendGovernor,
     SpendGovernorConfig,
 )
+from myrm_agent_harness.core.security.guards.privacy_ladder import PrivacyFailClosedViolationError
+from myrm_agent_harness.core.security.missing_semantics import MissingSemanticsBlockedError
 from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import (
     WorkspaceSnapshotResult,
     create_workspace_snapshot,
@@ -89,6 +93,8 @@ __all__ = [
     "BatchRiskItemDetail",
     "BatchRiskReport",
     "ManagedApprovalPolicy",
+    "MissingSemanticsBlockedError",
+    "PrivacyFailClosedViolationError",
     "PrivacyPreview",
     "ReadOnlySSHValidator",
     "ScreenDetector",
