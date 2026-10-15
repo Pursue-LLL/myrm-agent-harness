@@ -801,7 +801,7 @@ class WikiCompiler:
                         serialize_frontmatter_block,
                     )
 
-                    restore_base = serialize_frontmatter_block(source_provenance)
+                    restore_base = serialize_frontmatter_block(dict[str, object](source_provenance))
 
             article_content = restore_provenance_metadata(restore_base, article_content)
 
