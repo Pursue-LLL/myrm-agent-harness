@@ -5,6 +5,7 @@
 - ..core.link_resolver::concept_index_key, link_lookup_forms, WikiLinkResolver (POS: concept identity, link spellings and link resolution)
 - ..core.structure::WikiStructure (POS: vault paths)
 - .edge_links::relink_dangling_edges (POS: edge target convergence)
+- .edge_weights::refresh_all_edge_weights (POS: edge weight derivation)
 
 [OUTPUT]
 - INDEX_SCHEMA_VERSION: `PRAGMA user_version` stamped once every step has run
@@ -15,8 +16,9 @@ Step 1 gives one index identity per concept page: an index may hold a page twice
 name vs. on-disk path), so each such row is renamed to the page's on-disk key and the
 duplicate dropped when both exist; rows without a backing page are left untouched.
 Step 2 records the spellings of every edge target and re-resolves all unresolved edges
-under the current link rules (bare file names included). The index is derived data: no
-article file is read for content or modified.
+under the current link rules (bare file names included). Step 3 derives every edge weight
+from the stored edges, replacing weights that depended on the order pages were written in.
+The index is derived data: no article file is read for content or modified.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from typing import TYPE_CHECKING
 
 from ..core.link_resolver import concept_index_key, link_lookup_forms
 from .edge_links import relink_dangling_edges
+from .edge_weights import refresh_all_edge_weights
 
 if TYPE_CHECKING:
     from ..core.link_resolver import WikiLinkResolver
@@ -34,7 +37,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-INDEX_SCHEMA_VERSION = 2
+INDEX_SCHEMA_VERSION = 3
 
 _CONCEPT_TABLES = ("wiki_fts", "wiki_index_meta")
 
@@ -51,7 +54,9 @@ def migrate_index_schema(
 
     if version < 1:
         _merge_concept_identity(conn, structure)
-    _converge_edges(conn, resolver)
+    if version < 2:
+        _converge_edges(conn, resolver)
+    refresh_all_edge_weights(conn)
     conn.execute(f"PRAGMA user_version = {INDEX_SCHEMA_VERSION}")
 
 

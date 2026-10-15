@@ -3,11 +3,12 @@
 [INPUT]
 - sqlite3::Connection (POS: wiki index database)
 - ..core.link_resolver::WikiLinkResolver, PageChange, link_lookup_forms (POS: link target to canonical concept key, spellings a target is matched on)
+- .edge_weights::DIRECT_LINK_WEIGHT, refresh_edge_weights (POS: edge weight derivation)
 
 [OUTPUT]
 - canonical_edge_target: resolve one extracted link target for storage
 - store_edge: write one edge together with the spellings of its target
-- relink_dangling_edges: re-resolve stored edge targets that name no indexed page
+- relink_dangling_edges: re-resolve stored edge targets that name no indexed page, then re-derive the weights of the pages whose links changed
 - linkers_to_reread: pages whose links must be re-read because a same-named page appeared or went away
 
 [POS]
@@ -30,6 +31,7 @@ from collections.abc import Iterator, Sequence
 from typing import TYPE_CHECKING
 
 from ..core.link_resolver import link_lookup_forms
+from .edge_weights import DIRECT_LINK_WEIGHT, refresh_edge_weights
 
 if TYPE_CHECKING:
     from ..core.link_resolver import PageChange, WikiLinkResolver
@@ -38,7 +40,7 @@ if TYPE_CHECKING:
 _FORMS_PER_QUERY = 200
 
 _DANGLING_EDGES_SQL = """
-    SELECT source, target, weight FROM wiki_edges
+    SELECT source, target FROM wiki_edges
     WHERE target NOT IN (SELECT concept_name FROM wiki_index_meta)
 """
 
@@ -64,15 +66,19 @@ def canonical_edge_target(
     return resolved if resolved is not None else target
 
 
-def store_edge(conn: sqlite3.Connection, source: str, target: str, weight: float) -> None:
-    """Insert an edge with the spellings of its target; an existing edge keeps the larger weight."""
+def store_edge(conn: sqlite3.Connection, source: str, target: str) -> None:
+    """Insert an edge with the spellings of its target; an edge that already exists stays as it is.
+
+    The edge starts at the direct-link weight; the caller re-derives the weights of the
+    pages it changed once all their edges are stored (``refresh_edge_weights``).
+    """
     target_key, target_slug = link_lookup_forms(target, source)
     conn.execute(
         """
         INSERT INTO wiki_edges (source, target, weight, target_key, target_slug) VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(source, target) DO UPDATE SET weight = MAX(weight, excluded.weight)
+        ON CONFLICT(source, target) DO NOTHING
         """,
-        (source, target, weight, target_key, target_slug),
+        (source, target, DIRECT_LINK_WEIGHT, target_key, target_slug),
     )
 
 
@@ -87,17 +93,20 @@ def relink_dangling_edges(
     spelling that only a later page alias explains; this converges stored edges once
     the page is known. ``change`` narrows the work to edges spelled like the written
     page; without it (or after the resolver re-read the vault) every unresolved edge is
-    re-resolved.
+    re-resolved. The pages whose links were rewritten have their edge weights re-derived.
     """
     rewritten = 0
-    for source, old_target, weight in _unresolved_edges(conn, change):
+    relinked_sources: set[str] = set()
+    for source, old_target in _unresolved_edges(conn, change):
         new_target = resolver.resolve(old_target, source)
         if new_target is None or new_target == old_target:
             continue
         conn.execute("DELETE FROM wiki_edges WHERE source = ? AND target = ?", (source, old_target))
         if new_target != source:
-            store_edge(conn, source, new_target, weight)
+            store_edge(conn, source, new_target)
+        relinked_sources.add(source)
         rewritten += 1
+    refresh_edge_weights(conn, relinked_sources)
     return rewritten
 
 
@@ -126,21 +135,20 @@ def _linkers(conn: sqlite3.Connection, target: str) -> list[str]:
     return [str(row["source"]) for row in rows]
 
 
-def _unresolved_edges(conn: sqlite3.Connection, change: PageChange | None) -> list[tuple[str, str, float]]:
+def _unresolved_edges(conn: sqlite3.Connection, change: PageChange | None) -> list[tuple[str, str]]:
     if change is None or change.full_rescan:
         rows = conn.execute(_DANGLING_EDGES_SQL).fetchall()
-        return [(str(r["source"]), str(r["target"]), float(r["weight"] or 1.0)) for r in rows]
+        return [(str(r["source"]), str(r["target"])) for r in rows]
 
-    edges: dict[tuple[str, str], float] = {}
+    edges: set[tuple[str, str]] = set()
     for forms in _chunks(sorted(change.forms), _FORMS_PER_QUERY):
         marks = ",".join("?" * len(forms))
         rows = conn.execute(
             f"{_DANGLING_EDGES_SQL} AND (target_key IN ({marks}) OR target_slug IN ({marks}))",
             (*forms, *forms),
         ).fetchall()
-        for row in rows:
-            edges[(str(row["source"]), str(row["target"]))] = float(row["weight"] or 1.0)
-    return [(source, target, weight) for (source, target), weight in edges.items()]
+        edges.update((str(row["source"]), str(row["target"])) for row in rows)
+    return sorted(edges)
 
 
 def _chunks(items: Sequence[str], size: int) -> Iterator[Sequence[str]]:

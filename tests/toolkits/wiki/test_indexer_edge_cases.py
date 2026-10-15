@@ -184,19 +184,19 @@ async def test_graph_insights_with_data(wiki_structure):
     assert "D" in gap_names
 
 
-def test_edge_weight_calculation(wiki_structure):
-    """_calculate_edge_weight computes multi-dimensional weight."""
-    config = WikiConfig(enable_hybrid_search=False)
-    indexer = WikiIndexer(wiki_structure, config)
+def test_edge_weight_adds_a_bonus_for_each_link_both_ends_share(wiki_structure):
+    """A direct link weighs 3.0; each page both ends link to adds 0.5, up to 1.5."""
+    indexer = WikiIndexer(wiki_structure, WikiConfig(enable_hybrid_search=False))
 
-    indexer.upsert_edges("X", ["Y"])
-    indexer.upsert_edges("Y", ["Z"])
-    indexer.upsert_edges("X", ["Z"])
+    indexer.upsert_edges("X", ["Y", "Z", "P1", "P2", "P3"])
+    indexer.upsert_edges("Y", ["Z", "P1", "P2", "P3"])
+    indexer.upsert_edges("Z", ["P1"])
 
-    with indexer._get_conn() as conn:
-        weight = indexer._calculate_edge_weight(conn, "X", "Z", source_files=["file1.md"])
+    weights = dict(indexer.get_outgoing_edges("X"))
 
-    assert weight >= 3.0
+    assert weights["Y"] == 4.5  # shares Z, P1, P2, P3 with X: capped at +1.5
+    assert weights["Z"] == 3.5  # shares P1 with X
+    assert weights["P1"] == 3.0  # P1 links nowhere
 
 
 # --- CJK Tokenizer Tests ---

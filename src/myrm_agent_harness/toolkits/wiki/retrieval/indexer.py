@@ -13,6 +13,7 @@
 - .fts_write::FtsWriteMixin (POS: FTS5 + vector upsert/delete mixin)
 - .concept_links::ConceptLinks (POS: typed concept link lookup result)
 - .edge_links::canonical_edge_target, linkers_to_reread, relink_dangling_edges, store_edge (POS: edge targets stored as page keys, converged when pages appear or disappear)
+- .edge_weights::refresh_edge_weights (POS: edge weights re-derived for the pages whose links changed)
 - .graph_store::WikiGraphStore (POS: knowledge graph storage)
 - .identity_migration::migrate_index_schema (POS: one-time index migrations: page identity, edge link spellings)
 - .sidecar_index::SidecarIndexMixin (POS: L0/L1 sidecar index operations)
@@ -22,7 +23,7 @@
 
 [POS]
 Wiki concept indexer core. Manages FTS5 + Qdrant hybrid search for L2 concept entries,
-knowledge graph edges (targets resolved to page keys), and federated multi-database queries. Only `publish_status=published`
+knowledge graph edges (targets resolved to page keys, weights derived from the stored edges), and federated multi-database queries. Only `publish_status=published`
 entries are searchable and vector-indexed. Index writes live in FtsWriteMixin, reads in
 FtsSearchMixin and sidecar (L0/L1) indexing in SidecarIndexMixin to keep this file
 focused on concept-level indexing.
@@ -31,7 +32,7 @@ focused on concept-level indexing.
 import contextlib
 import logging
 import sqlite3
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.utils.db.fts5 import (
@@ -45,6 +46,7 @@ from ..core.link_resolver import WikiLinkResolver, concept_index_key, concept_pa
 from ..core.structure import WikiStructure
 from .concept_links import ConceptLinks
 from .edge_links import canonical_edge_target, linkers_to_reread, relink_dangling_edges, store_edge
+from .edge_weights import refresh_edge_weights
 from .fts_search import FtsSearchMixin, migrate_wiki_fts_schema
 from .fts_write import FtsWriteMixin
 from .graph_store import WikiGraphStore
@@ -195,60 +197,26 @@ class WikiIndexer(FtsWriteMixin, FtsSearchMixin, SidecarIndexMixin):
         return self._graph_store.get_concept_links(concept_name)
 
     def get_outgoing_edges(self, source: str) -> list[tuple[str, float]]:
-        """Return weighted outgoing graph edges for a concept, highest weight first."""
+        """Return weighted outgoing graph edges for a concept, highest weight first, equal weights by name."""
         with self._get_conn() as conn:
             cursor = conn.execute(
-                "SELECT target, weight FROM wiki_edges WHERE source = ? ORDER BY weight DESC",
+                "SELECT target, weight FROM wiki_edges WHERE source = ? ORDER BY weight DESC, target",
                 (source,),
             )
             return [(str(row["target"]), float(row["weight"])) for row in cursor.fetchall()]
 
-    def upsert_edges(self, source: str, targets: list[str], source_files: list[str] | None = None) -> None:
-        """Upsert directional edges with multi-dimensional weight calculation."""
+    def upsert_edges(self, source: str, targets: list[str]) -> None:
+        """Replace the outgoing edges of ``source``; weights follow from the edges now stored."""
         with self._get_conn() as conn:
-            self._replace_edges(conn, source, targets, source_files)
+            self._replace_edges(conn, source, targets)
 
-    def _replace_edges(
-        self, conn: sqlite3.Connection, source: str, targets: list[str], source_files: list[str] | None
-    ) -> None:
+    def _replace_edges(self, conn: sqlite3.Connection, source: str, targets: Iterable[str]) -> None:
+        """Replace ``source``'s edges and re-derive the weight of every edge that starts or ends at it."""
         conn.execute("DELETE FROM wiki_edges WHERE source = ?", (source,))
         for target in targets:
-            if source == target:
-                continue
-            weight = self._calculate_edge_weight(conn, source, target, source_files)
-            store_edge(conn, source, target, weight)
-
-    def _calculate_edge_weight(
-        self,
-        conn: sqlite3.Connection,
-        source: str,
-        target: str,
-        source_files: list[str] | None,
-    ) -> float:
-        """
-        Multi-dimensional edge weight: direct_link(3.0) + source_overlap(4.0) + common_neighbors(1.5).
-        """
-        weight = 3.0  # Base weight for direct link existence
-
-        # Source overlap: check if target's sources overlap with source's
-        if source_files:
-            cursor = conn.execute("SELECT source FROM wiki_edges WHERE target = ? LIMIT 20", (target,))
-            target_neighbors = {row["source"] for row in cursor.fetchall()}
-            # If target links back to concepts that share source files, add overlap bonus
-            if target_neighbors:
-                weight += min(len(target_neighbors) * 0.5, 4.0)
-
-        # Common neighbors (Adamic-Adar inspired): shared connections indicate relatedness
-        cursor = conn.execute("SELECT target FROM wiki_edges WHERE source = ?", (source,))
-        source_neighbors = {row["target"] for row in cursor.fetchall()}
-        cursor = conn.execute("SELECT target FROM wiki_edges WHERE source = ?", (target,))
-        target_out_neighbors = {row["target"] for row in cursor.fetchall()}
-
-        common = source_neighbors & target_out_neighbors
-        if common:
-            weight += min(len(common) * 0.5, 1.5)
-
-        return round(weight, 2)
+            if source != target:
+                store_edge(conn, source, target)
+        refresh_edge_weights(conn, (source,))
 
     def extract_and_upsert_edges(self, concept_name: str, content: str) -> None:
         """Parse markdown links and Wikilinks, then upsert to SQLite edges table.
@@ -290,7 +258,7 @@ class WikiIndexer(FtsWriteMixin, FtsSearchMixin, SidecarIndexMixin):
 
         # 2. Obsidian wikilinks: [[link]], [[link|alias]], [[link#heading|alias]]
         targets.update(canonical_edge_target(resolver, source, target) for target in extract_wikilink_targets(content))
-        self._replace_edges(conn, source, list(targets), None)
+        self._replace_edges(conn, source, targets)
 
     def _reread_page_links(self, sources: Sequence[str]) -> None:
         """Re-resolve the links written in each page of ``sources`` against the pages that exist now.

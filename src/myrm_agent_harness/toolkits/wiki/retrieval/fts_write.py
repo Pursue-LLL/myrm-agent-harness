@@ -9,6 +9,7 @@
 - ..core.frontmatter_contract::WikiPublishStatus (POS: publish_status SSOT)
 - ..core.link_resolver::WikiLinkResolver (POS: link target resolution; notified when a page is deleted)
 - .edge_links::linkers_to_reread, relink_dangling_edges (POS: edges of links that named a deleted page converge)
+- .edge_weights::refresh_edge_weights (POS: edges that pointed at a deleted page are re-weighted)
 - .vector_chunks::delete_text_vectors, upsert_text_vectors (POS: L2 chunk vector operations)
 
 [OUTPUT]
@@ -41,6 +42,7 @@ from ..core.frontmatter_contract import (
     WikiPublishStatus,
 )
 from .edge_links import linkers_to_reread, relink_dangling_edges
+from .edge_weights import refresh_edge_weights
 from .vector_chunks import delete_text_vectors, upsert_text_vectors
 
 if TYPE_CHECKING:
@@ -205,6 +207,8 @@ class FtsWriteMixin:
                         "DELETE FROM wiki_index_meta WHERE concept_name = ?",
                         (name,),
                     )
+                # The deleted pages no longer link anywhere, which changes the weight of the edges that point at them.
+                refresh_edge_weights(conn, names)
                 for name, change in changes:
                     linkers.update(linkers_to_reread(conn, name, change, removed=True))
                     relink_dangling_edges(conn, self._link_resolver, change)
