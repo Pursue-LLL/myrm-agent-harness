@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.tools import BaseTool, StructuredTool
 
 from myrm_agent_harness.agent.sub_agents._verification_parsing import VerificationVerdict
 from myrm_agent_harness.agent.sub_agents._verifier_round import (
     _build_verifier_tool_registry_getter,
     verify_worker_output,
 )
+from myrm_agent_harness.agent.sub_agents.builder import filter_tools
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy
 
 
@@ -140,3 +143,55 @@ async def test_emit_verification_verdict_emits_when_sink_available() -> None:
         )
 
     sink.emit.assert_awaited_once()
+
+
+def _read_only_config() -> SubagentConfig:
+    return SubagentConfig(system_prompt="verifier", workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
+
+
+def _parent_tool(name: str) -> BaseTool:
+    return StructuredTool.from_function(func=lambda: name, name=name, description=f"Parent tool {name}")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("allowlist", "expected_tools"),
+    [
+        (("file_read_tool",), ["file_read_tool", "submit_verdict"]),
+        ((), ["file_read_tool", "file_write_tool", "submit_verdict"]),
+    ],
+    ids=["preset-allowlist", "no-allowlist"],
+)
+async def test_verifier_keeps_its_verdict_channel_under_any_tool_allowlist(
+    allowlist: tuple[str, ...], expected_tools: list[str]
+) -> None:
+    """The round provides ``submit_verdict`` itself: a preset allowlist must not strip it, and an empty
+    allowlist must not turn into a one-tool allowlist that strips everything else."""
+    exposed: list[str] = []
+
+    async def _spawn(**kwargs) -> SubAgentResult:
+        exposed.extend(t.name for t in filter_tools(kwargs["config"], kwargs["tool_registry_getter"]()))
+        return SubAgentResult(
+            success=True,
+            task_id=kwargs["task_id"],
+            agent_type=kwargs["agent_type"],
+            result="done",
+            completed_at=0.0,
+            status=SubAgentStatus.COMPLETED,
+        )
+
+    mgr = MagicMock()
+    mgr.spawn_child = _spawn
+
+    await verify_worker_output(
+        mgr,
+        worker_output="worker output",
+        worker_type="worker",
+        verifier_type="adversarial-reviewer",
+        verifier_config=replace(_read_only_config(), tools=allowlist),
+        context={},
+        tool_registry_getter=lambda: [_parent_tool("file_read_tool"), _parent_tool("file_write_tool")],
+        verifier_task_template="Confirm output matches side effects.",
+    )
+
+    assert exposed == expected_tools

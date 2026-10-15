@@ -1,6 +1,7 @@
 """Single-round verifier spawn and verify_worker_output entry point.
 
 [INPUT]
+- agent.orchestration.signals.catalog::SUBMIT_VERDICT_SIGNAL (POS: SSOT for control-plane signal names)
 - agent.sub_agents._verification_parsing::VerificationVerdict, _parse_verdict, _emit_verification_verdict
 - agent.sub_agents._workspace_diff::take_workspace_snapshot, diff_snapshots
 - agent.sub_agents.types::SubagentConfig, SubAgentResult, SubAgentStatus
@@ -25,6 +26,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
 
+from myrm_agent_harness.agent.orchestration.signals.catalog import SUBMIT_VERDICT_SIGNAL
 from myrm_agent_harness.agent.sub_agents._verification_parsing import (
     VerificationVerdict,
     _emit_verification_verdict,
@@ -165,8 +167,11 @@ async def _execute_verifier_round(
     else:
         verifier_task_desc = base_desc + f"## Worker Output\n\n{worker_output}"
 
+    # ``submit_verdict`` is this round's own verdict channel, so a preset allowlist must not strip it.
+    # An empty allowlist already means "every parent tool" and has to stay empty.
     round_verifier_config = dataclasses.replace(
         verifier_config,
+        tools=(*verifier_config.tools, SUBMIT_VERDICT_SIGNAL) if verifier_config.tools else (),
         description=f"独立审查中... [轮次 {round_num}/{max_rounds}]",
         display_name=f"Adversarial Verifier ({round_num}/{max_rounds})",
     )
