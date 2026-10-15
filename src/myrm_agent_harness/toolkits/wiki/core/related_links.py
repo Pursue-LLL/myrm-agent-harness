@@ -13,7 +13,9 @@
 Compile-time backlinks and maintenance link discovery both add links here, so neither
 rewrites the rest of the page. Only the Related Concepts section is edited, and only by
 appending: text and links already in it stay as they are. A link counts as present when it
-names a page the section already links, however it is spelled.
+names a page the section already links, however it is spelled; a page is never listed as
+related to itself. Names come from model output, so a name that cannot be a single-line
+wikilink target is dropped instead of written into the page.
 """
 
 from __future__ import annotations
@@ -28,6 +30,11 @@ from myrm_agent_harness.toolkits.wiki.core.link_resolver import WikiLinkResolver
 from myrm_agent_harness.toolkits.wiki.core.section_contract import get_section_inner, replace_section_inner
 
 RELATED_HEADING = "## Related Concepts"
+
+
+def _is_link_target(name: str) -> bool:
+    """Whether ``name`` fits inside one ``[[...]]`` on one line."""
+    return len(name.splitlines()) == 1 and "[" not in name and "]" not in name
 
 
 def _link_identity(resolver: WikiLinkResolver, target: str, source: str) -> str:
@@ -45,16 +52,17 @@ def merge_related_links(
     """Return ``content`` with ``names`` linked from its Related Concepts section, and how many were added.
 
     ``source`` is the vault-relative key of the page holding the links. Names that are blank,
-    or that name a page the section already links, are skipped; ``content`` comes back
-    unchanged when nothing is added.
+    cannot be a link target, name the page itself or name a page the section already links are
+    skipped; ``content`` comes back unchanged when nothing is added.
     """
     existing = get_section_inner(content, RELATED_HEADING) or ""
     present = {_link_identity(resolver, target, source) for target in extract_wikilink_targets(existing)}
+    present.add(source)
 
     bullets: list[str] = []
     for name in names:
         link = name.strip()
-        if not link:
+        if not link or not _is_link_target(link):
             continue
         identity = _link_identity(resolver, link, source)
         if identity in present:

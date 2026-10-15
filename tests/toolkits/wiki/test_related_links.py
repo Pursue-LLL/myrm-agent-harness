@@ -117,3 +117,26 @@ async def test_generate_backlinks_leaves_an_unchanged_page_and_its_edges_alone(s
     assert (first, second) == (1, 0)
     assert article.read_text(encoding="utf-8") == after_first
     assert indexer.extract_and_upsert_edges.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["Beta]]\n\n## Injected\nPlanted text", "Beta]] and [[Other", "two\nlines", "closing]", "[opening"],
+)
+def test_merge_skips_a_name_that_cannot_be_a_link_target(structure: WikiStructure, name: str) -> None:
+    merged, added = _merge(structure, TRUTH_THEN_TIMELINE, [name, "Beta"])
+
+    assert added == 1
+    assert "Injected" not in merged
+    assert merged.count("[[") == 1
+    assert "- [[Beta]]" in (get_section_inner(merged, RELATED_HEADING) or "")
+
+
+def test_merge_does_not_link_a_page_to_itself(structure: WikiStructure) -> None:
+    structure.get_concept_file_path("alpha").write_text(TRUTH_THEN_TIMELINE, encoding="utf-8")
+
+    merged, added = _merge(structure, TRUTH_THEN_TIMELINE, ["Alpha", "alpha", "Beta"], source="alpha")
+
+    assert added == 1
+    assert merged.count("[[") == 1
+    assert "[[Beta]]" in merged

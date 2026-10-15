@@ -43,6 +43,7 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import WikiPubli
 from myrm_agent_harness.toolkits.wiki.core.link_extraction import extract_wikilink_targets
 from myrm_agent_harness.toolkits.wiki.core.link_resolver import WikiLinkResolver, concept_link_name
 from myrm_agent_harness.toolkits.wiki.core.related_links import merge_related_links
+from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
     ArticlePublishOutcome,
     publish_concept_article,
@@ -55,7 +56,6 @@ from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
-    from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
     from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
 logger = get_agent_logger(__name__)
@@ -86,7 +86,7 @@ def _discovery_pages(structure: WikiStructure) -> dict[str, Path]:
             continue
         try:
             status = resolve_publish_status(path.read_text(encoding="utf-8"))
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             continue
         if status is WikiPublishStatus.PUBLISHED:
             pages[concept_link_name(path, structure.concepts_dir)] = path
@@ -99,8 +99,9 @@ def _publishes_in_place(structure: WikiStructure, key: str, path: Path) -> bool:
     Publishing writes to the sanitized file name. A hand-made page whose name differs from that
     (``Alpha Notes.md``) would be left untouched and gain a sibling copy instead; on a
     case-insensitive file system a name that differs only in case is still the same file.
+    The path is only computed, never created: looking must not add folders to the vault.
     """
-    target = structure.get_concept_file_path(key)
+    target = structure.concepts_dir / f"{WikiStructure._sanitize_path(key)}.md"
     return target == path or (target.exists() and target.samefile(path))
 
 
@@ -184,7 +185,10 @@ class BacklinkDiscoveryMixin:
         # A page that cannot take a link (invalid frontmatter, say) fails the same way every run and
         # must not hold the rotation back.
         if len(keys) > _BATCH_SIZE and unanswered < len(batch):
-            write_wiki_metadata_merge(metadata_path, {LINK_DISCOVERY_CURSOR_KEY: batch[-1]})
+            try:
+                write_wiki_metadata_merge(metadata_path, {LINK_DISCOVERY_CURSOR_KEY: batch[-1]})
+            except OSError as e:
+                logger.warning(f"Link discovery cursor not saved, the next run asks about the same pages again: {e}")
         return connections_count
 
     async def _suggest_links(
@@ -214,10 +218,7 @@ class BacklinkDiscoveryMixin:
                 ),
             ]
         )
-        try:
-            return parse_llm_json_list(extract_answer_text(response).strip()) or []
-        except (TypeError, ValueError):
-            return []
+        return parse_llm_json_list(extract_answer_text(response).strip()) or []
 
     async def _add_links(
         self,

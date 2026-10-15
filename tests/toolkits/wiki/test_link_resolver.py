@@ -361,6 +361,13 @@ class TestScanConceptPages:
 
         assert scan_concept_pages(local) == {"mine": frozenset({"mine"})}
 
+    def test_skips_a_page_that_is_not_valid_utf8(self, structure: WikiStructure) -> None:
+        _page(structure, "alpha")
+        (structure.concepts_dir / "broken.md").write_bytes(b"\xff\xfe\x00 not utf-8")
+
+        assert scan_concept_pages(structure) == {"alpha": frozenset({"alpha"})}
+        assert WikiLinkResolver(structure).resolve("alpha", "alpha") == "alpha"
+
 
 class TestLinkForms:
     def test_target_forms_are_casefolded_and_sanitized_after_normalization(self) -> None:

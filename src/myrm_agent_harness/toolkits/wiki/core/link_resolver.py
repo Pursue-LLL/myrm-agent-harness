@@ -9,7 +9,7 @@
 - normalize_lookup_key, concept_link_name, page_lookup_keys
 - cleaned_link_target, path_lookup_forms, link_lookup_forms, page_link_forms: the spellings a link target and a page are matched on (POS: keyed edge relinking, rename rewriting)
 - link_names_page, link_names_file: whether a link names a page by path / by bare file name (POS: rename rewriting reads links as the resolver does)
-- scan_concept_pages: lookup keys of every local concept page
+- scan_concept_pages: lookup keys of every local concept page (a page that cannot be read or decoded is left out)
 - concept_index_key, concept_page_exists: index identity for a concept name, page presence check
 - PageChange: what a page that appeared, changed or disappeared means for already stored edges
 - WikiLinkResolver: resolves link targets to canonical concept keys for graph edges and structural lint; names the pages an ambiguous target matches
@@ -86,7 +86,7 @@ def scan_concept_pages(structure: WikiStructure) -> dict[str, frozenset[str]]:
         link_name = concept_link_name(concept_path, concepts_dir)
         try:
             content = concept_path.read_text(encoding="utf-8")
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             logger.warning("Failed to read concept page %s for link resolution: %s", concept_path, exc)
             continue
         pages[link_name] = page_lookup_keys(link_name, content)
