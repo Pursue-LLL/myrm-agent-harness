@@ -9,6 +9,7 @@
 - ..core.link_resolver::WikiLinkResolver, concept_link_name (POS: link target to page identity, vault-relative page name)
 - ..core.related_links::merge_related_links (POS: the only writer of a page's Related Concepts section)
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
+- .progress::MaintainPhase, MaintainProgressCallback, report_progress (POS: observer of how far the LLM phases are)
 - ..pipeline.publication::publish_concept_article (POS: single validated write + index path for concept articles)
 - ..retrieval.indexer::WikiIndexer (POS: wiki FTS5 + vector index and graph edges)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取)
@@ -44,6 +45,11 @@ from myrm_agent_harness.toolkits.wiki.core.link_extraction import extract_wikili
 from myrm_agent_harness.toolkits.wiki.core.link_resolver import WikiLinkResolver, concept_link_name
 from myrm_agent_harness.toolkits.wiki.core.related_links import merge_related_links
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+from myrm_agent_harness.toolkits.wiki.maintenance.progress import (
+    MaintainPhase,
+    MaintainProgressCallback,
+    report_progress,
+)
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
     ArticlePublishOutcome,
     publish_concept_article,
@@ -146,13 +152,16 @@ class BacklinkDiscoveryMixin:
     _structure: WikiStructure
     _indexer: WikiIndexer | None
 
-    async def _discover_connections(self) -> int:
+    async def _discover_connections(self, on_progress: MaintainProgressCallback | None = None) -> int:
         """
         Discover potential cross-references using LLM-driven link enrichment.
 
         Uses LLM to identify semantic relationships that simple string matching would miss,
         while avoiding false positives from naive keyword overlap. Asks about one batch of
         articles per run and continues after the last one asked about on the next run.
+
+        Args:
+            on_progress: told how many pages of the batch are done, before each page and once at the end.
 
         Returns:
             Number of new connections discovered
@@ -169,7 +178,8 @@ class BacklinkDiscoveryMixin:
 
         connections_count = 0
         unanswered = 0
-        for key in batch:
+        for done, key in enumerate(batch):
+            report_progress(on_progress, MaintainPhase.LINK_DISCOVERY, done, len(batch))
             try:
                 suggested = await self._suggest_links(key, pages, candidates, resolver)
             except Exception as e:
@@ -180,6 +190,7 @@ class BacklinkDiscoveryMixin:
                 connections_count += await self._add_links(key, suggested, pages, resolver)
             except Exception as e:
                 logger.warning(f"Adding suggested links to {key} failed: {e}")
+        report_progress(on_progress, MaintainPhase.LINK_DISCOVERY, len(batch), len(batch))
 
         # A batch the model answered for no page is an outage: ask the same pages again next run.
         # A page that cannot take a link (invalid frontmatter, say) fails the same way every run and
