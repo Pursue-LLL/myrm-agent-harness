@@ -56,9 +56,7 @@ class ReadOnlyLeaseManager:
 
         return lease
 
-    def get_lease(
-        self, session_id: str, current_time: float | None = None
-    ) -> ReadOnlyLeaseRecord | None:
+    def get_lease(self, session_id: str, current_time: float | None = None) -> ReadOnlyLeaseRecord | None:
         """Retrieve lease for session, lazily evaluating expiration."""
         now = current_time if current_time is not None else time.time()
         with self._lock:
