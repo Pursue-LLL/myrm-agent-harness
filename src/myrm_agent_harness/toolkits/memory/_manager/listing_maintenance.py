@@ -1,16 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.memory.decay.lifecycle_manager import (
-        TieredStorageLifecycleManager,
-    )
-    from myrm_agent_harness.toolkits.memory.decay.types import (
-        DecayRerankItem,
-        TierMigrationReport,
-    )
-
 from myrm_agent_harness.infra.cooperative_signals import (
     CooperativePauseSignal,
 )
@@ -318,39 +307,3 @@ class MemoryManagerListingMaintenanceMixin:
         if deleted:
             await self._cascade_clean_derived_graph_nodes(key_or_id)
         return deleted
-
-    def evaluate_memory_lifecycle_decay(
-        self,
-        manager: TieredStorageLifecycleManager | None = None,
-        current_time: float | None = None,
-    ) -> TierMigrationReport:
-        """Evaluate Ebbinghaus memory temporal decay and execute hot/warm/cold tier migration."""
-        from myrm_agent_harness.toolkits.memory.decay import (
-            TieredStorageLifecycleManager,
-        )
-
-        mgr = manager or TieredStorageLifecycleManager()
-        return mgr.evaluate_and_migrate(current_time=current_time)
-
-    def rerank_memories_with_ebbinghaus_decay(
-        self,
-        candidates: list[tuple[str, str, float]],
-        lifecycle_manager: TieredStorageLifecycleManager,
-        decay_weight: float = 0.35,
-        exclude_cold: bool = True,
-        current_time: float | None = None,
-    ) -> list[DecayRerankItem]:
-        """Rerank search candidates by fusing semantic similarity with Ebbinghaus retention weights."""
-        from myrm_agent_harness.toolkits.memory.decay import (
-            DecayAwareReranker,
-        )
-
-        reranker = DecayAwareReranker(
-            lifecycle_manager=lifecycle_manager,
-            decay_weight=decay_weight,
-        )
-        return reranker.rerank(
-            candidates=candidates,
-            exclude_cold=exclude_cold,
-            current_time=current_time,
-        )
