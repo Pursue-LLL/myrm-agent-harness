@@ -69,7 +69,6 @@ LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset(
         # no Turn1 mount: not in the Action Tool SSOT until a profile wires them.
         "arbitrate_cross_agent_memory_conflict",
         "check_memory_ground_truth_drift",
-        "compact_code_memory",
         "inspect_context",
         "inspect_experience_gene_advice",
         "inspect_hindsight_warnings",
