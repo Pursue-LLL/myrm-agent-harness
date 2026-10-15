@@ -6,7 +6,7 @@
 - check_network_health: Verify outbound DNS resolution and TLS connectivity.
 - check_workspace_storage_health: Test read/write permissions and SQLite responsiveness.
 - check_database_health: Verify SQLite database basic connectivity.
-- check_qdrant_health: Check Qdrant vector database reachability.
+- check_qdrant_health: Vector database probe (defined in vector_probe), registered here in probe order.
 - check_tokenizer_health: Verify tokenizer backend and CJK quality gate.
 - check_hook_health: Check hook system registration status and configuration.
 - check_desktop_permissions_health: DesktopControl probe — grants + capture (`probe_capture=True`); PASS only when capture_ready.
@@ -29,6 +29,7 @@ except ImportError:
 
 from myrm_agent_harness.observability.diagnostics.manager import register_diagnostic
 from myrm_agent_harness.observability.diagnostics.protocols import HealthReport
+from myrm_agent_harness.observability.diagnostics.vector_probe import check_qdrant_health
 
 logger = logging.getLogger(__name__)
 
@@ -248,49 +249,6 @@ async def check_database_health() -> HealthReport:
             message="Unexpected database error.",
             detail=f"Unexpected database error: {e}",
             fix_suggestion="Check application logs for details.",
-        )
-
-
-async def check_qdrant_health() -> HealthReport:
-    """Check Qdrant vector database reachability."""
-    try:
-        try:
-            from myrm_agent_harness.toolkits.vector import VectorStoreConfig
-            from myrm_agent_harness.toolkits.vector.qdrant import create_vector_store
-        except ImportError:
-            return HealthReport(
-                component_name="VectorDB",
-                status="warn",
-                message="Advanced search features are not available.",
-                detail="Vector toolkit not available, cannot perform Qdrant probe.",
-                fix_suggestion="Install vector dependencies to enable advanced search.",
-            )
-
-        # Use :memory: to test if Qdrant can initialize without locking a real directory
-        config = VectorStoreConfig(local_path=":memory:")
-        await create_vector_store(config=config)
-
-        return HealthReport(
-            component_name="VectorDB",
-            status="pass",
-            message="Vector database is healthy.",
-            detail="Qdrant vector store is reachable and healthy.",
-        )
-    except ConnectionError as e:
-        return HealthReport(
-            component_name="VectorDB",
-            status="fail",
-            message="Vector database connection failed.",
-            detail=f"Qdrant connection failed: {e}",
-            fix_suggestion="Check vector database service status.",
-        )
-    except Exception as e:
-        return HealthReport(
-            component_name="VectorDB",
-            status="fail",
-            message="Vector database check failed.",
-            detail=f"Qdrant health check failed: {e}",
-            fix_suggestion="Check vector database service logs.",
         )
 
 

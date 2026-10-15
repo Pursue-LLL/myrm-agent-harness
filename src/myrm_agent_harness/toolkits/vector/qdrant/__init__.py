@@ -14,6 +14,7 @@ from myrm_agent_harness.toolkits.vector.qdrant.factory import (
     create_embedded_store,
     create_remote_store,
     create_vector_store,
+    embedded_fallback_paths,
     evict_embedded_store,
 )
 from myrm_agent_harness.toolkits.vector.qdrant.store import QdrantVectorStore
@@ -24,5 +25,6 @@ __all__ = [
     "create_embedded_store",
     "create_remote_store",
     "create_vector_store",
+    "embedded_fallback_paths",
     "evict_embedded_store",
 ]

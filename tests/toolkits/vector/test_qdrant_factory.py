@@ -322,3 +322,33 @@ async def test_fallback_memory_failure_preserves_original_error(tmp_path):
     # 原始磁盘错误必须是新异常的 __cause__（错误链保留）。
     assert exc_info.value.__cause__ is real_error
     assert str(real_error) in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_embedded_fallback_paths_lists_only_fallback_stores(tmp_path):
+    """只有退化到内存的 store 才会被列出；正常落盘 store 与显式 :memory: 都不算降级。"""
+    from unittest.mock import MagicMock, patch
+
+    from myrm_agent_harness.toolkits.vector.qdrant import embedded_fallback_paths
+    from myrm_agent_harness.toolkits.vector.qdrant.factory import evict_embedded_store
+
+    def fake_client(path: str, **kwargs: object) -> object:
+        if path.endswith("unwritable"):
+            raise OSError("unwritable")
+        return MagicMock()
+
+    good_path = tmp_path / "good"
+    bad_path = tmp_path / "unwritable"
+    with patch("qdrant_client.QdrantClient", side_effect=fake_client):
+        assert embedded_fallback_paths() == ()
+        good = await create_embedded_store(path=str(good_path))
+        explicit_memory = await create_embedded_store(path=":memory:")
+        assert embedded_fallback_paths() == ()
+
+        fallback = await create_embedded_store(path=str(bad_path))
+        assert embedded_fallback_paths() == (str(bad_path.resolve()),)
+
+    await evict_embedded_store(str(bad_path))
+    assert embedded_fallback_paths() == ()
+    for store in (good, explicit_memory, fallback):
+        await store.hard_close()

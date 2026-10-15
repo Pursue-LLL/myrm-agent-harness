@@ -1006,7 +1006,7 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 | PendingStore       | SQLite (本地文件)                                                                                  |
 | **总依赖**         | ✅ 零 Docker，零云端数据库，完全基于本地文件系统，通过 `MEMORY_BASE_PATH` 环境变量映射到持久化卷。 |
 
-> **持久化降级可观测性**：Semantic/Episodic 的 Qdrant Embedded 在持久卷不可写时会**静默回退到 `:memory:`**（数据重启即失，仅用于逃生），此前仅 `logger.error` 记录、对调用方/GUI 静默。`VectorStore.is_persistent` 提供统一的持久性契约（Qdrant 实现为 `local_path != ":memory:"`），`MemoryManager.vector_is_persistent` 透出（无 vector store 视为持久）。业务层/UI 据此展示 `persistent | memory_fallback | unavailable` 状态，避免「界面显示可用、实际记忆重启丢失」的误导。
+> **持久化降级可观测性**：Semantic/Episodic 的 Qdrant Embedded 在持久卷不可写时会**静默回退到 `:memory:`**（数据重启即失，仅用于逃生），此前仅 `logger.error` 记录、对调用方/GUI 静默。`VectorStore.is_persistent` 提供统一的持久性契约（Qdrant 实现为 `local_path != ":memory:"`），`MemoryManager.vector_is_persistent` 透出（无 vector store 视为持久）。业务层/UI 据此展示 `persistent | memory_fallback | unavailable` 状态，避免「界面显示可用、实际记忆重启丢失」的误导。默认可见的入口是 Doctor `VectorDB` 探针：`embedded_fallback_paths()`（`toolkits/vector/qdrant/factory.py`）列出退化到内存的嵌入式 store，探针据此报 FAIL，设置 → 系统页、运维快照与支持包可见；Doctor 只在被拉取时才会触发 `health_alert` 推送。
 
 ---
 

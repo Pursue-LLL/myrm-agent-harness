@@ -474,6 +474,33 @@ class TestSystemResourcesFallbacks:
 
 
 class TestCheckQdrantHealth:
+    @pytest.fixture(autouse=True)
+    def _no_fallback_store(self):
+        """The registry is process-global; each case states for itself whether a store degraded."""
+        with patch("myrm_agent_harness.toolkits.vector.qdrant.embedded_fallback_paths", return_value=()):
+            yield
+
+    @pytest.mark.asyncio
+    async def test_fallback_store_returns_fail_even_when_the_throwaway_probe_would_pass(self):
+        from myrm_agent_harness.observability.diagnostics.probes import check_qdrant_health
+
+        mock_create = AsyncMock()
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.vector.qdrant.embedded_fallback_paths",
+                return_value=("/data/memory/vector_store",),
+            ),
+            patch("myrm_agent_harness.toolkits.vector.qdrant.create_vector_store", mock_create),
+        ):
+            report = await check_qdrant_health()
+
+        assert report.status == "fail"
+        assert report.component_name == "VectorDB"
+        assert "not being saved permanently" in report.message
+        assert report.fix_suggestion
+        assert report.measured == "1 vector store(s) on the in-memory fallback"
+        mock_create.assert_not_awaited()
+
     @pytest.mark.asyncio
     async def test_vector_toolkit_missing_returns_warn(self):
         from myrm_agent_harness.observability.diagnostics.probes import check_qdrant_health
@@ -632,4 +659,3 @@ class TestCheckLocalTraceExportAudit:
             report = await check_local_trace_export_audit()
             assert report.status == "pass"
             assert report.code == "OK_TRACE_EXPORT_STANDARD"
-

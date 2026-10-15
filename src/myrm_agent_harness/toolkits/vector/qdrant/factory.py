@@ -7,6 +7,7 @@ qdrant_client (POS: Qdrant SDK, optional dependency)
 
 [OUTPUT]
 create_embedded_store: Create embedded Qdrant store (singleton per path)
+embedded_fallback_paths: Data directories whose embedded store runs on the in-memory fallback
 create_remote_store: Create remote Qdrant store with async support
 create_vector_store: Config-based factory (single entry point)
 
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 _embedded_clients: dict[str, QdrantVectorStore] = {}
 _embedded_lock: asyncio.Lock = asyncio.Lock()
+_FALLBACK_KEY_SUFFIX = ":memory_fallback"
 
 
 async def create_embedded_store(
@@ -79,7 +81,7 @@ async def create_embedded_store(
             # Derive the cache key from the original path so fallback stores of
             # different base_paths never share one in-memory Qdrant instance.
             logger.error(f" Failed to initialize Qdrant at {data_path}: {e}. Falling back to :memory:")
-            cache_key = f"{cache_key}:memory_fallback"
+            cache_key = f"{cache_key}{_FALLBACK_KEY_SUFFIX}"
             if cache_key in _embedded_clients:
                 logger.debug("Cache hit for fallback %s", cache_key)
                 return _embedded_clients[cache_key]
@@ -127,6 +129,17 @@ def create_remote_store(
     return QdrantVectorStore(client=client, config=config, is_async=True)
 
 
+def embedded_fallback_paths() -> tuple[str, ...]:
+    """Data directories whose embedded store runs on the in-memory fallback.
+
+    Everything those stores hold is lost on restart, so the doctor probe reports them.
+    An explicitly requested ``:memory:`` store is not a fallback and is not listed.
+    """
+    return tuple(
+        key.removesuffix(_FALLBACK_KEY_SUFFIX) for key in list(_embedded_clients) if key.endswith(_FALLBACK_KEY_SUFFIX)
+    )
+
+
 async def evict_embedded_store(path: str) -> None:
     """Close and evict an embedded Qdrant store from the singleton cache.
 
@@ -138,7 +151,7 @@ async def evict_embedded_store(path: str) -> None:
     probe both the regular key and the fallback key so eviction works either way.
     """
     resolved = str(Path(path).resolve()) if path != ":memory:" else ":memory:"
-    candidate_keys = [resolved, f"{resolved}:memory_fallback"]
+    candidate_keys = [resolved, f"{resolved}{_FALLBACK_KEY_SUFFIX}"]
     async with _embedded_lock:
         store = None
         for key in candidate_keys:

@@ -568,9 +568,12 @@ class TestProbesErrorBranches:
             check_qdrant_health,
         )
 
-        with patch(
-            "myrm_agent_harness.toolkits.vector.qdrant.create_vector_store",
-            side_effect=RuntimeError("qdrant down"),
+        with (
+            patch("myrm_agent_harness.toolkits.vector.qdrant.embedded_fallback_paths", return_value=()),
+            patch(
+                "myrm_agent_harness.toolkits.vector.qdrant.create_vector_store",
+                side_effect=RuntimeError("qdrant down"),
+            ),
         ):
             report = await check_qdrant_health()
         assert report.status == "fail"

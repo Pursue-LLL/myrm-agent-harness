@@ -55,7 +55,7 @@ myrm_agent_harness/eval/protocols.py	670
 myrm_agent_harness/infra/delivery/storage.py	536
 myrm_agent_harness/infra/sqlite_salvage.py	621
 myrm_agent_harness/infra/tracing/tracer.py	700
-myrm_agent_harness/observability/diagnostics/probes.py	616
+myrm_agent_harness/observability/diagnostics/probes.py	574
 myrm_agent_harness/runtime/context/instance_metrics.py	694
 myrm_agent_harness/runtime/paths/execution_paths.py	509
 myrm_agent_harness/toolkits/browser/pool/browser_launcher.py	535
