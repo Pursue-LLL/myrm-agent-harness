@@ -112,7 +112,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "reembedding",
                 "sovereign_migration",
                 # Feature packages shipped as readable source; list a package in core_manifest.yaml to compile it.
-                "activity_compactor",
                 "auto_consolidation",
                 "bitemporal_truth_maintenance",
                 "budget_packing",

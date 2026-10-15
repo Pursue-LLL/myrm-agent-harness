@@ -16,12 +16,6 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
     MemoryNotFoundError,
     PendingTargetChangedError,
 )
-from myrm_agent_harness.toolkits.memory.activity_compactor import (
-    ActivityActionType,
-    CompactorPipelineConfig,
-    HierarchicalActivityCompactorPipeline,
-    RawActivityEvent,
-)
 from myrm_agent_harness.toolkits.memory.auto_consolidation import (
     AutoMemoryConsolidationOrchestrator,
     AutoMemoryGatingConfig,
@@ -268,10 +262,6 @@ __all__ = [
     "PreferenceCompoundingEngine",
     "RuleType",
     "ModelPrivateNotebookManager",
-    "ActivityActionType",
-    "CompactorPipelineConfig",
-    "HierarchicalActivityCompactorPipeline",
-    "RawActivityEvent",
     "AntiLoopPromptInjector",
     "TaskTriadTrajectoryManager",
     "TrajectoryTaskStatus",
