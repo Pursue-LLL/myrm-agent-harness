@@ -80,7 +80,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | ephemeral_delta/ | In-memory, session-scoped transient buffer for prompt-cache-preserving deltas. See [ephemeral_delta/_ARCH.md](ephemeral_delta/_ARCH.md). |
 | markdown_curator/ | Calculates bi-directional deltas between in-memory stores and Markdown mirrors. See [markdown_curator/_ARCH.md](markdown_curator/_ARCH.md). |
 | relational_backtrack/ | Core backtracking engine for cross-session entity and temporal causal recall. See [relational_backtrack/_ARCH.md](relational_backtrack/_ARCH.md). |
-| rule_cascade/ | Hierarchical deterministic rule cascade loader inspired by Claude Code. See [rule_cascade/_ARCH.md](rule_cascade/_ARCH.md). |
 | two_layer_dialectic/ | Dual-layer context injection engine preserving LLM Prompt Cache while resolving contradictions. See [two_layer_dialectic/_ARCH.md](two_layer_dialectic/_ARCH.md). |
 | quadruple_retrieval/ | Goal-Driven Quadruple Parallel Retrieval and Reasoner Suite: deconstructs task goals, recalls via Graph/Vector/Lexical/Metadata channels, and reranks via Reasoner. See [quadruple_retrieval/_ARCH.md](quadruple_retrieval/_ARCH.md). |
 | chunking/ | Incremental Sliding Window Markdown Chunker Suite: semantic sliding window with 80-token overlap, content-hash incremental diffing, and line-level pointers. See [chunking/_ARCH.md](chunking/_ARCH.md). |
