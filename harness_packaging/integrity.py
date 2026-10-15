@@ -119,7 +119,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "migration",
                 "private_notebook",
                 "score_honesty",
-                "temporal_graph",
                 "two_layer_dialectic",
             }
         ),

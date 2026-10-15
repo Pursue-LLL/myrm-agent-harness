@@ -108,13 +108,6 @@ from myrm_agent_harness.toolkits.memory.strategies import (
     DynamicPreferenceVector,
     PreferenceDimension,
 )
-from myrm_agent_harness.toolkits.memory.temporal_graph import (
-    SqliteTemporalGraphStore,
-    TemporalDecayScorer,
-    TemporalEntityNode,
-    TemporalFactConflictReconciler,
-    TemporalFactEdge,
-)
 from myrm_agent_harness.toolkits.memory.tool_guidance import ToolGuidanceItem, synthesize_tool_guidance
 from myrm_agent_harness.toolkits.memory.two_layer_dialectic import (
     BaseContextPayload,
@@ -135,11 +128,6 @@ from myrm_agent_harness.toolkits.memory.types import (
 )
 
 __all__ = [
-    "SqliteTemporalGraphStore",
-    "TemporalDecayScorer",
-    "TemporalEntityNode",
-    "TemporalFactConflictReconciler",
-    "TemporalFactEdge",
     "ModelPrivateNotebookManager",
     "DynamicPreferenceFitter",
     "DynamicPreferenceVector",
