@@ -397,21 +397,24 @@ event_log 持久化的 error 事件由 trace_builder 重建为 ExecutionTrace.er
 | `i18n/constants.py` | `REQUIRED_ERROR_TYPES` 翻译完整性校验 |
 | `i18n/locales/` | 5 语言 JSON（en/zh-CN/ja/ko/de） |
 
-#### 2. ErrorKind分类（`toolkits/llms/errors/classifier.py`，11种）
+#### 2. ErrorKind分类（`toolkits/llms/errors/classifier.py`，12种）
 
-| ErrorKind | 中文名称 | 严重级别 | 恢复操作示例 |
-|-----------|---------|---------|-------------|
-| `rate_limit` | API请求频率受限 | warning | upgrade_api_plan, switch_model, wait_retry |
-| `overloaded` | AI服务过载 | warning | wait_retry, switch_model |
-| `timeout` | 服务超时 | warning | check_network, verify_base_url, retry |
-| `billing` | 余额不足 | error | top_up_account, switch_api_key |
-| `auth` | 认证失败 | error | check_api_key, verify_expiry |
-| `model_not_found` | 模型不存在 | error | verify_model_name, check_configuration |
-| `format_error` | 请求格式错误 | error | contact_support |
-| `response_format_error` | 响应格式错误 | error | contact_support, retry |
-| `context_overflow` | 上下文过长 | warning | start_new_chat, wait_compression |
-| `safety_block` | 安全拦截 | error | review_content, adjust_input |
-| `unknown` | 未知错误 | error | retry, contact_support |
+| ErrorKind | 含义 |
+|-----------|------|
+| `rate_limit` | API请求频率受限 |
+| `overloaded` | AI服务过载 |
+| `timeout` | 服务超时 |
+| `billing` | 余额/额度不足（含订阅额度用尽、无订阅的 403/429） |
+| `auth` | 认证失败 |
+| `model_not_found` | 模型不存在 |
+| `format_error` | 请求格式错误 |
+| `response_format_error` | 响应格式错误 |
+| `context_overflow` | 上下文过长 |
+| `safety_block` | 安全拦截 |
+| `challenge_blocked` | 出口被 WAF/反爬质询拦截（请求未到达模型） |
+| `unknown` | 未知错误 |
+
+恢复按钮（`recovery_actions`）只给有单击修复的诊断类型，目录见 `diagnostics/recovery_actions.py`：`api_key` → `update_key`，`billing` → `top_up`，`model` / `custom_model_not_found` → `change_model`，三者的 url 均为 `/settings`；其余类型不下发按钮。
 
 #### 3. DiagnosticResult结构
 
