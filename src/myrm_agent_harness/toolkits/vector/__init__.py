@@ -40,24 +40,6 @@ from myrm_agent_harness.toolkits.vector.quantization import (
     encode_float32,
     quantize_int8,
 )
-from myrm_agent_harness.toolkits.vector.space_guard import (
-    EmbeddingModelFingerprint,
-    ReindexStatusReport,
-    VectorSpaceBaseMismatchError,
-    VectorSpaceDimensionMismatchError,
-    VectorSpaceGuard,
-    VectorSpaceMetadata,
-    VectorSpaceMismatchError,
-    VectorSpaceReindexer,
-    VectorSpaceValidationResult,
-)
-from myrm_agent_harness.toolkits.vector.sqlite_vec import (
-    DecayedSearchResult,
-    SqliteVecConfig,
-    SqliteVecEngineMode,
-    SqliteVecStore,
-    TemporalDecayScorer,
-)
 from myrm_agent_harness.toolkits.vector.warmer import (
     DummyQueryStrategy,
     VectorStoreWarmer,
@@ -67,27 +49,13 @@ from myrm_agent_harness.toolkits.vector.warmer import (
 
 __all__ = [
     "CollectionInfo",
-    "DecayedSearchResult",
     "DeploymentMode",
     "DummyQueryStrategy",
-    "EmbeddingModelFingerprint",
     "FilterDict",
     "FilterValue",
     "QuantizedVector",
-    "ReindexStatusReport",
     "SearchResult",
-    "SqliteVecConfig",
-    "SqliteVecEngineMode",
-    "SqliteVecStore",
-    "TemporalDecayScorer",
     "VectorDocument",
-    "VectorSpaceBaseMismatchError",
-    "VectorSpaceDimensionMismatchError",
-    "VectorSpaceGuard",
-    "VectorSpaceMetadata",
-    "VectorSpaceMismatchError",
-    "VectorSpaceReindexer",
-    "VectorSpaceValidationResult",
     "VectorStore",
     "VectorStoreConfig",
     "VectorStorePool",

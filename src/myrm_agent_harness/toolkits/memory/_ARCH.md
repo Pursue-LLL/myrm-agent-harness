@@ -70,16 +70,13 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | auto_recall/ | Targeted Experience Auto-Recall Trigger with Multi-Turn Dedup and Fail-Open Reranking Engine: 5 sensitive lifecycle triggers (task_start, skill_load, subagent_start, write_preflight, cron_start), 5-turn sliding window deduplication to prevent context fatigue, and SLA-bounded fail-open neural reranker fallback. |
 | drift_defense/ | Ground Truth Priority & Code Drift Stale Memory Defense: zero-LLM reference extraction, sub-5ms physical presence & symbol AST validation, prompt-level stale warning decoration, and confidence decay. |
 | sovereign_migration/ | Sovereign Asset Package Cross-Machine Migration Protocol & One-Click Restore: portable bundle packaging (.myrmpkg), checksum verification, dynamic path relativization, atomic restoring, and competitor ingestion adapters (Hermes, Claude Code, Codex). |
-| dreaming/ | Grounded dreaming (idle-time cross-session fact consolidation into the Dream Diary) and surgical session memory unlearning. See [dreaming/_ARCH.md](dreaming/_ARCH.md). |
 | graph_rrf/ | Knowledge Graph and Vector Reciprocal Rank Fusion Memory Engine package. See [graph_rrf/_ARCH.md](graph_rrf/_ARCH.md). |
 | handoff/ | Strongly typed cross-agent/cross-session handoff protocol with atomic exactly-once claim and durable session finalizer. See [handoff/_ARCH.md](handoff/_ARCH.md). |
 | onboarding/ | Onboarding insight sampling and first-encounter reporting for users migrating from other agent tools (sliding-window sampling, local redaction, fact distillation). See [onboarding/_ARCH.md](onboarding/_ARCH.md). |
 | tool_guidance/ | Deterministic, cache-stable synthesis of procedural tool memory (traps) into bounded, zero-LLM tool guidance. See [tool_guidance/_ARCH.md](tool_guidance/_ARCH.md). |
 | git_okf/ | Git-native loader for Google OKF v0.2 knowledge bundles. See [git_okf/_ARCH.md](git_okf/_ARCH.md). |
-| hybrid_engine/ | Orchestrates zero-config SQLite FTS5, offline synonym expansion,. See [hybrid_engine/_ARCH.md](hybrid_engine/_ARCH.md). |
 | ephemeral_delta/ | In-memory, session-scoped transient buffer for prompt-cache-preserving deltas. See [ephemeral_delta/_ARCH.md](ephemeral_delta/_ARCH.md). |
 | two_layer_dialectic/ | Dual-layer context injection engine preserving LLM Prompt Cache while resolving contradictions. See [two_layer_dialectic/_ARCH.md](two_layer_dialectic/_ARCH.md). |
-| quadruple_retrieval/ | Goal-Driven Quadruple Parallel Retrieval and Reasoner Suite: deconstructs task goals, recalls via Graph/Vector/Lexical/Metadata channels, and reranks via Reasoner. See [quadruple_retrieval/_ARCH.md](quadruple_retrieval/_ARCH.md). |
 | chunking/ | Incremental Sliding Window Markdown Chunker Suite: semantic sliding window with 80-token overlap, content-hash incremental diffing, and line-level pointers. See [chunking/_ARCH.md](chunking/_ARCH.md). |
 
 ## Key Dependencies

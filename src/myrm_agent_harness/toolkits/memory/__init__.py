@@ -43,13 +43,6 @@ from myrm_agent_harness.toolkits.memory.conversation_search.lineage_defense impo
     run_lineage_defense_pipeline,
 )
 from myrm_agent_harness.toolkits.memory.domain_types import MemoryDomain, infer_domain_and_category
-from myrm_agent_harness.toolkits.memory.dreaming import (
-    CognitiveConsolidationReport,
-    DreamCognitiveAction,
-    DreamCognitivePipeline,
-    DreamSessionFragment,
-    GrowthDiaryEntry,
-)
 from myrm_agent_harness.toolkits.memory.four_tier_fts import (
     DreamCompactionReport,
     FourTierDreamCompactor,
@@ -66,15 +59,6 @@ from myrm_agent_harness.toolkits.memory.git_okf import (
     OKFValidationReport,
 )
 from myrm_agent_harness.toolkits.memory.hermes_bridge import import_hermes_bundle
-from myrm_agent_harness.toolkits.memory.hybrid_engine import (
-    AdaptiveRrfConfig,
-    DenseVectorProvider,
-    DualDriveHybridMemoryEngine,
-    HybridEngineStats,
-    HybridMemoryItem,
-    HybridSearchResult,
-    RetrievalMode,
-)
 from myrm_agent_harness.toolkits.memory.job_compounding import (
     CompoundedRule,
     CompoundingMaturityTracker,
@@ -119,14 +103,6 @@ from myrm_agent_harness.toolkits.memory.onboarding import (
     OnboardingSourceRegistry,
 )
 from myrm_agent_harness.toolkits.memory.private_notebook import ModelPrivateNotebookManager
-from myrm_agent_harness.toolkits.memory.quadruple_retrieval import (
-    ParsedTaskGoal,
-    QuadrupleParallelRetriever,
-    QuadrupleRetrievalOrchestrator,
-    QuadrupleRetrievalReport,
-    RerankedMemoryHit,
-    TaskGoalParser,
-)
 from myrm_agent_harness.toolkits.memory.reconciliation import (
     DiskMemoryFtsReconciler,
     FtsReconciledHit,
@@ -210,13 +186,6 @@ from myrm_agent_harness.toolkits.memory.types import (
 )
 
 __all__ = [
-    "DenseVectorProvider",
-    "DualDriveHybridMemoryEngine",
-    "AdaptiveRrfConfig",
-    "HybridEngineStats",
-    "HybridMemoryItem",
-    "HybridSearchResult",
-    "RetrievalMode",
     "OKFBundleLoader",
     "OKFConcept",
     "OKFDisclosureSummary",
@@ -255,7 +224,6 @@ __all__ = [
     "AntiLoopPromptInjector",
     "TaskTriadTrajectoryManager",
     "TrajectoryTaskStatus",
-    "DreamSessionFragment",
     "DynamicPreferenceFitter",
     "DynamicPreferenceVector",
     "EmbeddingCache",
@@ -321,12 +289,6 @@ __all__ = [
     "OnboardingInsightDistiller",
     "OnboardingSampleOptions",
     "OnboardingSourceRegistry",
-    "CognitiveConsolidationReport",
-    "DreamCognitiveAction",
-    "DreamCognitivePipeline",
-    "GrowthDiaryEntry",
-    "QuadrupleParallelRetriever",
-    "TaskGoalParser",
     "CompetitorAssetScanner",
     "MigrationRunReport",
     "MigrationSourceType",
@@ -359,10 +321,6 @@ __all__ = [
     "MemoryCube",
     "MemoryCubeOrchestrator",
     "MountPolicy",
-    "ParsedTaskGoal",
-    "QuadrupleRetrievalOrchestrator",
-    "QuadrupleRetrievalReport",
-    "RerankedMemoryHit",
     "ChunkSourceHydrator",
     "ChunkingConfig",
     "IncrementalDiffReport",

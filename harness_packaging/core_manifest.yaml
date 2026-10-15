@@ -20,7 +20,6 @@ directories:
   - toolkits/memory/codegraph
   - toolkits/memory/compaction
   - toolkits/memory/decay
-  - toolkits/memory/dreaming
   - toolkits/memory/drift_defense
   - toolkits/memory/evolution
   - toolkits/memory/graph_rrf
