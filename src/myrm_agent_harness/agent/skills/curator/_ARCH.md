@@ -43,7 +43,7 @@ Skills → Filter (eligible) → ClusterDetector (prefix + embedding)
 
 ## Configuration
 
-`CuratorConfig` validates its numeric fields on construction (a sweep runs unattended, so a zero-day stale window or a zero skill limit would move the whole library in one pass) and raises `ValueError` outside the safe ranges.
+`CuratorConfig` validates its numeric fields on construction (a sweep runs unattended, so a zero-day stale window or a zero skill limit would make every eligible skill due in one pass) and raises `ValueError` outside the safe ranges.
 
 All consolidation parameters are in `CuratorConfig`:
 - `consolidation_enabled`: Master switch (default: **False** — LLM consolidation is opt-in via Settings)

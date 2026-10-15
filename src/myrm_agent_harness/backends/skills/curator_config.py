@@ -1,9 +1,10 @@
 """Skill curator configuration, validated at construction.
 
 A curator sweep runs unattended and without confirmation, so a degenerate
-threshold (a zero-day stale window, an active-skill limit of zero) would move
-the whole library to another lifecycle state in a single pass. The config type
-therefore refuses to exist with such values and raises ``ValueError`` instead.
+threshold (a zero-day stale window, an active-skill limit of zero) would make
+every eligible skill (not pinned, past its grace period) due in a single pass. The
+config type therefore refuses to exist with such values and raises ``ValueError``
+instead.
 
 [INPUT]
 - dataclasses::asdict, dataclass (POS: Python dataclass utilities)

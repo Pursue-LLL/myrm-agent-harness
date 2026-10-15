@@ -1,7 +1,7 @@
 """Tests for CuratorConfig construction-time validation.
 
 A curator sweep runs unattended, so a degenerate threshold must be refused when the
-config is built instead of moving the whole skill library in one pass.
+config is built instead of making every eligible skill due in one pass.
 """
 
 from __future__ import annotations
