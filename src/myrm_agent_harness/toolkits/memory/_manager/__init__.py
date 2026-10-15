@@ -20,9 +20,6 @@ from myrm_agent_harness.toolkits.memory._manager.deletion import MemoryManagerDe
 from myrm_agent_harness.toolkits.memory._manager.drift_defense import (
     MemoryManagerDriftDefenseMixin,
 )
-from myrm_agent_harness.toolkits.memory._manager.experience_evolution import (
-    MemoryManagerExperienceEvolutionMixin,
-)
 from myrm_agent_harness.toolkits.memory._manager.governance_session import (
     MemoryManagerGovernanceSessionMixin,
 )
@@ -61,7 +58,6 @@ class MemoryManager(
     MemoryManagerArchivalMixin,
     MemoryManagerQueriesMixin,
     MemoryManagerListingMaintenanceMixin,
-    MemoryManagerExperienceEvolutionMixin,
     MemoryManagerDriftDefenseMixin,
     MemoryManagerSovereignMigrationMixin,
     MemoryManagerKGScreeningMixin,

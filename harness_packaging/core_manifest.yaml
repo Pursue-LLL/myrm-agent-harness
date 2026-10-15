@@ -18,7 +18,6 @@ directories:
   - agent/context_management/project_state
   - toolkits/memory/decay
   - toolkits/memory/drift_defense
-  - toolkits/memory/evolution
   - toolkits/memory/graph_rrf
   - toolkits/memory/profile_notes
 
