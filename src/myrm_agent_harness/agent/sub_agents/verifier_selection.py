@@ -3,10 +3,10 @@
 [INPUT]
 - agent.sub_agents.builder::filter_tools (POS: Subagent construction helpers. Prepare child agents without business-layer dependencies.)
 - agent.sub_agents.spawn_prep::enforce_spawn_policy_on_config (POS: Single SSOT for spawn prep so delegate_task_tool and SpawnSubagentTool stay aligned.)
-- agent.sub_agents.types::SubagentCatalog, SubagentConfig, WorkspacePolicy (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
+- agent.sub_agents.types::ControlScope, DelegateRole, SubagentCatalog, SubagentConfig, WorkspacePolicy (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
 
 [OUTPUT]
-- resolve_verifier: Pick the read-only verifier config for a worker and refuse a verifier that cannot run commands
+- resolve_verifier: Pick the read-only, leaf verifier config for a worker and refuse a verifier that cannot run commands
 - VerifierUnavailableError: Raised when the chosen verifier could never produce a verdict that counts
 
 [POS]
@@ -23,7 +23,13 @@ from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.sub_agents.builder import filter_tools
 from myrm_agent_harness.agent.sub_agents.spawn_prep import enforce_spawn_policy_on_config
-from myrm_agent_harness.agent.sub_agents.types import SubagentCatalog, SubagentConfig, WorkspacePolicy
+from myrm_agent_harness.agent.sub_agents.types import (
+    ControlScope,
+    DelegateRole,
+    SubagentCatalog,
+    SubagentConfig,
+    WorkspacePolicy,
+)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
@@ -53,7 +59,8 @@ async def resolve_verifier(
 
     Raises:
         VerifierUnavailableError: the verifier's tools, after the same filtering the spawn applies, lack
-            the bash tool.
+            the bash tool. This is a necessary condition only: an agent factory may narrow the tools further
+            at build time, and the execution-evidence gate stays the backstop for that case.
     """
     verifier_type = verifier_agent_type or worker_type
     config = await catalog.resolve(verifier_type) if catalog is not None else None
@@ -62,9 +69,20 @@ async def resolve_verifier(
             logger.warning(
                 "Verifier agent type '%s' not found, falling back to worker type '%s'", verifier_type, worker_type
             )
-        verifier_type, config = worker_type, enforce_spawn_policy_on_config(worker_base_config)
+        verifier_type, config = worker_type, worker_base_config
 
-    config = replace(config, workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
+    # A verifier only checks: it never delegates, so an orchestrator-scoped type must not be held to the
+    # orchestrator spawn-depth limit that a leaf verifier is exempt from.
+    config = enforce_spawn_policy_on_config(
+        replace(
+            config,
+            workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX,
+            control_scope=ControlScope.LEAF,
+            delegation_role=DelegateRole.LEAF,
+            delegation_catalog=None,
+            delegation_allowed_types=None,
+        )
+    )
     if not any(tool.name == _EXECUTION_TOOL for tool in filter_tools(config, parent_tools)):
         raise VerifierUnavailableError(
             f"Verifier agent type '{verifier_type}' cannot run commands ({_EXECUTION_TOOL} is not available to it), "
