@@ -40,6 +40,11 @@ def test_the_shapes_can_be_joined_into_one_alternation() -> None:
     assert [name for name, pattern in DISTINCTIVE_KEY_PATTERNS if re.search(r"\(\?[aiLmsux]+\)", pattern.pattern)] == []
 
 
+def test_the_shapes_carry_no_token_start_of_their_own() -> None:
+    """A caller that joins the shapes adds one boundary for the whole alternation; one inside would repeat per shape."""
+    assert [name for name, pattern in DISTINCTIVE_KEY_PATTERNS if "(?<" in pattern.pattern] == []
+
+
 def test_the_vendors_a_user_pastes_most_are_distinctive() -> None:
     assert {
         "groq_key",

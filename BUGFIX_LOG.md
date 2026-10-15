@@ -2,6 +2,23 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-15-008 · 泄漏检测的厂商前缀规则没有左边界：超过 48 个字符的连字符 URL slug（`/blog/task-management-…`）被当成 OpenAI 密钥，写入 wiki / 记忆的文本里这段 slug 被改成 `[REDACTED:openai_key]`
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-15（用 11,974 个真实代码 / 文档文件的语料核对「风险闸门拒绝」与「持久化脱敏」两条路径各自会误伤什么时发现） |
+| **修复时间** | 2026-10-15 |
+| **症状** | 文本里出现以 `task-`、`risk-`、`disk-`、`ask-` 等词收尾加 `sk-` 的长 slug（≥ 48 个字母数字和连字符，常见于博客 / 文档站 URL）时，`leak_detector` 的 `openai_key` 规则从词中间的 `sk-` 起匹配，`scan_persistable_content` 把 `https://example.com/blog/task-management-best-practices-for-remote-teams-in-2025` 存成 `https://example.com/blog/task-man***...2025 [REDACTED:openai_key]`，读者再也拿不回原链接；`scan_for_leaks` 对同一文本返回 `['openai_key']` |
+| **关联产品** | myrm-agent-harness `core/security/detection/leak_detector.py`；`core/security/persistence/content_scan.py` 的三个档位（`MEMORY_WRITE` / `WIKI_RAW` / `WIKI_PUBLISH`）及其调用方 `toolkits/memory`、`toolkits/wiki`。server 的 `api_key_like` 风险规则自带 `(?<![A-Za-z0-9])`（`app/services/risk/patterns.py`），不受影响 |
+| **根因** | `_API_KEY_PATTERNS` 里 33 条厂商前缀正则没有左边界，`sk-[a-zA-Z0-9_-]{48,}` 可以从任何单词的末尾两个字母起匹配；`DISTINCTIVE_KEY_PATTERNS` 的调用方（server）是在拼接时自己加边界，扫描 / 脱敏用的 `_ALL_PREFIX_STRUCTURAL` 没有 |
+| **修复** | `_ALL_PREFIX_STRUCTURAL` 在构造时给每条厂商前缀规则加 `(?<![A-Za-z0-9])`（`_TOKEN_START`）：前缀只在 token 起点生效，紧跟标点、下划线、引号、中文之后的密钥照常命中。`DISTINCTIVE_KEY_PATTERNS` 不带边界，由拼接它的调用方加一次，避免 server 的内置规则文本被重复的后行断言撑长 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 前缀型规则必须说明「前缀从哪里起算」；`sk-`、`hf_`、`AKIA` 这类短前缀都是常见单词或标识符的后缀。风险闸门与脱敏共用同一张前缀表时，边界要放在使用处，而不是塞进共享的正则 |
+| **回归** | 新增 `tests/core/security/detection/test_leak_detector_token_start.py`（21 例：4 个真实形状的 slug 不被标记也不被改写；11 种粘贴形态的密钥照样被遮蔽，含环境变量、JSON、`Bearer`、引号、括号、下划线之后、中文之后、`ghp_`、`AKIA`、`sk-proj-`；6 个厂商前缀紧跟在单词后不算该厂商的密钥）、`test_content_scan.py` 的 slug 三档位用例 6 例、`test_distinctive_key_patterns.py` 的「共享形状不带边界」1 例。把 `_ALL_PREFIX_STRUCTURAL` 临时换回未加边界的表，其中 16 例失败（slug 与词内前缀的 16 例），换回后全部通过；`tests/core/security`、`tests/architecture` 与所有引用泄漏检测 / 持久化扫描的测试合计 7897 例通过，27 例失败（文件行数门、`_ARCH.md` 目录与链接门、`skill_agent` 隐私上下文用例等）指向的都不是本次改动的文件，换回旧表跑同一批，同一类失败仍在 |
+| **局限** | 边界只排除 ASCII 字母数字：紧贴在字母数字之后的真实密钥（`mykeysk-…`）不再被厂商前缀规则命中，仍可能被熵检测、ENV / JSON 上下文规则命中；没有现网日志证明用户存过被改写的链接，结论来自语料复现与读码 |
+| **代码位置** | `core/security/detection/leak_detector.py::_TOKEN_START/_ALL_PREFIX_STRUCTURAL` |
+
 ### BUG-HARNESS-2026-10-15-007 · 审批 / 澄清 / 目录授权的超时计时器到点后取消了自己的恢复回调，回合没有恢复；没有计时器的中断恢复后仲裁键无法重开；审批文字拦截探针对真实检查点永远判「不在等」
 
 | 字段 | 内容 |
