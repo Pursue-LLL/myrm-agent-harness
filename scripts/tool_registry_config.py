@@ -91,12 +91,8 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
         # Landed selectively-wired: exposed via public api for callers that
         # supply a live message accessor; not part of the Turn1 meta-tool set.
         "create_refetch_historical_turn_tool",
-        # Memory-governance factories: implemented and unit-tested under
-        # toolkits/memory/*, deliberately not mounted on any agent profile yet.
-        "create_auto_recall_evaluator_tool",
-        "create_code_impact_tool",
-        "create_code_memory_compaction_tool",
-        "create_cross_agent_arbitration_tool",
+        # Implemented and unit-tested under toolkits/memory/sovereign_migration,
+        # deliberately not mounted on any agent profile yet.
         "create_sovereign_migration_tool",
     }
 )
