@@ -36,12 +36,6 @@ from myrm_agent_harness.toolkits.memory.chunking import (
     MarkdownSlidingWindowChunker,
 )
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-from myrm_agent_harness.toolkits.memory.conversation_search.lineage_defense import (
-    ConversationSourceKind,
-    LineageNode,
-    SourceDemotionPolicy,
-    run_lineage_defense_pipeline,
-)
 from myrm_agent_harness.toolkits.memory.domain_types import MemoryDomain, infer_domain_and_category
 from myrm_agent_harness.toolkits.memory.four_tier_fts import (
     DreamCompactionReport,
@@ -213,10 +207,6 @@ __all__ = [
     "SemanticMemory",
     "ToolGuidanceItem",
     "synthesize_tool_guidance",
-    "ConversationSourceKind",
-    "LineageNode",
-    "SourceDemotionPolicy",
-    "run_lineage_defense_pipeline",
     "create_local_memory_manager",
     "get_scan_metrics",
     "get_search_metrics",
