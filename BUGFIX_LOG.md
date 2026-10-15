@@ -2,6 +2,23 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-15-007 · 审批 / 澄清 / 目录授权的超时计时器到点后取消了自己的恢复回调，回合没有恢复；没有计时器的中断恢复后仲裁键无法重开；审批文字拦截探针对真实检查点永远判「不在等」
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-15（核对 server 一条前提「计时器到点会以 Auto-rejected 恢复回合」时，用真实调度器加会挂起的回调复现） |
+| **修复时间** | 2026-10-15 |
+| **症状** | ① 计时器到点认领仲裁键后，运行恢复回调；回调在第一个真正挂起的 `await` 处被取消，回合不恢复、不落库，而键已被认领，之后用户再手动答复被当成「已超时处理」拒绝；② 恢复后停在没有计时器的新中断（计划确认、浏览器接管）时，键保持「已认领」，之后的手动恢复被拒；③ `approval_interception` 的探针用 `aget_tuple` 的 `.tasks` 判断是否在等审批，真实 `CheckpointTuple` 没有该字段，探针永远返回 False，每次运行开始前白跑一次检查点读取 |
+| **关联产品** | myrm-agent-harness `agent/middlewares/approval/scheduler.py`、已删除的审批文字拦截模块 `approval_interception`、`agent/_internals/agent_runtime.py`、`core/events`；server `streaming_support/hitl_timeout.py`；server 台账 `BUG-AGENT-2026-10-15-018` |
+| **根因** | ① `resolve_if_first` 同时认领并取消键下登记的任务，计时器的 `_run` 也调它，此时登记的就是计时器自己，`await callback(...)` 在回调第一次挂起处收到 `CancelledError`，被「手动恢复取消」分支吞掉；原有测试的回调都不挂起；② 键只在 `schedule()` 时被清掉，没有出口；③ 测试 mock 出 `.tasks`，没有对照真实检查点的返回结构（`CheckpointTuple._fields` 为 `config, checkpoint, metadata, parent_config, pending_writes`） |
+| **修复** | ① 拆成 `_claim`（只标记）与 `resolve_if_first`（标记并取消，只给手动路径）；计时器调 `_claim`，并在运行回调前把自己从登记表摘掉；② 新增 `reopen(key)`，对没有计时器的新中断重新接受一次手动答复，已有计时器时不动；③ 删除 `approval_interception` 模块、`agent_runtime.py` 里的调用点、`AgentEventType.APPROVAL_INTERCEPTED` 与 `ApprovalInterceptedEventData`，文档同步 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 「认领」与「取消」要分开：同一个函数对手动路径取消计时器是对的，对计时器自己是自杀；链路测试要用会挂起的回调，同步 stub 暴露不了这一类问题 |
+| **回归** | `tests/agent/middlewares/approval/test_scheduler.py` 20 例通过，新增 5 例；把计时器的认领临时换回旧的 `resolve_if_first`，其中 3 例失败（3 failed、17 passed），还原后 20 例通过；harness 相关目录（`tests/agent`、`core`、`api`、`architecture`、`unit`、`goals`、`sub_agents`、`integration`）在工作区 23380 通过、33 失败、15 跳过，33 例都不在本条的文件里（`test_skill_manage_lock` 3 例 HEAD 上同样失败；委派 / 子代理配置 / 隐私上下文 12 例由他人未提交的改动引起；架构门禁 18 例来自他人新增目录与行数基线）；把「HEAD + 本条改动」导出到独立目录跑 `tests/agent/middlewares`、`tests/core/events`、`tests/architecture`：7938 通过、10 失败，10 例都是架构门禁，原因是他人新增的目录缺 `_ARCH.md`、分发清单与行数基线，以及导出目录没有 `uv` 与虚拟环境 |
+| **局限** | 没有现网日志证明计时器到点恢复从未成功过，结论来自读码与真实调度器复现；server 钉的 harness 版本是 `0.1.0rc5`，server 现在调用 `reopen` 并不再导入已删除的类型，两边必须一起发版并同步锁文件 |
+| **代码位置** | `agent/middlewares/approval/scheduler.py::_run/_claim/resolve_if_first/reopen/_detach` · `agent/_internals/agent_runtime.py` · `core/events/types.py` |
+
 ### BUG-HARNESS-2026-10-15-004 · 体检页的两条红色是假的：网络探针被一个被屏蔽的地址拖到 5 秒上限后报「没有网络」，macOS 上交换区用满就报「系统即将抖动」；向量库探针的异常原文也从技术详情里丢了
 
 | 字段 | 内容 |
