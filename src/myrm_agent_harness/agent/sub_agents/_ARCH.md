@@ -104,6 +104,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | `external_bundle/` | 异构外部第三方 Agent 容器化收编与子代理 Profile Bundle 调度桥接器（对标 DeepSeek Harness RC.8 subagent-claude-code 与 subagent-codex 调度层，提供 Claude Code/Codex/Gemini CLI 规范封装、工作区沙箱目录继承与防越权校验、破除单一 backend 锁的无锁高并发多实例多路复用调度器、终端 ANSI 格式清洗与结构化工件统一重塑）。 |
 | `kanban_orchestrator/` | 多智能体持久任务看板调度中枢与卡片 DAG 依赖拓扑分发器（对标 Hermes Kanban 编排生产实践，提供 Backlog/Todo/In Progress/Review/Done/Blocked 六泳道状态机、DFS 无环依赖拓扑计算、卡片依赖完成自动解锁级联 Auto-Unblock Cascade、卡片级沙箱隔离目录 tasks/{card_id} 与工件原子挂载）。 |
 | `fleet_router/` | 跨机分布式舰队 Profile Rail 全景导航轨、多网关拓扑自愈、离线缓冲与跨机工件中继中枢（对标 Hermes Desktop PROFILE RAIL 舰队级扩展实践，提供 Darwin/Linux/Cloud 多网关连接池、心跳遥测与健康度自感知、断网离线指令 FIFO 缓冲与自愈排空重连 Auto-Healing Flush、Agent 宿主拓扑上下文自动注入、以及 SHA-256 跨网关安全工件中继验证）。 |
+| `graph_triage/` | 图工程自适应适用性评估门禁与并发 Token 预算熔断套件（对标 Graph Engineering 行业实践与成本失控治理规范，提供单步/探索对话/纯时序流水线/多路重型并行启发式准入评估门禁 `GraphApplicabilityTriageGate`、扇出前置 Token 预估与硬上限预算熔断器 `PredictiveBudgetGuard`、以及基于剩余预算的动态自适应并发节流与危急状态提前局部优雅归约引擎 `ElasticConcurrencyReducer`）。 |
 
 
 
