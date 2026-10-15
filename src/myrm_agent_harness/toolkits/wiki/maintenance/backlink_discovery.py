@@ -9,6 +9,7 @@
 - ..core.link_resolver::WikiLinkResolver, concept_link_name (POS: link target to page identity, vault-relative page name)
 - ..core.related_links::merge_related_links (POS: the only writer of a page's Related Concepts section)
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
+- .ai_calls::AiCallTally (POS: counts the model calls of the run; a batch the model answered for no page is an outage)
 - .progress::MaintainPhase, MaintainProgressCallback, report_progress (POS: observer of how far the LLM phases are)
 - ..pipeline.publication::publish_concept_article (POS: single validated write + index path for concept articles)
 - ..retrieval.indexer::WikiIndexer (POS: wiki FTS5 + vector index and graph edges)
@@ -45,6 +46,7 @@ from myrm_agent_harness.toolkits.wiki.core.link_extraction import extract_wikili
 from myrm_agent_harness.toolkits.wiki.core.link_resolver import WikiLinkResolver, concept_link_name
 from myrm_agent_harness.toolkits.wiki.core.related_links import merge_related_links
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+from myrm_agent_harness.toolkits.wiki.maintenance.ai_calls import AiCallTally
 from myrm_agent_harness.toolkits.wiki.maintenance.progress import (
     MaintainPhase,
     MaintainProgressCallback,
@@ -152,7 +154,11 @@ class BacklinkDiscoveryMixin:
     _structure: WikiStructure
     _indexer: WikiIndexer | None
 
-    async def _discover_connections(self, on_progress: MaintainProgressCallback | None = None) -> int:
+    async def _discover_connections(
+        self,
+        on_progress: MaintainProgressCallback | None = None,
+        ai_calls: AiCallTally | None = None,
+    ) -> int:
         """
         Discover potential cross-references using LLM-driven link enrichment.
 
@@ -162,6 +168,7 @@ class BacklinkDiscoveryMixin:
 
         Args:
             on_progress: told how many pages of the batch are done, before each page and once at the end.
+            ai_calls: tallies the model calls made.
 
         Returns:
             Number of new connections discovered
@@ -170,6 +177,9 @@ class BacklinkDiscoveryMixin:
         if len(pages) < 2:
             return 0
 
+        calls = ai_calls if ai_calls is not None else AiCallTally()
+        unanswered_before = calls.unanswered
+
         metadata_path = self._structure.get_wiki_metadata_path()
         keys = list(pages)
         batch = _next_batch(keys, read_wiki_metadata_file(metadata_path).get(LINK_DISCOVERY_CURSOR_KEY))
@@ -177,13 +187,11 @@ class BacklinkDiscoveryMixin:
         resolver = WikiLinkResolver(self._structure)
 
         connections_count = 0
-        unanswered = 0
         for done, key in enumerate(batch):
             report_progress(on_progress, MaintainPhase.LINK_DISCOVERY, done, len(batch))
             try:
-                suggested = await self._suggest_links(key, pages, candidates, resolver)
+                suggested = await self._suggest_links(key, pages, candidates, resolver, calls)
             except Exception as e:
-                unanswered += 1
                 logger.warning(f"LLM link suggestion failed for {key}: {e}")
                 continue
             try:
@@ -195,7 +203,7 @@ class BacklinkDiscoveryMixin:
         # A batch the model answered for no page is an outage: ask the same pages again next run.
         # A page that cannot take a link (invalid frontmatter, say) fails the same way every run and
         # must not hold the rotation back.
-        if len(keys) > _BATCH_SIZE and unanswered < len(batch):
+        if len(keys) > _BATCH_SIZE and calls.unanswered - unanswered_before < len(batch):
             try:
                 write_wiki_metadata_merge(metadata_path, {LINK_DISCOVERY_CURSOR_KEY: batch[-1]})
             except OSError as e:
@@ -208,6 +216,7 @@ class BacklinkDiscoveryMixin:
         pages: dict[str, Path],
         candidates: str,
         resolver: WikiLinkResolver,
+        ai_calls: AiCallTally,
     ) -> list[object]:
         """Ask the model which pages one article should link to; raises when it could not be asked."""
         path = pages[key]
@@ -217,7 +226,8 @@ class BacklinkDiscoveryMixin:
         content = path.read_text(encoding="utf-8")
         linked = sorted({resolver.resolve(t, key) or t for t in extract_wikilink_targets(content)})
 
-        response = await self._llm.ainvoke(
+        response = await ai_calls.ask(
+            self._llm,
             [
                 SystemMessage(content=_SYSTEM_PROMPT),
                 HumanMessage(
@@ -227,7 +237,7 @@ class BacklinkDiscoveryMixin:
                         f"## Already linked: {linked}"
                     )
                 ),
-            ]
+            ],
         )
         return parse_llm_json_list(extract_answer_text(response).strip()) or []
 

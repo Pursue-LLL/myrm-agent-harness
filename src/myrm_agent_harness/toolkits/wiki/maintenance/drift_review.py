@@ -5,6 +5,7 @@
 - langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 - ..core.types::LintIssue (POS: Wiki toolkit type definition center)
+- .ai_calls::AiCallTally (POS: counts the model calls of the run, so a run without a working model is told apart)
 - .issue_kind::action_kind_for_issue_type (POS: issue type to UI action lane)
 - .progress::MaintainPhase, MaintainProgressCallback, report_progress (POS: observer of how far the LLM phases are)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取)
@@ -26,6 +27,7 @@ from typing import TYPE_CHECKING
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue
+from myrm_agent_harness.toolkits.wiki.maintenance.ai_calls import AiCallTally
 from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import action_kind_for_issue_type
 from myrm_agent_harness.toolkits.wiki.maintenance.progress import (
     MaintainPhase,
@@ -52,14 +54,20 @@ class DriftReviewMixin:
     _llm: BaseChatModel
     _structure: WikiStructure
 
-    async def _check_drift(self, on_progress: MaintainProgressCallback | None = None) -> list[LintIssue]:
+    async def _check_drift(
+        self,
+        on_progress: MaintainProgressCallback | None = None,
+        ai_calls: AiCallTally | None = None,
+    ) -> list[LintIssue]:
         """
         Detect knowledge drift: wiki articles diverging from raw source facts.
 
         Samples wiki articles, extracts their claimed sources from frontmatter,
         then uses LLM to compare key facts between wiki and raw source.
-        ``on_progress`` is told how many sampled pages are done, before each page and once at the end.
+        ``on_progress`` is told how many sampled pages are done, before each page and once at the end;
+        ``ai_calls`` tallies the model calls made.
         """
+        calls = ai_calls if ai_calls is not None else AiCallTally()
         issues: list[LintIssue] = []
         concepts = self._structure.list_concepts()
 
@@ -105,7 +113,7 @@ class DriftReviewMixin:
                     )
                 )
 
-                response = await self._llm.ainvoke([system_msg, human_msg])
+                response = await calls.ask(self._llm, [system_msg, human_msg])
                 # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
                 response_text = extract_answer_text(response).strip()
 

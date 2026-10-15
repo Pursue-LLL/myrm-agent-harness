@@ -6,6 +6,7 @@
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 - ..core.types::LintIssue, LintResult (POS: Wiki toolkit type definition center)
 - .gap_issues::knowledge_gap_issues (POS: knowledge-gap lint issues from graph insights)
+- .ai_calls::AiCallTally (POS: counts the model calls of the run; tells a run without a working model apart)
 - .backlink_discovery::BacklinkDiscoveryMixin (POS: LLM wikilink enrichment of articles)
 - .drift_review::DriftReviewMixin (POS: LLM fact-check of sampled articles against their sources)
 - .progress::MaintainProgressCallback (POS: observer of how far the LLM phases are)
@@ -38,6 +39,7 @@ from myrm_agent_harness.toolkits.wiki.diagnostics.structural_lint import (
     collect_invalid_frontmatter_type_issues,
     collect_provenance_gap_issues,
 )
+from myrm_agent_harness.toolkits.wiki.maintenance.ai_calls import AiCallTally
 from myrm_agent_harness.toolkits.wiki.maintenance.backlink_discovery import BacklinkDiscoveryMixin
 from myrm_agent_harness.toolkits.wiki.maintenance.drift_review import DriftReviewMixin
 from myrm_agent_harness.toolkits.wiki.maintenance.gap_issues import knowledge_gap_issues
@@ -92,12 +94,13 @@ class WikiLinter(BacklinkDiscoveryMixin, DriftReviewMixin):
         *,
         include_raw_security: bool = False,
         on_progress: MaintainProgressCallback | None = None,
+        ai_calls: AiCallTally | None = None,
     ) -> tuple[list[LintIssue], dict[str, object]]:
         """Scan vault health without auto-fix or LLM backlink discovery.
 
         When ``include_raw_security`` is True (maintain job only), existing raw files
         may be redacted or removed by the raw security gate. ``on_progress`` follows the
-        LLM drift review of FULL mode.
+        LLM drift review of FULL mode and ``ai_calls`` tallies its model calls.
         """
         all_issues: list[LintIssue] = []
         raw_scan: dict[str, object] = {}
@@ -144,7 +147,7 @@ class WikiLinter(BacklinkDiscoveryMixin, DriftReviewMixin):
                         )
 
         if mode == MaintainMode.FULL and self._config.enable_auto_maintenance:
-            drift = await self._check_drift(on_progress)
+            drift = await self._check_drift(on_progress, ai_calls)
             all_issues.extend(drift)
 
         if self._indexer:
@@ -169,19 +172,22 @@ class WikiLinter(BacklinkDiscoveryMixin, DriftReviewMixin):
             on_progress: told how far the LLM drift review and link discovery are (FULL only).
 
         Returns:
-            LintResult with issues and fixes
+            LintResult with issues and fixes; ``ai_unavailable`` when the model was asked and answered nothing
         """
         start_time = datetime.now(UTC)
         logger.info("Starting wiki maintenance")
 
-        all_issues, raw_scan = await self.scan(mode, include_raw_security=True, on_progress=on_progress)
+        ai_calls = AiCallTally()
+        all_issues, raw_scan = await self.scan(
+            mode, include_raw_security=True, on_progress=on_progress, ai_calls=ai_calls
+        )
 
         fixed_count = await self._apply_deterministic_fixes(all_issues)
 
         # Discover new connections
         connections_count = 0
         if mode == MaintainMode.FULL and self._config.enable_backlinks:
-            connections_count = await self._discover_connections(on_progress)
+            connections_count = await self._discover_connections(on_progress, ai_calls)
 
         duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
 
@@ -189,6 +195,8 @@ class WikiLinter(BacklinkDiscoveryMixin, DriftReviewMixin):
             f"Maintenance complete: {len(all_issues)} issues found, "
             f"{fixed_count} fixed, {connections_count} connections discovered"
         )
+        if ai_calls.unavailable:
+            logger.warning(f"Maintenance: the model answered none of its {ai_calls.asked} call(s)")
 
         WikiCognitiveMapService(self._structure).refresh(
             WikiMapEvent(
@@ -224,6 +232,7 @@ class WikiLinter(BacklinkDiscoveryMixin, DriftReviewMixin):
             issues=all_issues,
             raw_security_removed=raw_security_removed,
             raw_security_removed_paths=raw_security_removed_paths,
+            ai_unavailable=ai_calls.unavailable,
         )
 
     async def _maybe_commit_vault_git(self, reason: str) -> None:

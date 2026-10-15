@@ -154,6 +154,7 @@ class LintResult:
     issues: list[LintIssue] = field(default_factory=list)
     raw_security_removed: int = 0
     raw_security_removed_paths: list[str] = field(default_factory=list)
+    ai_unavailable: bool = False  # the model was asked and answered nothing: structural repairs only
 
 
 @dataclass(frozen=True, slots=True)
