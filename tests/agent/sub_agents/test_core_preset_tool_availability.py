@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 from langchain_core.tools import BaseTool, StructuredTool
 
 from myrm_agent_harness.agent.sub_agents.builder import filter_tools
 from myrm_agent_harness.agent.sub_agents.config_loader import SubagentConfigLoader
+from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
+from myrm_agent_harness.agent.sub_agents.verifier_selection import resolve_verifier
 from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS
 
 
@@ -84,3 +87,24 @@ def test_analysis_preset_uses_memory_ssot_tools() -> None:
         "memory_save_tool",
         "memory_manage_tool",
     }
+
+
+@pytest.mark.asyncio
+async def test_cron_verifier_preset_can_run_commands() -> None:
+    """Cron verifies with this fixed preset and has no spawn-time preflight, so a preset edit that drops the
+    command tool would turn every cron verification into an inconclusive one without any error."""
+    config = SubagentConfigLoader().load_from_yaml(
+        _core_presets_dir() / "adversarial-reviewer.yaml", expected_name="adversarial-reviewer"
+    )
+    catalog = AsyncMock()
+    catalog.resolve = AsyncMock(return_value=config)
+
+    verifier_type, _ = await resolve_verifier(
+        catalog,
+        "adversarial-reviewer",
+        "adversarial-reviewer",
+        SubagentConfig(system_prompt="worker"),
+        _full_parent_toolkit(),
+    )
+
+    assert verifier_type == "adversarial-reviewer"
