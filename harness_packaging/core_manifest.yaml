@@ -15,7 +15,6 @@ directories:
   - toolkits/memory/tool_guidance
   - agent/context_management/compression_flush
   - agent/context_management/dependency_expansion
-  - agent/context_management/project_state
   - toolkits/memory/profile_notes
 
 modules: []
