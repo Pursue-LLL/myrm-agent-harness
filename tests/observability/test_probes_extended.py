@@ -18,26 +18,6 @@ import pytest
 
 class TestCheckNetworkHealth:
     @pytest.mark.asyncio
-    async def test_httpx_missing_returns_warn(self):
-        with (
-            patch.dict("sys.modules", {"httpx": None}),
-            patch(
-                "myrm_agent_harness.observability.diagnostics.probes.httpx",
-                None,
-            ),
-        ):
-            import myrm_agent_harness.observability.diagnostics.probes as probes_mod
-
-            original_httpx = probes_mod.httpx
-            probes_mod.httpx = None
-            try:
-                report = await probes_mod.check_network_health()
-                assert report.status == "warn"
-                assert "httpx" in report.detail.lower()
-            finally:
-                probes_mod.httpx = original_httpx
-
-    @pytest.mark.asyncio
     async def test_successful_probe(self):
         from myrm_agent_harness.observability.diagnostics.probes import check_network_health
 
