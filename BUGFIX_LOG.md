@@ -2,6 +2,22 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-15-002 · 体检的向量库探针每次都拿一份临时内存库自检：真实的嵌入式库因数据目录被锁、不可写或磁盘满而退化成纯内存后，体检、运维快照、支持包仍报「向量库健康」，之后写入的记忆重启即丢
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-15（审计默认挂载的记忆栈时，把探针与 `create_embedded_store` 的退化分支对读，两者没有任何联系） |
+| **修复时间** | 2026-10-15 |
+| **症状** | ① `create_embedded_store` 打不开数据目录时退化成 `:memory:` 库，只记一条 ERROR 日志；② `check_qdrant_health` 固定初始化 `local_path=":memory:"` 的一次性库、从不碰真实目录，所以这种状态下 `VectorDB` 一律返回 pass 与 `Vector database is healthy.`；③ 用户在 `/api/v1/health/doctor`、`/api/v1/ops/snapshot` 与支持包里看到的是「健康」，记忆其实只在内存里，下次启动消失 |
+| **关联产品** | myrm-agent-harness `observability/diagnostics`（`vector_probe.py`、`probes.py`）· `toolkits/vector/qdrant`（`factory.py`）；server 三个读取方：`app/api/health/router.py::system_doctor`、`app/services/ops/snapshot_service.py`、`app/services/system/support_bundle_service.py`，均经 `collect_health_snapshot` / `run_all_diagnostics`，无需改动 |
+| **根因** | 探针只验证「库能不能初始化」，没有验证「真实的库是不是正在用」；退化状态只存在于工厂的进程内单例表里（键后缀 `:memory_fallback`），没有对外的查询口 |
+| **修复** | ① `factory.py` 新增 `embedded_fallback_paths()`（只列退化库的数据目录，显式要求的 `:memory:` 不算退化；后缀提成 `_FALLBACK_KEY_SUFFIX` 常量，读写同源），`qdrant/__init__.py` 导出；② 探针迁到新文件 `vector_probe.py`（`probes.py` 行数预算），先查退化表：有退化库就直接 FAIL，文案面向用户（「新记忆没有被永久保存」+ 退出其他副本、检查可写与磁盘空间、重启应用），`measured` 写退化库个数，原有的一次性库自检保留在后面；③ `probes.py` 仍按原顺序注册同一个函数，对外名字不变 |
+| **验证** | `tests/observability/test_probes.py` + `test_probes_extended.py` + `tests/toolkits/vector/test_qdrant_factory.py` 共 89 项通过（2026-10-15）；新增两条：`TestCheckQdrantHealth::test_fallback_store_returns_fail_even_when_the_throwaway_probe_would_pass`（有退化库时 FAIL，且不再创建一次性库）、`test_embedded_fallback_paths_lists_only_fallback_stores`（正常落盘库与显式 `:memory:` 都不列出，evict 后清空） |
+| **局限** | ① 只在体检 / 运维快照 / 支持包被请求时才检查，没有主动推送；② 退化表是本进程的，别的进程里的退化看不到；③ 退化记录随进程存在，目录恢复后要重启应用（或宿主调用 `evict_embedded_store`）才会消失，与文案里的「重启应用」一致；④ 远程 Qdrant（`create_remote_store`）仍不被探测，探针对它仍只做库可初始化的自检；⑤ 探针文案是英文，与 server 侧异常信息统一为英文的约定一致，没有走多语言文案表；⑥ 没有在真实被锁目录上做过端到端复现，退化状态由测试里注入的 `QdrantClient` 构造失败模拟 |
+| **反复次数** | 第 1 次发现 |
+| **代码位置** | `observability/diagnostics/vector_probe.py::check_qdrant_health` · `toolkits/vector/qdrant/factory.py::embedded_fallback_paths/_FALLBACK_KEY_SUFFIX` · 提交 `b13264595e` |
+
 ### BUG-HARNESS-2026-10-14-024 · 技能复盘在宿主没有挂 `on_skill_review_ready` 时照样触发：每个满足条件的会话结束都白做一次复盘 LLM 调用，结果在 `if on_skill_review_ready` 处被丢弃
 
 | 字段 | 内容 |
