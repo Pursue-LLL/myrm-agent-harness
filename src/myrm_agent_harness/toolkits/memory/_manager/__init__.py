@@ -24,9 +24,6 @@ from myrm_agent_harness.toolkits.memory._manager.import_export import MemoryMana
 from myrm_agent_harness.toolkits.memory._manager.integration_purge import (
     MemoryManagerIntegrationPurgeMixin,
 )
-from myrm_agent_harness.toolkits.memory._manager.kg_screening import (
-    MemoryManagerKGScreeningMixin,
-)
 from myrm_agent_harness.toolkits.memory._manager.listing_maintenance import (
     MemoryManagerListingMaintenanceMixin,
 )
@@ -56,7 +53,6 @@ class MemoryManager(
     MemoryManagerQueriesMixin,
     MemoryManagerListingMaintenanceMixin,
     MemoryManagerSovereignMigrationMixin,
-    MemoryManagerKGScreeningMixin,
     MemoryManagerIntegrationPurgeMixin,
     MemoryManagerMutationsMixin,
     MemoryManagerStorageMixin,

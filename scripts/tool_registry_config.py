@@ -70,7 +70,6 @@ LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset(
         "inspect_context",
         "manage_integration_retained_context",
         "manage_sovereign_memory_assets",
-        "screen_kg_extraction_content",
         "search_session_archive",
     }
 )
@@ -100,7 +99,6 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
         "create_code_memory_compaction_tool",
         "create_cross_agent_arbitration_tool",
         "create_integration_context_purge_tool",
-        "create_kg_content_screening_tool",
         "create_sovereign_migration_tool",
     }
 )

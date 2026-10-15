@@ -27,5 +27,4 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 | `helpers.py` | Internal | `_memory_ref`, `_infer_preference_category` | — |
 | `__init__.py` | Facade | Composes `MemoryManager` | ✅ |
 | `integration_purge.py` | Mixin | Connector-scoped retained-context auditing, selective purge and provenance revocation | ✅ |
-| `kg_screening.py` | Mixin | Knowledge-graph pre-extraction content screening: prompt-injection scan, hidden-HTML stripping, screening audit trail | ✅ |
 
