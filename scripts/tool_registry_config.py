@@ -71,7 +71,6 @@ LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset(
         "arbitrate_cross_agent_memory_conflict",
         "check_memory_ground_truth_drift",
         "compact_code_memory",
-        "evaluate_auto_recall_trigger",
         "inspect_context",
         "inspect_experience_gene_advice",
         "inspect_hindsight_warnings",

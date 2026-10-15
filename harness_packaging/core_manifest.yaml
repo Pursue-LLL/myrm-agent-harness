@@ -16,7 +16,6 @@ directories:
   - agent/context_management/compression_flush
   - agent/context_management/dependency_expansion
   - agent/context_management/project_state
-  - toolkits/memory/auto_recall
   - toolkits/memory/codegraph
   - toolkits/memory/compaction
   - toolkits/memory/decay

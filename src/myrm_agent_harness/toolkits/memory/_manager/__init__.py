@@ -14,9 +14,6 @@ Internal composition root; consumers import via ``memory.manager``.
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.memory._manager.archival import MemoryManagerArchivalMixin
-from myrm_agent_harness.toolkits.memory._manager.auto_recall import (
-    MemoryManagerAutoRecallMixin,
-)
 from myrm_agent_harness.toolkits.memory._manager.code_compaction import (
     MemoryManagerCodeCompactionMixin,
 )
@@ -72,7 +69,6 @@ class MemoryManager(
     MemoryManagerListingMaintenanceMixin,
     MemoryManagerCodeCompactionMixin,
     MemoryManagerExperienceEvolutionMixin,
-    MemoryManagerAutoRecallMixin,
     MemoryManagerDriftDefenseMixin,
     MemoryManagerSovereignMigrationMixin,
     MemoryManagerCrossAgentMixin,
