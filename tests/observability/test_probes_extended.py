@@ -541,7 +541,7 @@ class TestCheckQdrantHealth:
             assert report.component_name == "VectorDB"
 
     @pytest.mark.asyncio
-    async def test_connection_error_returns_fail(self):
+    async def test_connection_error_returns_fail(self, caplog: pytest.LogCaptureFixture):
         from myrm_agent_harness.observability.diagnostics.probes import check_qdrant_health
 
         mock_config_cls = MagicMock()
@@ -559,7 +559,10 @@ class TestCheckQdrantHealth:
         ):
             report = await check_qdrant_health()
             assert report.status == "fail"
-            assert "connection" in report.detail.lower()
+            # The raw exception is for the log; the user-facing text names neither the backend nor the error.
+            assert "refused" not in report.detail
+            assert "qdrant" not in f"{report.message} {report.detail} {report.fix_suggestion}".lower()
+            assert "refused" in caplog.text
 
 
 class TestCheckTokenizerHealth:

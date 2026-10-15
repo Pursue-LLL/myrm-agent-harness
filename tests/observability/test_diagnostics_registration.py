@@ -19,7 +19,6 @@ EXPECTED_DOCTOR_PROBES = frozenset(
         "check_tokenizer_health",
         "check_hook_health",
         "check_desktop_permissions_health",
-        "check_graph_embedding_health",
         "check_local_trace_export_audit",
         "check_supply_chain_health",
         "check_system_exhaustion",

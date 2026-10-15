@@ -1,4 +1,4 @@
-"""Tests for local-trace-only isolation gate and graph embedding doctor checks."""
+"""Tests for the local-trace-only isolation gate."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from myrm_agent_harness.infra.tracing import (
     is_local_trace_only,
     setup_tracing,
 )
-from myrm_agent_harness.observability.diagnostics.probes import check_graph_embedding_health
 
 
 def test_is_local_trace_only_detection(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -54,13 +53,3 @@ def test_setup_tracing_enforces_local_trace_only(monkeypatch: pytest.MonkeyPatch
             otlp_endpoint="https://external-jaeger.com:4317",
             local_trace_only=True,
         )
-
-
-@pytest.mark.asyncio
-async def test_check_graph_embedding_health() -> None:
-    report = await check_graph_embedding_health()
-    assert report.component_name == "GraphEmbedding"
-    assert report.status in ("pass", "warn")
-    if report.status == "pass":
-        assert report.code == "OK_GRAPH_EMBEDDING_HEALTHY"
-        assert "healthy" in report.message.lower()

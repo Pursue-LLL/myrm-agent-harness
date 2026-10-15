@@ -563,7 +563,7 @@ class TestProbesErrorBranches:
         assert "temporarily unavailable" in report.message.lower()
 
     @pytest.mark.asyncio
-    async def test_qdrant_generic_error(self):
+    async def test_qdrant_generic_error(self, caplog: pytest.LogCaptureFixture):
         from myrm_agent_harness.observability.diagnostics.probes import (
             check_qdrant_health,
         )
@@ -577,7 +577,9 @@ class TestProbesErrorBranches:
         ):
             report = await check_qdrant_health()
         assert report.status == "fail"
-        assert "qdrant" in report.detail.lower()
+        assert "qdrant down" not in report.detail
+        assert "qdrant" not in f"{report.message} {report.detail} {report.fix_suggestion}".lower()
+        assert "qdrant down" in caplog.text
 
     def test_fts5_missing_db_returns_empty(self):
         import tempfile

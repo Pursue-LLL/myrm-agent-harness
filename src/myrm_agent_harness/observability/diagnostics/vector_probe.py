@@ -12,7 +12,14 @@
 Harness-level doctor probe registered through probes.py; kept apart so the probe module stays within its line budget.
 """
 
+import logging
+
 from myrm_agent_harness.observability.diagnostics.protocols import HealthReport
+
+logger = logging.getLogger(__name__)
+
+# User-facing wording stays free of backend names and raw exceptions; the exception goes to the log.
+_RETRY_HINT = "Restart the app. If the problem continues, export the diagnostic report and contact support."
 
 
 async def check_qdrant_health() -> HealthReport:
@@ -26,7 +33,7 @@ async def check_qdrant_health() -> HealthReport:
                 component_name="VectorDB",
                 status="warn",
                 message="Advanced search features are not available.",
-                detail="Vector toolkit not available, cannot perform Qdrant probe.",
+                detail="The vector search component is not installed.",
                 fix_suggestion="Install vector dependencies to enable advanced search.",
             )
 
@@ -60,21 +67,23 @@ async def check_qdrant_health() -> HealthReport:
             component_name="VectorDB",
             status="pass",
             message="Vector database is healthy.",
-            detail="Qdrant vector store is reachable and healthy.",
+            detail="Memory search storage starts correctly.",
         )
     except ConnectionError as e:
+        logger.warning("Vector store probe could not connect: %s", e)
         return HealthReport(
             component_name="VectorDB",
             status="fail",
             message="Vector database connection failed.",
-            detail=f"Qdrant connection failed: {e}",
-            fix_suggestion="Check vector database service status.",
+            detail="The memory search storage could not be reached.",
+            fix_suggestion=_RETRY_HINT,
         )
     except Exception as e:
+        logger.warning("Vector store probe failed: %s", e)
         return HealthReport(
             component_name="VectorDB",
             status="fail",
             message="Vector database check failed.",
-            detail=f"Qdrant health check failed: {e}",
-            fix_suggestion="Check vector database service logs.",
+            detail="The memory search storage check did not complete.",
+            fix_suggestion=_RETRY_HINT,
         )
