@@ -540,15 +540,18 @@ class WikiCompiler:
         try:
             with open(metadata_path, encoding="utf-8") as meta_f:
                 metadata = json.load(meta_f)
-            from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
-                get_last_compile_raw_hashes,
-                raw_relative_storage_key,
-            )
+            from myrm_agent_harness.toolkits.wiki.core.claims_contract import get_last_compile_raw_hashes
 
             known_hashes = get_last_compile_raw_hashes(metadata)
         except Exception as e:
             logger.warning(f"Failed to read metadata: {e}")
             return raw_files
+
+        # Hashing every raw file takes seconds on a large vault; off the event loop it no longer stalls SSE and requests.
+        return await asyncio.to_thread(self._changed_by_hash, raw_files, known_hashes)
+
+    def _changed_by_hash(self, raw_files: list[Path], known_hashes: dict[str, str]) -> list[Path]:
+        from myrm_agent_harness.toolkits.wiki.core.claims_contract import raw_relative_storage_key
 
         changed: list[Path] = []
         for f in raw_files:

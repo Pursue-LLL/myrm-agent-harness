@@ -1,5 +1,8 @@
 """enqueue_changed_sources hands the sources to the queue and leaves the compiling to the background worker."""
 
+import hashlib
+import json
+import threading
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -85,6 +88,29 @@ async def test_an_incremental_compile_queues_only_what_changed_since_the_last_on
     raw.write_text("Machine learning is powerful, and so is deep learning.")
     assert await compiler.enqueue_changed_sources() == 1
     assert _pending_names(compiler) == ["a.md"]
+
+
+@pytest.mark.asyncio
+async def test_the_change_check_hashes_the_sources_off_the_event_loop_thread(
+    wiki_structure: WikiStructure, mock_llm: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (wiki_structure.raw_dir / "a.md").write_text("Machine learning is powerful.")
+    (wiki_structure.raw_dir / "b.md").write_text("Data science content.")
+    wiki_structure.get_wiki_metadata_path().write_text(json.dumps({}))
+    hashing_threads: list[threading.Thread] = []
+    real_sha256 = hashlib.sha256
+
+    def spy_sha256(data: bytes = b"") -> "hashlib._Hash":
+        hashing_threads.append(threading.current_thread())
+        return real_sha256(data)
+
+    monkeypatch.setattr(hashlib, "sha256", spy_sha256)
+    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
+
+    assert await compiler.enqueue_changed_sources() == 2
+
+    assert len(hashing_threads) == 2
+    assert threading.main_thread() not in hashing_threads
 
 
 @pytest.mark.asyncio
