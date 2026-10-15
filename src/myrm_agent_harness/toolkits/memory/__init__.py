@@ -159,16 +159,6 @@ from myrm_agent_harness.toolkits.memory.reconciliation import (
     WriteGateCheckResult,
     WriteGatePolicy,
 )
-from myrm_agent_harness.toolkits.memory.relational_backtrack import (
-    ActionSynonymNormalizer,
-    CrossSessionBacktrackEngine,
-    EntityTypeKind,
-    RelationalBacktrackHit,
-    RelationalBacktrackQuery,
-    RelationalBacktrackResult,
-    TemporalRelationTriplet,
-    TemporalTripletStore,
-)
 from myrm_agent_harness.toolkits.memory.reliability import (
     MemoryArchiveManifest,
     MemoryArchivePayload,
@@ -351,14 +341,6 @@ __all__ = [
     "SourceDemotionPolicy",
     "run_lineage_defense_pipeline",
     "create_local_memory_manager",
-    "ActionSynonymNormalizer",
-    "CrossSessionBacktrackEngine",
-    "EntityTypeKind",
-    "RelationalBacktrackHit",
-    "RelationalBacktrackQuery",
-    "RelationalBacktrackResult",
-    "TemporalRelationTriplet",
-    "TemporalTripletStore",
     "get_scan_metrics",
     "get_search_metrics",
     "summarize_recall_benchmark",
