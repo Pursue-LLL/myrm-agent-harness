@@ -86,17 +86,6 @@ class SkillStoreQueries:
             ).fetchall()
             return [self._row_to_record(row) for row in rows]
 
-    def count_active_skills(self, agent_id: str | None = None) -> int:
-        """Count active skills visible to ``agent_id`` without loading skill bodies.
-
-        Uses the same scope rule as :meth:`get_active_skills`.
-        """
-        self._ensure_open()
-        condition, params = _active_skills_filter(agent_id)
-        with self._reader() as conn:
-            row = conn.execute(f"SELECT COUNT(*) FROM skills WHERE {condition}", tuple(params)).fetchone()
-            return int(row[0])
-
     def get_skill_by_name_version(self, name: str, version: int | None = None) -> SkillRecord | None:
         """Load skill by name and optional version.
 

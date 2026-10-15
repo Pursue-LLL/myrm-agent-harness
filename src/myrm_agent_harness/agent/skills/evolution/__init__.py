@@ -19,12 +19,6 @@ New Features (vs lime):
 总体收益: 9.2/10
 """
 
-from .core.budget_governor import (
-    BudgetCheckResult,
-    BudgetStatus,
-    SkillBudgetConfig,
-    SkillBudgetGovernor,
-)
 from .core.engine import SkillEvolutionEngine
 from .core.gene_bank import GeneBankArchive
 from .core.proposal_builder import ProposalBuilder
@@ -103,8 +97,6 @@ __all__ = [
     "VariantGenerator",
     # Utils
     "apply_skill_patch",
-    "BudgetCheckResult",
-    "BudgetStatus",
     "create_evolution_tools",
     "detect_patch_type",
     "enable_skill_evolution",
@@ -112,6 +104,4 @@ __all__ = [
     "get_evolution_queue",
     "get_global_evolution_integration",
     "parse_multi_file_full",
-    "SkillBudgetConfig",
-    "SkillBudgetGovernor",
 ]

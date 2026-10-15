@@ -128,7 +128,7 @@ async def test_get_active_skills(temp_db_path, skill_record):
 
 
 @pytest.mark.asyncio
-async def test_count_active_skills_matches_get_active_skills_for_every_scope(temp_db_path, skill_record):
+async def test_get_active_skills_isolates_agent_scope_and_honours_mounted_skills(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
 
     def _variant(skill_id: str, *, scope: str | None = None, active: bool = True) -> SkillRecord:
@@ -146,12 +146,16 @@ async def test_count_active_skills_matches_get_active_skills_for_every_scope(tem
     await store.save_skill(_variant("owned-b", scope="agent-b"))
     await store.save_skill(_variant("retired", active=False))
 
-    for agent_id in (None, "agent-a", "agent-b", "agent-c"):
-        assert store.count_active_skills(agent_id=agent_id) == len(store.get_active_skills(agent_id=agent_id))
+    def _ids(agent_id: str | None = None, mounted: list[str] | None = None) -> set[str]:
+        return {record.skill_id for record in store.get_active_skills(agent_id=agent_id, mounted_skill_ids=mounted)}
 
-    assert store.count_active_skills() == 4
-    assert store.count_active_skills(agent_id="agent-a") == 3
-    assert store.count_active_skills(agent_id="agent-c") == 2
+    assert _ids() == {"global-1", "global-2", "owned-a", "owned-b"}
+    assert _ids("agent-a") == {"global-1", "global-2", "owned-a"}
+    assert _ids("agent-b") == {"global-1", "global-2", "owned-b"}
+    assert _ids("agent-c") == {"global-1", "global-2"}
+    # A mounted skill owned by another agent becomes visible; an inactive one never does.
+    assert _ids("agent-c", ["owned-a"]) == {"global-1", "global-2", "owned-a"}
+    assert _ids("agent-c", ["retired"]) == {"global-1", "global-2"}
     store.close()
 
 
