@@ -10,15 +10,6 @@ if TYPE_CHECKING:
         DecayRerankItem,
         TierMigrationReport,
     )
-    from myrm_agent_harness.toolkits.memory.graph_rrf.dual_channel_retriever import (
-        VectorSearchFn,
-    )
-    from myrm_agent_harness.toolkits.memory.graph_rrf.graph_store import (
-        SQLiteGraphMemoryStore,
-    )
-    from myrm_agent_harness.toolkits.memory.graph_rrf.types import (
-        FusedMemoryHit,
-    )
     from myrm_agent_harness.toolkits.memory.strategies.hindsight.reflection_buffer import (
         HindsightReflectionBuffer,
     )
@@ -388,45 +379,6 @@ class MemoryManagerListingMaintenanceMixin:
             candidates=candidates,
             exclude_cold=exclude_cold,
             current_time=current_time,
-        )
-
-    def search_hybrid_graph_rrf(
-        self,
-        query: str,
-        graph_store: SQLiteGraphMemoryStore,
-        seed_entity_names: list[str] | None = None,
-        vector_search_fn: VectorSearchFn | None = None,
-        top_k: int = 5,
-    ) -> list[FusedMemoryHit]:
-        """Recall memories via hybrid knowledge graph topology and vector RRF fusion."""
-        from myrm_agent_harness.toolkits.memory.graph_rrf import (
-            DualChannelRRFRetriever,
-            RRFConfig,
-        )
-
-        retriever = DualChannelRRFRetriever(
-            graph_store=graph_store,
-            vector_search_fn=vector_search_fn,
-            config=RRFConfig(top_k=top_k),
-        )
-        return retriever.search(
-            query=query,
-            seed_entity_names=seed_entity_names,
-            top_k=top_k,
-        )
-
-    def associate_memory_graph_entity(
-        self,
-        memory_id: str,
-        entity_id: str,
-        graph_store: SQLiteGraphMemoryStore,
-        content: str = "",
-    ) -> None:
-        """Associate a long-term memory record with a knowledge graph entity node."""
-        graph_store.associate_memory(
-            memory_id=memory_id,
-            entity_id=entity_id,
-            content=content,
         )
 
     def get_hindsight_pre_execution_warnings(

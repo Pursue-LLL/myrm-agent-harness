@@ -175,7 +175,6 @@ Does your code need to import anything from agent/?
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image/video/tts generation and vision understanding (`llms/vision/`). |
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |
 | memory/ | Pluggable memory system — vector/relational/graph storage for AI agents; agent I/O in `memory/agent_surface/`. |
-| memory/graph_rrf/ | Hybrid Knowledge Graph & Vector RRF Memory Engine — SQLite graph store with BFS traversal, vector channel integration, and reciprocal rank fusion. |
 | memory/strategies/hindsight/ | Hindsight Experience Replay & Retrospective Reflection Buffer — trajectory scrubbing, counterfactual rule extraction, and proactive pre-execution warnings. |
 | openapi_bridge/ | OpenAPI Bridge — zero-code REST API integration via OpenAPI 3.x / Swagger 2.0 specs. |
 | retriever/ | Retrieval and reranking — multi-source document retrieval with scoring pipeline. |
