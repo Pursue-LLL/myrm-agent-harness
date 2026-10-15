@@ -13,18 +13,22 @@ from dataclasses import dataclass
 from typing import Annotated, TypedDict
 
 import pytest
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, interrupt
 
-_CONFIG = {"configurable": {"thread_id": "approval-thread"}}
+_CONFIG: RunnableConfig = {"configurable": {"thread_id": "approval-thread"}}
 _PAUSE = {"question": "approve?"}
 
 
 class _State(TypedDict):
     decision: str
     log: Annotated[list[str], operator.add]
+
+
+_Graph = CompiledStateGraph[_State, None, _State, _State]
 
 
 @dataclass
@@ -35,10 +39,10 @@ class _Faults:
     ask_after_interrupt: bool = False
 
 
-def _build_graph(faults: _Faults) -> CompiledStateGraph:
+def _build_graph(faults: _Faults) -> _Graph:
     """``ask`` pauses for a decision (the approval middleware's node); ``work`` is every later node."""
 
-    async def ask(_state: _State) -> dict[str, str]:
+    async def ask(state: _State) -> dict[str, str]:
         answer = interrupt(_PAUSE)
         if faults.ask_after_interrupt:
             faults.ask_after_interrupt = False
@@ -59,7 +63,7 @@ def _build_graph(faults: _Faults) -> CompiledStateGraph:
     return builder.compile(checkpointer=InMemorySaver())
 
 
-async def _pause_at_interrupt(graph: CompiledStateGraph) -> None:
+async def _pause_at_interrupt(graph: _Graph) -> None:
     result = await graph.ainvoke({"decision": "", "log": []}, _CONFIG)
     assert "__interrupt__" in result
 
