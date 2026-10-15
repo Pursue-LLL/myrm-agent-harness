@@ -2,6 +2,23 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-15-009 · wiki 维护的模型一次都没答，结果与「没有可改进之处」无法区分，宿主也无法在运行中停下它；手动编译只能一次同步跑完整个编译，没有「只排队」的入口
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-15（#140 第七批复审，对 server 的「全量维护」与「手动编译」两个长请求追问宿主能拿到什么信号） |
+| **修复时间** | 2026-10-15 |
+| **症状** | ① `lint_and_maintain` 的模型阶段（漂移核对、链接发现）每次调用都返回空时，`LintResult` 与「模型看过、确实没有可改进之处」相同，宿主无从告诉用户「模型没有回答」；② 全量维护最多 25 次串行模型调用，宿主没有任何停止入口；③ `WikiCompiler.compile_all` 开头自己挑出要读的原文并入队、再整批处理完才返回，宿主想「只排队、让后台 worker 处理」时只能复制这段筛选逻辑 |
+| **关联产品** | myrm-agent-harness `toolkits/wiki/maintenance/`（`ai_calls.py`、`drift_review.py`、`backlink_discovery.py`、`linter.py`）、`core/types.py`、`pipeline/compiler.py`；server `app/services/wiki/maintain/`、`app/api/wiki/router.py` 的 `/wiki/compile` |
+| **根因** | 模型调用只被「用到」，没有被「数」：没有一个对象记录问过几次、答出几次；停止信号没有进入模型调用与阶段循环；`compile_all` 把「挑出要读的原文并入队」与「处理队列」写在同一个方法里 |
+| **修复** | ① 新增每轮的 `AiCalls`（`maintenance/ai_calls.py`）：`ask()` 数问过与未应答的次数，`unavailable` 表示问过且一次都没答出来，`LintResult.ai_unavailable` 交给宿主；② `AiCalls` 持有宿主传入的 `asyncio.Event`，`ask()` 在调用前与等待中响应停止并抛 `MaintainStoppedError`，在途调用被丢弃（结果由完成回调取回）；两个模型阶段结束自己的阶段，从正常路径返回 `LintResult.stopped=True`，写入从不被打断，所以没有半写文件，被停止的链接发现批次从最后处理的页面之后续上游标；被停止的调用不计入问过次数；③ 新增 `WikiCompiler.enqueue_changed_sources()`（增量只排新增或变更的原文，全量排全部，返回入队数），`compile_all` 复用同一方法。没有改任何提示词、工具 schema 与存储表；宿主不传 `stop` 时行为不变 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 第一版在 `linter.py` 里多写了一个 `and not ai_calls.stopped` 守卫，变异检查显示去掉它后全部用例仍通过（行为冗余），代码已删；② 被丢弃的在途模型调用的结果没人读，要由完成回调取回，免得事件循环把它当作未取回的异常记录（`_discard_outcome`）；③ 停止后的链接发现游标不能推进到整批末尾，否则未问的页面会被永远跳过，改为从最后处理的页面之后续上 |
+| **回归** | 新增 `tests/toolkits/wiki/test_maintain_ai_calls.py`（17 例：计数含抛错的调用、取消不算未应答、全量维护的未应答与可用判定、未应答不拖住链接发现轮转、停止后不再发起调用、停止时丢弃在途调用且不计数、取消运行即取消在途调用、停止时保留已写链接并从最后处理的页面之后续上、模型挂起时及时返回、结构性维护不受停止影响）与 `test_compiler_enqueue.py`（5 例：不调用模型地入队、第二次调用每个原文只排一次、增量只排上次之后变更的、全量重新排全部、没有原文时不排）；变异检查：停止逻辑 4 个（3 个被抓住，1 个是行为冗余的守卫，已删除代码）、入队 3 个，其余全部被抓住；`tests/toolkits/wiki`（不含真实 LLM 的 `test_sidecar_integration.py`）962 例通过，ruff 与 mypy 通过；同批修掉 `pipeline/compiler.py` 里一处既有 mypy 错误（`serialize_frontmatter_block` 入参类型） |
+| **局限** | 停止是协作式：只在两次模型调用之间与调用等待期间响应，已发出的调用在服务商侧不会被撤销（只丢弃结果）；`compile_all` 与后台 `_worker_loop` 各有一份相近的流水线，本条没有合并；`pipeline/compiler.py` 904 行超出文件行数建议，没有拆分 |
+| **代码位置** | `toolkits/wiki/maintenance/ai_calls.py::AiCalls/MaintainStoppedError` · `maintenance/linter.py::lint_and_maintain` · `maintenance/drift_review.py` · `maintenance/backlink_discovery.py` · `core/types.py::LintResult` · `pipeline/compiler.py::WikiCompiler.enqueue_changed_sources` |
+
 ### BUG-HARNESS-2026-10-15-008 · 泄漏检测的厂商前缀规则没有左边界：超过 48 个字符的连字符 URL slug（`/blog/task-management-…`）被当成 OpenAI 密钥，写入 wiki / 记忆的文本里这段 slug 被改成 `[REDACTED:openai_key]`
 
 | 字段 | 内容 |
