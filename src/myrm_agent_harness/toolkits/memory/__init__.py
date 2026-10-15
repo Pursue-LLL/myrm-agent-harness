@@ -142,16 +142,6 @@ from myrm_agent_harness.toolkits.memory.onboarding import (
     OnboardingSampleOptions,
     OnboardingSourceRegistry,
 )
-from myrm_agent_harness.toolkits.memory.peer_cognition import (
-    PeerCognitionGraphStore,
-    PeerCognitionProjection,
-    PeerIdentity,
-    PeerPersonaCard,
-    PeerPersonaCardEngine,
-    PeerRelationEdge,
-    PeerRelationKind,
-    PeerType,
-)
 from myrm_agent_harness.toolkits.memory.private_notebook import ModelPrivateNotebookManager
 from myrm_agent_harness.toolkits.memory.quadruple_retrieval import (
     ParsedTaskGoal,
@@ -420,14 +410,6 @@ __all__ = [
     "CuratorStudioSummary",
     "MarkdownSyncDelta",
     "MemoryCuratorStudio",
-    "PeerCognitionGraphStore",
-    "PeerCognitionProjection",
-    "PeerIdentity",
-    "PeerPersonaCard",
-    "PeerPersonaCardEngine",
-    "PeerRelationEdge",
-    "PeerRelationKind",
-    "PeerType",
     "BaseContextPayload",
     "DialecticConflictCandidate",
     "DialecticReconciliationConfig",
