@@ -18,7 +18,8 @@ from myrm_agent_harness.observability.diagnostics.protocols import HealthReport
 
 logger = logging.getLogger(__name__)
 
-# User-facing wording stays free of backend names and raw exceptions; the exception goes to the log.
+# `message` and `fix_suggestion` stay free of backend names and raw exceptions; the exception text travels in
+# `detail`, the technical part a host shows on demand, and goes to the log.
 _RETRY_HINT = "Restart the app. If the problem continues, export the diagnostic report and contact support."
 
 
@@ -75,7 +76,7 @@ async def check_qdrant_health() -> HealthReport:
             component_name="VectorDB",
             status="fail",
             message="Vector database connection failed.",
-            detail="The memory search storage could not be reached.",
+            detail=f"The memory search storage could not be reached: {e}",
             fix_suggestion=_RETRY_HINT,
         )
     except Exception as e:
@@ -84,6 +85,6 @@ async def check_qdrant_health() -> HealthReport:
             component_name="VectorDB",
             status="fail",
             message="Vector database check failed.",
-            detail="The memory search storage check did not complete.",
+            detail=f"The memory search storage check did not complete: {type(e).__name__}: {e}",
             fix_suggestion=_RETRY_HINT,
         )

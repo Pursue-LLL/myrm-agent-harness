@@ -37,3 +37,24 @@ async def test_probe_fails_while_another_client_holds_the_data_directory_lock(tm
         holder.close()
 
     assert str(data_dir.resolve()) not in embedded_fallback_paths()
+
+
+@pytest.mark.asyncio
+async def test_connection_failure_keeps_the_exception_in_detail_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("qdrant_client")
+    failure = ConnectionError("refused by /secret/qdrant.sock")
+
+    async def _raise(*_args: object, **_kwargs: object) -> None:
+        raise failure
+
+    monkeypatch.setattr("myrm_agent_harness.toolkits.vector.qdrant.create_vector_store", _raise)
+
+    report = await check_qdrant_health()
+
+    assert report.status == "fail"
+    assert "connection failed" in report.message
+    assert str(failure) in (report.detail or "")
+    # The user-facing text names neither the backend nor the raw exception.
+    for user_facing in (report.message, report.fix_suggestion or ""):
+        assert str(failure) not in user_facing
+        assert "qdrant" not in user_facing.lower()

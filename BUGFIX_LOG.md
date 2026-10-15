@@ -2,6 +2,24 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-15-004 · 体检页的两条红色是假的：网络探针被一个被屏蔽的地址拖到 5 秒上限后报「没有网络」，macOS 上交换区用满就报「系统即将抖动」；向量库探针的异常原文也从技术详情里丢了
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-15（逐项核对 `/api/v1/health/doctor` 实际返回，对 HEAD 的探针逐个计时 / 对照系统计数器，不靠读代码推断） |
+| **修复时间** | 2026-10-15 |
+| **症状** | ① 网络探针按顺序请求三个地址、每个等 5 秒，而管理器给每个探针的上限也是 5 秒：第一个地址（`cloudflare-dns.com`）在这台机器上不通，探针还没走到备用地址就被管理器截断，体检显示「Internet is not available」，实际网络是通的；② `SystemExhaustion` 只看交换区占用，macOS 的交换文件按需增长，占用接近 100% 是常态，体检却报红色「Swap/Pagefile is critically saturated. System thrashing imminent.」；③ 超时 / 崩溃的兜底报告写着「component may be deadlocked」「Try restarting the application」，一次超时并不能说明死锁，也不该劝人重启；④ 向量库探针的 `detail` 在上一轮被改成固定句子，异常原文只进日志，支持包里看不到失败原因 |
+| **关联产品** | myrm-agent-harness `observability/diagnostics`（`probes.py`、`manager.py`、`system_exhaustion.py`、`vector_probe.py`、`desktop_probe.py`） |
+| **根因** | ① 备用地址按顺序尝试，总预算没有和管理器的单探针上限对齐；② 把「交换区占用高」直接等同于「内存紧张」，没有第二个独立证据；③ 兜底文案按「最坏情况」写，没有区分「没得出结论」和「确认损坏」；④ 上一轮把「用户可见文案不带技术细节」和「技术详情字段」混为一谈，连 `detail` 一起改掉了 |
+| **修复** | ① `check_network_health` 改为错峰竞速：第一个地址先发，慢于 1 秒才开下一个，前一个失败则立刻开下一个，第一个成功即取消其余；单请求 2.5 秒，探针自己的预算为 `DIAGNOSTIC_HOOK_TIMEOUT_S - 1`（4 秒），保证由探针自己给出结论；健康网络仍只发 1 个请求；② 交换区 ≥90% 的失败需要同时满足可用内存 <10%（读不到可用内存时仍按严格结论），否则落入原有的「交换区使用率高」警告，原因文案改为与证据一致；快照改成 `TypedDict`（同时消掉 8 个 `float(object)` 的 mypy 错误）；③ 超时报告改为「A system check did not finish in time.」，不再断言死锁、不再建议重启；④ 向量库探针的异常原文回到 `detail`（`message` / `fix_suggestion` 仍不带后端名与异常），`desktop_probe` 与 `_ARCH.md` 里指向具体产品路由 / 界面的措辞改为宿主无关 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 单看「探针单独跑 2.7 秒能通过」会得出「网络探针本来就没问题」的错误结论，必须在管理器的 5 秒限制下并发跑；② 在全新进程里第一次跑体检会得到一堆「没有在时限内完成」，原因是 `check_hook_health` 在探针里同步导入 `agent.hooks.executor`（约 5.5 秒，同一事件循环被阻塞，所有探针的挂钟超时一起走完），不是本条的网络问题，要先预热模块再测；③ 把 `memory_short` 的默认值写成「内存充足」会让读不到内存的机器静默降级，所以默认取严格结论 |
+| **回归** | 新增 `tests/observability/test_network_probe.py`（6 例：首个地址挂起时备用地址仍通过；首个地址立刻失败时不等错峰间隔；健康网络只发 1 个请求；全部失败；全部过慢时在自己的预算内给出结论且不留任务；预算低于管理器上限的不变式）；`test_diagnostics_manager.py` 钉住超时报告不含「deadlock」「restart」；`test_system_exhaustion_diagnostics.py` 新增「交换区用满 + 内存充足 → 警告」「交换区用满 + 内存读不到 → 仍为失败」，原有失败用例改为显式给出短缺内存并钉住 `measured`；`test_vector_probe.py` / `test_probes.py` 钉住异常原文只在 `detail` 与日志里 |
+| **实测** | 网络（同一台机器，管理器 5 秒限制下）：改前体检为失败，改后预热进程里连续 2 次完整体检 Network 均通过，整套体检 1.35 / 1.56 秒；单探针 1.70–2.71 秒（gstatic 在错峰 1 秒后接手）。交换区：改前 `SystemExhaustion` 红色失败，改后同一台机器上为警告（交换区 93.6%，24.9/26.6 GB，可用内存 26.0%）；8 秒内 `vm_stat` 换出计数 +0、换页计数 +24（累计 1066 万），没有抖动迹象 |
+| **局限** | ① 全新进程第一次体检仍会因探针里的同步导入被阻塞而出现「没有在时限内完成」（实测 11.7 秒，随后几次 1.4 秒）：服务进程启动时已加载这些模块，不受影响，只有「新进程里直接调 `run_all_diagnostics`」的宿主会遇到，本条未改；② 交换区与可用内存的判据只在这一台 macOS 机器上取证，Linux / Windows 沿用同一规则，没有实机数据；③ 网络探针在被降级到更慢地址时最长要 1–2 秒，换来的是不再误报；④ 运行中的服务进程需要重启才会加载新代码，本条的实测来自同一批函数的进程内调用，没有重启共享的开发服务做在线复测 |
+| **代码位置** | `observability/diagnostics/probes.py::check_network_health/_first_reachable_url` · `manager.py::DIAGNOSTIC_HOOK_TIMEOUT_S/_safe_execute_hook` · `system_exhaustion.py::check_system_exhaustion/SystemExhaustionSnapshot` · `vector_probe.py::check_qdrant_health` |
+
 ### BUG-HARNESS-2026-10-15-003 · wiki 的两个「相关概念」写入方互不相认：编译后的反向链接把 `## Related Concepts` 之后的整段内容删掉，维护期的链接发现把草稿 / 已拦截页面改回已发布，并且每次只问同样的前 20 页
 
 | 字段 | 内容 |

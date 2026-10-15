@@ -577,8 +577,9 @@ class TestProbesErrorBranches:
         ):
             report = await check_qdrant_health()
         assert report.status == "fail"
-        assert "qdrant down" not in report.detail
-        assert "qdrant" not in f"{report.message} {report.detail} {report.fix_suggestion}".lower()
+        # The exception text is the technical `detail`; the user-facing message and fix name neither backend nor exception.
+        assert "qdrant down" in report.detail
+        assert "qdrant" not in f"{report.message} {report.fix_suggestion}".lower()
         assert "qdrant down" in caplog.text
 
     def test_fts5_missing_db_returns_empty(self):

@@ -1,7 +1,7 @@
 """Desktop control health probe for the doctor.
 
 [INPUT]
-- toolkits.computer_use.session::create_computer_session (POS: Computer session factory; its `check_permissions(probe_capture=True)` is the same backend probe as `GET /webui/desktop/permissions`)
+- toolkits.computer_use.session::create_computer_session (POS: Computer session factory; its `check_permissions(probe_capture=True)` is the probe hosts expose on their permission screens)
 - diagnostics.protocols::HealthReport (POS: Standard health check report)
 
 [OUTPUT]
@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 async def check_desktop_permissions_health() -> HealthReport:
     """Probe OS permissions required for semantic desktop control (computer_use).
 
-    Reuses the same backend probe as ``GET /webui/desktop/permissions`` on the
-    server. Skipped on cloud sandbox deploy mode where local OS grants do not apply.
+    Reuses the permission probe that hosts expose on their permission screens.
+    Skipped on cloud sandbox deploy mode where local OS grants do not apply.
     """
     deploy_mode = os.getenv("DEPLOY_MODE", "local").lower()
     if deploy_mode == "sandbox":
