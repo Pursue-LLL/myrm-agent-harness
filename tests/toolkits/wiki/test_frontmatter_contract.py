@@ -10,10 +10,12 @@ from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_f
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     FrontmatterValidationError,
     WikiPageType,
+    WikiPublishStatus,
     apply_compile_gate,
     infer_type_for_import,
     repair_file_frontmatter,
     repair_missing_types,
+    resolve_publish_status,
     validate_wiki_frontmatter,
 )
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -140,6 +142,24 @@ def test_ensure_draft_frontmatter_stamps_draft() -> None:
     draft = ensure_draft_frontmatter(content)
     assert "publish_status: draft" in draft
     assert "published_at" not in draft
+
+
+@pytest.mark.parametrize(
+    ("front", "expected"),
+    [
+        ("type: concept\npublish_status: draft\n", WikiPublishStatus.DRAFT),
+        ("type: concept\npublish_status: BLOCKED\n", WikiPublishStatus.BLOCKED),
+        ("type: concept\npublish_status: published\n", WikiPublishStatus.PUBLISHED),
+        ("type: concept\n", WikiPublishStatus.PUBLISHED),
+        ("type: concept\npublish_status: archived\n", WikiPublishStatus.PUBLISHED),
+    ],
+)
+def test_resolve_publish_status_reads_missing_and_unknown_as_published(front: str, expected: WikiPublishStatus) -> None:
+    assert resolve_publish_status(f"---\n{front}---\n# Title\n") == expected
+
+
+def test_resolve_publish_status_without_frontmatter_is_published() -> None:
+    assert resolve_publish_status("# Title\n") == WikiPublishStatus.PUBLISHED
 
 
 def test_apply_compile_gate_injects_concept_type() -> None:

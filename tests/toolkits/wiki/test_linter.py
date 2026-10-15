@@ -314,9 +314,9 @@ async def test_discover_connections_llm_enrichment(
     config = WikiConfig(enable_auto_maintenance=False, enable_backlinks=True)
     linter = WikiLinter(mock_llm, wiki_structure, config)
     count = await linter._discover_connections()
-    assert count >= 0
+    assert count >= 1
     updated = wiki_structure.get_concept_file_path("Concept Alpha").read_text(encoding="utf-8")
-    assert "[[Concept Beta]]" in updated
+    assert "[[concept-beta]]" in updated
 
 
 @pytest.mark.asyncio
@@ -336,6 +336,6 @@ async def test_discover_connections_malformed_llm_array(
     config = WikiConfig(enable_auto_maintenance=False, enable_backlinks=True)
     linter = WikiLinter(mock_llm, wiki_structure, config)
     count = await linter._discover_connections()
-    assert count >= 0
+    assert count >= 1
     updated = wiki_structure.get_concept_file_path("Concept Alpha").read_text(encoding="utf-8")
-    assert "[[Concept Beta]]" in updated
+    assert "[[concept-beta]]" in updated

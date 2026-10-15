@@ -16,6 +16,7 @@ from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.maintenance.linter import WikiLinter
 from myrm_agent_harness.toolkits.wiki.pipeline.pending import WikiPendingEditsManager
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
+    ArticlePublishOutcome,
     ConceptPathMapping,
     publish_concept_article,
     reindex_concepts_after_move,
@@ -86,7 +87,7 @@ async def test_link_enrichment_uses_publish_gate(
 
     mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content='["Beta"]'))
 
-    publish_mock = AsyncMock()
+    publish_mock = AsyncMock(return_value=ArticlePublishOutcome.PUBLISHED)
     monkeypatch.setattr(
         "myrm_agent_harness.toolkits.wiki.maintenance.backlink_discovery.publish_concept_article",
         publish_mock,

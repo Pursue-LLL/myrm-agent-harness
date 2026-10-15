@@ -2,6 +2,7 @@
 
 [INPUT]
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
+- ..core.link_resolver::concept_link_name (POS: vault-relative page name used in wikilinks)
 - ..core.frontmatter_contract::validate_wiki_frontmatter, WIKI_PAGE_TYPES (POS: Wiki frontmatter type gate)
 - .utils.markdown_frontmatter::parse_frontmatter (POS: Markdown frontmatter parser)
 - .snapshot::HotSnapshot, build_hot_snapshot, render_hot_markdown (POS: Hot cache snapshot builder)
@@ -31,6 +32,7 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     WikiPageType,
     validate_wiki_frontmatter,
 )
+from myrm_agent_harness.toolkits.wiki.core.link_resolver import concept_link_name
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
@@ -49,11 +51,6 @@ _SUMMARY_MAX_CHARS = 120
 
 def _atomic_write_text(path: Path, content: str) -> None:
     atomic_write_text(path, content)
-
-
-def _concept_wikilink_name(concept_path: Path, concepts_dir: Path) -> str:
-    rel = concept_path.relative_to(concepts_dir)
-    return str(rel.with_suffix("")).replace("\\", "/")
 
 
 def _one_line_summary(content: str) -> str:
@@ -103,7 +100,7 @@ def write_index_markdown(structure: WikiStructure) -> Path:
             logger.warning("Skipping index entry for %s: %s", concept_path, exc)
             continue
         page_type = _read_page_type(content)
-        link_name = _concept_wikilink_name(concept_path, structure.concepts_dir)
+        link_name = concept_link_name(concept_path, structure.concepts_dir)
         summary = _index_entry_summary(structure, concept_path, content)
         grouped[page_type].append((link_name, summary))
 

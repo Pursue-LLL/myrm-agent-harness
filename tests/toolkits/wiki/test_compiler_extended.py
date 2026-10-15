@@ -42,7 +42,7 @@ def mock_llm() -> AsyncMock:
 def mock_indexer() -> AsyncMock:
     indexer = AsyncMock(spec=WikiIndexer)
     indexer.upsert = AsyncMock()
-    indexer.extract_and_upsert_edges = AsyncMock()
+    indexer.extract_and_upsert_edges = MagicMock()
     return indexer
 
 
@@ -323,6 +323,22 @@ async def test_save_metadata_preserves_raw_supersede(wiki_structure: WikiStructu
 
     metadata = json.loads(wiki_structure.get_wiki_metadata_path().read_text())
     assert "raw/budget.md" in metadata[RAW_SUPERSEDE_KEY]
+
+
+@pytest.mark.asyncio
+async def test_save_metadata_keeps_state_other_writers_keep_in_the_file(
+    wiki_structure: WikiStructure, mock_llm: AsyncMock
+) -> None:
+    """Compile refreshes its own keys; it must not wipe what maintenance stored beside them."""
+    metadata_path = wiki_structure.get_wiki_metadata_path()
+    metadata_path.write_text(json.dumps({"link_discovery_cursor": "page-19", "total_concepts": 99}))
+
+    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
+    await compiler._save_metadata(2, 1)
+
+    metadata = json.loads(metadata_path.read_text())
+    assert metadata["link_discovery_cursor"] == "page-19"
+    assert metadata["total_concepts"] == 2
 
 
 # --- _generate_backlinks ---

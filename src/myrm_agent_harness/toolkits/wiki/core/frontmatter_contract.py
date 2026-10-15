@@ -6,7 +6,7 @@
 [OUTPUT]
 - WikiPageType, WikiPublishStatus, WikiProvenance, validate_wiki_frontmatter, infer_type_for_import
 - repair_missing_types, apply_compile_gate, load_frontmatter_metadata, serialize_frontmatter_block
-- ensure_frontmatter_type, ensure_published_frontmatter, ensure_draft_frontmatter
+- ensure_frontmatter_type, ensure_published_frontmatter, ensure_draft_frontmatter, resolve_publish_status
 - repair_publication_on_disk, PublicationOnDiskRepairResult, FrontmatterValidationError
 
 [POS]
@@ -274,6 +274,15 @@ def ensure_draft_frontmatter(content: str) -> str:
     metadata[PUBLISH_STATUS_KEY] = WikiPublishStatus.DRAFT.value
     metadata.pop("published_at", None)
     return serialize_frontmatter_block(metadata) + body.lstrip("\n")
+
+
+def resolve_publish_status(content: str) -> WikiPublishStatus:
+    """Publish status a page declares; a missing or unknown value reads as published."""
+    metadata, _body = parse_frontmatter(content)
+    status = str(metadata.get(PUBLISH_STATUS_KEY, "")).strip().lower()
+    if status in WIKI_PUBLISH_STATUSES:
+        return WikiPublishStatus(status)
+    return WikiPublishStatus.PUBLISHED
 
 
 def repair_publication_on_disk(

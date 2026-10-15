@@ -4,11 +4,13 @@
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 - ..core.config::WikiConfig (POS: Wiki configuration center)
 - ..core.types::ConceptInfo, WikiMetadata (POS: Wiki toolkit type definitions)
-- ..core.claims_contract (POS: raw hash metadata keys and collectors)
+- ..core.claims_contract (POS: raw hash metadata keys and collectors, metadata merge writer)
+- ..core.link_resolver::WikiLinkResolver, concept_link_name (POS: page identity of a link)
+- ..core.related_links::merge_related_links (POS: the only writer of a page's Related Concepts section)
 
 [OUTPUT]
-- generate_backlinks: Generate Obsidian-compatible backlinks between concepts
-- save_metadata: Persist compilation metadata with portable SHA256 raw snapshots
+- generate_backlinks: Add each concept's related concepts to its Related Concepts section (Obsidian format)
+- save_metadata: Persist compilation metadata with portable SHA256 raw snapshots; keys other writers keep in the file stay
 
 [POS]
 Post-compilation steps: backlink creation and metadata persistence after concept
@@ -17,9 +19,6 @@ extraction and article generation. OKF index/log/hot live in cognitive_map/.
 
 from __future__ import annotations
 
-import inspect
-import json
-import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -27,10 +26,11 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from ..core.claims_contract import (
     LAST_COMPILE_RAW_HASHES_KEY,
-    RAW_SUPERSEDE_KEY,
     collect_raw_content_hashes,
-    read_wiki_metadata_file,
+    write_wiki_metadata_merge,
 )
+from ..core.link_resolver import WikiLinkResolver, concept_link_name
+from ..core.related_links import merge_related_links
 from ..core.structure import WikiStructure
 from ..core.types import ConceptInfo, WikiMetadata
 
@@ -40,8 +40,6 @@ if TYPE_CHECKING:
 
 logger = get_agent_logger(__name__)
 
-_RELATED_SECTION_RE: re.Pattern[str] = re.compile(r"\n+## Related Concepts\n.*", re.DOTALL)
-
 
 async def generate_backlinks(
     structure: WikiStructure,
@@ -49,11 +47,13 @@ async def generate_backlinks(
     concepts: list[ConceptInfo],
     indexer: WikiIndexer | None = None,
 ) -> int:
-    """Generate backlinks between related concepts (Obsidian format).
+    """Add each concept's related concepts to its Related Concepts section (Obsidian format).
 
-    Idempotent: replaces existing Related Concepts section if present.
+    Idempotent: a related concept the section already links is not added again, and a page
+    that gains nothing is neither rewritten nor re-indexed. Returns the number of links added.
     """
     backlinks_count = 0
+    resolver = WikiLinkResolver(structure)
 
     for concept in concepts:
         if not concept.related_concepts:
@@ -65,27 +65,23 @@ async def generate_backlinks(
 
         try:
             content = article_path.read_text(encoding="utf-8")
+            merged, added = merge_related_links(
+                content,
+                concept.related_concepts,
+                source=concept_link_name(article_path, structure.concepts_dir),
+                resolver=resolver,
+            )
+            if not added:
+                continue
 
-            backlinks_section = "\n\n## Related Concepts\n\n"
-            for related in concept.related_concepts:
-                backlinks_section += f"- [[{related}]]\n"
-                backlinks_count += 1
+            article_path.write_text(merged, encoding="utf-8")
+            backlinks_count += added
 
-            content = _RELATED_SECTION_RE.sub("", content)
-            content += backlinks_section
-            article_path.write_text(content, encoding="utf-8")
+            if indexer is None:
+                from ..retrieval.indexer import WikiIndexer
 
-            if indexer:
-                edge_result = indexer.extract_and_upsert_edges(concept.name, content)
-                if inspect.isawaitable(edge_result):
-                    await edge_result
-            else:
-                from ..retrieval.indexer import WikiIndexer as _WikiIndexer
-
-                _idx = _WikiIndexer(structure, config)
-                edge_result = _idx.extract_and_upsert_edges(concept.name, content)
-                if inspect.isawaitable(edge_result):
-                    await edge_result
+                indexer = WikiIndexer(structure, config)
+            indexer.extract_and_upsert_edges(concept.name, merged)
 
         except Exception as e:
             logger.error(f"Failed to add backlinks for {concept.name}: {e}")
@@ -110,21 +106,15 @@ async def save_metadata(
     )
 
     metadata_path = structure.get_wiki_metadata_path()
-    existing = read_wiki_metadata_file(metadata_path)
-    preserved_supersede = existing.get(RAW_SUPERSEDE_KEY)
-    if not isinstance(preserved_supersede, dict):
-        preserved_supersede = {}
-
-    metadata_dict: dict[str, object] = {
-        "last_compile_time": metadata.last_compile_time.isoformat(),
-        "total_concepts": metadata.total_concepts,
-        "total_articles": metadata.total_articles,
-        "total_raw_files": metadata.total_raw_files,
-        "version": metadata.version,
-        LAST_COMPILE_RAW_HASHES_KEY: raw_hashes,
-        RAW_SUPERSEDE_KEY: preserved_supersede,
-    }
-
-    metadata_path.parent.mkdir(parents=True, exist_ok=True)
-    metadata_path.write_text(json.dumps(metadata_dict, indent=2), encoding="utf-8")
+    write_wiki_metadata_merge(
+        metadata_path,
+        {
+            "last_compile_time": metadata.last_compile_time.isoformat(),
+            "total_concepts": metadata.total_concepts,
+            "total_articles": metadata.total_articles,
+            "total_raw_files": metadata.total_raw_files,
+            "version": metadata.version,
+            LAST_COMPILE_RAW_HASHES_KEY: raw_hashes,
+        },
+    )
     logger.info(f"Saved metadata: {metadata_path}")

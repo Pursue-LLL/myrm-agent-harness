@@ -2,6 +2,24 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-15-003 · wiki 的两个「相关概念」写入方互不相认：编译后的反向链接把 `## Related Concepts` 之后的整段内容删掉，维护期的链接发现把草稿 / 已拦截页面改回已发布，并且每次只问同样的前 20 页
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-15（#140 链接图谱专项，对 HEAD 两个写入方用桩 LLM 逐条做探针，不靠读代码推断） |
+| **修复时间** | 2026-10-15 |
+| **症状** | ① `postprocess.generate_backlinks` 用 `\n+## Related Concepts\n[\s\S]*$` 整段替换，该标题之后的所有章节（手写的「来源」「时间线」等）被一并删除；② `BacklinkDiscoveryMixin._discover_connections` 经 `publish_concept_article` 回写，`ensure_published_frontmatter` 把 `draft` / `blocked` 页面改成 `published`，等于绕过人工审核；③ 候选页固定取 `list_concepts()[:20]`，30 页的库每次都只问同样的 20 页，后 10 页永远没有机会；④ 候选与建议只用裸文件名，`rust/overview` 与 `go/overview` 撞名，建议按小写字符串去重，条目追加到文件末尾（而不是 Related 章节），计数还把 lint 之后会判为断链的链接算进去；⑤ 摘录 `content[:1500]` 把 frontmatter 算在内，带长 frontmatter 的页面几乎看不到正文；⑥ 读文件到写文件之间隔着 `await llm.ainvoke`，期间人手编辑的内容被覆盖；⑦ 只读的联邦公共挂载页面与模板页也被当作候选改写；⑧ 手写的非规范文件名（`Alpha Notes.md`）经发布路径落到 `alpha-notes.md`，原文件不变、多出一份副本 |
+| **关联产品** | myrm-agent-harness `toolkits/wiki`（`core/related_links.py`、`maintenance/backlink_discovery.py`、`pipeline/postprocess.py`、`pipeline/cognitive_map/writer.py`、`core/frontmatter_contract.py`、`retrieval/fts_write.py`）；server `/api/v1/wiki/maintain` 的 `backlinks_created` 语义 |
+| **根因** | 同一个章节有两个互不知情的写入方，各自手写一套「找章节 / 去重 / 追加」：一个用贪婪正则、一个用文件末尾追加；链接身份各自按字符串比较，没有走已有的 `WikiLinkResolver`；发现流程没有范围概念（谁能被改写、谁能被推荐），也没有覆盖进度，取前 20 页当作「全库」 |
+| **修复** | ① 新增 `core/related_links.py::merge_related_links`，成为 `## Related Concepts` 的唯一写入方（基于已有的 `section_contract` 取 / 换章节正文，`WikiLinkResolver` 判同一页面，只并集、不删除、无新增则不写）；`generate_backlinks` 与发现流程都走它，`cognitive_map/writer.py` 的私有 `_concept_wikilink_name` 改用 `link_resolver.concept_link_name`；② `frontmatter_contract.resolve_publish_status` 成为页面状态的唯一读取方（`fts_write` 的索引闸门同源），发现流程只处理 `published` 的本地非模板页面；③ 覆盖轮转：游标 `link_discovery_cursor` 存在 `.metadata.json`（`save_metadata` 改为合并写，编译不会冲掉它；该文件本就被 vault_git 忽略、不进 vault 归档；一个只含游标的文件对各读取方等同于没有该文件：`pipeline/compiler.py:526` 的变更筛选得到空哈希表、全部算变更，`maintenance/stale_summary.py:48` 与 `pipeline/cognitive_map/snapshot.py:53` 缺字段时返回空结果，逐个读代码核对，未单独加用例），每轮仍然只问 20 页，下一轮接着问，页数 ≤ 20 时不留游标；模型一页都没答出来（宕机）不推进，页面自身写不进去（frontmatter 无效）不拖住轮转；④ 候选改用库内相对路径（`rust/overview`），摘录取去掉 frontmatter 的正文，计数改为实际新增且发布结果为 `PUBLISHED` 的链接数（`backlinks_created` 同步改为新增链接数，原先是写入的全部相关名）；⑤ 写之前重读页面并在同一事件循环里不 await 地合并写出，保住 LLM 调用期间的人手编辑，页面被删则不重建；⑥ 发布路径与原文件不是同一个文件时只被链接、不被改写（`samefile` 判断，大小写不敏感文件系统上仅大小写不同的名字仍就地改写）。系统提示词文本一字未改，只是数据词汇变了（候选是路径键、标题是 `## Article: {key}`） |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 第一版把「每个批次全部失败」都当成宕机、不推进游标，结果一批 frontmatter 无效的页面会让轮转永远停在第一批，改为只统计「模型没有答出来」；② 第一版的越界保护用 `Path ==`，macOS / Windows 上 `Beta.md` 对 `beta.md` 会被误跳过，改为 `samefile`，并让测试在两类文件系统上都有判别力（拿掉保护、改回 `==` 各让一条用例失败）；③ 先写的模板页用例对旧代码也能通过（空转），加了「只问 alpha、beta」「提示里没有 note」之后才真正卡住旧行为；④ 一次突变检查中用了错误的 `git show` 路径（harness 是独立仓库，应为 `HEAD:src/...`），重定向把两份工作文件截断，靠事先备份恢复并重做，之后一律在临时副本上做突变 |
+| **回归** | 新增 `tests/toolkits/wiki/test_related_links.py`（合并语义 6 例 + `generate_backlinks` 2 例）与 `test_backlink_discovery.py`（20 例：Related 章节落点与后续章节保留、人手文本保留、同名页面无断链、拼写不同只算一条、已链接不算、被发布闸门拒绝不算、草稿 / 拦截页不被改写也不被推荐、模板与公共挂载在范围外、非规范文件名只被链接、大小写文件名不生副本、轮转 30 页两轮覆盖全库、小库不留游标、游标在 `save_metadata` 后保留、宕机不推进、写不进去的页面不拖住轮转、摘录不含 frontmatter、调用期间的编辑与删除）；`test_frontmatter_contract.py` 增加 `resolve_publish_status` 参数化用例；旧用例按新语义调整（`[[Concept Beta]]` 变为 `[[concept-beta]]`、发布结果的桩改为 `ArticlePublishOutcome.PUBLISHED`、`extract_and_upsert_edges` 的桩由 `AsyncMock` 改为 `MagicMock`，它本来就是同步函数）。突变检查：把两个生产写入方换回 HEAD 版，当时已有的 25 条新用例中 15 条失败；之后追加的三条各自拿掉对应保护后失败。`tests/toolkits/wiki` 除真实 LLM 的 `test_sidecar_integration.py` 外 918 项通过；ruff、mypy 对触及文件通过；server 的 `maintain` 相关 9 项通过 |
+| **实测** | 桩 LLM、每轮调用次数 20 不变；提示总量（字符 / 4 估算）30 页 7592→7355、100 页 12142→11905、1000 页 70642→70405，略降；1000 页的库每轮多出的页面扫描约 10 ms→82 ms，相对 LLM 往返可忽略；`generate_backlinks` 每批多一次解析器的整库扫描：100 页 3→10 ms、1000 页 5→57 ms、5000 页 2→294 ms，相对编译 LLM 往返可忽略；提示缓存前缀不受影响（发现调用是两条消息的独立 `ainvoke`） |
+| **局限** | ① 候选名单仍是全库列表，随页数线性增长（每轮仍然只有 20 次调用）；② 根因在 `publish_concept_article` 写到规范化路径，本条只在发现流程里挡住，其他调用方不变；③ Related 章节只并集：过期链接不会被清除，旧版本写在别处的条目不迁移；④ 没有跨进程锁（调用期间的编辑保护只覆盖同一事件循环）；⑤ 标题变体（大小写、CRLF、文件末尾无换行的标题）按既有的章节契约处理，未单独放宽；`replace_section_inner` 会吃掉被替换块前后的空行，仅影响排版；⑥ claims / methods 页面仍在发现范围内，没有实证危害所以未排除；⑦ `test_sidecar_integration.py` 是真实 LLM 用例，依赖 LLM 输出，同一份 HEAD 代码上 7 次中也有 2 次失败，与本条无关；`tests/integration/llm_extraction/test_wiki_compile_e2e.py` 未跑 |
+| **代码位置** | `toolkits/wiki/core/related_links.py::merge_related_links` · `maintenance/backlink_discovery.py::_discovery_pages/_next_batch/_publishes_in_place/_suggest_links/_add_links` · `pipeline/postprocess.py::generate_backlinks/save_metadata` · `core/frontmatter_contract.py::resolve_publish_status` |
+
 ### BUG-HARNESS-2026-10-15-001 · 只读研究租约的默认白名单是 7 个没有任何内置工具使用的名字，挂租约的运行里所有真实工具一律被拒；撤销后租约记录永远留在管理器里；围栏只有整轮开关，宿主没法只给常驻循环派生的任务打标
 
 | 字段 | 内容 |

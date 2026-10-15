@@ -195,7 +195,7 @@ async def test_discover_connections_llm(mock_llm: MagicMock, temp_wiki: WikiStru
     connections = await linter._discover_connections()
     assert connections >= 1
     # Verify wikilink was added to Alpha
-    assert "[[Beta]]" in c1.read_text()
+    assert "[[beta]]" in c1.read_text()
 
 
 @pytest.mark.asyncio
@@ -217,4 +217,4 @@ async def test_discover_connections_reasoning_model_content_empty(
     )
     connections = await linter._discover_connections()
     assert connections >= 1
-    assert "[[Beta]]" in c1.read_text()
+    assert "[[beta]]" in c1.read_text()
