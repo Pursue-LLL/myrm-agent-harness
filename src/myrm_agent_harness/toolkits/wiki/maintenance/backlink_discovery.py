@@ -9,7 +9,7 @@
 - ..core.link_resolver::WikiLinkResolver, concept_link_name (POS: link target to page identity, vault-relative page name)
 - ..core.related_links::merge_related_links (POS: the only writer of a page's Related Concepts section)
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
-- .ai_calls::AiCallTally (POS: counts the model calls of the run; a batch the model answered for no page is an outage)
+- .ai_calls::AiCalls, MaintainStoppedError (POS: the run's model calls: counted, and ended when the host stops the run)
 - .progress::MaintainPhase, MaintainProgressCallback, report_progress (POS: observer of how far the LLM phases are)
 - ..pipeline.publication::publish_concept_article (POS: single validated write + index path for concept articles)
 - ..retrieval.indexer::WikiIndexer (POS: wiki FTS5 + vector index and graph edges)
@@ -46,7 +46,7 @@ from myrm_agent_harness.toolkits.wiki.core.link_extraction import extract_wikili
 from myrm_agent_harness.toolkits.wiki.core.link_resolver import WikiLinkResolver, concept_link_name
 from myrm_agent_harness.toolkits.wiki.core.related_links import merge_related_links
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
-from myrm_agent_harness.toolkits.wiki.maintenance.ai_calls import AiCallTally
+from myrm_agent_harness.toolkits.wiki.maintenance.ai_calls import AiCalls, MaintainStoppedError
 from myrm_agent_harness.toolkits.wiki.maintenance.progress import (
     MaintainPhase,
     MaintainProgressCallback,
@@ -157,7 +157,7 @@ class BacklinkDiscoveryMixin:
     async def _discover_connections(
         self,
         on_progress: MaintainProgressCallback | None = None,
-        ai_calls: AiCallTally | None = None,
+        ai_calls: AiCalls | None = None,
     ) -> int:
         """
         Discover potential cross-references using LLM-driven link enrichment.
@@ -168,7 +168,8 @@ class BacklinkDiscoveryMixin:
 
         Args:
             on_progress: told how many pages of the batch are done, before each page and once at the end.
-            ai_calls: tallies the model calls made.
+            ai_calls: counts the model calls made; the batch ends there when the host stops the run, and the
+                next run continues after the last page that was asked about.
 
         Returns:
             Number of new connections discovered
@@ -177,7 +178,7 @@ class BacklinkDiscoveryMixin:
         if len(pages) < 2:
             return 0
 
-        calls = ai_calls if ai_calls is not None else AiCallTally()
+        calls = ai_calls if ai_calls is not None else AiCalls()
         unanswered_before = calls.unanswered
 
         metadata_path = self._structure.get_wiki_metadata_path()
@@ -187,25 +188,35 @@ class BacklinkDiscoveryMixin:
         resolver = WikiLinkResolver(self._structure)
 
         connections_count = 0
+        last_handled: str | None = None
         for done, key in enumerate(batch):
             report_progress(on_progress, MaintainPhase.LINK_DISCOVERY, done, len(batch))
             try:
                 suggested = await self._suggest_links(key, pages, candidates, resolver, calls)
+            except MaintainStoppedError:
+                break
             except Exception as e:
                 logger.warning(f"LLM link suggestion failed for {key}: {e}")
                 continue
+            last_handled = key
             try:
                 connections_count += await self._add_links(key, suggested, pages, resolver)
             except Exception as e:
                 logger.warning(f"Adding suggested links to {key} failed: {e}")
         report_progress(on_progress, MaintainPhase.LINK_DISCOVERY, len(batch), len(batch))
 
-        # A batch the model answered for no page is an outage: ask the same pages again next run.
-        # A page that cannot take a link (invalid frontmatter, say) fails the same way every run and
-        # must not hold the rotation back.
-        if len(keys) > _BATCH_SIZE and calls.unanswered - unanswered_before < len(batch):
+        # A stopped batch continues after the last page handled. A batch the model answered for no page is an
+        # outage: ask the same pages again next run. A page that cannot take a link (invalid frontmatter,
+        # say) fails the same way every run and must not hold the rotation back.
+        if calls.stopped:
+            resume_after = last_handled
+        elif calls.unanswered - unanswered_before < len(batch):
+            resume_after = batch[-1]
+        else:
+            resume_after = None
+        if len(keys) > _BATCH_SIZE and resume_after is not None:
             try:
-                write_wiki_metadata_merge(metadata_path, {LINK_DISCOVERY_CURSOR_KEY: batch[-1]})
+                write_wiki_metadata_merge(metadata_path, {LINK_DISCOVERY_CURSOR_KEY: resume_after})
             except OSError as e:
                 logger.warning(f"Link discovery cursor not saved, the next run asks about the same pages again: {e}")
         return connections_count
@@ -216,7 +227,7 @@ class BacklinkDiscoveryMixin:
         pages: dict[str, Path],
         candidates: str,
         resolver: WikiLinkResolver,
-        ai_calls: AiCallTally,
+        ai_calls: AiCalls,
     ) -> list[object]:
         """Ask the model which pages one article should link to; raises when it could not be asked."""
         path = pages[key]

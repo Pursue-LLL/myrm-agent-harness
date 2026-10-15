@@ -5,7 +5,7 @@
 - langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 - ..core.types::LintIssue (POS: Wiki toolkit type definition center)
-- .ai_calls::AiCallTally (POS: counts the model calls of the run, so a run without a working model is told apart)
+- .ai_calls::AiCalls, MaintainStoppedError (POS: the run's model calls: counted, and ended when the host stops the run)
 - .issue_kind::action_kind_for_issue_type (POS: issue type to UI action lane)
 - .progress::MaintainPhase, MaintainProgressCallback, report_progress (POS: observer of how far the LLM phases are)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取)
@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue
-from myrm_agent_harness.toolkits.wiki.maintenance.ai_calls import AiCallTally
+from myrm_agent_harness.toolkits.wiki.maintenance.ai_calls import AiCalls, MaintainStoppedError
 from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import action_kind_for_issue_type
 from myrm_agent_harness.toolkits.wiki.maintenance.progress import (
     MaintainPhase,
@@ -57,7 +57,7 @@ class DriftReviewMixin:
     async def _check_drift(
         self,
         on_progress: MaintainProgressCallback | None = None,
-        ai_calls: AiCallTally | None = None,
+        ai_calls: AiCalls | None = None,
     ) -> list[LintIssue]:
         """
         Detect knowledge drift: wiki articles diverging from raw source facts.
@@ -65,9 +65,9 @@ class DriftReviewMixin:
         Samples wiki articles, extracts their claimed sources from frontmatter,
         then uses LLM to compare key facts between wiki and raw source.
         ``on_progress`` is told how many sampled pages are done, before each page and once at the end;
-        ``ai_calls`` tallies the model calls made.
+        ``ai_calls`` counts the model calls made; the review ends there when the host stops the run.
         """
-        calls = ai_calls if ai_calls is not None else AiCallTally()
+        calls = ai_calls if ai_calls is not None else AiCalls()
         issues: list[LintIssue] = []
         concepts = self._structure.list_concepts()
 
@@ -130,6 +130,8 @@ class DriftReviewMixin:
                         )
                     )
 
+            except MaintainStoppedError:
+                break
             except Exception as e:
                 logger.warning(f"Drift check failed for {concept_path}: {e}")
         report_progress(on_progress, MaintainPhase.DRIFT_REVIEW, sample_size, sample_size)

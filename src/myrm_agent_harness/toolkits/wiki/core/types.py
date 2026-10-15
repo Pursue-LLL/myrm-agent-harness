@@ -155,6 +155,7 @@ class LintResult:
     raw_security_removed: int = 0
     raw_security_removed_paths: list[str] = field(default_factory=list)
     ai_unavailable: bool = False  # the model was asked and answered nothing: structural repairs only
+    stopped: bool = False  # the host asked the run to stop; what was done before stays
 
 
 @dataclass(frozen=True, slots=True)

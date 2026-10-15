@@ -6,7 +6,7 @@
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 - ..core.types::LintIssue, LintResult (POS: Wiki toolkit type definition center)
 - .gap_issues::knowledge_gap_issues (POS: knowledge-gap lint issues from graph insights)
-- .ai_calls::AiCallTally (POS: counts the model calls of the run; tells a run without a working model apart)
+- .ai_calls::AiCalls (POS: the run's model calls: counted, and ended when the host stops the run)
 - .backlink_discovery::BacklinkDiscoveryMixin (POS: LLM wikilink enrichment of articles)
 - .drift_review::DriftReviewMixin (POS: LLM fact-check of sampled articles against their sources)
 - .progress::MaintainProgressCallback (POS: observer of how far the LLM phases are)
@@ -21,6 +21,7 @@ broken link detection, completeness checks (report-only; no LLM auto-write), sta
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -39,7 +40,7 @@ from myrm_agent_harness.toolkits.wiki.diagnostics.structural_lint import (
     collect_invalid_frontmatter_type_issues,
     collect_provenance_gap_issues,
 )
-from myrm_agent_harness.toolkits.wiki.maintenance.ai_calls import AiCallTally
+from myrm_agent_harness.toolkits.wiki.maintenance.ai_calls import AiCalls
 from myrm_agent_harness.toolkits.wiki.maintenance.backlink_discovery import BacklinkDiscoveryMixin
 from myrm_agent_harness.toolkits.wiki.maintenance.drift_review import DriftReviewMixin
 from myrm_agent_harness.toolkits.wiki.maintenance.gap_issues import knowledge_gap_issues
@@ -94,7 +95,7 @@ class WikiLinter(BacklinkDiscoveryMixin, DriftReviewMixin):
         *,
         include_raw_security: bool = False,
         on_progress: MaintainProgressCallback | None = None,
-        ai_calls: AiCallTally | None = None,
+        ai_calls: AiCalls | None = None,
     ) -> tuple[list[LintIssue], dict[str, object]]:
         """Scan vault health without auto-fix or LLM backlink discovery.
 
@@ -163,6 +164,7 @@ class WikiLinter(BacklinkDiscoveryMixin, DriftReviewMixin):
         mode: MaintainMode = MaintainMode.FULL,
         *,
         on_progress: MaintainProgressCallback | None = None,
+        stop: asyncio.Event | None = None,
     ) -> LintResult:
         """
         Run health check and automatic maintenance.
@@ -170,6 +172,9 @@ class WikiLinter(BacklinkDiscoveryMixin, DriftReviewMixin):
         Args:
             mode: STRUCTURAL skips LLM drift/backlink discovery; FULL runs the complete pipeline.
             on_progress: told how far the LLM drift review and link discovery are (FULL only).
+            stop: set by the host to end the run early (FULL only): the model call in flight is abandoned and
+                no further one is made, the repairs and links already written stay, and the run finishes
+                normally with ``stopped`` set.
 
         Returns:
             LintResult with issues and fixes; ``ai_unavailable`` when the model was asked and answered nothing
@@ -177,7 +182,7 @@ class WikiLinter(BacklinkDiscoveryMixin, DriftReviewMixin):
         start_time = datetime.now(UTC)
         logger.info("Starting wiki maintenance")
 
-        ai_calls = AiCallTally()
+        ai_calls = AiCalls(stop)
         all_issues, raw_scan = await self.scan(
             mode, include_raw_security=True, on_progress=on_progress, ai_calls=ai_calls
         )
@@ -233,11 +238,10 @@ class WikiLinter(BacklinkDiscoveryMixin, DriftReviewMixin):
             raw_security_removed=raw_security_removed,
             raw_security_removed_paths=raw_security_removed_paths,
             ai_unavailable=ai_calls.unavailable,
+            stopped=ai_calls.stopped,
         )
 
     async def _maybe_commit_vault_git(self, reason: str) -> None:
-        import asyncio
-
         from ..portability.vault_git import maybe_commit_vault_git_snapshot
 
         await asyncio.to_thread(
