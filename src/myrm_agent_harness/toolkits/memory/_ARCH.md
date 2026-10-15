@@ -57,7 +57,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | integration/ | Integration Memory — pulls data from third-party services into local memory for cross-source semantic retrieval. |
 | protocols/  | Storage-agnostic protocols for the memory system.                                 |
 | relational/ | Relational Store — abstract interface and SQLite implementation.                  |
-| strategies/ | Optional memory strategies: forgetting, extraction, deduplication, consolidation, preference stability, recurrence-triggered consolidation, staleness review, and `four_layer_promotion` (Map-Reduce consolidation, tri-channel code assertions, and E->M->B anti-poisoning audit). |
+| strategies/ | Optional memory strategies: forgetting, extraction, deduplication, consolidation, preference stability, recurrence-triggered consolidation, and staleness review. |
 | proactive/ | Proactive follow-up track — LLM implicit commitment extraction, `CommitmentStore` protocol, heartbeat delivery. See [COMMITMENT_SYSTEM.md](proactive/COMMITMENT_SYSTEM.md). |
 | working_tree/ | ReTree topological self-correcting tree working memory engine, evidence DAG container, two-stage contradiction detector, and cascading backtracking repair engine. See [working_tree/_ARCH.md](working_tree/_ARCH.md). |
 | file_sync/ | Local-First Markdown File-as-Memory sync subsystem (LenientMarkdownParser, FileMemoryStore, MemoryAnchorFormatter, FileMemorySyncEngine). |

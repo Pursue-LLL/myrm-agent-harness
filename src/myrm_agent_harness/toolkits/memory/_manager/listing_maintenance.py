@@ -319,24 +319,6 @@ class MemoryManagerListingMaintenanceMixin:
             await self._cascade_clean_derived_graph_nodes(key_or_id)
         return deleted
 
-    def consolidate_session_events_four_layer(
-        self,
-        session_id: str,
-        events: list[dict[str, str | bool]],
-        *,
-        exposure_source_untrusted: bool = False,
-    ) -> tuple[list[object], list[object]]:
-        """Bridge Agent runtime events with Hermes-grade four-layer promotion strategy."""
-        from myrm_agent_harness.toolkits.memory.strategies.consolidation import (
-            consolidate_session_events_four_layer,
-        )
-
-        return consolidate_session_events_four_layer(
-            session_id=session_id,
-            events=events,
-            exposure_source_untrusted=exposure_source_untrusted,
-        )
-
     def evaluate_memory_lifecycle_decay(
         self,
         manager: TieredStorageLifecycleManager | None = None,
