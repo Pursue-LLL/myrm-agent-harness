@@ -2,6 +2,23 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-15-001 · 只读研究租约的默认白名单是 7 个没有任何内置工具使用的名字，挂租约的运行里所有真实工具一律被拒；撤销后租约记录永远留在管理器里；围栏只有整轮开关，宿主没法只给常驻循环派生的任务打标
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-14（核对 server 定时任务挂租约之后的运行时绑定时，直接对 HEAD 的租约管理器做探针） |
+| **修复时间** | 2026-10-15 |
+| **症状** | ① `ReadOnlyLeaseRecord.allowed_tools` 与 `ReadOnlyLeaseManager.grant_lease` 各存一份默认白名单（`read_file`、`web_search`、`read_web_page`、`fetch_doc`、`grep_search`、`list_dir`、`view_image`），没有一个是内置工具名，租约又是默认拒绝，所以挂了租约的运行里 `file_read_tool`、`grep_tool`、`glob_tool`、`web_search_tool`、`web_fetch_tool` 全部被拒；② `blocked_side_effects` 的 10 个名字（`write_file`、`run_shell`、`database_execute`、`send_webhook` 等）多数不是真实工具名，拒绝本身来自默认拒绝，这张表只决定拒绝文案；③ `revoke_lease` 把记录改成 REVOKED 后仍留在字典里，每个结束的会话留下一条；④ 宿主想把「某段代码里派生的任务」标为不可信时，只有 `set_untrusted_ingress(True)` 这种整轮开关，用在常驻的消费循环里会连循环自己一起打上 |
+| **关联产品** | myrm-agent-harness `core/security/readonly_research_sandbox` · `agent/security/guards`（`untrusted_ingress_fence.py`、`taint_tracker.py`）· `api/security`；server `BUG-AGENT-2026-10-15-002` |
+| **根因** | ① 白名单按想象中的通用工具名手写，测试里用的是同一批名字，所以一直通过，没人对照过安全注册表；② 拒绝文案用的第二张手写表，与注册表的 `is_destructive` 重复；③ 撤销被当成「改状态」而不是「忘记」；④ 围栏只提供了整轮开关，没有按块限定的版本 |
+| **修复** | ① `types.py` 新增单一常量 `DEFAULT_READ_ONLY_TOOLS`（`file_read_tool`、`grep_tool`、`glob_tool`、`web_search_tool`、`web_fetch_tool`），记录类型与管理器共用，门面导出；② 删除 `blocked_side_effects`，拒绝文案改看 `resolve_safety_metadata(tool).is_destructive`（注册表标为破坏性的工具显示「physically stripped」，其余显示「not in the safe read-only whitelist」，文案本身未改）；③ `revoke_lease` 弹出记录；④ 新增 `untrusted_ingress_scope()` 上下文管理器：只标记块内及块内派生的任务，退出（含抛异常）时还原先前状态，经 `api.security` 导出；`taint_tracker.record_ingress_taint` 的 docstring 写明运行开始时跟踪器会被重建，回合前登记不会保留 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 手写的放行清单必须有一个把它钉在注册表上的测试，否则改名或改标志不会有人发现；② 默认拒绝的策略下，白名单写错的后果不是「漏拦」而是「全拒」，只断言「写工具被拒」的测试发现不了；③ 回合前的污点登记会被运行开始时的 `reset_all_guards()` 清掉，围栏的 ContextVar 不会，所以不可信标记只能走围栏 |
+| **回归** | `tests/unit/test_readonly_research_sandbox_suite.py` 新增 `test_default_read_only_tools_stay_in_sync_with_the_safety_registry`（五个名字都是内置工具、只读、非破坏性），生命周期用例改用真实工具名，覆盖「五个默认工具放行、注册表标为破坏性的工具按 physically stripped 文案拒绝、其余非白名单工具按白名单文案拒绝、撤销后记录被忘记、自定义白名单替换默认值」；`tests/agent/middlewares/approval/test_approval_readonly_research_lease.py` 改用真实工具名；`tests/agent/security/guards/test_untrusted_ingress_fence.py` 新增 `untrusted_ingress_scope` 四例（退出还原、块抛异常也还原、整轮已标记时块内外都保持、块内派生的任务带围栏而派生者不带）与 `test_run_start_clears_ingress_taint_but_keeps_the_fence`（`reset_all_guards()` 清掉回合前登记的污点、围栏保留）；这三个文件所在的 `tests/unit/test_readonly_research_sandbox_suite.py`、`tests/agent/middlewares/approval`、`tests/agent/security/guards` 共 371 通过；触及文件 `ruff check` 无问题 |
+| **局限** | 租约的拒绝是否生效依赖宿主把 `approval_session_key` 绑到租约键上（server 在 `BUG-AGENT-2026-10-15-002` 绑定）；租约到期后默认放行（既有行为，TTL 由宿主按运行超时加余量设置）；CoW 临时层与快照在生产代码里没有调用方（`facade.py` 只被测试使用），本条未涉及；`readonly_research_sandbox` 下的 `facade.py`、`ephemeral_cow_overlay.py` 与 `readonly_lease_manager.py::get_lease` 的签名没有按 `ruff format` 折行，属本条之前的状态，未动 |
+| **代码位置** | `core/security/readonly_research_sandbox/types.py::DEFAULT_READ_ONLY_TOOLS` · `readonly_lease_manager.py::grant_lease/revoke_lease/evaluate_tool` · `agent/security/guards/untrusted_ingress_fence.py::untrusted_ingress_scope` · `agent/security/guards/taint_tracker.py::record_ingress_taint` · `api/security.py` |
+
 ### BUG-HARNESS-2026-10-15-002 · 体检的向量库探针每次都拿一份临时内存库自检：真实的嵌入式库因数据目录被锁、不可写或磁盘满而退化成纯内存后，体检、运维快照、支持包仍报「向量库健康」，之后写入的记忆重启即丢
 
 | 字段 | 内容 |

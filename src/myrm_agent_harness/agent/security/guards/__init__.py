@@ -29,6 +29,7 @@ from .untrusted_ingress_fence import (
     is_untrusted_ingress_active,
     reset_untrusted_ingress,
     set_untrusted_ingress,
+    untrusted_ingress_scope,
 )
 
 __all__ = [
@@ -43,4 +44,5 @@ __all__ = [
     "reset_taint_tracker",
     "reset_untrusted_ingress",
     "set_untrusted_ingress",
+    "untrusted_ingress_scope",
 ]

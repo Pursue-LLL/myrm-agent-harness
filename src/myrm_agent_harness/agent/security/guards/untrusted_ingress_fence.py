@@ -17,6 +17,7 @@ namespace, and memory_manage_tool resolves ids across the whole bound namespace 
 [OUTPUT]
 - is_untrusted_ingress_active(): ContextVar check
 - set_untrusted_ingress() / reset_untrusted_ingress(): ContextVar mutators
+- untrusted_ingress_scope(): Scoped mutator that marks everything run or spawned inside it, then restores the prior state
 - is_tool_allowed_under_untrusted_ingress(): Single tool authorization check
 - filter_untrusted_ingress_tools(): Tool list filtering for LLM tool binding
 
@@ -30,7 +31,8 @@ rewriting the owner's long-term memory.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar
 
 from myrm_agent_harness.core.security.tool_registry.registry import resolve_permission_type
@@ -87,6 +89,21 @@ def set_untrusted_ingress(active: bool = True) -> None:
 def reset_untrusted_ingress() -> None:
     """Reset the untrusted ingress status for the current async execution context."""
     _untrusted_ingress_var.set(False)
+
+
+@contextmanager
+def untrusted_ingress_scope() -> Iterator[None]:
+    """Mark everything run or spawned inside the block as untrusted ingress, then restore the prior state.
+
+    Hosts that fan work out from a long-lived context (a message router's consume loop) need the
+    restore: asyncio tasks copy the context when created, so tasks spawned inside the block stay fenced
+    while the loop itself, and every later message it handles, is unaffected.
+    """
+    token = _untrusted_ingress_var.set(True)
+    try:
+        yield
+    finally:
+        _untrusted_ingress_var.reset(token)
 
 
 def is_tool_allowed_under_untrusted_ingress(tool_name: str) -> bool:

@@ -1,7 +1,7 @@
 """
 [POS] src/myrm_agent_harness/core/security/readonly_research_sandbox/types.py
 [INPUT] dataclasses, enum, typing
-[OUTPUT] ResearchModeEnum, LeaseStatusEnum, ReadOnlyLeaseRecord, WorkspaceSnapshot, EphemeralCowFileRecord, ReadOnlyShieldBadge, ReadOnlyResearchMetrics
+[OUTPUT] DEFAULT_READ_ONLY_TOOLS, ResearchModeEnum, LeaseStatusEnum, ReadOnlyLeaseRecord, WorkspaceSnapshot, EphemeralCowFileRecord, ReadOnlyShieldBadge, ReadOnlyResearchMetrics
 
 Data structures and specifications for Read-Only Autonomous Research Lease & Immutable Snapshot Sandbox Suite.
 Strict typing applied: No `Any` types allowed.
@@ -11,6 +11,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+
+# Built-in tools a read-only lease permits by default: reading files and searching/fetching the web.
+# Every name must be a built-in tool flagged ``is_read_only`` in ``TOOL_SAFETY_METADATA``; memory, skill,
+# browser and MCP reads are deliberately absent (callers needing them pass ``custom_allowed_tools``).
+DEFAULT_READ_ONLY_TOOLS: tuple[str, ...] = (
+    "file_read_tool",
+    "grep_tool",
+    "glob_tool",
+    "web_search_tool",
+    "web_fetch_tool",
+)
 
 
 class ResearchModeEnum(StrEnum):
@@ -38,28 +49,8 @@ class ReadOnlyLeaseRecord:
     research_mode: ResearchModeEnum
     granted_at: float
     expires_at: float
+    allowed_tools: tuple[str, ...]
     status: LeaseStatusEnum = LeaseStatusEnum.ACTIVE
-    allowed_tools: tuple[str, ...] = (
-        "read_file",
-        "web_search",
-        "read_web_page",
-        "fetch_doc",
-        "grep_search",
-        "list_dir",
-        "view_image",
-    )
-    blocked_side_effects: tuple[str, ...] = (
-        "write_file",
-        "edit_file",
-        "run_shell",
-        "shell_exec",
-        "bash_code_execute_tool",
-        "delete_file",
-        "database_execute",
-        "send_webhook",
-        "git_push",
-        "send_email",
-    )
 
 
 @dataclass(frozen=True)

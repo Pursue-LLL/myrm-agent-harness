@@ -17,7 +17,7 @@ Session-level security guards integrated into tool_interceptor_middleware.
 | skill_approval_hook.py | Core | Integrated into tool_interceptor_middleware between the onion policy and execution. | ✅ |
 | ssrf_guard.py | Shim | Re-exports `core.security.guards.ssrf` for stable `agent.security.guards.*` import paths. | ✅ |
 | taint_tracker.py | Core | Tracks session information flow labels and enforces file-to-egress correlation guards with session allowlist. | ✅ |
-| untrusted_ingress_fence.py | Core | Layer 2 runtime privilege stripping fence for external untrusted inbound messages; denies destructive shell/write, long-term memory mutation (save/manage), desktop/mobile control & capture, subagent escalation, cron, and skill management tools at tool-call time. | ✅ |
+| untrusted_ingress_fence.py | Core | Layer 2 runtime privilege stripping fence for external untrusted inbound messages; denies destructive shell/write, long-term memory mutation (save/manage), desktop/mobile control & capture, subagent escalation, cron, and skill management tools at tool-call time. `set_untrusted_ingress` flags a whole turn; `untrusted_ingress_scope` flags only the block it wraps (and tasks spawned inside it) and restores the prior state on exit, for hosts that fan work out from a long-lived loop. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

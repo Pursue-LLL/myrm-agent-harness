@@ -1,10 +1,12 @@
 """
 [POS] src/myrm_agent_harness/core/security/readonly_research_sandbox/readonly_lease_manager.py
-[INPUT] threading, time, uuid, typing, .types (LeaseStatusEnum, ReadOnlyLeaseRecord, ResearchModeEnum)
+[INPUT] threading, time, uuid, dataclasses, core.security.tool_registry (resolve_safety_metadata), .types (DEFAULT_READ_ONLY_TOOLS, LeaseStatusEnum, ReadOnlyLeaseRecord, ResearchModeEnum)
 [OUTPUT] ReadOnlyLeaseManager
 
 Manages dynamic read-only authority leases for autonomous research sessions,
 physically stripping write/side-effect capabilities and strictly confining tool dispatch.
+Default-deny: a tool runs only if it is in the lease's allow-list (``DEFAULT_READ_ONLY_TOOLS`` unless overridden);
+the denial wording marks registry-destructive tools separately.
 Strict typing applied: No `Any` types allowed.
 """
 
@@ -13,8 +15,11 @@ from __future__ import annotations
 import threading
 import time
 import uuid
+from dataclasses import replace
 
-from .types import LeaseStatusEnum, ReadOnlyLeaseRecord, ResearchModeEnum
+from myrm_agent_harness.core.security.tool_registry import resolve_safety_metadata
+
+from .types import DEFAULT_READ_ONLY_TOOLS, LeaseStatusEnum, ReadOnlyLeaseRecord, ResearchModeEnum
 
 
 class ReadOnlyLeaseManager:
@@ -37,24 +42,13 @@ class ReadOnlyLeaseManager:
         ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl
         lid = f"lease-{uuid.uuid4().hex[:12]}"
 
-        allowed = custom_allowed_tools if custom_allowed_tools is not None else (
-            "read_file",
-            "web_search",
-            "read_web_page",
-            "fetch_doc",
-            "grep_search",
-            "list_dir",
-            "view_image",
-        )
-
         lease = ReadOnlyLeaseRecord(
             lease_id=lid,
             session_id=session_id,
             research_mode=research_mode,
             granted_at=now,
             expires_at=now + ttl,
-            status=LeaseStatusEnum.ACTIVE,
-            allowed_tools=allowed,
+            allowed_tools=custom_allowed_tools if custom_allowed_tools is not None else DEFAULT_READ_ONLY_TOOLS,
         )
 
         with self._lock:
@@ -73,44 +67,24 @@ class ReadOnlyLeaseManager:
                 return None
 
             if lease.status == LeaseStatusEnum.ACTIVE and now > lease.expires_at:
-                lease = ReadOnlyLeaseRecord(
-                    lease_id=lease.lease_id,
-                    session_id=lease.session_id,
-                    research_mode=lease.research_mode,
-                    granted_at=lease.granted_at,
-                    expires_at=lease.expires_at,
-                    status=LeaseStatusEnum.EXPIRED,
-                    allowed_tools=lease.allowed_tools,
-                    blocked_side_effects=lease.blocked_side_effects,
-                )
+                lease = replace(lease, status=LeaseStatusEnum.EXPIRED)
                 self._leases[session_id] = lease
 
             return lease
 
     def revoke_lease(self, session_id: str) -> ReadOnlyLeaseRecord | None:
-        """Revoke active read-only lease immediately."""
+        """Revoke the session's lease immediately and forget it, so finished sessions leave no record behind."""
         with self._lock:
-            lease = self._leases.get(session_id)
-            if lease is None:
-                return None
-
-            if lease.status == LeaseStatusEnum.ACTIVE:
-                lease = ReadOnlyLeaseRecord(
-                    lease_id=lease.lease_id,
-                    session_id=lease.session_id,
-                    research_mode=lease.research_mode,
-                    granted_at=lease.granted_at,
-                    expires_at=lease.expires_at,
-                    status=LeaseStatusEnum.REVOKED,
-                    allowed_tools=lease.allowed_tools,
-                    blocked_side_effects=lease.blocked_side_effects,
-                )
-                self._leases[session_id] = lease
-
+            lease = self._leases.pop(session_id, None)
+            if lease is not None and lease.status == LeaseStatusEnum.ACTIVE:
+                lease = replace(lease, status=LeaseStatusEnum.REVOKED)
             return lease
 
     def evaluate_tool(self, session_id: str, tool_name: str) -> tuple[bool, str]:
         """Evaluate if tool can run or is physically stripped by active read-only lease.
+
+        Tools outside the lease's allow-list are denied; the denial wording distinguishes tools the
+        safety registry marks destructive from tools that are merely not whitelisted.
 
         Returns:
             Tuple of (is_allowed, explanation)
@@ -122,7 +96,7 @@ class ReadOnlyLeaseManager:
         if tool_name in lease.allowed_tools:
             return True, f"Tool '{tool_name}' permitted under active read-only research lease."
 
-        if tool_name in lease.blocked_side_effects:
+        if resolve_safety_metadata(tool_name).is_destructive:
             return (
                 False,
                 (

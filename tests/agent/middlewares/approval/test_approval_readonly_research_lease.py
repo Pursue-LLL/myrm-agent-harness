@@ -1,8 +1,9 @@
 """Integration test for approval middleware Read-Only Research Lease enforcement.
 
 Verifies:
-- Active autonomous research leases physically strip side-effect tools (write_file, shell_exec, git_push)
-- Safe read-only inspection tools (read_file, web_search) pass under active lease
+- Active autonomous research leases physically strip side-effect tools (file_write_tool, bash_code_execute_tool)
+- Safe read-only inspection tools (file_read_tool, web_search_tool) pass under active lease
+- Tools outside the allow-list that are not destructive are denied with the whitelist wording
 - Read-only lease blocks write tools even under YOLO mode (immune to YOLO auto-approval)
 - Structured LLM-reflective diagnostics are injected into auto_denied ToolMessages
 - Revocation of research lease restores normal operation
@@ -49,7 +50,13 @@ def _cleanup_state() -> None:
     set_approval_session("")
     set_approval_user_id("")
     # Cleanup any active test leases
-    for sess in ("test-ro-lease-sess-01", "test-ro-lease-sess-02", "test-ro-lease-sess-03"):
+    for sess in (
+        "test-ro-lease-sess-01",
+        "test-ro-lease-sess-02",
+        "test-ro-lease-sess-03",
+        "test-ro-lease-sess-04",
+        "test-ro-lease-sess-05",
+    ):
         facade.revoke_lease(sess)
         facade.purge_ephemeral_overlay(sess)
 
@@ -78,7 +85,7 @@ async def test_readonly_lease_blocks_write_and_shell_tools_with_diagnostics() ->
             tool_calls=[
                 ToolCall(
                     type="tool_call",
-                    name="write_file",
+                    name="file_write_tool",
                     args={"path": "/tmp/output.txt", "content": "data"},
                     id="call_write_blocked",
                 )
@@ -162,6 +169,78 @@ async def test_lease_revocation_restores_write_authority() -> None:
     assert revoked is not None
     assert revoked.status == LeaseStatusEnum.REVOKED
 
-    # 2. In normal ALLOW mode without lease, read_file is allowed without error
-    allowed, _ = facade.evaluate_tool(session_id, "write_file")
+    # 2. Once revoked, the lease no longer strips the write tool
+    allowed, _ = facade.evaluate_tool(session_id, "file_write_tool")
     assert allowed is True
+
+
+def _single_call_state(call_id: str, tool_name: str, args: dict[str, object]) -> dict[str, object]:
+    return {
+        "messages": [
+            HumanMessage(content="Research the topic"),
+            AIMessage(
+                content="Calling a tool during research",
+                tool_calls=[ToolCall(type="tool_call", name=tool_name, args=args, id=call_id)],
+            ),
+        ]
+    }
+
+
+def _denial_for(result_state: dict[str, object] | None, call_id: str) -> object | None:
+    messages = (result_state or {}).get("messages", [])
+    return next((m for m in messages if getattr(m, "tool_call_id", None) == call_id), None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool_name", "args"),
+    [
+        ("web_search_tool", {"query": "agent security"}),
+        ("file_read_tool", {"path": "/tmp/notes.txt"}),
+    ],
+)
+async def test_readonly_lease_lets_read_tools_through(tool_name: str, args: dict[str, object]) -> None:
+    session_id = "test-ro-lease-sess-04"
+    get_readonly_research_sandbox_facade().grant_research_lease(session_id, ResearchModeEnum.AUTONOMOUS_RESEARCH)
+    set_security_config(SecurityConfig(ruleset=(PermissionRule("*", "*", PermissionAction.ALLOW),)))
+    set_workspace_root("/tmp")
+    set_approval_session(session_id)
+    set_approval_user_id("user_researcher")
+
+    result_state = await ToolApprovalMiddleware().aafter_model(
+        _single_call_state("call_read_ok", tool_name, args), MockRuntime()
+    )
+
+    assert _denial_for(result_state, "call_read_ok") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool_name", "args"),
+    [
+        ("todo_write", {"todos": []}),
+        # Sub-agents run under their own approval session key, which a lease keyed by the parent session
+        # cannot follow, so a leased run must not be able to start one.
+        ("delegate_task_tool", {"subagent": "worker", "task": "research"}),
+    ],
+)
+async def test_readonly_lease_denies_non_destructive_tool_outside_allow_list(
+    tool_name: str, args: dict[str, object]
+) -> None:
+    session_id = "test-ro-lease-sess-05"
+    get_readonly_research_sandbox_facade().grant_research_lease(session_id, ResearchModeEnum.AUTONOMOUS_RESEARCH)
+    set_security_config(SecurityConfig(ruleset=(PermissionRule("*", "*", PermissionAction.ALLOW),)))
+    set_workspace_root("/tmp")
+    set_approval_session(session_id)
+    set_approval_user_id("user_researcher")
+
+    result_state = await ToolApprovalMiddleware().aafter_model(
+        _single_call_state("call_blocked", tool_name, args), MockRuntime()
+    )
+
+    denial_msg = _denial_for(result_state, "call_blocked")
+    assert denial_msg is not None
+    content_str = str(denial_msg.content)
+    assert "not in the safe read-only whitelist" in content_str
+    assert "physically stripped" not in content_str
+    assert "Reason Code: POLICY_VIOLATION" in content_str

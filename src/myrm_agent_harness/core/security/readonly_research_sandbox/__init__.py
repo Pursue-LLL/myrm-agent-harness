@@ -15,6 +15,7 @@ from .facade import (
 )
 from .readonly_lease_manager import ReadOnlyLeaseManager
 from .types import (
+    DEFAULT_READ_ONLY_TOOLS,
     EphemeralCowFileRecord,
     LeaseStatusEnum,
     ReadOnlyLeaseRecord,
@@ -25,6 +26,7 @@ from .types import (
 )
 
 __all__ = [
+    "DEFAULT_READ_ONLY_TOOLS",
     "EphemeralCowFileRecord",
     "EphemeralCowOverlay",
     "LeaseStatusEnum",
