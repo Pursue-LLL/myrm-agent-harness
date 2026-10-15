@@ -10,7 +10,7 @@
 
 [POS]
 An edge weighs 3.0 for the link itself, plus 0.5 for each page both of its ends link to,
-capped at 1.5 (Adamic-Adar style relatedness). The weight depends only on the two
+capped at 1.5 (a common-neighbour count). The weight depends only on the two
 out-link sets of the edge's ends, so it is a function of the stored edges, not of the order
 pages were written in. A write that changes the out-links of page ``p`` re-derives exactly
 the edges that start or end at ``p``; those are the only ones whose weight can differ. The

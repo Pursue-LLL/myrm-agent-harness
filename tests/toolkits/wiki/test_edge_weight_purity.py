@@ -12,6 +12,7 @@ import pytest
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
+from myrm_agent_harness.toolkits.wiki.retrieval.edge_weights import refresh_edge_weights
 from myrm_agent_harness.toolkits.wiki.retrieval.identity_migration import INDEX_SCHEMA_VERSION
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
@@ -187,8 +188,6 @@ def test_outgoing_edges_of_equal_weight_come_back_in_name_order(tmp_path: Path) 
 
 
 def test_refreshing_more_pages_than_one_query_binds_still_covers_every_edge(tmp_path: Path) -> None:
-    from myrm_agent_harness.toolkits.wiki.retrieval.edge_weights import refresh_edge_weights
-
     _, indexer = _open(tmp_path)
     hubs = [f"hub{n:03d}" for n in range(450)]
     for hub in hubs:
@@ -203,3 +202,22 @@ def test_refreshing_more_pages_than_one_query_binds_still_covers_every_edge(tmp_
 
     assert all(stored[(hub, target)] == 3.5 for hub in hubs for target in ("shared-a", "shared-b"))
     assert stored[("shared-a", "shared-b")] == 9.0, "edges that touch no refreshed page are left alone"
+
+
+def test_refresh_leaves_mounted_public_indexes_untouched(tmp_path: Path) -> None:
+    public_root = tmp_path / "public"
+    public_structure = WikiStructure(public_root)
+    public_structure.ensure_structure()
+    public = WikiIndexer(public_structure, WikiConfig(enable_hybrid_search=False))
+    public.upsert_edges("A", ["B"])
+    with public._get_conn() as conn:
+        conn.execute("UPDATE wiki_edges SET weight = 9.0")
+
+    local_structure = WikiStructure(tmp_path / "local", public_dirs=[public_root])
+    local_structure.ensure_structure()
+    local = WikiIndexer(local_structure, WikiConfig(enable_hybrid_search=False))
+    local.upsert_edges("A", ["B", "C"])
+    local.upsert_edges("B", ["C"])
+
+    assert _assert_pure(local) == {("A", "B"): 3.5, ("A", "C"): 3.0, ("B", "C"): 3.0}
+    assert _stored(public) == {("A", "B"): 9.0}
