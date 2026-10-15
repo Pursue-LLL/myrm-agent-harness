@@ -115,7 +115,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "bitemporal_truth_maintenance",
                 "budget_packing",
                 "chunking",
-                "codebase_diff_fallback",
                 "conclusion_attribution",
                 "cross_agent",
                 "ephemeral_delta",
