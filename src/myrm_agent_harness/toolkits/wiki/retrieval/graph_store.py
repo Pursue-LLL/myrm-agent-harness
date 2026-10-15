@@ -11,7 +11,7 @@
 - .graph_tables::federated_graph_queries (POS: graph node/edge rows shared with the insights)
 
 [OUTPUT]
-- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup returning a typed `ConceptLinks` (any spelling of a page name; each direction capped at `MAX_CONCEPT_LINKS` and flagged when cut) with the section and text of the link each backlink holds, and insight computation
+- WikiGraphStore: Graph topology storage, BFS traversal, concept link lookup returning a typed `ConceptLinks` (any spelling of a page name; each direction ordered by weight then name, capped at `MAX_CONCEPT_LINKS` and flagged when cut) with the section and text of the link each backlink holds, and insight computation
 
 [POS]
 Encapsulates knowledge graph operations: BFS neighbor traversal, federated
@@ -344,6 +344,7 @@ class WikiGraphStore:
         """Fetch bidirectional links: outlinks, and backlinks with the snippet and section that mention the concept.
 
         Each direction is capped at `MAX_CONCEPT_LINKS`; `outlinks_has_more` / `backlinks_has_more` say whether more existed.
+        Edges tie on weight, so the name breaks the tie: which links survive the cap does not depend on write order.
         """
         clean_name = concept_index_key(self._structure, concept_name.removesuffix(".md").strip())
         spellings = self._target_spellings(clean_name)
@@ -354,7 +355,7 @@ class WikiGraphStore:
         with self._get_conn() as conn:
             # Query outgoing edges (what this concept references)
             out_rows, outlinks_has_more = _fetch_capped(
-                conn, "SELECT target FROM wiki_edges WHERE source = ? ORDER BY weight DESC LIMIT ?", clean_name
+                conn, "SELECT target FROM wiki_edges WHERE source = ? ORDER BY weight DESC, target LIMIT ?", clean_name
             )
             for row in out_rows:
                 tgt = str(row["target"])
@@ -363,7 +364,7 @@ class WikiGraphStore:
 
             # Query incoming edges (what references this concept)
             in_rows, backlinks_has_more = _fetch_capped(
-                conn, "SELECT source FROM wiki_edges WHERE target = ? ORDER BY weight DESC LIMIT ?", clean_name
+                conn, "SELECT source FROM wiki_edges WHERE target = ? ORDER BY weight DESC, source LIMIT ?", clean_name
             )
             for row in in_rows:
                 src = str(row["source"])
