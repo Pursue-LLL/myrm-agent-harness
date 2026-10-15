@@ -40,6 +40,7 @@ from functools import partial
 
 from myrm_agent_harness.core.security.detection.entropy_scan import scan_high_entropy
 from myrm_agent_harness.core.security.detection.secret_value import is_reference_value
+from myrm_agent_harness.core.security.detection.token_start import TokenStartPattern
 
 logger = logging.getLogger(__name__)
 
@@ -254,10 +255,9 @@ def _scan_context_patterns(content: str) -> list[str]:
 # A vendor prefix marks a key only where a token starts: ``sk-`` also ends "task", "risk" and "disk", so without the
 # boundary a 48-character URL slug (``/blog/task-management-best-practices-...``) reads as an OpenAI key and is masked in
 # the text a caller stores. ``DISTINCTIVE_KEY_PATTERNS`` stays unbounded: a caller that joins it adds the boundary once.
-_TOKEN_START = r"(?<![A-Za-z0-9])"
-_ALL_PREFIX_STRUCTURAL: tuple[tuple[str, re.Pattern[str]], ...] = (
-    tuple((name, re.compile(_TOKEN_START + pattern.pattern)) for name, pattern in _API_KEY_PATTERNS)
-    + _STRUCTURAL_PATTERNS
+_ALL_PREFIX_STRUCTURAL: tuple[tuple[str, re.Pattern[str] | TokenStartPattern], ...] = (
+    *((name, TokenStartPattern(pattern)) for name, pattern in _API_KEY_PATTERNS),
+    *_STRUCTURAL_PATTERNS,
 )
 
 # ---------------------------------------------------------------------------
