@@ -19,14 +19,16 @@ class _ProviderError(Exception):
         self.status_code = status_code
 
 
-# Each body is the wording a client actually received. Single-phrase bodies exist so that
-# dropping any one billing phrase from either classifier fails at least one case.
+# The xAI bodies mirror the fixtures in the Hermes and OpenClaw test suites; none was captured by
+# this project. The 402 and Chinese bodies are generic provider wordings. Single-phrase bodies
+# ("run out of credits", "need a Grok subscription") make dropping any one billing phrase from
+# either classifier fail at least one case.
 _ENTITLEMENT_CASES = {
     "supergrok_403_no_active_subscription": _ProviderError(
         403,
         "{'code': 'The caller does not have permission to execute the specified operation', "
         "'error': 'You have either run out of available resources or do not have an active Grok subscription. "
-        "Manage your subscription at https://grok.com/?_s=usage or subscribe at https://grok.com/supergrok.'}",
+        "Manage subscriptions at https://grok.com'}",
     ),
     "supergrok_403_need_subscription": _ProviderError(403, '{"error":"You need a Grok subscription"}'),
     "xai_403_out_of_credits": _ProviderError(403, '{"error":"You have run out of credits"}'),
@@ -38,17 +40,21 @@ _ENTITLEMENT_CASES = {
     "xai_403_spending_limit": _ProviderError(
         403,
         '{"code":"The caller does not have permission to execute the specified operation",'
-        '"error":"Your team has either used all available credits or reached its monthly spending limit."}',
+        '"error":"Your team team-redacted has either used all available credits or reached its monthly spending '
+        'limit. To continue making API requests, please purchase more credits or raise your spending limit."}',
     ),
     "xai_429_credits_exhausted": _ProviderError(
         429,
-        '{"code":"Some resource has been exhausted","error":"Your team has either used all available credits '
-        'or reached its monthly spending limit. To continue making API requests, purchase more credits."}',
+        '{"code":"Some resource has been exhausted","error":"Your team team-redacted has either used all available '
+        "credits or reached its monthly spending limit. To continue making API requests, please purchase more "
+        'credits or raise your spending limit."}',
     ),
     "provider_402_payment_required": _ProviderError(402, '{"error":"Payment required"}'),
     "chinese_recharge_prompt": _ProviderError(400, "账户异常,请充值后重试"),
 }
 
+# Composed from the stale-token signals Hermes documents for xAI: the `[WKE=unauthenticated:...]`
+# suffix, "OAuth2 access token could not be validated" and the `unauthenticated:bad-credentials` code.
 _REJECTED_CREDENTIAL_CASES = {
     "stale_oauth_token": _ProviderError(
         403,
