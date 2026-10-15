@@ -37,14 +37,6 @@ from myrm_agent_harness.toolkits.memory.chunking import (
 )
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.domain_types import MemoryDomain, infer_domain_and_category
-from myrm_agent_harness.toolkits.memory.four_tier_fts import (
-    DreamCompactionReport,
-    FourTierDreamCompactor,
-    FourTierMemoryItem,
-    FtsSearchResult,
-    MemoryScope,
-    SqliteFts5MemoryEngine,
-)
 from myrm_agent_harness.toolkits.memory.hermes_bridge import import_hermes_bundle
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.mem_cube import (
@@ -148,12 +140,6 @@ __all__ = [
     "TemporalEntityNode",
     "TemporalFactConflictReconciler",
     "TemporalFactEdge",
-    "DreamCompactionReport",
-    "FourTierDreamCompactor",
-    "FourTierMemoryItem",
-    "FtsSearchResult",
-    "MemoryScope",
-    "SqliteFts5MemoryEngine",
     "ModelPrivateNotebookManager",
     "DynamicPreferenceFitter",
     "DynamicPreferenceVector",
