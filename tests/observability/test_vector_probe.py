@@ -29,6 +29,7 @@ async def test_probe_fails_while_another_client_holds_the_data_directory_lock(tm
 
         assert report.status == "fail"
         assert report.component_name == "VectorDB"
+        assert report.code == "ERR_VECTOR_STORE_ON_MEMORY_FALLBACK"
         assert "not being saved permanently" in report.message
     finally:
         await evict_embedded_store(str(data_dir))

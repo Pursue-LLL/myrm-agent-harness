@@ -37,6 +37,7 @@ async def check_qdrant_health() -> HealthReport:
             return HealthReport(
                 component_name="VectorDB",
                 status="fail",
+                code="ERR_VECTOR_STORE_ON_MEMORY_FALLBACK",
                 message="New memories are not being saved permanently.",
                 detail=(
                     "The memory data folder could not be opened, so memory search fell back to temporary storage "
