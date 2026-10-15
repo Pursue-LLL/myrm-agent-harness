@@ -368,7 +368,7 @@ agent/_internals/agent_runtime.py run_agent_loop 外层 except（executor 外层
     │   - fault_side: str（确定性责任方归因：model | harness_tool | harness_pipeline | env | grader | owner | unknown，由 errors/fault_side.py 纯规则分类，无 LLM 调用）
     │     error_kind 优先；error_kind 为 UNKNOWN 时以 diagnostic.error_type 兜底（如 api_key → env）
     │   - diagnostic_result: { error_type, user_message, resolution_steps, locale }（本地化诊断结果）
-    │   - recovery_actions: list[str]（本地化恢复动作，可选）
+    │   - recovery_actions: list[{id, label, url}]（本地化恢复按钮，由 `diagnostics/recovery_actions.py` 生成，可选）
     │   - cooldown_remaining_ms: int（瞬态错误的重试倒计时，可选）
     ↓
 SSE推送到前端（compactor.put）
@@ -466,7 +466,7 @@ export async function getUserFriendlyError(
   - `error_type: string`
   - `failover_reason: string`
   - `diagnostic_result: { error_type, user_message, resolution_steps, locale }`（本地化诊断结果）
-  - `recovery_actions?: string[]`（本地化恢复动作）
+  - `recovery_actions?: RecoveryAction[]`（`{ id, label, url }`，本地化恢复按钮）
   - `cooldown_remaining_ms?: number`
 
 ### 扩展业务层自定义翻译
