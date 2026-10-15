@@ -16,12 +16,6 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
     MemoryNotFoundError,
     PendingTargetChangedError,
 )
-from myrm_agent_harness.toolkits.memory.auto_consolidation import (
-    AutoMemoryConsolidationOrchestrator,
-    AutoMemoryGatingConfig,
-    OverallGatingReport,
-    SixDimensionalMemoryArtifact,
-)
 from myrm_agent_harness.toolkits.memory.budget_packing import (
     BilledTokenBudget,
     BudgetRecallPackingOrchestrator,
@@ -360,10 +354,6 @@ __all__ = [
     "RecallCandidate",
     "TokenAccountingReport",
     "estimate_tokens",
-    "AutoMemoryConsolidationOrchestrator",
-    "AutoMemoryGatingConfig",
-    "OverallGatingReport",
-    "SixDimensionalMemoryArtifact",
     "CubeMemoryRecord",
     "CubeQueryRequest",
     "CubeQueryResult",
