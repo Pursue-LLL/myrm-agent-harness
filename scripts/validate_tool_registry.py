@@ -810,6 +810,7 @@ def main() -> int:
     # Capability-gap liveness: cross-checks harness trigger rows against the live
     # server togglable ID set. Cheap + static, so it also runs under pre-commit.
     capability_gap_errors = _check_capability_gap_liveness()
+    exemption_errors = [] if args.incremental else report.layer_exemption_errors()
     parity_errors: list[str] = []
     if not args.incremental:
         parity_errors = _check_default_enabled_product_parity()
@@ -828,6 +829,7 @@ def main() -> int:
         or governance_errors
         or count_doc_errors
         or capability_gap_errors
+        or exemption_errors
     )
 
     if args.json:
@@ -850,6 +852,7 @@ def main() -> int:
             "governance_errors": governance_errors,
             "governance_coverage": coverage_matrix,
             "count_doc_errors": count_doc_errors,
+            "layer_exemption_errors": exemption_errors,
         }
         print(json.dumps(payload, indent=2))
     else:
@@ -859,7 +862,7 @@ def main() -> int:
                 incremental=args.incremental,
                 metadata_ghosts=metadata_ghosts,
                 auxiliary_failed=bool(
-                    governance_errors or count_doc_errors or capability_gap_errors
+                    governance_errors or count_doc_errors or capability_gap_errors or exemption_errors
                 ),
             )
         )
@@ -963,6 +966,11 @@ def main() -> int:
                 "  Fix: every CAPABILITY_GAP_REGISTRY row must name a live togglable "
                 "builtin tool; delete stale rows when a capability is retired."
             )
+        if exemption_errors:
+            print(f"FAIL - {len(exemption_errors)} stale or expired LAYER_EXEMPT_TOOLS entr(ies):")
+            for err in exemption_errors:
+                print(f"  - {err}")
+            print("  Fix: mount the tool on a profile and delete the entry, or delete the tool.")
 
     return 1 if fail else 0
 

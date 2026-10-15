@@ -44,6 +44,17 @@ def test_no_missing_registrations(report) -> None:
 
 
 @pytest.mark.architecture
+def test_layer_exemptions_are_live(report) -> None:
+    """Every `LAYER_EXEMPT_TOOLS` entry must still be needed and inside its expiry date."""
+    errors = report.layer_exemption_errors()
+    assert not errors, (
+        "Stale or expired LAYER_EXEMPT_TOOLS entries:\n"
+        + "\n".join(f"  - {error}" for error in errors)
+        + "\nFix: mount the tool on a profile and delete the entry, or delete the tool."
+    )
+
+
+@pytest.mark.architecture
 def test_no_ghost_registrations(report) -> None:
     """`_TOOL_LAYERS` must not list names that no source file declares;
     such entries waste prompt cache and mislead docs."""

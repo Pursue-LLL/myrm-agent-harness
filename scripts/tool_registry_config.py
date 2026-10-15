@@ -9,6 +9,9 @@ Must stay aligned with ``agent/orchestration/signals/catalog.py`` and
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -59,19 +62,32 @@ CROSS_MODULE_CONSTANTS: dict[str, str] = {
     "CONVERSATION_SEARCH_TOOL_NAME": "conversation_search_tool",
 }
 
-# Legacy harness factories / Admin REST tools — declared in code but not Turn1 Action Tool SSOT.
-LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset(
-    {
-        "conversation_search_tool",
-        "wiki_compile_tool",
-        "wiki_maintain_tool",
-        # Memory-governance / context meta-tools that ship with unit tests but have
-        # no Turn1 mount: not in the Action Tool SSOT until a profile wires them.
-        "inspect_context",
-        "manage_sovereign_memory_assets",
-        "search_session_archive",
-    }
-)
+
+@dataclass(frozen=True)
+class LayerExemption:
+    """A declared tool allowed to stay out of `_TOOL_LAYERS` until `expires`."""
+
+    expires: date
+    reason: str
+
+
+# Declared in code but not part of the Turn1 Action Tool SSOT. Every entry lapses: once `expires` has passed while the
+# tool is still unmounted the registry gate fails, which forces a decision (mount it on a profile, or delete the tool).
+# An entry for a tool that no longer exists or is now registered is reported as stale and has to be deleted.
+LAYER_EXEMPT_TOOLS: Mapping[str, LayerExemption] = {
+    "conversation_search_tool": LayerExemption(
+        date(2027, 1, 31), "Declared in toolkits/memory/conversation_search/tool.py; no Turn1 layer entry."
+    ),
+    "wiki_compile_tool": LayerExemption(
+        date(2027, 1, 31), "Wiki admin tool declared in toolkits/wiki/wiki_agent_tools.py; not a Turn1 action tool."
+    ),
+    "wiki_maintain_tool": LayerExemption(
+        date(2027, 1, 31), "Wiki admin tool declared in toolkits/wiki/wiki_agent_tools.py; not a Turn1 action tool."
+    ),
+    "manage_sovereign_memory_assets": LayerExemption(
+        date(2027, 1, 31), "Unit-tested sovereign migration tool; no agent profile mounts it yet."
+    ),
+}
 
 ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
     {
@@ -129,6 +145,8 @@ def validate_config() -> None:
         assert root.is_absolute(), f"SCAN_ROOTS entries must be absolute: {root}"
     for name in INTERNAL_TOOL_NAMES:
         assert name and isinstance(name, str), f"Invalid internal tool name: {name!r}"
+    for tool_name, exemption in LAYER_EXEMPT_TOOLS.items():
+        assert exemption.reason, f"LAYER_EXEMPT_TOOLS entry needs a reason: {tool_name}"
     for factory in ORPHAN_FACTORY_WHITELIST:
         assert factory.startswith("create_"), f"ORPHAN_FACTORY_WHITELIST entries must start with 'create_': {factory}"
 

@@ -7,12 +7,13 @@ traversal logic and keeps the public surface of `tool_registry_engine` minimal.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 from scripts.tool_registry_config import (
     INTERNAL_TOOL_NAMES,
     INTERNAL_TOOL_PREFIXES,
-    LAYER_EXEMPT_TOOL_NAMES,
+    LAYER_EXEMPT_TOOLS,
     ORPHAN_FACTORY_WHITELIST,
     PTC_RUNTIME_TOOL_NAMES,
     SCHEMA_ONLY_TOOL_NAMES,
@@ -45,13 +46,33 @@ class ScanReport:
     def declared_names(self) -> set[str]:
         return {d.name for d in self.declarations}
 
-    def missing_registrations(self) -> set[str]:
-        """Tools defined in code but never registered in `_TOOL_LAYERS`."""
+    def missing_registrations(self, today: date | None = None) -> set[str]:
+        """Tools defined in code but never registered in `_TOOL_LAYERS`.
+
+        A tool in `LAYER_EXEMPT_TOOLS` is skipped only until its exemption expires.
+        """
+        on = today or date.today()
         return {
             name
             for name in self.declared_names - self.registered_names
-            if not self._is_internal(name) and name not in LAYER_EXEMPT_TOOL_NAMES
+            if not self._is_internal(name) and not self._exemption_active(name, on)
         }
+
+    def layer_exemption_errors(self, today: date | None = None) -> list[str]:
+        """`LAYER_EXEMPT_TOOLS` entries that must be deleted or resolved: stale (no declaration, or registered) or expired."""
+        on = today or date.today()
+        errors: list[str] = []
+        for name, exemption in sorted(LAYER_EXEMPT_TOOLS.items()):
+            if name not in self.declared_names:
+                errors.append(f"{name}: exempt from _TOOL_LAYERS but no source declares it; delete the exemption")
+            elif name in self.registered_names:
+                errors.append(f"{name}: now registered in _TOOL_LAYERS; delete the exemption")
+            elif exemption.expires < on:
+                errors.append(
+                    f"{name}: exemption expired on {exemption.expires.isoformat()} ({exemption.reason}); "
+                    "mount it on a profile or delete the tool"
+                )
+        return errors
 
     def ghost_registrations(self) -> set[str]:
         """Tools registered in `_TOOL_LAYERS` but no source defines them."""
@@ -79,8 +100,7 @@ class ScanReport:
         return {
             factory
             for factory in self.factories
-            if factory not in ORPHAN_FACTORY_WHITELIST
-            and not self.factory_call_sites.get(factory)
+            if factory not in ORPHAN_FACTORY_WHITELIST and not self.factory_call_sites.get(factory)
         }
 
     def duplicate_declarations(self) -> dict[str, list[ToolDeclaration]]:
@@ -96,11 +116,12 @@ class ScanReport:
             if self._is_internal(decl.name):
                 continue
             by_name.setdefault(decl.name, []).append(decl)
-        return {
-            name: decls
-            for name, decls in by_name.items()
-            if len({decl.file for decl in decls}) > 1
-        }
+        return {name: decls for name, decls in by_name.items() if len({decl.file for decl in decls}) > 1}
+
+    @staticmethod
+    def _exemption_active(name: str, on: date) -> bool:
+        exemption = LAYER_EXEMPT_TOOLS.get(name)
+        return exemption is not None and exemption.expires >= on
 
     @staticmethod
     def _is_internal(name: str) -> bool:
