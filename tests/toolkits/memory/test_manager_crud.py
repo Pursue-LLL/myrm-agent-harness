@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from myrm_agent_harness.toolkits.memory.manager import MemoryError as MemoryManagerError
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import (
     MemoryType,
@@ -614,10 +615,10 @@ class TestDeleteOperations:
         mock_vector_store.delete_by_filter.assert_called()
 
     @pytest.mark.asyncio
-    async def test_delete_all_handles_relational_exception(
+    async def test_delete_all_reports_a_relational_failure_after_clearing_the_vector_store(
         self, mock_vector_store, mock_relational_store, mock_embedding, memory_config
     ):
-        """Test delete_all handles relational backend exceptions gracefully."""
+        """A relational failure must not report success, yet the other backends are still cleared."""
         mock_relational_store.delete_all.side_effect = Exception("DB connection failed")
         mock_vector_store.delete_by_filter.return_value = 10
 
@@ -629,15 +630,16 @@ class TestDeleteOperations:
             embedding=mock_embedding,
         )
 
-        counts = await manager.delete_all()
+        with pytest.raises(MemoryManagerError, match="relational"):
+            await manager.delete_all()
 
-        assert "relational" not in counts or counts.get("relational") is None
+        mock_vector_store.delete_by_filter.assert_called()
 
     @pytest.mark.asyncio
-    async def test_delete_all_handles_vector_exception(
+    async def test_delete_all_reports_a_vector_failure_after_clearing_the_relational_store(
         self, mock_vector_store, mock_relational_store, mock_embedding, memory_config
     ):
-        """Test delete_all handles vector backend exceptions gracefully."""
+        """A vector failure must not report success, yet the other backends are still cleared."""
         mock_relational_store.delete_all.return_value = 5
         mock_vector_store.delete_by_filter.side_effect = Exception("Vector delete failed")
 
@@ -649,9 +651,10 @@ class TestDeleteOperations:
             embedding=mock_embedding,
         )
 
-        counts = await manager.delete_all()
+        with pytest.raises(MemoryManagerError, match=memory_config.semantic_collection):
+            await manager.delete_all()
 
-        assert counts.get("relational") == 5
+        mock_relational_store.delete_all.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_get_memory_with_exception_logs_warning(

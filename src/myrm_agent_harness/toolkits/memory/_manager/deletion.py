@@ -3,10 +3,11 @@
 [INPUT]
 - memory._manager.archival::MemoryManagerArchivalMixin (POS: memory lifecycle archiver)
 - memory._manager.queries::MemoryManagerQueriesMixin (POS: metadata and session query mixin)
+- memory._manager.model_collections::{current_collection, memory_collections, retire_if_drained} (POS: every embedding model's collections)
 - memory._internal.graph_cascade::cascade_clean_derived_graph_nodes (POS: cascade clean claim graph)
 
 [OUTPUT]
-- MemoryManagerDeletionMixin: ownership-gated delete by id/metadata/type with cascade clean
+- MemoryManagerDeletionMixin: ownership-gated delete by id/metadata/type with cascade clean; metadata cascade and delete_all span every embedding model's collections
 
 [POS]
 Memory deletion mixin — owns vector/relational deletion, graph cascade, and embedding cache eviction.
@@ -22,6 +23,11 @@ from myrm_agent_harness.toolkits.memory._internal.graph_cascade import (
 )
 from myrm_agent_harness.toolkits.memory._manager.archival import (
     MemoryManagerArchivalMixin,
+)
+from myrm_agent_harness.toolkits.memory._manager.model_collections import (
+    current_collection,
+    memory_collections,
+    retire_if_drained,
 )
 from myrm_agent_harness.toolkits.memory._manager.queries import (
     MemoryManagerQueriesMixin,
@@ -170,20 +176,17 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
             )
         )
         counts: dict[str, int] = {}
-        vector_collections: dict[MemoryType, str] = {
-            MemoryType.SEMANTIC: self._config.semantic_collection,
-            MemoryType.EPISODIC: self._config.episodic_collection,
-            MemoryType.CONVERSATION: self._config.conversation_collection,
-        }
 
         if self._vector is not None:
             filters = {metadata_key: metadata_value}
-            for memory_type, collection in vector_collections.items():
+            # Memories a model switch left in a previous model's collections are the same memories.
+            for memory_type, collections in (await memory_collections(self._vector, self._config)).items():
                 if memory_type not in selected_types:
                     continue
-                memory_ids = [doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned]
-                deleted = await self.delete_memory(collection, memory_ids)
-                counts[memory_type.value] = deleted
+                counts[memory_type.value] = 0
+                for collection in collections:
+                    ids = [doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned]
+                    counts[memory_type.value] += await self.delete_memory(collection, ids)
 
         if MemoryType.PROCEDURAL in selected_types and self._relational is not None:
             matching_rule_ids: list[str] = []
@@ -384,21 +387,31 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
                         await self._cache.evict(t)
 
     async def delete_all(self) -> dict[str, int]:
-        uid, counts = self._user_id, {}
+        """Erase every memory, in every embedding model's collections.
+
+        Each backend is attempted before reporting. A relational or vector failure raises
+        afterwards, so a deletion that left memories behind never reports success; the
+        derived graph and embedding cache are cleared best-effort.
+        """
+        uid = self._user_id
+        counts: dict[str, int] = {}
+        failed: list[str] = []
         if self._relational:
             try:
                 counts["relational"] = await self._relational.delete_all()
             except Exception as e:
                 logger.warning("Error deleting relational: %s", e)
+                failed.append("relational")
         if self._vector:
-            for coll in (
-                self._config.semantic_collection,
-                self._config.episodic_collection,
-            ):
-                try:
-                    counts[coll] = await self._vector.delete_by_filter(coll, {})
-                except Exception as e:
-                    logger.warning("Error deleting %s: %s", coll, e)
+            for memory_type, collections in (await memory_collections(self._vector, self._config)).items():
+                for coll in collections:
+                    try:
+                        counts[coll] = await self._vector.delete_by_filter(coll, {})
+                        if coll != current_collection(self._config, memory_type):
+                            await retire_if_drained(self._vector, coll)
+                    except Exception as e:
+                        logger.warning("Error deleting %s: %s", coll, e)
+                        failed.append(coll)
         if self._graph is not None:
             try:
                 counts["graph"] = await self._graph.delete_all_by_owner(uid)
@@ -412,6 +425,8 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
                     self._cache.clear()
             except Exception as e:
                 logger.warning("Error clearing cache in delete_all: %s", e)
+        if failed:
+            raise MemoryError(f"delete_all left memories behind in: {', '.join(failed)}")
         return counts
 
     async def _collect_vector_ids(self, collection: str, filters: FilterDict) -> list[tuple[str, bool]]:

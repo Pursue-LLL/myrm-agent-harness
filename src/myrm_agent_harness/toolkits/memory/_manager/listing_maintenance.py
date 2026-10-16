@@ -9,6 +9,11 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     delete_by_type as _delete_by_type,
 )
+from myrm_agent_harness.toolkits.memory._manager.model_collections import (
+    current_collection,
+    memory_collections,
+    retire_if_drained,
+)
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AnyMemory,
     BackupMetadata,
@@ -71,17 +76,22 @@ class MemoryManagerListingMaintenanceMixin:
         )
 
     async def delete_by_type(self, memory_type: MemoryType) -> int:
+        # Memories a model switch left in a previous model's collections are the same memories.
+        collections = (
+            (await memory_collections(self._vector, self._config)).get(memory_type, [])
+            if self._vector is not None and memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC)
+            else []
+        )
+        filters = _user_filter(namespaces=self._namespaces, include_archived=True)
         cascade_ids: list[str] = []
-        if memory_type == MemoryType.EPISODIC and self._vector is not None and self._graph is not None:
+        if memory_type == MemoryType.EPISODIC and self._graph is not None:
             # Claim Graph Evidence/Claim nodes reference episodic task digests, so a
             # bulk clear must cascade-clean derived nodes — matching the single
             # delete path. Collect owned ids first (they are gone after the wipe).
-            filters = _user_filter(namespaces=self._namespaces, include_archived=True)
-            cascade_ids = [
-                memory_id
-                for memory_id, owned in await self._collect_vector_ids(self._config.episodic_collection, filters)
-                if owned
-            ]
+            for collection in collections:
+                cascade_ids += [
+                    memory_id for memory_id, owned in await self._collect_vector_ids(collection, filters) if owned
+                ]
         deleted = await _delete_by_type(
             memory_type,
             relational=self._relational,
@@ -89,6 +99,10 @@ class MemoryManagerListingMaintenanceMixin:
             config=self._config,
             namespaces=self._namespaces,
         )
+        previous = [name for name in collections if name != current_collection(self._config, memory_type)]
+        for collection in previous:
+            deleted += await self._vector.delete_by_filter(collection, filters)
+            await retire_if_drained(self._vector, collection)
         for memory_id in cascade_ids:
             await self._cascade_clean_derived_graph_nodes(memory_id)
         if (

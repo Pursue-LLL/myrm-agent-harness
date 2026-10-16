@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from qdrant_client.models import ScoredPoint
+from qdrant_client.models import Filter, ScoredPoint
 
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
 from myrm_agent_harness.toolkits.vector.config import DeploymentMode, VectorStoreConfig
@@ -131,6 +131,37 @@ async def test_delete(store, mock_client):
     result = await store.delete("test_col", ["1"])
     assert result == 1
     mock_client.delete.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_by_filter_without_conditions_selects_every_point(store, mock_client):
+    """An empty filter is "everything" (as in search/count); the SDK rejects a bare None selector."""
+    mock_client.count.return_value = MagicMock(count=3)
+
+    deleted = await store.delete_by_filter("test_col", {})
+
+    assert deleted == 3
+    selector = mock_client.delete.call_args.kwargs["points_selector"]
+    assert isinstance(selector, Filter)
+    assert not (selector.must or selector.should or selector.must_not)
+
+
+@pytest.mark.asyncio
+async def test_delete_by_filter_keeps_the_callers_conditions(store, mock_client):
+    mock_client.count.return_value = MagicMock(count=1)
+
+    await store.delete_by_filter("test_col", {"tree_id": "t1"})
+
+    selector = mock_client.delete.call_args.kwargs["points_selector"]
+    assert selector.must[0].key == "tree_id"
+
+
+@pytest.mark.asyncio
+async def test_delete_by_filter_skips_the_delete_when_nothing_matches(store, mock_client):
+    mock_client.count.return_value = MagicMock(count=0)
+
+    assert await store.delete_by_filter("test_col", {}) == 0
+    mock_client.delete.assert_not_called()
 
 
 @pytest.mark.asyncio

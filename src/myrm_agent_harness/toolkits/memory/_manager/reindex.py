@@ -3,8 +3,8 @@
 [INPUT]
 - memory.config::MemoryConfig (POS: per-model collection naming)
 - memory._internal.storage::{embed_batch, doc_to_conversation, store_conversations_batch} (POS: cached batch embedding, dual-vector conversation writer)
-- memory._internal.bm25_sparse_index::unwrap_sparse_mirror (POS: backend beneath the BM25 mirror)
-- vector.base::VectorStore (POS: collection listing / counting)
+- memory._manager.model_collections::{catalog_of, current_collection, previous_model_collections, retire_if_drained} (POS: per-model collection naming and retirement)
+- vector.base::VectorDocument (POS: scrolled memory documents)
 
 [OUTPUT]
 - OrphanCollectionInfo, ReindexEstimate, ReindexResult, ProgressCallback: reindex data types
@@ -13,8 +13,9 @@
 [POS]
 Collections are named per embedding model, so switching models leaves the old
 memories unreachable. Detection lists the previous models' collections; migration
-copies each memory (same id, payload, owner scope) into the current model's
-collection with a freshly embedded vector. Old collections are preserved.
+moves each memory (same id, payload, owner scope) into the current model's
+collection with a freshly embedded vector and removes it from the old collection
+once the current one is read back to hold it. An emptied old collection is dropped.
 """
 
 from __future__ import annotations
@@ -24,13 +25,19 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import unwrap_sparse_mirror
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     doc_to_conversation,
     embed_batch,
     store_conversations_batch,
 )
-from myrm_agent_harness.toolkits.vector.base import VectorDocument, VectorStore
+from myrm_agent_harness.toolkits.memory._manager.model_collections import (
+    catalog_of,
+    current_collection,
+    previous_model_collections,
+    retire_if_drained,
+)
+from myrm_agent_harness.toolkits.memory.types import MemoryType
+from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
@@ -38,8 +45,6 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
 
 logger = logging.getLogger(__name__)
-
-_COLLECTION_PREFIXES = ("_semantic_", "_episodic_", "_conversation_")
 
 # Memories read, de-duplicated against the current collection and embedded per round trip.
 _BATCH_SIZE = 100
@@ -69,7 +74,8 @@ class ReindexResult:
 
     ``migrated`` memories were re-embedded into the current model's collection,
     ``skipped`` ones were already there (or have no text to embed), and ``failed``
-    ones could not be read, embedded or written; they migrate on the next run.
+    ones could not be read, embedded, written or removed from the old collection;
+    they move on the next run. Every counted memory except ``failed`` has left the old collection.
     """
 
     migrated: int
@@ -78,14 +84,6 @@ class ReindexResult:
 
 
 ProgressCallback = Callable[[int, int, str], None]
-
-
-def _extract_model_suffix(collection_name: str, prefix: str) -> str | None:
-    """Extract the model suffix from a collection name after a known prefix infix."""
-    idx = collection_name.find(prefix)
-    if idx == -1:
-        return None
-    return collection_name[idx + len(prefix) :]
 
 
 @dataclass
@@ -108,78 +106,38 @@ class MemoryManagerReindexMixin:
     _vector: VectorStoreProtocol | None
     _cache: EmbeddingCacheProtocol | None
 
-    def _catalog(self) -> VectorStore | None:
-        """Backend that can list collections.
-
-        The manager's vector store is wrapped by the BM25 mirror, whose protocol
-        surface has no collection listing / info, so look beneath it.
-        """
-        if self._vector is None:
-            return None
-        backend = unwrap_sparse_mirror(self._vector)
-        return backend if isinstance(backend, VectorStore) else None
-
     async def detect_orphan_collections(self) -> list[OrphanCollectionInfo]:
         """Detect collections left behind by previous embedding models.
 
-        Collections that match our prefix but are not one of the current model's
-        three collections, and still hold memories, are orphans.
+        Collections of another model than the current one that still hold memories are orphans.
         """
-        catalog = self._catalog()
+        catalog = catalog_of(self._vector)
         if catalog is None:
             return []
 
-        config = self._config
-        current_collections = {
-            config.semantic_collection,
-            config.episodic_collection,
-            config.conversation_collection,
-        }
-        prefix = config.collection_prefix
-
         try:
-            all_collections = await catalog.list_collections()
+            previous = previous_model_collections(await catalog.list_collections(), self._config)
         except Exception as e:
             logger.warning("Failed to list collections for orphan detection: %s", e)
             return []
 
         orphans: list[OrphanCollectionInfo] = []
-        for name in all_collections:
-            if not name.startswith(prefix):
-                continue
-            if name in current_collections:
-                continue
-
-            memory_type = ""
-            model_suffix = ""
-            for infix in _COLLECTION_PREFIXES:
-                suffix = _extract_model_suffix(name, infix)
-                if suffix is not None:
-                    memory_type = infix.strip("_")
-                    model_suffix = suffix
-                    break
-
-            if not memory_type:
-                continue
-
+        for collection in previous:
             try:
                 # Not get_collection_info: it cannot describe named-vector (conversation) collections.
-                count = await catalog.count(name)
+                count = await catalog.count(collection.name)
             except Exception:
                 count = 0
-
             if count == 0:
                 continue
-
             orphans.append(
                 OrphanCollectionInfo(
-                    collection_name=name,
-                    memory_type=memory_type,
-                    old_model_suffix=model_suffix,
+                    collection_name=collection.name,
+                    memory_type=collection.memory_type.value,
+                    old_model_suffix=collection.model_suffix,
                     document_count=count,
                 )
             )
-
         return orphans
 
     async def estimate_reindex(self) -> ReindexEstimate:
@@ -193,12 +151,13 @@ class MemoryManagerReindexMixin:
         *,
         progress_cb: ProgressCallback | None = None,
     ) -> ReindexResult:
-        """Re-embed memories from orphan collections into the current model's collections.
+        """Move memories from orphan collections into the current model's collections.
 
         Each memory keeps its id and payload (owner scope, pin, importance,
         timestamps) and only its vector is recomputed, so memories that already
-        exist in the current collection are skipped and re-running is cheap.
-        Old collections are preserved as a safety net.
+        exist in the current collection are not embedded again. A memory leaves
+        the old collection only after the current one is read back to hold it,
+        and an emptied old collection is dropped; whatever failed stays for the next run.
 
         Args:
             progress_cb: Optional callback(done, total, phase) for progress reporting.
@@ -250,35 +209,41 @@ class MemoryManagerReindexMixin:
                 return
             read += len(documents)
             if documents:
-                await self._migrate_batch(orphan.memory_type, documents, tally)
+                await self._migrate_batch(orphan, documents, tally)
                 on_batch()
             if not documents or cursor is None:
-                return
+                break
+        await retire_if_drained(self._vector, orphan.collection_name)
 
-    async def _migrate_batch(self, memory_type: str, documents: list[VectorDocument], tally: _Tally) -> None:
-        """Migrate one page; counts are applied only once the whole page settled."""
+    async def _migrate_batch(
+        self, orphan: OrphanCollectionInfo, documents: list[VectorDocument], tally: _Tally
+    ) -> None:
+        """Move one page; counts are applied only once the whole page settled.
+
+        A memory leaves the orphan only after the current collection is read back to
+        hold it, so a failed embed, write or removal keeps it where it was (counted as
+        failed). Memories without text can be neither embedded nor recalled and leave
+        with the page.
+        """
+        vector, _ = self._vec()  # type: ignore[attr-defined]
+        target = current_collection(self._config, MemoryType(orphan.memory_type))
         candidates = [d for d in documents if d.content.strip()]
-        tally.skipped += len(documents) - len(candidates)
-        if not candidates:
-            return
-        target = self._target_collection(memory_type)
+        unconfirmed: set[str] = set()
         try:
-            missing = await self._missing_from(target, candidates)
+            missing = await self._missing_from(target, candidates) if candidates else []
             if missing:
-                await self._write_migrated(memory_type, target, missing)
+                await self._write_migrated(orphan.memory_type, target, missing)
+                unconfirmed = {d.id for d in await self._missing_from(target, missing)}
+            settled = [d.id for d in documents if d.id not in unconfirmed]
+            if settled:
+                await vector.delete_by_filter(orphan.collection_name, {"id": {"$in": settled}})
         except Exception as e:
-            logger.warning("Reindex failed for %d %s memories: %s", len(candidates), memory_type, e)
-            tally.failed += len(candidates)
+            logger.warning("Reindex failed for %d %s memories: %s", len(documents), orphan.memory_type, e)
+            tally.failed += len(documents)
             return
-        tally.skipped += len(candidates) - len(missing)
-        tally.migrated += len(missing)
-
-    def _target_collection(self, memory_type: str) -> str:
-        return {
-            "semantic": self._config.semantic_collection,
-            "episodic": self._config.episodic_collection,
-            "conversation": self._config.conversation_collection,
-        }[memory_type]
+        tally.failed += len(unconfirmed)
+        tally.migrated += len(missing) - len(unconfirmed)
+        tally.skipped += len(documents) - len(missing)
 
     async def _missing_from(self, target: str, documents: list[VectorDocument]) -> list[VectorDocument]:
         """Documents whose id is not in ``target`` yet (memories written since the switch win)."""

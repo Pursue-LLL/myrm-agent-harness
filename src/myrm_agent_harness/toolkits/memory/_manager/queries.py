@@ -2,6 +2,7 @@
 
 [INPUT]
 - memory._manager.helpers::_memory_ref (POS: memory reference serializer)
+- memory._manager.model_collections::memory_collections (POS: every embedding model's collections)
 - memory._manager.shared::MemoryType (POS: memory taxonomy enum)
 - memory._manager.shared::Sequence (POS: collection sequence protocol)
 
@@ -17,6 +18,7 @@ from __future__ import annotations
 from typing import Any
 
 from myrm_agent_harness.toolkits.memory._manager.helpers import _memory_ref
+from myrm_agent_harness.toolkits.memory._manager.model_collections import memory_collections
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     MemoryType,
     Sequence,
@@ -44,7 +46,11 @@ class MemoryManagerQueriesMixin:
         *,
         memory_types: Sequence[MemoryType] | None = None,
     ) -> dict[str, list[str]]:
-        """List owned memory ids whose flat metadata contains an exact key/value pair."""
+        """List owned memory ids whose flat metadata contains an exact key/value pair.
+
+        Memories a model switch left in a previous model's collections are listed too,
+        so the ids match what ``delete_memories_by_metadata`` removes.
+        """
 
         selected_types = tuple(
             memory_types
@@ -56,20 +62,18 @@ class MemoryManagerQueriesMixin:
             )
         )
         matches: dict[str, list[str]] = {}
-        vector_collections: dict[MemoryType, str] = {
-            MemoryType.SEMANTIC: self._config.semantic_collection,
-            MemoryType.EPISODIC: self._config.episodic_collection,
-            MemoryType.CONVERSATION: self._config.conversation_collection,
-        }
 
         if self._vector is not None:
             filters = {metadata_key: metadata_value}
-            for memory_type, collection in vector_collections.items():
+            for memory_type, collections in (await memory_collections(self._vector, self._config)).items():
                 if memory_type not in selected_types:
                     continue
-                matches[memory_type.value] = [
-                    doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned
-                ]
+                ids: dict[str, None] = {}  # insertion-ordered set: a memory counts once across collections
+                for collection in collections:
+                    ids.update(
+                        dict.fromkeys(i for i, owned in await self._collect_vector_ids(collection, filters) if owned)
+                    )
+                matches[memory_type.value] = list(ids)
 
         if MemoryType.PROCEDURAL in selected_types and self._relational is not None:
             rule_ids: list[str] = []

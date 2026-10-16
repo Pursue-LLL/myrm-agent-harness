@@ -433,14 +433,13 @@ class QdrantVectorStore(QdrantSparseMixin, VectorStore):
         return count
 
     async def delete_by_filter(self, collection: str, filters: FilterDict) -> int:
+        from qdrant_client.models import Filter
+
         count = await self.count(collection, filters)
         if count > 0:
-            query_filter = build_qdrant_filter(filters)
-            await self._with_retry(
-                self._client.delete,  # type: ignore[attr-defined]
-                collection_name=collection,
-                points_selector=query_filter,
-            )
+            # No conditions means every point (as in search/count); the SDK rejects a bare ``None`` selector.
+            selector = build_qdrant_filter(filters) or Filter()
+            await self._with_retry(self._client.delete, collection_name=collection, points_selector=selector)  # type: ignore[attr-defined]
         return count
 
     async def count(self, collection: str, filters: FilterDict | None = None) -> int:
