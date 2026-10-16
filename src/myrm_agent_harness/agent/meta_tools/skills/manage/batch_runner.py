@@ -2,13 +2,16 @@
 
 [INPUT]
 - _manage_handlers action handlers
-- backends.skills.protocols::SkillBackend (optional snapshot reads)
+- backends.skills.protocols::SkillBackend (snapshot reads when the host gives no dedicated reader)
 
 [OUTPUT]
 - run_skill_manage_batch: execute operations with snapshot/rollback
+- SkillSnapshotReader: where a host points the pre-batch snapshot reads
 
 [POS]
 Framework batch runner. Snapshots touched skills before applying ops; rolls back on failure.
+A batch that deletes a skill is final: a deleted package cannot be rebuilt from a SKILL.md snapshot, so it gets
+no undo record (no hook call, no batch id or undo hint in the output).
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from myrm_agent_harness.agent.meta_tools.skills.manage._manage_handlers import (
     _handle_delete,
@@ -61,42 +64,55 @@ class SkillManageBatchCommittedHook(Protocol):
         self,
         batch_id: str,
         snapshots: dict[str, SkillBatchSnapshot],
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
-async def _read_skill_md(skill_backend: SkillBackend | None, name: str) -> str | None:
-    if skill_backend is None:
+class SkillSnapshotReader(Protocol):
+    """Reads a skill's files from the storage the write backend changes, i.e. the state a rollback must restore.
+
+    A turn's skill backend lists only the skills mounted for that turn: it cannot see a skill the agent created
+    earlier in the turn or one outside its allowlist, and a snapshot taken through it would call such a skill
+    "new", so undoing the batch would delete it. ``SkillBackend`` satisfies this protocol; a host whose writer
+    stores skills elsewhere passes a reader over that storage.
+    """
+
+    async def get_skill_content(self, skill_name: str) -> str: ...
+
+    async def get_skill_resources(self, skill_name: str, path: str) -> bytes: ...
+
+
+async def _read_skill_md(reader: SkillSnapshotReader | None, name: str) -> str | None:
+    if reader is None:
         return None
     try:
-        content = await skill_backend.get_skill_content(name)
+        content = await reader.get_skill_content(name)
         return content if content.strip() else None
     except Exception:
         return None
 
 
-async def _read_resource(skill_backend: SkillBackend | None, name: str, path: str) -> str | None:
-    if skill_backend is None or not path:
+async def _read_resource(reader: SkillSnapshotReader | None, name: str, path: str) -> str | None:
+    if reader is None or not path:
         return None
     try:
-        raw = await skill_backend.get_skill_resources(name, path)
+        raw = await reader.get_skill_resources(name, path)
         return raw.decode("utf-8")
     except Exception:
         return None
 
 
 async def _capture_snapshots(
-    skill_backend: SkillBackend | None,
+    reader: SkillSnapshotReader | None,
     skill_names: set[str],
     resource_paths_by_skill: dict[str, set[str]],
 ) -> dict[str, SkillBatchSnapshot]:
     snapshots: dict[str, SkillBatchSnapshot] = {}
     for name in sorted(skill_names):
-        md = await _read_skill_md(skill_backend, name)
+        md = await _read_skill_md(reader, name)
         existed = md is not None
         resources: dict[str, str | None] = {}
         for path in sorted(resource_paths_by_skill.get(name, set())):
-            resources[path] = await _read_resource(skill_backend, name, path)
+            resources[path] = await _read_resource(reader, name, path)
         snapshots[name] = SkillBatchSnapshot(
             skill_name=name,
             skill_md=md,
@@ -125,7 +141,7 @@ async def _restore_snapshot(
             await write_backend.write_resource(name, path, content)
 
 
-def _normalize_op(raw: dict[str, Any], index: int) -> tuple[str | None, dict[str, Any]]:
+def _normalize_op(raw: dict[str, object], index: int) -> tuple[str | None, dict[str, object]]:
     action = raw.get("action")
     if action not in (
         "save",
@@ -145,7 +161,7 @@ def _normalize_op(raw: dict[str, Any], index: int) -> tuple[str | None, dict[str
 
 
 def _collect_touch_sets(
-    operations: list[dict[str, Any]],
+    operations: list[dict[str, object]],
 ) -> tuple[set[str], dict[str, set[str]]]:
     skill_names: set[str] = set()
     resources: dict[str, set[str]] = {}
@@ -164,7 +180,7 @@ async def _run_single_op(
     write_backend: ScanningSkillWriteBackend,
     skill_backend: SkillBackend | None,
     similarity_checker: SkillSimilarityChecker | None,
-    op: dict[str, Any],
+    op: dict[str, object],
     index: int,
 ) -> str:
     action = op["action"]
@@ -219,14 +235,16 @@ def _batch_undo_hint(locale: str | None) -> str:
     from myrm_agent_harness.utils.locale import is_chinese
 
     if is_chinese(locale):
-        return (
-            "\n\n在 Web 对话的「任务步骤」中可使用「撤销技能修改」，"
-            "恢复本批次修改前的技能内容。"
-        )
-    return (
-        '\n\nIn chat Task Steps, use "Undo skill changes" to restore '
-        "skill content from before this batch."
-    )
+        return "\n\n在 Web 对话的「任务步骤」中可使用「撤销技能修改」，恢复本批次修改前的技能内容。"
+    return '\n\nIn chat Task Steps, use "Undo skill changes" to restore skill content from before this batch.'
+
+
+def _final_batch_note(locale: str | None) -> str:
+    from myrm_agent_harness.utils.locale import is_chinese
+
+    if is_chinese(locale):
+        return "\n\n已删除的技能无法撤销。"
+    return "\n\nA deleted skill cannot be restored; there is no undo for it."
 
 
 async def run_skill_manage_batch(
@@ -234,17 +252,22 @@ async def run_skill_manage_batch(
     write_backend: ScanningSkillWriteBackend,
     skill_backend: SkillBackend | None,
     similarity_checker: SkillSimilarityChecker | None,
-    operations: list[dict[str, Any]],
+    operations: list[dict[str, object]],
     batch_committed_hook: SkillManageBatchCommittedHook | None = None,
+    snapshot_reader: SkillSnapshotReader | None = None,
     locale: str | None = None,
 ) -> str:
-    """Apply skill_manage operations atomically; rollback snapshots on any failure."""
+    """Apply skill_manage operations atomically; rollback snapshots on any failure.
+
+    ``skill_backend`` supplies the content a patch edits. Snapshots are read through ``snapshot_reader`` when the
+    host gives one, otherwise through ``skill_backend``.
+    """
     if not operations:
         return "Error: 'operations' must be a non-empty array."
     if len(operations) > BATCH_MAX_OPS:
         return f"Error: at most {BATCH_MAX_OPS} operations per call."
 
-    normalized: list[dict[str, Any]] = []
+    normalized: list[dict[str, object]] = []
     for i, raw in enumerate(operations):
         if not isinstance(raw, dict):
             return f"Error: operations[{i}] must be an object."
@@ -257,7 +280,9 @@ async def run_skill_manage_batch(
         return "Error: 'delete' must be the only operation in the batch."
 
     skill_names, resource_paths = _collect_touch_sets(normalized)
-    snapshots = await _capture_snapshots(skill_backend, skill_names, resource_paths)
+    snapshots = await _capture_snapshots(
+        snapshot_reader if snapshot_reader is not None else skill_backend, skill_names, resource_paths
+    )
     batch_id = str(uuid.uuid4())
     results: list[str] = []
 
@@ -280,10 +305,12 @@ async def run_skill_manage_batch(
                 await _restore_snapshot(write_backend, snapshots[name])
             except Exception as restore_exc:
                 logger.error("Rollback failed for skill %s in batch %s: %s", name, batch_id, restore_exc)
-        return (
-            f"Error: batch aborted (batch_id={batch_id}). No partial changes were kept.\n"
-            f"Cause: {exc}"
-        )
+        return f"Error: batch aborted (batch_id={batch_id}). No partial changes were kept.\nCause: {exc}"
+
+    # A deleted package cannot be rebuilt from its SKILL.md snapshot, so a delete is final and leaves no undo record.
+    undoable = all(op["action"] != "delete" for op in normalized)
+    if not undoable:
+        return "\n---\n".join(results) + _final_batch_note(locale)
 
     if batch_committed_hook is not None:
         try:

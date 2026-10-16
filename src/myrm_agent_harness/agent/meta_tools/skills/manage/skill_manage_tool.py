@@ -2,7 +2,7 @@
 
 [INPUT]
 - backends.skills.scanning::ScanningSkillWriteBackend
-- manage.batch_runner::run_skill_manage_batch, SkillManageBatchCommittedHook
+- manage.batch_runner::run_skill_manage_batch, SkillManageBatchCommittedHook, SkillSnapshotReader
 
 [OUTPUT]
 - create_skill_manage_tool: factory for the skill management tool
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import AsyncExitStack
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from langchain.tools import tool
 from langchain_core.runnables import RunnableConfig
@@ -28,6 +28,7 @@ from myrm_agent_harness.agent.meta_tools.skills.manage._manage_handlers import (
 )
 from myrm_agent_harness.agent.meta_tools.skills.manage.batch_runner import (
     SkillManageBatchCommittedHook,
+    SkillSnapshotReader,
     run_skill_manage_batch,
 )
 from myrm_agent_harness.agent.meta_tools.skills.manage.lock_manager import (
@@ -57,7 +58,7 @@ For small SKILL.md edits use patch (old_content must match exactly once); use sa
 Confirm with user before create or delete. After complex multi-step tasks (5+ tool calls), consider saving a reusable workflow as a skill.
 If a skill you are following is wrong or outdated mid-task, patch it (or ask the user) before you finish.
 
-After a successful batch, the user can undo it from chat Task Steps to restore pre-batch skill content.
+After a successful batch, the user can undo it from chat Task Steps to restore pre-batch skill content; deleting a skill cannot be undone.
 
 save requires valid SKILL.md with YAML frontmatter (name, description)."""
 
@@ -72,7 +73,7 @@ TOOL_DESCRIPTION_ZH = """通过原子批次 operations[] 管理技能。
 创建或删除前须向用户确认。复杂多步任务（5+ 次工具调用）后可将可复用流程保存为技能。
 执行中若所用技能错误或过时，完成前须 patch 修正（或先询问用户）。
 
-批次全部成功后，用户可在对话「任务步骤」中撤销该批次，恢复修改前的技能内容。
+批次全部成功后，用户可在对话「任务步骤」中撤销该批次，恢复修改前的技能内容；删除技能无法撤销。
 
 save 须为带 YAML frontmatter（name、description）的有效 SKILL.md。"""
 
@@ -125,8 +126,13 @@ def create_skill_manage_tool(
     *,
     locale: str | None = None,
     batch_committed_hook: SkillManageBatchCommittedHook | None = None,
+    snapshot_reader: SkillSnapshotReader | None = None,
 ) -> BaseTool:
-    """Create the skill management tool."""
+    """Create the skill management tool.
+
+    ``snapshot_reader`` is where pre-batch snapshots are read (see ``SkillSnapshotReader``); it defaults to
+    ``skill_backend``, which only sees the skills mounted for the turn.
+    """
 
     @tool("skill_manage_tool", description=resolve_skill_manage_tool_description(locale), args_schema=SkillManageInput)
     async def skill_manage_func(
@@ -136,7 +142,7 @@ def create_skill_manage_tool(
     ) -> str:
         """Apply skill_manage operations atomically."""
         user_id = _extract_user_id(config)
-        op_dicts: list[dict[str, Any]] = [op.model_dump() for op in operations]
+        op_dicts: list[dict[str, object]] = [op.model_dump() for op in operations]
         skill_names = sorted({str(op["name"]) for op in op_dicts})
         locks = [SkillLockManager.get_lock(name, user_id) for name in skill_names]
 
@@ -147,6 +153,7 @@ def create_skill_manage_tool(
                 similarity_checker=similarity_checker,
                 operations=op_dicts,
                 batch_committed_hook=batch_committed_hook,
+                snapshot_reader=snapshot_reader,
                 locale=locale,
             )
 
