@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Collection
 from contextvars import ContextVar
 from enum import StrEnum, unique
 
@@ -149,7 +150,7 @@ class TaintTracker:
         self,
         tool_name: str,
         tool_input: dict[str, object] | None = None,
-        trusted_hosts: set[str] | frozenset[str] | None = None,
+        trusted_hosts: Collection[str] | None = None,
     ) -> dict[TaintLabel, set[str]] | None:
         """Check if calling this tool violates any taint policy.
 

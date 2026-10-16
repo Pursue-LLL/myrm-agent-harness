@@ -8,6 +8,7 @@
 - evaluate_tool_call(): deterministic evaluation (Layers 1–5)
   (capability → shell_command_analyzer → command_denylist → URL scheme check
    → domain HITL → path_policy → target-aware ruleset → risk_classifier fallback).
+- check_tool_path_policy(): path-zone verdict for a file tool's ``path`` (engine and cron policy share it)
 - check_capability(): test (permission, target) against a CapabilitySet
 - merge(): combine multiple rulesets
 - disabled_permissions(): find unconditionally denied permission types
@@ -219,6 +220,28 @@ def _resolve_target(permission: str, tool_input: dict[str, object], *, tool_name
     return raw
 
 
+def check_tool_path_policy(
+    permission: str,
+    tool_input: dict[str, object],
+    config: SecurityConfig,
+    workspace_root: str | None,
+) -> tuple[PermissionAction, str] | None:
+    """Path-zone verdict (session grants included) for a file tool's ``path``; ``None`` if there is none to check."""
+    raw_path = str(tool_input.get("path", ""))
+    if permission not in _PATH_CHECKED_PERMISSIONS or not raw_path:
+        return None
+
+    from myrm_agent_harness.agent.security.checks import check_path_policy
+    from myrm_agent_harness.agent.security.session_access import merge_path_policy_with_session_access
+
+    return check_path_policy(
+        raw_path,
+        merge_path_policy_with_session_access(config.path_policy),
+        workspace_root,
+        require_write=permission == "file_write",
+    )
+
+
 def evaluate_tool_call(
     permission: str,
     tool_input: dict[str, object],
@@ -254,7 +277,6 @@ def evaluate_tool_call(
     """
     from myrm_agent_harness.agent.security.checks import (
         check_navigate_scheme,
-        check_path_policy,
         check_shell_threats,
     )
 
@@ -302,23 +324,9 @@ def evaluate_tool_call(
         if domain_action is not None:
             return domain_action, domain_reason
 
-    if permission in _PATH_CHECKED_PERMISSIONS:
-        raw_path = str(tool_input.get("path", ""))
-        if raw_path:
-            from myrm_agent_harness.agent.security.session_access import (
-                merge_path_policy_with_session_access,
-            )
-
-            effective_policy = merge_path_policy_with_session_access(config.path_policy)
-            require_write = permission == "file_write"
-            path_action, path_reason = check_path_policy(
-                raw_path,
-                effective_policy,
-                workspace_root,
-                require_write=require_write,
-            )
-            if path_action in (PermissionAction.DENY, PermissionAction.ASK):
-                return path_action, path_reason
+    path_verdict = check_tool_path_policy(permission, tool_input, config, workspace_root)
+    if path_verdict is not None and path_verdict[0] in (PermissionAction.DENY, PermissionAction.ASK):
+        return path_verdict
 
     if result.action == PermissionAction.ASK and permission in (
         "shell_exec",

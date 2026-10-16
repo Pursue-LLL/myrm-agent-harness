@@ -23,6 +23,7 @@ from myrm_agent_harness.agent.security.engine import (
     _domain_in_allowlist,
     _resolve_target,
     check_capability,
+    check_tool_path_policy,
     disabled_permissions,
     evaluate,
     evaluate_tool_call,
@@ -32,6 +33,7 @@ from myrm_agent_harness.agent.security.engine import (
 from myrm_agent_harness.agent.security.types import (
     DEFAULT_CAPABILITIES,
     DEFAULT_RULESET,
+    AccessRoot,
     Capability,
     PathPolicy,
     PermissionAction,
@@ -268,6 +270,45 @@ class TestCheckPathPolicy:
         policy = PathPolicy(forbidden_paths=frozenset(), access_roots=())
         action, _ = check_path_policy("/random/path", policy, "/workspace")
         assert action == PermissionAction.ASK
+
+
+class TestCheckToolPathPolicy:
+    """The shared path-zone verdict used by the engine and by the unattended-run policy."""
+
+    _CONFIG = SecurityConfig(path_policy=PathPolicy(forbidden_paths=frozenset(), access_roots=()))
+
+    def test_nothing_to_check_without_a_path_or_a_file_permission(self) -> None:
+        assert check_tool_path_policy("file_read", {}, self._CONFIG, "/workspace") is None
+        assert check_tool_path_policy("file_read", {"path": ""}, self._CONFIG, "/workspace") is None
+        assert check_tool_path_policy("net_fetch", {"path": "/etc/passwd"}, self._CONFIG, "/workspace") is None
+
+    def test_returns_the_zone_verdict_for_file_permissions(self) -> None:
+        inside = check_tool_path_policy("file_read", {"path": "/workspace/a.txt"}, self._CONFIG, "/workspace")
+        outside = check_tool_path_policy("file_read", {"path": "/random/a.txt"}, self._CONFIG, "/workspace")
+        assert inside == (PermissionAction.ALLOW, "")
+        assert outside is not None and outside[0] == PermissionAction.ASK
+
+    def test_write_permission_requires_writable_zone(self) -> None:
+        config = SecurityConfig(
+            path_policy=PathPolicy(
+                forbidden_paths=frozenset(),
+                access_roots=(AccessRoot(path="/reference", writable=False),),
+            )
+        )
+        read = check_tool_path_policy("file_read", {"path": "/reference/a.txt"}, config, "/workspace")
+        write = check_tool_path_policy("file_write", {"path": "/reference/a.txt"}, config, "/workspace")
+        assert read == (PermissionAction.ALLOW, "")
+        assert write is not None and write[0] == PermissionAction.ASK
+
+    def test_session_grants_widen_the_zone(self) -> None:
+        from myrm_agent_harness.agent.security.session_access import set_session_access_roots
+
+        set_session_access_roots((AccessRoot(path="/granted", writable=True),))
+        try:
+            verdict = check_tool_path_policy("file_write", {"path": "/granted/a.txt"}, self._CONFIG, "/workspace")
+        finally:
+            set_session_access_roots(())
+        assert verdict == (PermissionAction.ALLOW, "")
 
 
 class TestResolveTarget:

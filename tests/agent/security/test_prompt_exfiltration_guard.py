@@ -83,6 +83,30 @@ class TestDynamicSecretTaintExtraction:
         assert taint_secret_file_from_args({"target_file": "README.md"}) is None
         assert taint_secret_file_from_args({"path": "src/main.py"}) is None
 
+    def test_file_read_tool_argument_shapes_are_recognized(self) -> None:
+        # file_read_tool batches its files in a ``paths`` list and accepts single-path aliases.
+        assert taint_secret_file_from_args({"paths": ["README.md", "/home/user/.env"]}) == "secret_file:/home/user/.env"
+        assert taint_secret_file_from_args({"paths": "~/.ssh/id_rsa"}) == "secret_file:~/.ssh/id_rsa"
+        assert taint_secret_file_from_args({"files": [".env.production"]}) == "secret_file:.env.production"
+        assert (
+            taint_secret_file_from_args({"path_list": ["cfg/credentials.json"]}) == "secret_file:cfg/credentials.json"
+        )
+        assert taint_secret_file_from_args({"filePath": ".env"}) == "secret_file:.env"
+        assert taint_secret_file_from_args({"paths": [".env.example", "src/main.py"]}) is None
+        assert taint_secret_file_from_args({"paths": [None, 3, "", "  "]}) is None
+
+    def test_read_range_suffix_does_not_hide_a_credential_file(self) -> None:
+        assert taint_secret_file_from_args({"paths": [".env:1-20"]}) == "secret_file:.env"
+        assert taint_secret_file_from_args({"paths": ["~/.aws/credentials:5-"]}) == "secret_file:~/.aws/credentials"
+        assert taint_secret_file_from_args({"paths": ["README.md:1-20"]}) is None
+
+    def test_template_marker_in_a_parent_folder_does_not_exempt_the_credential_file(self) -> None:
+        assert (
+            taint_secret_file_from_args({"path": "/home/u/mock-server/.env"}) == "secret_file:/home/u/mock-server/.env"
+        )
+        assert taint_secret_file_from_args({"path": "/home/u/spec/.ssh/id_rsa"}) is not None
+        assert taint_secret_file_from_args({"path": "/home/u/mock-server/.env.example"}) is None
+
     def test_secret_bash_command_extraction(self) -> None:
         assert taint_secret_command_from_args({"command": "cat ~/.env"}) is not None
         assert taint_secret_command_from_args({"cmd": "grep -i key ~/.aws/credentials"}) is not None
@@ -102,6 +126,16 @@ class TestDynamicSecretTaintExtraction:
         assert TaintLabel.SECRET in tracker.labels
         assert tracker.is_tainted
         assert "secret_file:~/.env" in tracker._taints[TaintLabel.SECRET]
+
+    def test_file_read_tool_paths_list_taints_the_session(self) -> None:
+        tracker = TaintTracker()
+
+        tracker.record_tool_output("file_read_tool", {"paths": ["README.md", "src/app.py"]})
+        assert not tracker.is_tainted
+
+        tracker.record_tool_output("file_read_tool", {"paths": ["README.md", ".env"]})
+        assert TaintLabel.SECRET in tracker.labels
+        assert "secret_file:.env" in tracker._taints[TaintLabel.SECRET]
 
 
 class TestDynamicFileToEgressSinkGate:

@@ -80,6 +80,7 @@ from ._batch_review import (
     register_security_reviewer,
     reset_runtime_domains,
 )
+from ._cron_policy import resolve_cron_ask
 from .helpers import (
     ThresholdBreach,
     is_threshold_breached,
@@ -990,68 +991,33 @@ async def evaluate_tool_batch(
             continue
 
         if is_cron:
-            from myrm_agent_harness.agent.security.types import DEFAULT_CAPABILITIES
-
-            if config.capabilities == DEFAULT_CAPABILITIES:
+            cron_verdict = resolve_cron_ask(
+                permission_type=permission_type,
+                tool_name=tool_name,
+                tool_input=tool_input,
+                config=config,
+                workspace_root=workspace_root,
+            )
+            if cron_verdict.denied:
                 logger.warning(
-                    "[CRON_POLICY] Tool %s ASK downgraded to DENY in cron session %s: "
-                    "no explicit capability declaration (fail-closed)",
+                    "[CRON_POLICY] Tool %s DENIED in cron session %s: %s",
+                    tool_name,
+                    session_key,
+                    cron_verdict.audit_reason,
+                )
+                record_decision(tool_name, "CRON_DENY", cron_verdict.audit_reason)
+                hint = record_denial(tool_name, session_key)
+                auto_denied.append((idx, tool_call, f"{cron_verdict.tool_message}{hint}"))
+            else:
+                logger.warning(
+                    "[CRON_POLICY] Tool %s ASK promoted to ALLOW in cron session %s: "
+                    "Capability Fence declaration acts as pre-approval",
                     tool_name,
                     session_key,
                 )
-                record_decision(
-                    tool_name,
-                    "CRON_DENY",
-                    "cron fail-closed: no explicit capability declaration",
-                )
-                hint = record_denial(tool_name, session_key)
-                auto_denied.append(
-                    (
-                        idx,
-                        tool_call,
-                        f"Tool denied: cron fail-closed policy. "
-                        f"This cron job has no explicit capability declaration.{hint}",
-                    )
-                )
-                continue
-            shell_cmd = str(
-                tool_input.get("command", "") or tool_input.get("code", "") or tool_input.get("data", "")
-            ).strip()
-            if permission_type in ("shell_exec", "code_interpreter") and shell_cmd:
-                from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
-                    is_integration_mutation_command,
-                )
-
-                if is_integration_mutation_command(shell_cmd):
-                    logger.warning(
-                        "[CRON_POLICY] Tool %s DENIED in cron session %s: "
-                        "integration write mutations are never pre-approved",
-                        tool_name,
-                        session_key,
-                    )
-                    record_decision(
-                        tool_name,
-                        "CRON_DENY",
-                        "cron fail-closed: integration write mutation",
-                    )
-                    hint = record_denial(tool_name, session_key)
-                    auto_denied.append(
-                        (
-                            idx,
-                            tool_call,
-                            f"Tool denied: cron jobs cannot auto-approve Google/integration write operations.{hint}",
-                        )
-                    )
-                    continue
-            logger.warning(
-                "[CRON_POLICY] Tool %s ASK promoted to ALLOW in cron session %s: "
-                "Capability Fence declaration acts as pre-approval",
-                tool_name,
-                session_key,
-            )
-            record_decision(tool_name, "ALLOW", "cron capability pre-approval")
-            auto_approved.append((idx, tool_call))
-            record_approval(session_key)
+                record_decision(tool_name, "ALLOW", cron_verdict.audit_reason)
+                auto_approved.append((idx, tool_call))
+                record_approval(session_key)
             continue
 
         skill_hook_verdict = _evaluate_skill_hooks_for_tool(tool_name, tool_input)

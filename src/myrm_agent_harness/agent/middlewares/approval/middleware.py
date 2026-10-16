@@ -6,7 +6,7 @@ Decision flow:
 1. evaluate_tool_call() → ALLOW / ASK / DENY
 2. ALLOW: taint check → proceed or escalate to ASK
 3. DENY: inject artificial ToolMessage with error
-4. ASK: domain HITL runtime check → cron pre-approval → allowlist → batch interrupt()
+4. ASK: allowlist → cron policy (cron sessions) → skill hooks → domain HITL runtime check → batch interrupt()
 
 Batch approval: When multiple tools require approval in a single turn, all are
 collected and presented in one interrupt() call. Users decide for all tools at once.
@@ -15,9 +15,10 @@ Domain HITL: When ``domain_hitl_enabled`` is True, URL-bearing tools (web_fetch,
 browser_navigate) whose hostname is not in ``network_allowlist`` trigger ASK.
 Users can approve per-request or "always allow this domain" (session-scoped).
 
-Cron sessions (session_key starts with "cron:") promote ASK to ALLOW
-because the Capability Fence declaration acts as pre-approval. Undeclared
-capabilities are rejected at the Capability Fence layer before reaching ASK.
+Cron sessions (session_key starts with "cron:") have nobody to answer an ASK, so
+``_cron_policy.resolve_cron_ask`` settles it: the declared capability set acts as
+pre-approval, except for credential egress, out-of-zone paths and integration writes.
+An undeclared capability set is denied fail-closed.
 
 Uses LangGraph's native ``interrupt()`` mechanism for Human-in-the-Loop:
 - First call: interrupt() raises GraphInterrupt, stream ends
