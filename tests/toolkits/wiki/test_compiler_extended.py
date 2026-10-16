@@ -16,10 +16,8 @@ from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, Wiki
 from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
-from myrm_agent_harness.toolkits.wiki.pipeline.compiler import (
-    WikiCompiler,
-    _ArticleBatchStats,
-)
+from myrm_agent_harness.toolkits.wiki.pipeline.articles import ArticleBatchStats
+from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
 from myrm_agent_harness.toolkits.wiki.pipeline.resilience import EMBED_WINDOW_VIOLATION
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
@@ -1060,7 +1058,7 @@ def test_get_compile_run_and_resume_compile_worker(wiki_structure: WikiStructure
 async def test_maybe_pause_for_embed_failure(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """_maybe_pause_for_embed_failure pauses the circuit on embed violation (lines 892-893)."""
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    stats = _ArticleBatchStats(
+    stats = ArticleBatchStats(
         generated=0,
         pending=0,
         published=0,
@@ -1562,7 +1560,7 @@ async def test_worker_loop_pauses_on_embed_failure(wiki_structure: WikiStructure
     raw.write_text("Embed content.", encoding="utf-8")
     compiler._queue.add_item(raw)
 
-    embed_stats = _ArticleBatchStats(
+    embed_stats = ArticleBatchStats(
         generated=0,
         pending=0,
         published=0,

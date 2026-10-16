@@ -17,7 +17,7 @@ Consumed by `queue.py` and `compiler.py`; exposed to product UI via server `comp
 
 ## v1 Scope
 
-- Pause on any auth/billing failure in a zero-success batch, transient clusters, or 5+ failures.
+- Pause on any auth/billing failure in a zero-success batch, transient clusters, or 5+ failures; the rule is applied to the extraction step and again to the article step of a batch (success there is a written or staged article).
 - Pause immediately on embed window violations during article publish/index upsert.
 - `compile_all()` and worker loop both respect `is_compile_paused()` (no LLM drain while paused).
 - Transient-only automatic retry with fixed backoff seconds.

@@ -9,7 +9,8 @@
 - ..core.parsers::parse_concepts_response (POS: LLM response parser)
 - .postprocess::generate_backlinks, save_metadata (POS: post-compilation steps)
 - .cognitive_map::WikiCognitiveMapService (POS: OKF index/log/hot writers)
-- .batch_settle::fail_extracted, settle_extracted, source_hash (POS: settles a batch's queue rows once its results are saved)
+- .articles::ArticleBatchStats, generate_article, generate_articles_batch (POS: the article stage of a compile)
+- .batch_settle::blocked_sources, fail_extracted, settle_extracted, source_hash (POS: settles a batch's queue rows once its results are saved)
 - .compiler_enqueue::enqueue_changed_sources (POS: compile intake, which raw files go onto the queue)
 - .queue::WikiIngestionQueue (POS: persistent ingestion queue)
 - .sidecar::build_directory_sidecars (POS: bottom-up directory sidecar builder)
@@ -37,9 +38,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
-    EmbedInputTooLargeError,
-)
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
@@ -52,20 +50,16 @@ from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptInfo
 
 from . import compiler_enqueue
-from .batch_settle import fail_extracted, settle_extracted, source_hash
+from .articles import ArticleBatchStats, generate_article, generate_articles_batch
+from .batch_settle import blocked_sources, fail_extracted, settle_extracted, source_hash
 from .cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
 from .cognitive_map.schema_writer import read_index_context
-from .compiler_provenance import (
-    provenance_from_raw_sources,
-    restore_provenance_metadata,
-)
 from .contradiction_synthesis import run_contradiction_synthesis_pass
 from .postprocess import generate_backlinks, save_metadata
 from .queue import QueueItem, WikiIngestionQueue
 from .resilience import (
     CompileRunSnapshot,
     evaluate_batch_pause,
-    resolve_embed_failure,
     resolve_io_failure,
     resolve_llm_failure,
 )
@@ -73,16 +67,6 @@ from .sidecar import build_directory_sidecars
 from .survey import CompileSessionState, build_compile_survey
 
 logger = get_agent_logger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class _ArticleBatchStats:
-    generated: int
-    pending: int
-    published: int
-    blocked: int
-    embed_pause_reason: str = ""
-    embed_pause_kind: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,7 +86,7 @@ class _BatchExtractOutcome:
 @dataclass(frozen=True, slots=True)
 class _BatchReport:
     concepts_count: int
-    articles: _ArticleBatchStats
+    articles: ArticleBatchStats
     synthesis_staged: int = 0
     backlinks_created: int = 0
     embed_paused: bool = False
@@ -439,7 +423,7 @@ class WikiCompiler:
             concepts = outcome.concepts
             logger.info(f"Extracted {len(concepts)} concepts from batch")
             if not concepts and not postprocess_empty:
-                return _BatchReport(0, _ArticleBatchStats(generated=0, pending=0, published=0, blocked=0))
+                return _BatchReport(0, ArticleBatchStats(generated=0, pending=0, published=0, blocked=0))
 
             self._queue.set_compile_phase("postprocess" if concepts else "semantic_compile")
             try:
@@ -448,7 +432,9 @@ class WikiCompiler:
                 logger.error(f"Postprocess failed, marking {len(outcome.read_hashes)} source(s) failed: {e}")
                 fail_extracted(self._queue, list(outcome.read_hashes), e)
                 raise
-            settle_extracted(self._queue, items, outcome.read_hashes)
+            item_ids_by_source = {self._relative_raw_path(Path(item["file_path"])): item["id"] for item in items}
+            blocked = blocked_sources(item_ids_by_source, report.articles.failures)
+            settle_extracted(self._queue, items, outcome.read_hashes, blocked)
 
         if not report.embed_paused:
             await self._maybe_commit_vault_git(commit_reason)
@@ -458,6 +444,7 @@ class WikiCompiler:
         """Write everything a batch's concepts produce: articles, evolution pages, map, backlinks, sidecars, metadata."""
         articles = await self._generate_articles_batch(concepts)
         self._maybe_pause_for_embed_failure(articles)
+        self._maybe_pause_for_failed_articles(articles)
         logger.info(
             "Generated %s articles (published=%s pending=%s blocked=%s)",
             articles.generated,
@@ -614,158 +601,18 @@ class WikiCompiler:
             logger.error(f"LLM extraction failed for {doc_path}: {e}")
             raise
 
-    async def _generate_articles_batch(self, concepts: list[ConceptInfo]) -> _ArticleBatchStats:
-        """Generate wiki articles with configurable parallelism."""
-        filtered = [c for c in concepts if c.mentions >= self._compile_config.min_concept_mentions]
-        logger.info(f"Generating articles for {len(filtered)} concepts")
-
-        embed_pause: list[tuple[str, str]] = []
-
-        async def _gen_one(concept: ConceptInfo) -> str:
-            try:
-                if self._semaphore:
-                    async with self._semaphore:
-                        return await self._generate_article(concept)
-                return await self._generate_article(concept)
-            except EmbedInputTooLargeError as exc:
-                if not embed_pause:
-                    embed_pause.append(resolve_embed_failure(exc))
-                logger.error(
-                    "Embedding window violation while publishing wiki concept '%s': %s",
-                    concept.name,
-                    exc,
-                )
-                return "blocked"
-            except Exception as e:
-                logger.error(f"Failed to generate article for {concept.name}: {e}")
-                return "blocked"
-
-        if self._parallel:
-            results = await asyncio.gather(
-                *[_gen_one(c) for c in filtered],
-                return_exceptions=True,
-            )
-        else:
-            results = [await _gen_one(c) for c in filtered]
-
-        pending = 0
-        published = 0
-        blocked = 0
-        for result in results:
-            if isinstance(result, BaseException):
-                blocked += 1
-                continue
-            if result == "pending":
-                pending += 1
-            elif result == "published":
-                published += 1
-            else:
-                blocked += 1
-
-        generated = pending + published
-        pause_reason = embed_pause[0][0] if embed_pause else ""
-        pause_kind = embed_pause[0][1] if embed_pause else ""
-        return _ArticleBatchStats(
-            generated=generated,
-            pending=pending,
-            published=published,
-            blocked=blocked,
-            embed_pause_reason=pause_reason,
-            embed_pause_kind=pause_kind,
+    async def _generate_articles_batch(self, concepts: list[ConceptInfo]) -> ArticleBatchStats:
+        """Delegate to articles.generate_articles_batch."""
+        return await generate_articles_batch(
+            concepts,
+            self._generate_article,
+            min_mentions=self._compile_config.min_concept_mentions,
+            semaphore=self._semaphore,
         )
 
     async def _generate_article(self, concept: ConceptInfo) -> str:
-        """Generate wiki article for a concept in Obsidian format."""
-        article_path = self._structure.get_concept_file_path(concept.name)
-        existing_content = ""
-        if article_path.exists():
-            existing_content = article_path.read_text(encoding="utf-8")
-
-        purpose_context = ""
-        purpose_path = self._structure.get_purpose_path()
-        if purpose_path.exists():
-            purpose_text = purpose_path.read_text(encoding="utf-8").strip()
-            if purpose_text:
-                purpose_context = f"Knowledge base direction: {purpose_text}\nFocus your article within this scope.\n\n"
-
-        prompt = self._compile_config.generate_article_prompt_template.format(
-            concept_name=concept.name,
-            purpose_context=purpose_context,
-            source_docs="\n".join(f"- {f}" for f in concept.source_files),
-        )
-
-        if existing_content:
-            prompt += f"\n\n# Existing Wiki Content\nPlease update the Compiled Truth section using the new source documents, but MUST PRESERVE the existing Timeline and APPEND new evidence to the bottom of the Timeline:\n\n{existing_content}"
-
-        system_msg = SystemMessage(content="You are a technical writer creating wiki articles.")
-        human_msg = HumanMessage(content=prompt)
-
-        try:
-            response = await self._llm.ainvoke([system_msg, human_msg])
-            article_content = extract_answer_text(response)
-
-            if len(article_content) > self._compile_config.max_article_length:
-                article_content = article_content[: self._compile_config.max_article_length] + "\n\n(truncated)"
-
-            from ..core.frontmatter_contract import apply_compile_gate
-
-            article_content = apply_compile_gate(
-                article_content,
-                concept.name,
-                concept.source_files,
-            )
-
-            from ..core.claims_contract import ensure_compile_claims
-
-            article_content = ensure_compile_claims(
-                article_content,
-                concept.name,
-                list(concept.source_files),
-                structure=self._structure,
-            )
-
-            restore_base = existing_content
-            if not restore_base and concept.source_files:
-                # First compile of a brand-new concept: raw sources (e.g. auto-archived
-                # turns) carry source_chat provenance that would otherwise be lost.
-                source_provenance = provenance_from_raw_sources(self._structure, list(concept.source_files))
-                if source_provenance:
-                    from ..core.frontmatter_contract import (
-                        serialize_frontmatter_block,
-                    )
-
-                    restore_base = serialize_frontmatter_block(dict[str, object](source_provenance))
-
-            article_content = restore_provenance_metadata(restore_base, article_content)
-
-            if self._compile_config.require_approval:
-                from ..core.frontmatter_contract import WikiProvenance
-                from .pending import WikiPendingEditsManager
-
-                pending_mgr = WikiPendingEditsManager(self._structure, self._indexer)
-                await pending_mgr.stage_pending_edit(
-                    concept.name,
-                    article_content,
-                    source_files=concept.source_files,
-                    provenance=WikiProvenance.COMPILED,
-                )
-                logger.info(f"Generated pending draft for article: {concept.name}")
-                return "pending"
-
-            from .publication import publish_concept_article
-
-            await publish_concept_article(
-                self._structure,
-                self._indexer,
-                concept.name,
-                article_content,
-            )
-            logger.info(f"Generated and published article: {concept.name}")
-            return "published"
-
-        except Exception as e:
-            logger.error(f"Failed to generate article for {concept.name}: {e}")
-            raise
+        """Delegate to articles.generate_article."""
+        return await generate_article(self._llm, self._structure, self._compile_config, self._indexer, concept)
 
     def _cognitive_map_service(self) -> WikiCognitiveMapService:
         stats = self._queue.get_stats()
@@ -796,11 +643,27 @@ class WikiCompiler:
         )
         self._cognitive_map_service().refresh(event)
 
-    def _maybe_pause_for_embed_failure(self, stats: _ArticleBatchStats) -> None:
+    def _maybe_pause_for_embed_failure(self, stats: ArticleBatchStats) -> None:
         if not stats.embed_pause_kind:
             return
         self._queue.pause_compile(stats.embed_pause_reason, stats.embed_pause_kind)
         logger.warning("Compile worker paused: %s", stats.embed_pause_reason)
+
+    def _maybe_pause_for_failed_articles(self, stats: ArticleBatchStats) -> None:
+        """Pause when no article of the batch was written and the failures say more would fail too.
+
+        The extraction step applies the same rule to its own failures. An embed pause has already stopped the
+        compile with the reason the user can act on, so it is not overwritten.
+        """
+        if stats.embed_pause_kind:
+            return
+        should_pause, reason, primary_kind = evaluate_batch_pause(
+            success_count=stats.generated,
+            failure_kinds=[failure.resolution.error_kind for failure in stats.failures],
+        )
+        if should_pause:
+            self._queue.pause_compile(reason, primary_kind)
+            logger.warning("Compile worker paused: %s", reason)
 
     async def _generate_backlinks(self, concepts: list[ConceptInfo]) -> int:
         """Delegate to postprocess.generate_backlinks."""
