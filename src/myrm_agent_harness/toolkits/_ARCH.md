@@ -158,7 +158,7 @@ Does your code need to import anything from agent/?
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | SECURITY_WRAPPER_GUIDE.md | L2 | Tool output security wrapping guide (`wrap_with_external_sources_tag` / `wrap_with_tool_output_tag`) | — |
-| __init__.py | Package | Toolkits package root — re-exports subpackages; each subpackage `__init__.py` exposes generic capability APIs (Protocols, engines, factories), not agent-only surfaces | ✅ |
+| __init__.py | Package | Toolkits package root — re-exports subpackages; each subpackage `__init__.py` exposes generic capability APIs (Protocols, engines, factories), not agent-only surfaces; the `TYPE_CHECKING` block mirrors `_LAZY_IMPORTS` so lazily resolved names keep their real types for type checkers (`tests/toolkits/test_lazy_exports.py`) | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

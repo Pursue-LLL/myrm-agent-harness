@@ -256,7 +256,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
         "DistillationRejectionCode",
     ),
-    "EvidenceReference": ("myrm_agent_harness.toolkits.memory.strategies.distillation_guards", "EvidenceReference"),
+    "EvidenceReference": ("myrm_agent_harness.toolkits.memory.types", "EvidenceReference"),
     "SelfIdentityState": ("myrm_agent_harness.toolkits.memory.strategies.distillation_guards", "SelfIdentityState"),
     "check_distillable": ("myrm_agent_harness.toolkits.memory.strategies.distillation_guards", "check_distillable"),
     "filter_distillable_messages": (

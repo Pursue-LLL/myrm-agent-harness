@@ -16,6 +16,7 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Core | Lazy export registry for public API | ✅ |
+| __init__.pyi | Core | Static type mirror of the lazy registry: type checkers see the real type of every export instead of `object`; kept one-to-one with `_EXPORTS` by `test_api_stub_mirrors_lazy_registry` | ✅ |
 | factory.py | Core | `create_skill_agent`, `SkillAgent` | ✅ |
 | types.py | Core | Runtime and streaming DTOs | ✅ |
 | config.py | Core | LLM/Agent configuration types | ✅ |
@@ -32,7 +33,7 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 
 ## Tests
 
-- `tests/api/test_public_surface.py` — public `__all__`, lazy exports, submodule smoke, distribution mode
+- `tests/api/test_public_surface.py` — public `__all__`, lazy exports, `.pyi` stub parity with `_EXPORTS`, submodule smoke, distribution mode
 
 ## Key Dependencies
 

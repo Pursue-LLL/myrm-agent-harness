@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import ast
 import importlib
 import inspect
 import sys
+from pathlib import Path
 from typing import Protocol
 
 import pytest
@@ -15,6 +17,18 @@ def test_api_package_exports_match_all() -> None:
     api = importlib.import_module("myrm_agent_harness.api")
     export_keys = sorted(api._EXPORTS.keys())
     assert sorted(api.__all__) == export_keys
+
+
+@pytest.mark.api
+def test_api_stub_mirrors_lazy_registry() -> None:
+    """The ``.pyi`` stub is what gives type checkers the real type of each lazy export."""
+    api = importlib.import_module("myrm_agent_harness.api")
+    stub = ast.parse(Path(api.__file__).with_suffix(".pyi").read_text(encoding="utf-8"))
+    imports = [(node.module, alias) for node in stub.body if isinstance(node, ast.ImportFrom) for alias in node.names]
+
+    # ``X as X`` is the only spelling a stub uses to re-export a name.
+    assert [alias.name for _, alias in imports if alias.asname != alias.name] == []
+    assert {alias.name: (module, alias.name) for module, alias in imports} == api._EXPORTS
 
 
 @pytest.mark.api
