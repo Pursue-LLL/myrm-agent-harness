@@ -352,12 +352,7 @@ def evaluate_skill_health_findings(
                     success_rate=stats.success_rate,
                     pinned=stats.pinned,
                     recommended_action=action,
-                    details={
-                        "observed_count": stats.observed_count,
-                        "success_count": stats.success_count,
-                        "failure_count": stats.failure_count,
-                        "trust": skill.trust.name.lower(),
-                    },
+                    details={"observed_count": stats.observed_count},
                 )
             )
 

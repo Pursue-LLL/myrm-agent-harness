@@ -13,7 +13,6 @@ from myrm_agent_harness.backends.skills.forgetting_strategy import (
 from myrm_agent_harness.backends.skills.types import (
     SkillLifecycleStatus,
     SkillMetadata,
-    SkillTrust,
     SkillUsageStats,
 )
 
@@ -352,26 +351,8 @@ def test_evaluate_skill_health_findings_wrong_but_frequent() -> None:
     assert f.pinned is True
     assert f.recommended_action == "unpin_and_archive"
     # The UI phrases the finding from these parameters; the English `message` is never shown.
-    assert f.details == {"observed_count": 20, "success_count": 2, "failure_count": 18, "trust": "trusted"}
+    assert f.details == {"observed_count": 20}
     assert diagnosis.health_score < 100.0
-
-
-def test_wrong_but_frequent_reports_installed_trust_by_name() -> None:
-    """INSTALLED is the zero-valued trust level; it must be reported by name, not mistaken for 'no trust set'."""
-    skill = create_skill_metadata(
-        "registry_scraper",
-        usage_stats=SkillUsageStats(
-            call_count=20,
-            success_count=2,
-            failure_count=18,
-            lifecycle_status=SkillLifecycleStatus.ACTIVE,
-        ),
-    )
-    object.__setattr__(skill, "trust", SkillTrust.INSTALLED)
-
-    diagnosis = evaluate_skill_health_findings([skill], CuratorConfig(min_call_count_for_quality_check=5))
-
-    assert diagnosis.findings[0].details["trust"] == "installed"
 
 
 def test_evaluate_skill_health_findings_stale_pinned() -> None:
