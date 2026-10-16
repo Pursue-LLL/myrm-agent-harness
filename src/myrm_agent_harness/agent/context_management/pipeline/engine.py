@@ -8,7 +8,6 @@
 - base::BaseProcessor, ProcessorContext (POS: processor base class and context data structure)
 - infra.session_lock::acquire_context_lock (POS: Session-level lock manager. Provides per-session async locks ensuring serialized context mutations within a session while allowing cross-session parallelism. Includes automatic cleanup.)
 - utils.logger_utils::get_agent_logger (POS: agent logging utility)
-- pinning::PinnedContextRetentionProcessor (POS: Zero-pruning preservation of pinned contexts and compaction cards)
 
 [OUTPUT]
 - ContextPipeline: Context processing pipeline (manages processor chain execution)
@@ -275,14 +274,11 @@ def build_default_processors(
     if session_notes_processor is not None:
         processors.append(session_notes_processor)
 
-    from ..pinning import PinnedContextRetentionProcessor
-
     processors.extend(
         [
             summarize_processor,
             PostCompactionRereadProcessor(),
             PostCompactionRefetchGuardProcessor(),
-            PinnedContextRetentionProcessor(),
             NormalizeProcessor(),
             MediaResolverProcessor(file_content_reader=file_content_reader),
             MediaBudgetGovernorProcessor(),
