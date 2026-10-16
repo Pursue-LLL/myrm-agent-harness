@@ -11,16 +11,20 @@
 - current_collection / previous_model_collections / memory_collections: which collections hold memories
 - catalog_of: the backend that can list collections
 - retire_if_drained: drop an emptied previous-model collection
+- family_lock: serialises a migration page against bulk deletions of the same collection family
 
 [POS]
 Collections are named ``{prefix}_{type}_{model}``, so a model switch leaves the previous model's
 memories in collections the current model never reads. The reindex migration and every bulk
 deletion read that naming through this one module: a deletion reaches the memories a switch left
-behind, and a sparse ``_bm25`` mirror is never mistaken for a model's collection.
+behind, and a sparse ``_bm25`` mirror is never mistaken for a model's collection. A migration page
+is read, re-embedded and written over several awaits, so a deletion landing in between would be
+undone by that page; both sides therefore take the family lock around the stretch they must see whole.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -41,6 +45,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _VECTOR_TYPES = (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CONVERSATION)
+
+# One lock per (backend, collection prefix); managers are built per request, the backend is shared.
+_family_locks: dict[tuple[int, str], asyncio.Lock] = {}
 
 
 @dataclass(frozen=True)
@@ -133,3 +140,18 @@ async def retire_if_drained(vector: VectorStoreProtocol | None, collection: str)
         await catalog.delete_collection(bm25_collection_for(collection))
     except Exception as e:
         logger.warning("Could not drop the emptied collection %s: %s", collection, e)
+
+
+def family_lock(vector: VectorStoreProtocol | None, config: MemoryConfig) -> asyncio.Lock:
+    """The lock every migration page and bulk deletion of one collection family runs under.
+
+    Without it a deletion that lands while a page is being re-embedded wipes the previous model's
+    collection, and the page then writes the memories it had already read into the current one:
+    the user deleted them and they are back. The holder of a migration page waits for one
+    embedding round trip at most.
+    """
+    key = (id(catalog_of(vector) or vector), config.collection_prefix)
+    lock = _family_locks.get(key)
+    if lock is None:
+        lock = _family_locks[key] = asyncio.Lock()
+    return lock

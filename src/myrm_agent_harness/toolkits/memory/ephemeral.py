@@ -185,7 +185,7 @@ class ReadOnlyMemoryView(MemoryManager):
         self._deny()
         return {}
 
-    async def delete_by_type(self, memory_type: MemoryType) -> int:
+    async def delete_by_type(self, memory_type: MemoryType, *, include_previous_models: bool = True) -> int:
         self._deny()
         return 0
 

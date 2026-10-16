@@ -105,6 +105,19 @@ class TestDeleteByType:
         assert await _count(store, new_config.episodic_collection) == 1
         assert await _count(store, old_config.episodic_collection) == 1
 
+    async def test_the_current_model_alone_can_be_replaced_without_touching_the_previous_one(
+        self, store, old_config, new_config
+    ) -> None:
+        await _seed_two_generations(store, old_config, new_config)
+
+        deleted = await manager_for(store, new_config, Embedder(NEW_DIM), namespaces=_NAMESPACES).delete_by_type(
+            MemoryType.SEMANTIC, include_previous_models=False
+        )
+
+        assert deleted == 1
+        assert await _count(store, new_config.semantic_collection) == 0
+        assert await _count(store, old_config.semantic_collection) == 2
+
 
 class TestChatCascade:
     async def test_purge_reaches_memories_the_previous_model_still_holds(self, store, old_config, new_config) -> None:

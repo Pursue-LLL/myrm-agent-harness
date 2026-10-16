@@ -3,7 +3,7 @@
 [INPUT]
 - memory.config::MemoryConfig (POS: per-model collection naming)
 - memory._internal.storage::{embed_batch, doc_to_conversation, store_conversations_batch} (POS: cached batch embedding, dual-vector conversation writer)
-- memory._manager.model_collections::{catalog_of, current_collection, previous_model_collections, retire_if_drained} (POS: per-model collection naming and retirement)
+- memory._manager.model_collections::{catalog_of, current_collection, family_lock, previous_model_collections, retire_if_drained} (POS: per-model collection naming, retirement and the lock shared with bulk deletions)
 - vector.base::VectorDocument (POS: scrolled memory documents)
 
 [OUTPUT]
@@ -16,6 +16,9 @@ memories unreachable. Detection lists the previous models' collections; migratio
 moves each memory (same id, payload, owner scope) into the current model's
 collection with a freshly embedded vector and removes it from the old collection
 once the current one is read back to hold it. An emptied old collection is dropped.
+Each page runs under the collection family's lock, so a bulk deletion waits for the page
+in flight and never has its work undone by it; what a deletion removed between pages is
+no longer migrated and not counted as failed.
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
 from myrm_agent_harness.toolkits.memory._manager.model_collections import (
     catalog_of,
     current_collection,
+    family_lock,
     previous_model_collections,
     retire_if_drained,
 )
@@ -126,7 +130,8 @@ class MemoryManagerReindexMixin:
             try:
                 # Not get_collection_info: it cannot describe named-vector (conversation) collections.
                 count = await catalog.count(collection.name)
-            except Exception:
+            except Exception as e:
+                logger.warning("Could not count %s, leaving it out of the migration estimate: %s", collection.name, e)
                 count = 0
             if count == 0:
                 continue
@@ -194,26 +199,30 @@ class MemoryManagerReindexMixin:
     async def _migrate_orphan(self, orphan: OrphanCollectionInfo, tally: _Tally, on_batch: Callable[[], None]) -> None:
         """Page through one orphan collection; an unreadable remainder counts as failed."""
         vector, _ = self._vec()  # type: ignore[attr-defined]
+        lock = family_lock(self._vector, self._config)
         cursor: str | None = None
         read = 0
         while True:
-            try:
-                documents, cursor = await vector.scroll(orphan.collection_name, limit=_BATCH_SIZE, offset=cursor)
-            except Exception as e:
-                unread = max(orphan.document_count - read, 0)
-                logger.warning(
-                    "Reindex cannot read %s, %d memories not migrated: %s", orphan.collection_name, unread, e
-                )
-                tally.failed += unread
-                on_batch()
-                return
-            read += len(documents)
-            if documents:
-                await self._migrate_batch(orphan, documents, tally)
-                on_batch()
-            if not documents or cursor is None:
-                break
-        await retire_if_drained(self._vector, orphan.collection_name)
+            async with lock:
+                if not await vector.collection_exists(orphan.collection_name):
+                    return  # a bulk deletion removed it: nothing left to move, and nothing failed
+                try:
+                    documents, cursor = await vector.scroll(orphan.collection_name, limit=_BATCH_SIZE, offset=cursor)
+                except Exception as e:
+                    unread = max(orphan.document_count - read, 0)
+                    logger.warning(
+                        "Reindex cannot read %s, %d memories not migrated: %s", orphan.collection_name, unread, e
+                    )
+                    tally.failed += unread
+                    on_batch()
+                    return
+                read += len(documents)
+                if documents:
+                    await self._migrate_batch(orphan, documents, tally)
+                    on_batch()
+                if not documents or cursor is None:
+                    await retire_if_drained(self._vector, orphan.collection_name)
+                    return
 
     async def _migrate_batch(
         self, orphan: OrphanCollectionInfo, documents: list[VectorDocument], tally: _Tally

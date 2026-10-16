@@ -11,6 +11,7 @@ from myrm_agent_harness.toolkits.memory._internal.storage import (
 )
 from myrm_agent_harness.toolkits.memory._manager.model_collections import (
     current_collection,
+    family_lock,
     memory_collections,
     retire_if_drained,
 )
@@ -23,6 +24,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     MaintenanceConsolidationResult,
     MaintenanceReport,
     MemoryBackupStrategy,
+    MemoryError,
     MemorySnapshot,
     MemoryType,
     RestoreResult,
@@ -75,34 +77,51 @@ class MemoryManagerListingMaintenanceMixin:
             tag_filter=tag_filter,
         )
 
-    async def delete_by_type(self, memory_type: MemoryType) -> int:
-        # Memories a model switch left in a previous model's collections are the same memories.
-        collections = (
-            (await memory_collections(self._vector, self._config)).get(memory_type, [])
-            if self._vector is not None and memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC)
-            else []
-        )
+    async def delete_by_type(self, memory_type: MemoryType, *, include_previous_models: bool = True) -> int:
+        """Erase this owner's memories of one type, in every embedding model's collections.
+
+        ``include_previous_models=False`` limits it to the current model's collection, for a caller
+        that replaces what the user can see (a backup restore) and must not destroy memories that
+        no backup holds. The derived graph and the embedding cache are cleaned even when a previous
+        model's collection could not be emptied; that failure is raised afterwards so a deletion
+        that left memories behind never reports success.
+        """
         filters = _user_filter(namespaces=self._namespaces, include_archived=True)
         cascade_ids: list[str] = []
-        if memory_type == MemoryType.EPISODIC and self._graph is not None:
-            # Claim Graph Evidence/Claim nodes reference episodic task digests, so a
-            # bulk clear must cascade-clean derived nodes — matching the single
-            # delete path. Collect owned ids first (they are gone after the wipe).
+        failed: list[str] = []
+        # Memories a model switch left in a previous model's collections are the same memories.
+        async with family_lock(self._vector, self._config):
+            collections = (
+                (await memory_collections(self._vector, self._config)).get(memory_type, [])
+                if self._vector is not None and memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC)
+                else []
+            )
+            if not include_previous_models:
+                collections = [c for c in collections if c == current_collection(self._config, memory_type)]
+            if memory_type == MemoryType.EPISODIC and self._graph is not None:
+                # Claim Graph Evidence/Claim nodes reference episodic task digests, so a
+                # bulk clear must cascade-clean derived nodes — matching the single
+                # delete path. Collect owned ids first (they are gone after the wipe).
+                for collection in collections:
+                    cascade_ids += [
+                        memory_id for memory_id, owned in await self._collect_vector_ids(collection, filters) if owned
+                    ]
+            deleted = await _delete_by_type(
+                memory_type,
+                relational=self._relational,
+                vector=self._vector,
+                config=self._config,
+                namespaces=self._namespaces,
+            )
             for collection in collections:
-                cascade_ids += [
-                    memory_id for memory_id, owned in await self._collect_vector_ids(collection, filters) if owned
-                ]
-        deleted = await _delete_by_type(
-            memory_type,
-            relational=self._relational,
-            vector=self._vector,
-            config=self._config,
-            namespaces=self._namespaces,
-        )
-        previous = [name for name in collections if name != current_collection(self._config, memory_type)]
-        for collection in previous:
-            deleted += await self._vector.delete_by_filter(collection, filters)
-            await retire_if_drained(self._vector, collection)
+                if collection == current_collection(self._config, memory_type):
+                    continue
+                try:
+                    deleted += await self._vector.delete_by_filter(collection, filters)
+                    await retire_if_drained(self._vector, collection)
+                except Exception as e:
+                    logger.warning("Error deleting %s: %s", collection, e)
+                    failed.append(collection)
         for memory_id in cascade_ids:
             await self._cascade_clean_derived_graph_nodes(memory_id)
         if (
@@ -111,6 +130,8 @@ class MemoryManagerListingMaintenanceMixin:
             and memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC)
         ):
             await self._cache.clear()
+        if failed:
+            raise MemoryError(f"delete_by_type left memories behind in: {', '.join(failed)}")
         return deleted
 
     async def _collect_snapshot(self) -> MemorySnapshot | None:

@@ -3,7 +3,7 @@
 [INPUT]
 - memory._manager.archival::MemoryManagerArchivalMixin (POS: memory lifecycle archiver)
 - memory._manager.queries::MemoryManagerQueriesMixin (POS: metadata and session query mixin)
-- memory._manager.model_collections::{current_collection, memory_collections, retire_if_drained} (POS: every embedding model's collections)
+- memory._manager.model_collections::{current_collection, family_lock, memory_collections, retire_if_drained} (POS: every embedding model's collections and the lock shared with the migration)
 - memory._internal.graph_cascade::cascade_clean_derived_graph_nodes (POS: cascade clean claim graph)
 
 [OUTPUT]
@@ -26,6 +26,7 @@ from myrm_agent_harness.toolkits.memory._manager.archival import (
 )
 from myrm_agent_harness.toolkits.memory._manager.model_collections import (
     current_collection,
+    family_lock,
     memory_collections,
     retire_if_drained,
 )
@@ -178,15 +179,16 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
         counts: dict[str, int] = {}
 
         if self._vector is not None:
-            filters = {metadata_key: metadata_value}
+            filters: FilterDict = {metadata_key: metadata_value}
             # Memories a model switch left in a previous model's collections are the same memories.
-            for memory_type, collections in (await memory_collections(self._vector, self._config)).items():
-                if memory_type not in selected_types:
-                    continue
-                counts[memory_type.value] = 0
-                for collection in collections:
-                    ids = [doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned]
-                    counts[memory_type.value] += await self.delete_memory(collection, ids)
+            async with family_lock(self._vector, self._config):
+                for memory_type, collections in (await memory_collections(self._vector, self._config)).items():
+                    if memory_type not in selected_types:
+                        continue
+                    counts[memory_type.value] = 0
+                    for collection in collections:
+                        ids = [doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned]
+                        counts[memory_type.value] += await self.delete_memory(collection, ids)
 
         if MemoryType.PROCEDURAL in selected_types and self._relational is not None:
             matching_rule_ids: list[str] = []
@@ -403,15 +405,16 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
                 logger.warning("Error deleting relational: %s", e)
                 failed.append("relational")
         if self._vector:
-            for memory_type, collections in (await memory_collections(self._vector, self._config)).items():
-                for coll in collections:
-                    try:
-                        counts[coll] = await self._vector.delete_by_filter(coll, {})
-                        if coll != current_collection(self._config, memory_type):
-                            await retire_if_drained(self._vector, coll)
-                    except Exception as e:
-                        logger.warning("Error deleting %s: %s", coll, e)
-                        failed.append(coll)
+            async with family_lock(self._vector, self._config):
+                for memory_type, collections in (await memory_collections(self._vector, self._config)).items():
+                    for coll in collections:
+                        try:
+                            counts[coll] = await self._vector.delete_by_filter(coll, {})
+                            if coll != current_collection(self._config, memory_type):
+                                await retire_if_drained(self._vector, coll)
+                        except Exception as e:
+                            logger.warning("Error deleting %s: %s", coll, e)
+                            failed.append(coll)
         if self._graph is not None:
             try:
                 counts["graph"] = await self._graph.delete_all_by_owner(uid)

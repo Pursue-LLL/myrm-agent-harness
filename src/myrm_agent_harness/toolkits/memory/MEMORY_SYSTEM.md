@@ -564,7 +564,7 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 
 **嵌入模型切换迁移**（`_manager/model_collections.py`、`_manager/reindex.py`）：集合名带嵌入模型后缀（`{prefix}_semantic_{model}`），召回只查当前模型的集合，切换模型后旧集合里的记忆在迁移前不可召回。`model_collections.py` 是集合命名的唯一解读方：`previous_model_collections` 只认 `{prefix}_{semantic|episodic|conversation}_{后缀}`，排除当前模型的集合与 `_bm25` 稀疏镜像（镜像不是孤儿，随稠密集合一并处理），也不会把前缀相近的外来集合（`{prefix}X_…`）认作自己的。`detect_orphan_collections` 经 BM25 镜像之下的后端列出这些集合，并用 `count` 计数（`get_collection_info` 无法描述命名向量的 Conversation 集合）。`reindex_from_orphans` 是"搬家"而不是复制：逐页读取旧集合，Semantic / Episodic 按原 payload 整条写入当前集合（id、scope、pinned、importance、tags、时间戳全部保留，不经类型模型往返，也不触碰图谱），只用当前模型重新计算向量；Conversation 经双向量写入器重算 raw / summary 两个向量；旧向量绝不沿用。目标集合已有的 id 视为已搬（切换后新写入的记忆不会被旧副本覆盖，重复运行不会重复 embedding）；写入后回读确认目标集合里确有该 id，才从旧集合删除，因此切换后删掉的记忆不会被旧副本复活。读、嵌入、写或回读任一步失败都保留旧副本并计入 `failed`（再次运行只补这些），不会混入 `skipped`；正文为空的记忆无法向量化，直接从旧集合移除并计入 `skipped`。旧集合清空后连同其 BM25 镜像一并删除。
 
-删除类操作（`delete_all`、`delete_by_type`、按元数据级联删除与其预览）作用于整个集合族，即当前模型的集合加所有旧模型的集合，所以切换模型前后写入的记忆在删除时一视同仁；按元数据的级联只清记忆，不回收集合，`delete_all`、`delete_by_type` 与迁移才回收清空的旧集合。`delete_all` 在关系库或向量库删除失败时，先尝试完所有后端，再抛出 `MemoryError`（图谱与缓存为尽力而为）。向量库的空过滤器等同"匹配全部"（与 `search` 的过滤语法一致）。
+删除类操作（`delete_all`、`delete_by_type`、按元数据级联删除与其预览）作用于整个集合族，即当前模型的集合加所有旧模型的集合，所以切换模型前后写入的记忆在删除时一视同仁；按元数据的级联只清记忆，不回收集合，`delete_all`、`delete_by_type` 与迁移才回收清空的旧集合。`delete_all` 在关系库或向量库删除失败时，先尝试完所有后端，再抛出 `MemoryError`（图谱与缓存为尽力而为）；`delete_by_type` 的旧模型集合清不掉时，同样先清完图谱与缓存再抛出。迁移的每一页（读取、重嵌、写入、回读、从旧集合删除）与这三类删除共用 `family_lock`（`model_collections.py`，按向量后端与集合前缀各一把锁），所以迁移期间的删除只会等在途的一页做完，不会被它写回；删除抢在两页之间完成时，迁移发现旧集合已不存在即结束，不计失败。向量库的空过滤器等同"匹配全部"（与 `search` 的过滤语法一致）。
 
 **检索超时 fail-open**（`RetrievalConfig.timeout_seconds`，默认 10s）：
 

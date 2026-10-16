@@ -213,6 +213,18 @@ class TestOrphanDetection:
 
         assert (estimate.total_memories, estimate.orphan_collections) == (0, [])
 
+    async def test_a_collection_that_cannot_be_counted_is_reported_not_silently_dropped(
+        self, store, old_config, new_config, monkeypatch, caplog
+    ) -> None:
+        await seed(store, old_config, semantics=[semantic("a")], episodics=[episodic("b")])
+        fail_on(monkeypatch, store, "count", old_config.semantic_collection)
+
+        with caplog.at_level("WARNING"):
+            estimate = await manager_for(store, new_config, Embedder(NEW_DIM)).estimate_reindex()
+
+        assert [o.collection_name for o in estimate.orphan_collections] == [old_config.episodic_collection]
+        assert old_config.semantic_collection in caplog.text
+
     async def test_collections_of_another_prefix_are_not_orphans(self, store, prefix, new_config) -> None:
         foreign = replace(new_config, collection_prefix=f"{prefix}x", embedding_model="old-model")
         await seed(store, foreign, semantics=[semantic("not ours")])
