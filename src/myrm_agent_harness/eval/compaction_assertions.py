@@ -2,7 +2,6 @@
 
 [INPUT]
 - protocols::CompactionAssertion (POS: assertion configuration for compaction quality)
-- protocols::CompactionFidelityScore (POS: structured five-dimensional score)
 - protocols::AgentResponse (POS: agent execution output & tool calls)
 
 [OUTPUT]

@@ -17,7 +17,6 @@
 - SemanticAssertion: LLM-as-a-Judge assertion (supports custom judge_prompt/judge_model/threshold soft-scoring)
 - RetrievalAssertion: RAG & Memory retrieval quality assertion (Head/Tail spans, collapse hits, duplicate rate)
 - CompactionAssertion: configuration for 5D context compaction quality and continuation assertions
-- CompactionFidelityScore: structured 5D fidelity score container (Constraint, Decision, State, Artifact, Continuation)
 - EvalCaseSplit: dataset split enumeration (SEARCH, TEST, HARDSUBSET)
 
 [POS]
@@ -120,40 +119,6 @@ class RetrievalAssertion:
     min_distinct_sources: int | None = None
     top_k: int = 5
     strip_headers: bool = True
-
-
-@dataclass(frozen=True, slots=True)
-class CompactionFidelityScore:
-    """Five-dimensional compaction continuation acceptance metrics.
-
-    Dimensions:
-    - constraint_recall: Ratio of key user constraints preserved and obeyed in continuation (0.0~1.0)
-    - decision_fidelity: Similarity of tool selection & parameters vs uncompacted baseline (0.0~1.0)
-    - state_accuracy: Accuracy of completed vs pending vs blocked task perception (0.0~1.0)
-    - artifact_coverage: Accuracy of created/modified file references and version tracking (0.0~1.0)
-    - continuation_success: Overall success of the next-step task execution (0.0~1.0)
-    - overall_fidelity: Weighted average fidelity score across dimensions (0.0~1.0)
-    - token_savings_pct: Context token savings percentage achieved by compaction (0.0~100.0)
-    """
-
-    constraint_recall: float = 1.0
-    decision_fidelity: float = 1.0
-    state_accuracy: float = 1.0
-    artifact_coverage: float = 1.0
-    continuation_success: float = 1.0
-    overall_fidelity: float = 1.0
-    token_savings_pct: float = 0.0
-
-    def to_dict(self) -> dict[str, float]:
-        return {
-            "constraint_recall": round(self.constraint_recall, 4),
-            "decision_fidelity": round(self.decision_fidelity, 4),
-            "state_accuracy": round(self.state_accuracy, 4),
-            "artifact_coverage": round(self.artifact_coverage, 4),
-            "continuation_success": round(self.continuation_success, 4),
-            "overall_fidelity": round(self.overall_fidelity, 4),
-            "token_savings_pct": round(self.token_savings_pct, 2),
-        }
 
 
 @dataclass(frozen=True, slots=True)
