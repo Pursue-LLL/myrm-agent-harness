@@ -2,138 +2,89 @@
 
 [INPUT]
 - Path (POS: root data directory)
-- Path | None (POS: checkpoint database, whose location the application chooses)
+- Mapping[StorageCategory, Iterable[Path]] (POS: where the application keeps each category, which it alone knows)
 
 [OUTPUT]
 - StorageGovernanceInspector.inspect() -> StorageGovernanceReport
 
 [POS]
-Core inspection and space attribution analyzer for storage governance.
+Core inspection and space attribution analyzer for storage governance: it measures what the application declares
+and reports every other byte of the data directory as `OTHER`, so the categories add up to the whole.
 """
 
 from __future__ import annotations
 
-import os
 import shutil
-from dataclasses import replace
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
+from .layout import resolve_layout
 from .types import (
     StateSnapshotMetadata,
     StorageCategory,
     StorageCategoryBreakdown,
     StorageGovernanceReport,
 )
-
-# Categories that are one directory of the data directory, in report order.
-_DIRECTORY_CATEGORIES: tuple[tuple[StorageCategory, str], ...] = (
-    (StorageCategory.WORKSPACES, "harness"),
-    (StorageCategory.VECTOR_STORE, "qdrant"),
-    (StorageCategory.MEMORY_ARCHIVE, "memory"),
-    (StorageCategory.EVENT_LOGS, "event_logs"),
-    (StorageCategory.SNAPSHOTS, "snapshots"),
-)
+from .walker import TreeSize, measure_tree
 
 
-def _safe_dir_size_and_count(dir_path: Path) -> tuple[int, int]:
-    """Calculate directory size in bytes and file count safely without raising exceptions."""
-    if not dir_path.exists():
-        return 0, 0
-    total_bytes = 0
-    file_count = 0
+def _disk_usage(path: Path) -> tuple[int, int, float]:
+    """Total bytes, free bytes and used percentage of the disk holding `path`; zeros when it cannot be read."""
+    probe = path
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
     try:
-        for root, _, files in os.walk(dir_path):
-            for file in files:
-                file_path = Path(root) / file
-                try:
-                    total_bytes += file_path.stat().st_size
-                    file_count += 1
-                except OSError:
-                    continue
+        usage = shutil.disk_usage(probe)
     except OSError:
-        pass
-    return total_bytes, file_count
+        return 0, 0, 0.0
+    used_percentage = round((usage.used / usage.total) * 100, 2) if usage.total > 0 else 0.0
+    return usage.total, usage.free, used_percentage
 
 
-def _database_footprint(db_file: Path) -> tuple[int, int]:
-    """Total bytes and file count of a SQLite database and its write-ahead log."""
-    total_bytes = 0
-    file_count = 0
-    for path in (db_file, db_file.with_name(f"{db_file.name}-wal")):
-        try:
-            total_bytes += path.stat().st_size
-        except OSError:
-            continue
-        file_count += 1
-    return total_bytes, file_count
+def _measure_category(paths: Iterable[Path], owned: frozenset[str]) -> TreeSize:
+    """Size of everything one category owns."""
+    measured = [measure_tree(str(path), owned) for path in paths]
+    return TreeSize(sum(size.total_bytes for size in measured), sum(size.file_count for size in measured))
 
 
 class StorageGovernanceInspector:
     """Inspects and attributes disk space across agent persistent storage domains."""
 
-    def __init__(self, data_dir: Path | str, *, checkpoints_db: Path | str | None = None) -> None:
-        """`checkpoints_db` is the checkpoint database file; without it no space is attributed to checkpoints."""
-        self._data_dir = Path(data_dir)
-        self._checkpoints_db = Path(checkpoints_db) if checkpoints_db is not None else None
+    def __init__(
+        self,
+        data_dir: Path | str,
+        *,
+        layout: Mapping[StorageCategory, Iterable[Path | str]],
+    ) -> None:
+        """`layout` maps each category to the paths the application keeps it in, wherever those are.
+
+        Nested paths are fine: a file counts toward the category with the deepest path above it. Everything in
+        `data_dir` that no path claims is reported as `StorageCategory.OTHER`, which cannot be declared.
+        """
+        self._layout = resolve_layout(data_dir, layout)
 
     def inspect(self, snapshots: list[StateSnapshotMetadata] | None = None) -> StorageGovernanceReport:
-        """Generate a full storage governance report for the target data directory."""
-        data_dir = self._data_dir
-        if not data_dir.exists():
-            data_dir.mkdir(parents=True, exist_ok=True)
+        """Generate a full storage governance report; nothing on disk is created or modified."""
+        layout = self._layout
+        disk_total, disk_free, disk_used_percentage = _disk_usage(layout.data_dir)
 
-        try:
-            disk = shutil.disk_usage(data_dir)
-            disk_total = disk.total
-            disk_free = disk.free
-            disk_used = disk.used
-            disk_used_pct = round((disk_used / disk_total) * 100, 2) if disk_total > 0 else 0.0
-        except OSError:
-            disk_total = 0
-            disk_free = 0
-            disk_used_pct = 0.0
-
-        sqlite_bytes, sqlite_count = _database_footprint(data_dir / "data.db")
+        sizes = {category: _measure_category(paths, layout.owned) for category, paths in layout.claims.items()}
+        total_storage = sum(size.total_bytes for size in sizes.values())
         categories = [
             StorageCategoryBreakdown(
-                category=StorageCategory.SQLITE_DATABASE,
-                bytes=sqlite_bytes,
-                item_count=sqlite_count,
-            ),
-            self._checkpoints_breakdown(),
-        ]
-        for category, dirname in _DIRECTORY_CATEGORIES:
-            dir_bytes, file_count = _safe_dir_size_and_count(data_dir / dirname)
-            categories.append(
-                StorageCategoryBreakdown(
-                    category=category,
-                    bytes=dir_bytes,
-                    item_count=file_count,
-                )
+                category=category,
+                bytes=size.total_bytes,
+                item_count=size.file_count,
+                percentage=round((size.total_bytes / total_storage) * 100, 1) if total_storage > 0 else 0.0,
             )
-
-        total_storage = sum(cat.bytes for cat in categories)
-        categories = [
-            replace(cat, percentage=round((cat.bytes / total_storage) * 100, 1) if total_storage > 0 else 0.0)
-            for cat in categories
+            for category, size in sizes.items()
         ]
 
         return StorageGovernanceReport(
             total_storage_bytes=total_storage,
             disk_total_bytes=disk_total,
             disk_free_bytes=disk_free,
-            disk_used_percentage=disk_used_pct,
+            disk_used_percentage=disk_used_percentage,
             categories=categories,
             snapshots=snapshots or [],
-        )
-
-    def _checkpoints_breakdown(self) -> StorageCategoryBreakdown:
-        """Space of the checkpoint database and its write-ahead log; file sizes only, row counts would scan it."""
-        checkpoint_bytes, file_count = (
-            _database_footprint(self._checkpoints_db) if self._checkpoints_db is not None else (0, 0)
-        )
-        return StorageCategoryBreakdown(
-            category=StorageCategory.CHECKPOINTS,
-            bytes=checkpoint_bytes,
-            item_count=file_count,
         )

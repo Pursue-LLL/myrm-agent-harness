@@ -18,7 +18,11 @@ from enum import StrEnum
 
 
 class StorageCategory(StrEnum):
-    """Categories of persistent state storage."""
+    """Categories of persistent state storage; reports list them in declaration order.
+
+    `OTHER` is not declared by the application: it is whatever the data directory holds that no other category
+    claims, and it stays the last member.
+    """
 
     SQLITE_DATABASE = "sqlite_database"
     CHECKPOINTS = "checkpoints"
@@ -26,6 +30,7 @@ class StorageCategory(StrEnum):
     VECTOR_STORE = "vector_store"
     MEMORY_ARCHIVE = "memory_archive"
     EVENT_LOGS = "event_logs"
+    SQLITE_BACKUPS = "sqlite_backups"
     SNAPSHOTS = "snapshots"
     OTHER = "other"
 
@@ -34,8 +39,8 @@ class StorageCategory(StrEnum):
 class StorageCategoryBreakdown:
     """Breakdown metrics for a specific storage category.
 
-    `item_count` is the number of files behind the category; a database category holds just its database file and
-    its write-ahead log.
+    `bytes` adds up the apparent size of the regular files behind the category and `item_count` counts them; a
+    database category holds just its database file and the journals SQLite keeps beside it.
     """
 
     category: StorageCategory

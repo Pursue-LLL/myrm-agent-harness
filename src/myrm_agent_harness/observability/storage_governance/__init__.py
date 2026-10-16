@@ -2,6 +2,7 @@
 
 [INPUT]
 - Path (POS: root data directory)
+- Mapping[StorageCategory, Iterable[Path]] (POS: where the application keeps each category)
 
 [OUTPUT]
 - StorageGovernanceInspector, StateSnapshotManager
