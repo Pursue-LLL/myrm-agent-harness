@@ -23,7 +23,8 @@ with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory s
 | raw_gate/ | Core | Raw publication gate SSOT: `publish_raw` (FAIL/SKIP/SUPERSEDE/PUT_IF_ABSENT) + `RAW_SUPERSEDE` audit + `evidence_removal` shared re-anchor | ✅ |
 | ingress/ | Core | Browser clip + URL markdown ingress → `publish_raw`; `.wikiignore` patterns — see [ingress/_ARCH.md](ingress/_ARCH.md) | ✅ |
 | corpus_dedup/ | Core | Raw corpus dedup governance: fingerprint scan, disposition, compile eligibility filter — see [corpus_dedup/_ARCH.md](corpus_dedup/_ARCH.md) | ✅ |
-| queue.py | Core | SQLite persistent ingestion queue with retry + stale recovery + compile circuit pause + eligibility filter on enqueue | ✅ |
+| queue.py | Core | SQLite persistent ingestion queue with retry + stale recovery + compile circuit pause + eligibility filter on enqueue; a database's first open in a process requeues what a dead process left processing (see `queue_recovery.py`) | ✅ |
+| queue_recovery.py | Core | `requeue_orphaned_processing`: on a queue database's first open in this process, returns its `processing` rows to `pending` (a process that died mid-compile owns them, nothing works on them); later opens in the same process leave rows alone because they belong to the live worker; assumes one process per vault | ✅ |
 | survey/ | Core | Zero-LLM compile structure survey (facet seeds, chunk sibling groups, fast-path) — see [survey/_ARCH.md](survey/_ARCH.md) | ✅ |
 | resilience/ | Core | Compile failure policy (ErrorKind SSOT), circuit pause/resume, display sanitization — see [resilience/_ARCH.md](resilience/_ARCH.md) | ✅ |
 
@@ -39,4 +40,5 @@ with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory s
 - Concept merging happens serially after all parallel extractions complete (no locks needed)
 - Article paths are unique per concept name, preventing file write conflicts
 - SQLite operations use transactions for atomicity
-- `reset_stale_processing()` recovers items stuck in 'processing' (worker crash resilience)
+- `reset_stale_processing()` recovers items a worker stalled on inside a live process (older than 300 s, run when the worker loop starts)
+- `queue_recovery.requeue_orphaned_processing()` requeues what a dead process left `processing`, once per database per process (the opened-database map is atomic under concurrent opens)

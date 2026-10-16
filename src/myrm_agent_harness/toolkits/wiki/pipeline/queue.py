@@ -6,6 +6,7 @@
 - typing::Literal, TypedDict (POS: standard library types)
 - ..core.structure::WikiStructure (POS: database path retrieval)
 - .resilience::CompileCircuitStore, is_transient_error_kind (POS: compile pause + retry policy)
+- .queue_recovery::requeue_orphaned_processing (POS: requeues rows a dead process left processing)
 
 [OUTPUT]
 - WikiIngestionQueue: SQLite-driven persistent file ingestion queue
@@ -13,8 +14,9 @@
 
 [POS]
 Wiki persistent queue. Queues large volumes of raw files for serial or controlled batch processing,
-with checkpoint recovery, retry mechanism, and status tracking. Solves OOM and API rate-limit issues
-during large-scale knowledge base imports.
+with checkpoint recovery (a database's first open in a process requeues the rows a dead process left
+``processing``), retry mechanism, and status tracking. Solves OOM and API rate-limit issues during
+large-scale knowledge base imports.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from typing import Literal, TypedDict, cast
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 
+from .queue_recovery import requeue_orphaned_processing
 from .resilience import (
     CompileCircuitStore,
     CompileRunSnapshot,
@@ -55,6 +58,7 @@ class WikiIngestionQueue:
         self.db_path = self._structure.base_dir / ".ingestion_queue.db"
         self._circuit = CompileCircuitStore(self.db_path)
         self._init_db()
+        requeue_orphaned_processing(self.db_path, self._get_conn)
 
     @property
     def circuit(self) -> CompileCircuitStore:
