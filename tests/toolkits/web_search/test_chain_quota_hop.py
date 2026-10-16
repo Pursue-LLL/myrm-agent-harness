@@ -1,4 +1,4 @@
-"""Chain quota/rate-limit hop policy tests."""
+"""Chain failover policy tests: quota cooldowns, outage hops and query-independent failure classification."""
 
 from __future__ import annotations
 
@@ -11,15 +11,16 @@ from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     is_retryable_search_error,
 )
 from myrm_agent_harness.toolkits.web_search.core.exceptions import (
+    AllQueriesFailedError,
     ErrorContext,
     SearchAPIError,
 )
+from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
 from myrm_agent_harness.toolkits.web_search.providers import chain as chain_module
 from myrm_agent_harness.toolkits.web_search.providers.chain import (
     _DEFAULT_DEPLETED_COOLDOWN_SECONDS,
     ProviderQuotaStatus,
     ProviderQuotaTracker,
-    _should_stop_chain,
     search_provider_chain,
 )
 from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
@@ -28,17 +29,37 @@ from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
 )
 
 
-def test_quota_error_should_not_stop_chain() -> None:
+def _two_provider_chain() -> list[SearchServiceConfig]:
+    return [
+        SearchServiceConfig(search_service="tavily", api_key="tvly-key"),
+        SearchServiceConfig(search_service="perplexity", api_key="pplx-key"),
+    ]
+
+
+def _install_search(monkeypatch: pytest.MonkeyPatch, failures: dict[str, Exception]) -> list[str]:
+    """Patch ``WebSearcher.search``: providers in ``failures`` raise, the others answer; returns the call log."""
+    calls: list[str] = []
+
+    async def fake_search(
+        self: WebSearcher,
+        query: str,
+        num_results: int = 5,
+        extra_params_override: dict[str, str | int | bool] | None = None,
+    ) -> list[SearchResult]:
+        provider = self.config.search_service
+        calls.append(provider)
+        if provider in failures:
+            raise failures[provider]
+        return [SearchResult(title=provider, link="https://example.com", snippet=query)]
+
+    monkeypatch.setattr(WebSearcher, "search", fake_search)
+    return calls
+
+
+def test_quota_error_skips_intra_hop_retry() -> None:
     exc = Exception("API Error [10406]: quota exhausted")
     assert is_quota_or_rate_limit_error(exc) is True
     assert is_retryable_search_error(exc) is False
-    assert _should_stop_chain(exc) is False
-
-
-def test_timeout_retryable_should_stop_chain() -> None:
-    exc = Exception("Connection timeout")
-    assert is_quota_or_rate_limit_error(exc) is False
-    assert _should_stop_chain(exc) is True
 
 
 def test_search_api_error_context_body_quota_detection() -> None:
@@ -58,7 +79,7 @@ def test_quota_detects_http_status_on_exception() -> None:
     assert is_quota_or_rate_limit_error(exc) is True
 
 
-def test_search_api_error_with_429_body_should_hop() -> None:
+def test_search_api_error_with_429_body_is_rate_limited() -> None:
     ctx = ErrorContext(
         query="q",
         status_code=429,
@@ -67,7 +88,45 @@ def test_search_api_error_with_429_body_should_hop() -> None:
     )
     exc = SearchAPIError("limited", context=ctx)
     assert is_quota_or_rate_limit_error(exc) is True
-    assert _should_stop_chain(exc) is False
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "how to raise aws service quota",
+        "openai usage limit explained",
+        "http 429 too many requests meaning",
+        "what does payment required 402 mean",
+        "what to do when out of credits",
+        "monthly limit vs credit limit vs plan limit",
+    ],
+)
+def test_query_text_never_reads_as_a_quota_or_rate_limit_signal(query: str) -> None:
+    exc = SearchAPIError(
+        "Search request timeout",
+        context=ErrorContext(query=query, error_code="TimeoutError", retryable=True),
+    )
+    assert query not in str(exc)
+    assert is_quota_or_rate_limit_error(exc) is False
+    assert is_persistent_quota_depleted_error(exc) is False
+
+
+def test_provider_reply_still_marks_quota_and_rate_limit() -> None:
+    exhausted = SearchAPIError(
+        "Search request failed: Search service quota exceeded — upgrade your plan or use a different API key",
+        context=ErrorContext(
+            query="weather", status_code=432, response_body="This request exceeds your plan's set usage limit"
+        ),
+    )
+    assert is_persistent_quota_depleted_error(exhausted) is True
+    assert is_quota_or_rate_limit_error(exhausted) is True
+
+    throttled = SearchAPIError(
+        "Search request failed: Search service rate limit exceeded (429 Too Many Requests)",
+        context=ErrorContext(query="weather", status_code=429),
+    )
+    assert is_quota_or_rate_limit_error(throttled) is True
+    assert is_persistent_quota_depleted_error(throttled) is False
 
 
 def test_persistent_quota_depleted_distinction() -> None:
@@ -161,22 +220,10 @@ def test_rate_limited_provider_recovers_after_cooldown(fake_clock: _FakeClock) -
 async def test_chain_probes_depleted_primary_again_after_cooldown(
     fake_clock: _FakeClock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    chain = [
-        SearchServiceConfig(search_service="tavily", api_key="tvly-key"),
-        SearchServiceConfig(search_service="perplexity", api_key="pplx-key"),
-    ]
+    chain = _two_provider_chain()
     tracker = ProviderQuotaTracker()
     tracker.mark_depleted("tavily", reason="plan limit exceeded")
-
-    async def fake_search(
-        self: WebSearcher,
-        query: str,
-        num_results: int = 5,
-        extra_params_override: dict[str, str | int | bool] | None = None,
-    ) -> list[SearchResult]:
-        return [SearchResult(title=self.config.search_service, link="https://example.com", snippet=query)]
-
-    monkeypatch.setattr(WebSearcher, "search", fake_search)
+    _install_search(monkeypatch, {})
 
     _, winner = await search_provider_chain(chain, "q", 5, quota_tracker=tracker)
     assert winner == "perplexity"
@@ -184,6 +231,101 @@ async def test_chain_probes_depleted_primary_again_after_cooldown(
     fake_clock.advance(_DEFAULT_DEPLETED_COOLDOWN_SECONDS)
     _, winner = await search_provider_chain(chain, "q", 5, quota_tracker=tracker)
     assert winner == "tavily"
+
+
+_OUTAGE_FAILURES = {
+    "http_502": SearchAPIError(
+        "Search service unavailable (502 Bad Gateway)", ErrorContext(status_code=502, retryable=True)
+    ),
+    "http_503": SearchAPIError(
+        "Search service temporarily unavailable (503 Service Unavailable)",
+        ErrorContext(status_code=503, retryable=True),
+    ),
+    "http_504": SearchAPIError(
+        "Search service timeout (504 Gateway Timeout)", ErrorContext(status_code=504, retryable=True)
+    ),
+    "request_timeout": SearchAPIError(
+        "Search request timeout", ErrorContext(error_code="TimeoutError", retryable=True)
+    ),
+    "cannot_connect": SearchAPIError(
+        "Cannot connect to search service", ErrorContext(error_code="ConnectionError", retryable=True)
+    ),
+    "bare_timeout": TimeoutError("Request timed out"),
+    "bare_connection_refused": ConnectionError("Connection refused"),
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", _OUTAGE_FAILURES.values(), ids=_OUTAGE_FAILURES.keys())
+async def test_chain_hops_past_a_provider_outage(monkeypatch: pytest.MonkeyPatch, failure: Exception) -> None:
+    calls = _install_search(monkeypatch, {"tavily": failure})
+    tracker = ProviderQuotaTracker()
+    metrics = WebSearchMetrics()
+
+    _, winner = await search_provider_chain(_two_provider_chain(), "weather", 5, metrics=metrics, quota_tracker=tracker)
+
+    assert winner == "perplexity"
+    assert calls == ["tavily", "perplexity"]
+    assert metrics.chain_hop_count == 1
+    # An outage is not a quota event: the provider stays eligible for the very next call.
+    assert tracker.get_status("tavily") == (ProviderQuotaStatus.HEALTHY, "")
+
+
+@pytest.mark.asyncio
+async def test_chain_fails_after_trying_every_provider_during_a_full_outage(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _install_search(
+        monkeypatch,
+        {"tavily": TimeoutError("Request timed out"), "perplexity": ConnectionError("Connection refused")},
+    )
+    metrics = WebSearchMetrics()
+
+    with pytest.raises(AllQueriesFailedError):
+        await search_provider_chain(
+            _two_provider_chain(), "weather", 5, metrics=metrics, quota_tracker=ProviderQuotaTracker()
+        )
+
+    assert calls == ["tavily", "perplexity"]
+    assert metrics.chain_hop_count == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "query",
+    ["how to raise aws service quota", "http 429 too many requests meaning", "out of credits meaning"],
+)
+async def test_outage_on_a_keyword_query_does_not_blacklist_the_provider(
+    monkeypatch: pytest.MonkeyPatch, query: str
+) -> None:
+    timeout = SearchAPIError(
+        "Search request timeout", ErrorContext(query=query, error_code="TimeoutError", retryable=True)
+    )
+    failures: dict[str, Exception] = {"tavily": timeout}
+    _install_search(monkeypatch, failures)
+    tracker = ProviderQuotaTracker()
+
+    await search_provider_chain(_two_provider_chain(), query, 5, quota_tracker=tracker)
+    assert tracker.get_status("tavily") == (ProviderQuotaStatus.HEALTHY, "")
+
+    failures.clear()  # the outage ends; an unrelated query must reach the primary again
+    _, winner = await search_provider_chain(_two_provider_chain(), "weather", 5, quota_tracker=tracker)
+    assert winner == "tavily"
+
+
+@pytest.mark.asyncio
+async def test_quota_failure_still_puts_the_provider_on_cooldown(monkeypatch: pytest.MonkeyPatch) -> None:
+    exhausted = SearchAPIError(
+        "Search request failed: Search service quota exceeded — upgrade your plan or use a different API key",
+        ErrorContext(
+            query="weather", status_code=432, response_body="This request exceeds your plan's set usage limit"
+        ),
+    )
+    _install_search(monkeypatch, {"tavily": exhausted})
+    tracker = ProviderQuotaTracker()
+
+    _, winner = await search_provider_chain(_two_provider_chain(), "weather", 5, quota_tracker=tracker)
+
+    assert winner == "perplexity"
+    assert tracker.get_status("tavily")[0] == ProviderQuotaStatus.DEPLETED
 
 
 def test_browser_run_telemetry_bandwidth_and_watchdog() -> None:

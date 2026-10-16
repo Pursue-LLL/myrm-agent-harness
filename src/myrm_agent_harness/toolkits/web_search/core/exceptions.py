@@ -51,9 +51,9 @@ class SearchAPIError(WebSearchError):
         self.context = context or ErrorContext()
 
     def __str__(self) -> str:
+        # The user's query stays out of this text: error classifiers match quota / rate-limit markers against it, and
+        # a query such as "how to raise an API quota" must never read as a provider failure signal.
         parts = [self.message]
-        if self.context.query:
-            parts.append(f"query={self.context.query}")
         if self.context.status_code:
             parts.append(f"status={self.context.status_code}")
         if self.context.error_code:

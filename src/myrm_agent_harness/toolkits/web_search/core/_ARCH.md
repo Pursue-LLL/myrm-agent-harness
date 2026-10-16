@@ -9,7 +9,7 @@ Shared data models, exception hierarchy, error classification, and in-process me
 |------|------|-------------|-------|
 | __init__.py | Package | Re-exports common types, exceptions, error helpers, metrics | ✅ |
 | common.py | Core | SearchResult and Citation data models | ✅ |
-| exceptions.py | Core | Web search exception hierarchy with format_for_llm | ✅ |
+| exceptions.py | Core | Web search exception hierarchy with format_for_llm; SearchAPIError text carries status and code but never the user query, so classifiers cannot read the query as a failure signal | ✅ |
 | error_handling.py | Core | Search failure classification and ErrorContext SSOT | ✅ |
 | metrics.py | Core | Thread-safe in-process search counters with per-provider quota telemetry | ✅ |
 

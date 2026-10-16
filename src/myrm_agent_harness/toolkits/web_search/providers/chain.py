@@ -2,7 +2,7 @@
 
 [INPUT]
 - myrm_agent_harness.toolkits.web_search.providers.web_searcher::WebSearcher (POS: Web search orchestrator)
-- myrm_agent_harness.toolkits.web_search.core.error_handling::is_quota_or_rate_limit_error, is_persistent_quota_depleted_error, is_retryable_search_error
+- myrm_agent_harness.toolkits.web_search.core.error_handling::is_quota_or_rate_limit_error, is_persistent_quota_depleted_error
 
 [OUTPUT]
 - ProviderQuotaStatus: Enum of provider health states
@@ -27,7 +27,6 @@ from typing import TYPE_CHECKING
 from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     is_persistent_quota_depleted_error,
     is_quota_or_rate_limit_error,
-    is_retryable_search_error,
 )
 from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     AllQueriesFailedError,
@@ -127,15 +126,6 @@ class ProviderQuotaTracker:
 default_quota_tracker = ProviderQuotaTracker()
 
 
-def _should_stop_chain(exc: BaseException) -> bool:
-    """Return True when chain must not advance to the next provider."""
-    if is_quota_or_rate_limit_error(exc):
-        return False
-    if isinstance(exc, SearchAPIError) and exc.context is not None:
-        return exc.context.retryable
-    return is_retryable_search_error(exc)
-
-
 async def search_provider_chain(
     chain: list[SearchServiceConfig],
     query: str,
@@ -146,6 +136,9 @@ async def search_provider_chain(
     quota_tracker: ProviderQuotaTracker | None = None,
 ) -> tuple[list[SearchResult], str]:
     """Search using a priority-ordered provider chain with intelligent quota auto-skip.
+
+    Any failed hop (quota, rate limit, outage, bad credentials) advances to the next provider until the chain's
+    wall-clock budget is spent; only quota and rate-limit failures also put the provider on a cooldown.
 
     Returns:
         Tuple of (results, winning provider slug).
@@ -194,11 +187,6 @@ async def search_provider_chain(
                     from_provider=execution_chain[index - 1].search_service,
                     to_provider=provider,
                 )
-                if metrics is not None:
-                    metrics.record_chain_hop(
-                        from_provider=execution_chain[index - 1].search_service,
-                        to_provider=provider,
-                    )
             return results, provider
         except Exception as exc:
             last_error = exc
@@ -211,8 +199,6 @@ async def search_provider_chain(
                     exc,
                 )
                 tracker.mark_depleted(provider, reason=str(exc))
-                if metrics is not None:
-                    metrics.record_provider_search(provider, success=False, quota_exceeded=True)
             elif is_quota_or_rate_limit_error(exc):
                 logger.warning(
                     "Search provider '%s' transient rate limit hit, cooling down: %s",
@@ -220,16 +206,7 @@ async def search_provider_chain(
                     exc,
                 )
                 tracker.mark_rate_limited(provider, reason=str(exc))
-                if metrics is not None:
-                    metrics.record_provider_search(provider, success=False, quota_exceeded=False)
 
-            if _should_stop_chain(exc):
-                logger.warning(
-                    "Search chain hop '%s' failed with retryable error, not advancing chain: %s",
-                    provider,
-                    exc,
-                )
-                break
             if index < len(execution_chain) - 1:
                 next_provider = execution_chain[index + 1].search_service
                 logger.warning(
@@ -242,8 +219,6 @@ async def search_provider_chain(
                         from_provider=provider,
                         to_provider=next_provider,
                     )
-                continue
-            break
 
     message = str(last_error) if last_error is not None else "All search providers in chain failed"
     raise AllQueriesFailedError(message) from last_error
