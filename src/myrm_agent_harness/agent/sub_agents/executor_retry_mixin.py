@@ -119,6 +119,8 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
         """Execute subagent with retry logic and workspace isolation."""
         retries_left = config.max_retries
         backoff_seconds = config.retry_backoff_seconds
+        # A failed attempt's streamed text is the parent's tool result: twice the error budget at most.
+        partial_budget = config.max_error_chars * 2
 
         if steering_token is None:
             steering_token = SteeringToken()
@@ -228,9 +230,7 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         backoff_seconds *= 2
                         continue
                     now = time.time()
-                    partial = read_partial_output(timeout_exc)
-                    if partial and len(partial) > (config.max_error_chars * 2):
-                        partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
+                    partial = read_partial_output(timeout_exc, partial_budget)
                     return SubAgentResult(
                         success=False,
                         task_id=task_id,
@@ -256,9 +256,7 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         backoff_seconds *= 2
                         continue
                     now = time.time()
-                    partial = read_partial_output(llm_exc)
-                    if partial and len(partial) > (config.max_error_chars * 2):
-                        partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
+                    partial = read_partial_output(llm_exc, partial_budget)
                     err_result = SubAgentResult(
                         success=False,
                         task_id=task_id,
@@ -284,9 +282,7 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                     return err_result
                 except SubagentBudgetExceededError as error:
                     now = time.time()
-                    partial = read_partial_output(error)
-                    if partial and len(partial) > (config.max_error_chars * 2):
-                        partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
+                    partial = read_partial_output(error, partial_budget)
                     err_result = SubAgentResult(
                         success=False,
                         task_id=task_id,
@@ -325,9 +321,7 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         continue
                     now = time.time()
                     raw_error = f"{type(error).__name__}: {error}"
-                    partial = read_partial_output(error)
-                    if partial and len(partial) > (config.max_error_chars * 2):
-                        partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
+                    partial = read_partial_output(error, partial_budget)
                     err_result = SubAgentResult(
                         success=False,
                         task_id=task_id,

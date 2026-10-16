@@ -10,7 +10,7 @@
 [OUTPUT]
 - _filter_fork_messages, _estimate_msg_tokens: fork context filtering
 - _cascade_cancel_descendants: cascade cancellation
-- attach_partial_output, read_partial_output: carry the text a failed attempt streamed from the attempt to the retry loop on the exception
+- attach_partial_output, read_partial_output: carry the text a failed attempt streamed from the attempt to the retry loop on the exception; the reader cuts an oversized text to a character budget
 - _compact_error_message, _auto_vault_or_truncate: oversized result vault (parent workspace under ISOLATED_COPY), inline artifact, file_read_tool recovery hint
 - _parse_handover_state: handover block parsing
 
@@ -136,6 +136,7 @@ _ERROR_HEAD_RATIO = 0.6
 
 
 _PARTIAL_OUTPUT_ATTR = "partial_output"
+_PARTIAL_OUTPUT_CUT_MARKER = "\n…[truncated]"
 
 
 def attach_partial_output(error: BaseException, text: str) -> None:
@@ -144,10 +145,15 @@ def attach_partial_output(error: BaseException, text: str) -> None:
         setattr(error, _PARTIAL_OUTPUT_ATTR, text)
 
 
-def read_partial_output(error: BaseException) -> str:
-    """Return the answer text recorded by :func:`attach_partial_output`, or ``""``."""
+def read_partial_output(error: BaseException, max_chars: int) -> str:
+    """Return the answer text recorded by :func:`attach_partial_output`, or ``""``.
+
+    The text becomes the parent model's tool result, so one longer than ``max_chars`` is cut to its head
+    (where the answer starts) and marked.
+    """
     value = getattr(error, _PARTIAL_OUTPUT_ATTR, "")
-    return value if isinstance(value, str) else ""
+    text = value if isinstance(value, str) else ""
+    return text if len(text) <= max_chars else text[:max_chars] + _PARTIAL_OUTPUT_CUT_MARKER
 
 
 def _compact_error_message(error_str: str, max_chars: int) -> str:
