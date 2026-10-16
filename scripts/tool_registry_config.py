@@ -101,7 +101,6 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
         "create_goal_tools",
         "create_memory_tools",
         "create_submit_verdict_tool",
-        "create_mobile_adb_tools",
         "create_wiki_admin_tools",
         "create_restricted_ax_browser_tools",
         # Landed selectively-wired: exposed via public api for callers that

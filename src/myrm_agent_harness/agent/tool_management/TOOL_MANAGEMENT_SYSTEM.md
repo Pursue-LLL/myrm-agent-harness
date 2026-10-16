@@ -149,9 +149,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `kanban_revise_plan` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_show` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_unblock` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
-| `mobile_global_tool` | EXTENDED | user_capability | — | Opt-in Turn1; see product switch |
-| `mobile_interact_tool` | EXTENDED | user_capability | — | Opt-in Turn1; see product switch |
-| `mobile_snapshot_tool` | EXTENDED | user_capability | — | Opt-in Turn1; see product switch |
 | `refetch_historical_turn` | EXTENDED | user_capability | — | Opt-in Turn1; see product switch |
 | `request_answer_user_tool` | EXTENDED | user_capability | answer_tool | enabled_builtin_tools: answer_tool |
 | `send_teammate_message_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |

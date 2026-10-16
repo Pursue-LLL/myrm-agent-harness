@@ -122,8 +122,6 @@ CHANNEL_PRESETS: dict[ChannelType, ChannelSecurityPreset] = {
         ruleset=(
             PermissionRule("desktop_capture", "*", PermissionAction.DENY),
             PermissionRule("desktop_control", "*", PermissionAction.DENY),
-            PermissionRule("mobile_capture", "*", PermissionAction.DENY),
-            PermissionRule("mobile_control", "*", PermissionAction.DENY),
         ),
     ),
 }

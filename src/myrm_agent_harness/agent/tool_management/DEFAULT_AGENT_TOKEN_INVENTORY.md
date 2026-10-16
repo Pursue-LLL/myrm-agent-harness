@@ -202,8 +202,6 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 | 78 | desktop_interact_tool | 40 | `harness/toolkits/computer_use/desktop_agent_tools.py` | @dref 语义交互（含 set_value） |
 | 79 | desktop_vision_tool | 69 | `harness/toolkits/computer_use/desktop_agent_tools.py` | 显式截图/坐标回退 |
 
-移动端镜像工具（`harness/toolkits/mobile_adb/mobile_agent_tools.py`，仅 macOS + 启用 iPhone Mirroring 场景加载）：`mobile_snapshot_tool` / `mobile_interact_tool` / `mobile_global_tool`。
-
 ### 4.18 内部分类（非 LLM 工具，默认 GeneralAgent Turn1 = 0 token）
 
 编排信号与 runtime hook **不是 LLM 工具**，不在 `_TOOL_LAYERS`。SSOT：`agent/orchestration/`。LLM 工具清单见 `TOOL_MANAGEMENT_SYSTEM.md` 自动生成表。

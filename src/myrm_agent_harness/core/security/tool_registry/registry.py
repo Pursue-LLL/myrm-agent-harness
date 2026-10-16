@@ -110,9 +110,6 @@ TOOL_PERMISSION_MAP: dict[str, str] = {
     "desktop_snapshot_tool": "desktop_capture",
     "desktop_interact_tool": "desktop_control",
     "desktop_vision_tool": "desktop_control",
-    "mobile_snapshot_tool": "mobile_capture",
-    "mobile_interact_tool": "mobile_control",
-    "mobile_global_tool": "mobile_control",
     "wiki_query_tool": "knowledge_read",
     "wiki_apply_tool": "knowledge_write",
     "wiki_ingest_tool": "knowledge_write",
@@ -135,9 +132,6 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "desktop_snapshot_tool",
         "desktop_interact_tool",
         "desktop_vision_tool",
-        "mobile_snapshot_tool",
-        "mobile_interact_tool",
-        "mobile_global_tool",
         "complete_goal_tool",
         "ask_question_tool",
         "bash_process_tool",
@@ -255,7 +249,6 @@ RULESET_COVERAGE_WHITELIST: dict[str, str] = {
     "browser_read": "read_only",  # browser_inspect/snapshot/extract — pure page reads
     "desktop_capture": "channel_guarded",  # desktop screenshots — local GUI only, excluded from IM/CRON by capability fence
     "net_fetch": "read_only",  # web_fetch_tool — SSRF-guarded at the sandbox layer
-    "mobile_capture": "channel_guarded",  # Android screen hierarchy reads — local ADB transport, fenced off IM/CRON
 }
 
 # ---------------------------------------------------------------------------
@@ -303,13 +296,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "desktop_snapshot_tool",
             "desktop_interact_tool",
             "desktop_vision_tool",
-        }
-    ),
-    "mobile": frozenset(
-        {
-            "mobile_snapshot_tool",
-            "mobile_interact_tool",
-            "mobile_global_tool",
         }
     ),
     "memory": frozenset(
@@ -410,9 +396,6 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
         "scroll_direction",
         "start_coordinate",
     ],
-    "mobile_snapshot_tool": ["include_screenshot", "target"],
-    "mobile_interact_tool": ["ref", "action", "text"],
-    "mobile_global_tool": ["action", "param"],
     "ask_question_tool": [],
     "complete_goal_tool": [],
     "cron_manage_tool": ["action", "job_id", "name_filter"],

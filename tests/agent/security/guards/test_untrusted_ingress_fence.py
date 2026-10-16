@@ -177,14 +177,11 @@ async def test_batch_processor_denies_destructive_tools_under_yolo_untrusted_ing
 
 
 def test_cross_modal_and_subagent_tools_blocked_under_untrusted_ingress():
-    """Verify that desktop control, mobile ADB, subagent delegation, cron, and skill tools are blocked."""
+    """Verify that desktop control, subagent delegation, cron, and skill tools are blocked."""
     high_risk_tools = [
         "desktop_interact_tool",
         "desktop_vision_tool",
         "desktop_snapshot_tool",
-        "mobile_interact_tool",
-        "mobile_global_tool",
-        "mobile_snapshot_tool",
         "delegate_task_tool",
         "subagent_control_tool",
         "invoke_acp_agent_tool",
@@ -200,7 +197,6 @@ def test_skill_manage_and_screen_capture_blocked_under_untrusted_ingress():
     tools = [
         "skill_manage_tool",
         "desktop_snapshot_tool",
-        "mobile_snapshot_tool",
     ]
     for tool in tools:
         assert not is_tool_allowed_under_untrusted_ingress(tool), f"Tool {tool} should be blocked"

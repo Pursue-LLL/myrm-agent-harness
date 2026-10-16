@@ -207,21 +207,6 @@
   {
     "layer": "EXTENDED",
     "layer_value": 3,
-    "name": "mobile_global_tool"
-  },
-  {
-    "layer": "EXTENDED",
-    "layer_value": 3,
-    "name": "mobile_interact_tool"
-  },
-  {
-    "layer": "EXTENDED",
-    "layer_value": 3,
-    "name": "mobile_snapshot_tool"
-  },
-  {
-    "layer": "EXTENDED",
-    "layer_value": 3,
     "name": "refetch_historical_turn"
   },
   {

@@ -104,10 +104,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "desktop_snapshot_tool": ToolLayer.EXTENDED,
     "desktop_interact_tool": ToolLayer.EXTENDED,
     "desktop_vision_tool": ToolLayer.EXTENDED,
-    # --- 移动端真机自动化工具 (SSOT: mobile_adb) ---
-    "mobile_snapshot_tool": ToolLayer.EXTENDED,
-    "mobile_interact_tool": ToolLayer.EXTENDED,
-    "mobile_global_tool": ToolLayer.EXTENDED,
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
     # --- Goal / planning 工具 ---
@@ -226,7 +222,6 @@ _TOOL_REPLAY_SAFETY: dict[str, ReplaySafety] = {
     "browser_snapshot_tool": ReplaySafety.SAFE,
     "desktop_snapshot_tool": ReplaySafety.SAFE,
     "desktop_vision_tool": ReplaySafety.SAFE,
-    "mobile_snapshot_tool": ReplaySafety.SAFE,
     "kanban_show": ReplaySafety.SAFE,
     "kanban_list_tasks": ReplaySafety.SAFE,
 }
