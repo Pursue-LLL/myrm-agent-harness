@@ -314,7 +314,7 @@ Level 4: parent LLM (继承父 agent 的 LLM，兜底)
 当 `timeout_seconds` 显式设为正整数（≥ 30）时，启用两级超时：
 
 - **等待超时 (wait timeout)**：`config.timeout_seconds`，超时后返回 `SubAgentResult(status=TIMED_OUT, still_running=True)`，子 agent **继续后台运行**，不做 cancel。
-- **硬安全超时 (hard safety timeout)**：`config.timeout_seconds * 3`，作为最终安全网终止真正的 runaway agent；到期后结果为 `SubAgentResult(status=TIMED_OUT, error="Hard timeout after Ns")`（不带 `still_running`），而不是 `cancelled`。
+- **硬安全超时 (hard safety timeout)**：`config.timeout_seconds * 3`，作为最终安全网终止真正的 runaway agent；到期后结果为 `SubAgentResult(status=TIMED_OUT, error="Hard timeout after Ns")`（不带 `still_running`），而不是 `cancelled`；执行器在到期瞬间自己给出的失败或成功结果原样保留。
 - **LLM 决策权**：超时后 Parent Agent 可选择等待（`subagent_control_tool action=list`）、做别的事、或主动 cancel。
 - **`still_running` 字段**：`SubAgentResult.still_running: bool` 为 True 表示 agent 仍在后台运行。
 

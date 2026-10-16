@@ -114,8 +114,8 @@ class SubagentSpawnMixin:
                 async with asyncio.timeout(hard_timeout) as deadline:
                     result = await inner_coro
                 # The executor answers the deadline's cancellation with a CANCELLED result instead of raising,
-                # so an expired deadline is read from the deadline itself; a finished success is kept.
-                if result.success or not deadline.expired():
+                # so only a CANCELLED result under an expired deadline is a timeout; any other result is kept.
+                if not (deadline.expired() and result.status is SubAgentStatus.CANCELLED):
                     return result
             except TimeoutError:
                 pass

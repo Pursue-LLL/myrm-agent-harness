@@ -377,3 +377,33 @@ async def test_a_run_killed_by_the_hard_timeout_reports_timed_out_while_its_hook
         HookEvent.SUBAGENT_STOP,
     ]
     assert hooks[2][1]["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_a_genuine_failure_reported_at_the_deadline_is_not_replaced_by_a_timeout() -> None:
+    """Only a run the executor reports as cancelled becomes timed out; its own failure stays as it is."""
+    config = _config()
+    object.__setattr__(config, "timeout_seconds", 0.25)
+
+    async def fail_when_the_deadline_cancels(*_: object, **__: object) -> SubAgentResult:
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            return _FAILED_RETURN
+        raise AssertionError("the deadline never cancelled the run")
+
+    with (
+        patch("myrm_agent_harness.agent.hooks.graceful_shutdown.get_shutdown_manager"),
+        patch.object(SubagentManager, "_run_subagent_core", fail_when_the_deadline_cancels),
+    ):
+        manager = SubagentManager(parent_agent=MagicMock())
+        result = await manager._run_subagent(
+            task_id="stop-pair",
+            agent_type="worker",
+            task_description="task",
+            config=config,
+            context={},
+            tool_registry_getter=lambda: [],
+        )
+
+    assert result is _FAILED_RETURN
