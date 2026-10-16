@@ -28,7 +28,7 @@ Detailed design: [EVENT_LOG_SYSTEM.md](EVENT_LOG_SYSTEM.md)
 
 | Submodule | Description |
 |-----------|-------------|
-| backends/ | Event log backends — built-in storage implementations. |
+| backends/ | Event log backends — built-in storage implementations (JSONL file: append, read, age-based cleanup, per-session removal). |
 | dataset_export/ | Export pipeline — convert traces to ShareGPT/Alpaca/OpenAI JSONL with PII redaction, quality filtering, and dedup. |
 
 ## Key Dependencies

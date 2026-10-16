@@ -10,6 +10,7 @@
 2. **可选注入**：通过 `event_log_backend` 注入 BaseAgent，未配置时零开销
 3. **读侧分析**：analytics / trace_builder 供会话追踪、统计分析与数据集导出消费
 4. **导出管道**：dataset_export 支持 ShareGPT/Alpaca/OpenAI JSONL + PII 脱敏
+5. **会话级生命周期**：`FileEventLogBackend` 每个会话一个 `{session_id}.jsonl`。按时间老化由 `cleanup_old_logs` 负责；业务层在会话被永久删除时调用 `remove_session_log` 立即删除该会话的文件（会话标识解析到日志目录之外时拒绝）。事件日志含完整提示词与工具结果，是否为某类会话创建后端由业务层决定（不注入 `event_log_backend` 即不落盘）
 
 ---
 
@@ -40,7 +41,7 @@ BaseAgent.run()
 | `logger.py` | 集成 façade，注入 BaseAgent |
 | `types.py` / `trace_types.py` | 事件 DTO SSOT |
 | `trace_builder.py` | LLM 调用时间线重建 + tool_call_id 血缘配对（配对/LLM/tasks_steps 逻辑由 `_pairing.py`/`_llm.py`/`_tasks_steps.py` 承载，共享工具函数与 `_EVENT_META_KEYS` 元数据键集合在 `_common.py`） |
-| `backends/` | 内置存储实现（文件/内存） |
+| `backends/` | 内置存储实现（JSONL 文件：追加、读取、按时间老化清理、按会话删除） |
 | `dataset_export/` | 训练数据导出管道 |
 | `cli_summary.py` | CLI 摘要生成 |
 

@@ -203,3 +203,53 @@ async def test_file_backend_cleanup_old_logs(tmp_path: Path) -> None:
     assert deleted == 1
     assert not log_path.exists()
 
+
+def _first_event(session_id: str) -> StructuredEvent:
+    return StructuredEvent(
+        sequence=1,
+        timestamp=time.time(),
+        event_type="test",
+        session_id=session_id,
+        data=EventPayload(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_file_backend_remove_session_log_deletes_only_that_session(tmp_path: Path) -> None:
+    keep = FileEventLogBackend(log_dir=tmp_path, session_id="keep")
+    gone = FileEventLogBackend(log_dir=tmp_path, session_id="gone")
+    await keep.append([_first_event("keep")])
+    await gone.append([_first_event("gone")])
+
+    assert await gone.remove_session_log("gone") is True
+    assert gone.get_session_log_path("gone") is None
+    assert keep.get_session_log_path("keep") is not None
+
+    # A session without a log file is not an error.
+    assert await gone.remove_session_log("gone") is False
+    assert await gone.remove_session_log("never-existed") is False
+
+
+@pytest.mark.asyncio
+async def test_file_backend_remove_session_log_lets_the_same_session_start_over(tmp_path: Path) -> None:
+    backend = FileEventLogBackend(log_dir=tmp_path, session_id="reused")
+    await backend.append([_first_event("reused")])
+    assert await backend.remove_session_log("reused") is True
+
+    # The dedup watermark is reset with the file, so sequence 1 is written again instead of being skipped.
+    await backend.append([_first_event("reused")])
+    assert len(await backend.get_events("reused")) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("session_id", ["../outside", "nested/dir", "/abs/path"])
+async def test_file_backend_remove_session_log_rejects_ids_leaving_the_log_dir(tmp_path: Path, session_id: str) -> None:
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    outside = tmp_path / "outside.jsonl"
+    outside.write_text("keep me", encoding="utf-8")
+    backend = FileEventLogBackend(log_dir=log_dir, session_id="s")
+
+    with pytest.raises(ValueError, match="outside the log directory"):
+        await backend.remove_session_log(session_id)
+    assert outside.read_text(encoding="utf-8") == "keep me"
