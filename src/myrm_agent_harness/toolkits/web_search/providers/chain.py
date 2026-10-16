@@ -219,7 +219,7 @@ async def search_provider_chain(
                     provider,
                     exc,
                 )
-                tracker.mark_rate_limited(provider, cooldown_seconds=5.0, reason=str(exc))
+                tracker.mark_rate_limited(provider, reason=str(exc))
                 if metrics is not None:
                     metrics.record_provider_search(provider, success=False, quota_exceeded=False)
 
