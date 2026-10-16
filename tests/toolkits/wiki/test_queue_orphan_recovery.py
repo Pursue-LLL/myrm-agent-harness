@@ -6,7 +6,7 @@ import sys
 import textwrap
 import threading
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -142,6 +142,31 @@ def test_threads_opening_one_database_at_once_sweep_it_exactly_once(
         thread.join()
 
     assert len(sweeps) == 1
+
+
+@contextmanager
+def _connection_to(database: Path) -> Iterator[sqlite3.Connection]:
+    conn = sqlite3.connect(database)
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_a_sweep_that_failed_is_tried_again_by_the_next_open(tmp_path: Path) -> None:
+    database = tmp_path / "queue.db"
+    with _connection_to(database) as conn:
+        conn.execute("CREATE TABLE ingestion_queue (status TEXT, updated_at TEXT)")
+        conn.execute("INSERT INTO ingestion_queue (status) VALUES ('processing')")
+
+    def locked() -> AbstractContextManager[sqlite3.Connection]:
+        raise sqlite3.OperationalError("database is locked")
+
+    with pytest.raises(sqlite3.OperationalError):
+        requeue_orphaned_processing(database, locked)
+
+    assert requeue_orphaned_processing(database, lambda: _connection_to(database)) == 1
 
 
 @pytest.mark.asyncio

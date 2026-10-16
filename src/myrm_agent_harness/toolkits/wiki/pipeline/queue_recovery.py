@@ -9,11 +9,10 @@
 
 [POS]
 Only the worker of the process that owns a vault marks sources ``processing``. A row still marked so when this
-process first opens the database was left by a process that died: nothing is working on it, yet it keeps the
-page on "compiling" and blocks maintenance (the 300 s stale reset only frees rows older than that). Requeued rows
-are compiled again by the background worker the archiver starts, like any other pending row. Later opens of the
-same database in this process (a new archiver after a model switch) must leave the rows alone, they belong to the
-live worker. Assumes one process per vault, as the kanban boot recovery does.
+process first opens the database was left by a process that died: nothing works on it, yet it keeps the page on
+"compiling" and blocks maintenance (the 300 s stale reset frees only older rows). The archiver's background worker
+compiles requeued rows like any pending row. Later opens of the same database in this process (a new archiver after
+a model switch) leave them alone, they belong to the live worker. One process per vault, as in kanban boot recovery.
 """
 
 from __future__ import annotations
@@ -39,13 +38,20 @@ def requeue_orphaned_processing(
     Returns:
         How many rows were requeued; 0 on every later open.
     """
+    key = str(db_path.resolve())
     token = object()
-    if _OPENED_DATABASES.setdefault(str(db_path.resolve()), token) is not token:
+    if _OPENED_DATABASES.setdefault(key, token) is not token:
         return 0
-    with get_conn() as conn:
-        requeued = conn.execute(
-            "UPDATE ingestion_queue SET status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE status = 'processing'"
-        ).rowcount
+    try:
+        with get_conn() as conn:
+            requeued = conn.execute(
+                "UPDATE ingestion_queue SET status = 'pending', updated_at = CURRENT_TIMESTAMP "
+                "WHERE status = 'processing'"
+            ).rowcount
+    except Exception:
+        # A sweep that failed leaves the database unswept: the next open has to try again.
+        _OPENED_DATABASES.pop(key, None)
+        raise
     if requeued:
         logger.warning("Requeued %d wiki source(s) a previous process left half-compiled in %s", requeued, db_path)
     return int(requeued)
