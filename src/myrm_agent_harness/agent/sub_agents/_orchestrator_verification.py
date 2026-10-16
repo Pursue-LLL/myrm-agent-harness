@@ -39,6 +39,7 @@ from myrm_agent_harness.agent.sub_agents._verifier_round import (
     verify_worker_output,
 )
 from myrm_agent_harness.agent.sub_agents._workspace_diff import take_workspace_snapshot
+from myrm_agent_harness.agent.sub_agents.result_output import SubAgentOutput
 from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
     SubAgentResult,
@@ -93,7 +94,7 @@ def _format_worker_output_for_verifier(result: object) -> str:
     return str(result)
 
 
-def _append_verification_block(result: object, block: str) -> object:
+def _append_verification_block(result: SubAgentOutput, block: str) -> SubAgentOutput:
     """Append verification evidence while preserving dict merge metadata."""
     if isinstance(result, dict):
         updated = dict(result)

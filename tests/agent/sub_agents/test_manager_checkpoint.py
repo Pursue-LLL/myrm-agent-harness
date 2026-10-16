@@ -1,9 +1,8 @@
-"""Tests for SubagentManager checkpoint and resume capabilities."""
+"""Tests for SubagentManager checkpoint capabilities."""
 
 from __future__ import annotations
 
 import asyncio
-import time
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -12,7 +11,6 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.base_agent import BaseAgent
-from myrm_agent_harness.agent.sub_agents.checkpoint.saver import SubagentCheckpoint, SubagentCheckpointStorage
 from myrm_agent_harness.agent.sub_agents.manager import SubagentManager
 from myrm_agent_harness.agent.sub_agents.types import (
     CancellationStrategy,
@@ -202,69 +200,6 @@ class TestCreateCheckpointAsync:
         assert cp.last_tool == "web_search"
         assert cp.resumable is True
         assert len(cp.messages) == 1
-
-
-# =========================================================================
-# resume_from_checkpoint
-# =========================================================================
-
-
-class TestResumeFromCheckpoint:
-    @pytest.mark.asyncio
-    async def test_raises_when_no_checkpoint(self, tmp_path) -> None:
-        manager = _make_manager()
-        manager._checkpoint_storage = SubagentCheckpointStorage(storage_path=tmp_path / "ckpts")
-        with pytest.raises(ValueError, match="No checkpoint found"):
-            await manager.resume_from_checkpoint("no-such-task")
-
-    @pytest.mark.asyncio
-    async def test_raises_when_not_resumable(self, tmp_path) -> None:
-        manager = _make_manager()
-        storage = SubagentCheckpointStorage(storage_path=tmp_path / "ckpts")
-        manager._checkpoint_storage = storage
-        manager._checkpoint_manager._storage = storage
-
-        cp = SubagentCheckpoint(
-            task_id="task-x", agent_type="coder", session_id="s1", timestamp=time.time(), resumable=False
-        )
-        await storage.save(cp)
-
-        with pytest.raises(ValueError, match="not resumable"):
-            await manager.resume_from_checkpoint("task-x")
-
-    @pytest.mark.asyncio
-    async def test_successful_resume(self, tmp_path) -> None:
-        manager = _make_manager()
-        storage = SubagentCheckpointStorage(storage_path=tmp_path / "ckpts")
-        manager._checkpoint_storage = storage
-        manager._checkpoint_manager._storage = storage
-
-        cp = SubagentCheckpoint(
-            task_id="task-ok",
-            agent_type="researcher",
-            session_id="s1",
-            timestamp=time.time(),
-            messages=[{"role": "user", "content": "hello"}],
-            variables={"key": "val"},
-            progress=0.6,
-            last_tool="search",
-            resumable=True,
-        )
-        await storage.save(cp)
-
-        result = await manager.resume_from_checkpoint("task-ok")
-        assert result.success is True
-        assert result.task_id == "task-ok"
-        assert result.agent_type == "researcher"
-        assert result.status == SubAgentStatus.COMPLETED
-        assert result.checkpoint_data is not None
-        assert result.checkpoint_data["progress"] == 0.6
-        assert result.checkpoint_data["last_tool"] == "search"
-        assert len(result.checkpoint_data["messages"]) == 1
-
-        # Checkpoint is NOT deleted on resume (by design: caller deletes after
-        # successful restoration to avoid data loss on failure).
-        assert await storage.load("task-ok") is not None
 
 
 # =========================================================================

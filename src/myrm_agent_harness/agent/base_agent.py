@@ -600,19 +600,6 @@ class BaseAgent(BaseAgentModesMixin):
             thread_id=thread_id,
         )
 
-    async def restore_checkpoint_state(self, checkpoint_data: dict[str, object]) -> None:
-        """Restore execution state from checkpoint data.
-
-        Restores messages to the checkpointer and runtime context to the agent.
-        Symmetric with ``get_checkpoint_state()``.
-
-        Args:
-            checkpoint_data: Dict with keys: messages, variables, progress, last_tool.
-        """
-        from .sub_agents.checkpoint.state_extractor import restore_subagent_state
-
-        await restore_subagent_state(self, checkpoint_data)
-
     async def cleanup_tools(self) -> None:
         """Cleanup all lifecycle-aware tools.
 

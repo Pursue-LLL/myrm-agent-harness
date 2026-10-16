@@ -16,7 +16,7 @@ verified orchestration) in ``orchestrator``.
 - runtime.events.system_events::SubagentLifecycleData (POS: Framework-level system event DTOs. They keep lifecycle and resource payloads typed without business-layer, GUI, approval, or tenant dependencies.)
 
 [OUTPUT]
-- SubagentManager: Subagent lifecycle manager (spawn/cancel/steer/state/trace_id/push-notifications/checkpoint save/resume)
+- SubagentManager: Subagent lifecycle manager (spawn/cancel/steer/state/trace_id/push-notifications/checkpoint save)
 - SubagentTask: asyncio.Task[SubAgentResult] 类型别名
 - CapacitySnapshot: Immutable delegation capacity snapshot for LLM decision context
 
@@ -293,10 +293,6 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
             children_types=self._children_types,
             children_descriptions=self._children_descriptions,
         )
-
-    async def resume_from_checkpoint(self, task_id: str) -> SubAgentResult:
-        """Resume subagent from saved checkpoint (delegated to checkpoint manager)."""
-        return await self._checkpoint_manager.resume_from_checkpoint(task_id)
 
     # =========================================================================
     # Guard event emission

@@ -1,26 +1,24 @@
 # checkpoint/
 
 ## Overview
-Subagent checkpoint management — lifecycle management (create/save/resume/delete) for subagent execution state with JSON file-based persistence using crash-consistent atomic writes. Includes orphan checkpoint scanner that notifies the UI about interrupted tasks on startup.
+Subagent checkpoint management — lifecycle management (create/save) for subagent execution state with JSON file-based persistence using crash-consistent atomic writes. Includes orphan checkpoint scanner that notifies the UI about interrupted tasks on startup.
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Subagent checkpoint utilities package. | — |
-| checkpoint_manager.py | Core | Subagent checkpoint manager. Handles checkpoint creation, saving, restoration, and deletion. Supports signal handler safe sync extraction. Saves ALL running subagents during shutdown (not just CHECKPOINT strategy). | ✅ |
+| checkpoint_manager.py | Core | Subagent checkpoint manager. Handles checkpoint creation and saving. Supports signal handler safe sync extraction. Saves ALL running subagents during shutdown (not just CHECKPOINT strategy). | ✅ |
 | metrics.py | Core | Checkpoint metrics data structures. | ✅ |
 | orphan_recovery.py | Core | Orphan subagent checkpoint scanner (singleton). Scans checkpoint directory on startup, publishes lifecycle events to notify the UI. Does NOT resume or delete checkpoints. | ✅ |
 | saver.py | Core | Subagent checkpoint persistence (JSON file backend). Default path: `MYRM_DATA_DIR/checkpoints` or `.myrm/checkpoints`. Validates `task_id` as safe filename. Crash-consistent via `infra.atomic_write` (temp file + fsync + atomic rename); raises `CheckpointCorruptedError` for unparseable files. | ✅ |
 | state_snapshot.py | Core | Checkpoint snapshot primitives: `extract_checkpoint_state` (messages via `runtime.checkpointing.read_checkpoint_messages`, context via `sanitize_persistable_context`), `serialize_message`, `sanitize_persistable_context` (strips the non-serializable workspace bind token), and `project_run_statistics` (the single run-stat projection shared by every checkpoint writer). Consumed by `BaseAgent.get_checkpoint_state()`. | ✅ |
-| state_extractor.py | Core | State extraction and restoration. Extracts from _last_context plus checkpoint messages (via `runtime.checkpointing.read_checkpoint_messages`), restores messages via _deserialize_message. | ✅ |
+| state_extractor.py | Core | State extraction. Extracts from _last_context plus checkpoint messages (via `runtime.checkpointing.read_checkpoint_messages`). | ✅ |
 
 ## Key Dependencies
 
 - `utils.logger_utils`
-- `agent.sub_agents.types` (SubAgentResult, SubAgentStatus)
-- `langchain_core.messages` (message deserialization)
-- `langgraph.checkpoint.base` (checkpointer write)
+- `agent.sub_agents.types` (SubagentConfig)
 - `runtime.events` (EventBus for recovery lifecycle events)
 - `infra.atomic_write` (crash-consistent file writes)
 
@@ -31,6 +29,5 @@ Subagent checkpoint management — lifecycle management (create/save/resume/dele
 - **Per-task timeout**: Each checkpoint save has a 5s timeout guard to prevent shutdown from hanging
 - **Crash consistency**: `save_sync()` writes through `infra.atomic_write.atomic_write()` (temp file + fsync + atomic rename), so a crash mid-write never leaves a partial JSON file. No `fcntl` locks needed — readers always observe a complete file.
 - **Corrupted-file handling**: `load()` raises `CheckpointCorruptedError` (not a generic error) for unparseable files so the business layer can return a client-friendly error. `cleanup_old_checkpoints()` deletes unparseable files instead of skipping them, so the TTL never leaks corrupted files.
-- **Deferred deletion**: `resume_from_checkpoint()` does NOT delete the checkpoint; callers must call `delete_checkpoint()` after successful restoration
-- **Message restoration**: `_restore_messages_to_checkpointer()` deserializes messages and writes to LangGraph checkpointer via `aput()`
+- **No resume path**: checkpoints record interrupted tasks only; nothing restores a subagent from one (the frontend re-initiates the task from the saved description). `SubagentCheckpointStorage.load()` serves the checkpoint REST API
 - **Orphan scanner**: `OrphanRecoveryManager.get_instance().schedule_scan()` scans checkpoints after a 5s startup delay and publishes `orphan_detected` lifecycle events for **every** interrupted checkpoint (no `resumable` filter — graceful-shutdown checkpoints are all `resumable=False`, filtering would silently hide interrupted tasks from the UI after restart). Does NOT attempt to resume or delete — the business layer (checkpoint API + frontend re-initiate) handles actual recovery

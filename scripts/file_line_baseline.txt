@@ -3,9 +3,9 @@
 # Files listed here may exceed 500 lines; line count must not grow.
 # Tighten caps with: check_file_line_limit.py --ratchet
 # Remove entries after splitting below 500 lines.
-myrm_agent_harness/agent/_internals/agent_runtime.py	960
+myrm_agent_harness/agent/_internals/agent_runtime.py	953
 myrm_agent_harness/agent/_internals/run_lifecycle.py	749
-myrm_agent_harness/agent/base_agent.py	644
+myrm_agent_harness/agent/base_agent.py	631
 myrm_agent_harness/agent/context_management/infra/schemas.py	715
 myrm_agent_harness/agent/context_management/pipeline/processors/cache_ttl_prune_processor.py	721
 myrm_agent_harness/agent/context_management/pipeline/processors/summarize_processor.py	844
@@ -38,12 +38,11 @@ myrm_agent_harness/agent/skills/market/service.py	852
 myrm_agent_harness/agent/streaming/recovery/stream_recovery.py	810
 myrm_agent_harness/agent/streaming/recovery/stream_recovery_oneshot.py	673
 myrm_agent_harness/agent/streaming/stream_executor.py	611
-myrm_agent_harness/agent/sub_agents/checkpoint/checkpoint_manager.py	502
 myrm_agent_harness/agent/sub_agents/event_forwarder.py	622
-myrm_agent_harness/agent/sub_agents/manager.py	608
+myrm_agent_harness/agent/sub_agents/manager.py	604
 myrm_agent_harness/agent/sub_agents/orchestrator.py	930
 myrm_agent_harness/agent/sub_agents/prompts.py	546
-myrm_agent_harness/agent/sub_agents/types.py	546
+myrm_agent_harness/agent/sub_agents/types.py	543
 myrm_agent_harness/backends/skills/_utils.py	837
 myrm_agent_harness/backends/skills/scanning/patterns.py	875
 myrm_agent_harness/backends/skills/scanning/scanner.py	555
@@ -119,6 +118,6 @@ myrm_agent_harness/utils/text_utils.py	503
 myrm_agent_harness/utils/token_economics/tracker.py	595
 myrm_agent_harness/utils/url_utils.py	505
 myrm_agent_harness/toolkits/wiki/core/structure.py	507
-myrm_agent_harness/agent/streaming/stream_dispatcher.py	498
+myrm_agent_harness/agent/streaming/stream_dispatcher.py	447
 myrm_agent_harness/toolkits/memory/strategies/merger.py	554
 myrm_agent_harness/toolkits/retriever/bm25_retrieval.py	501

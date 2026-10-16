@@ -82,52 +82,6 @@ class TestMetricsIntegration:
             assert checkpoint_manager.metrics.save_count == initial_save_count + 1
             assert checkpoint_manager.metrics.save_failure_count == initial_failure_count + 1
 
-    @pytest.mark.asyncio
-    async def test_resume_checkpoint_records_success_metrics(self, checkpoint_manager):
-        """Test that successful resume records metrics."""
-        mock_checkpoint = MagicMock()
-        mock_checkpoint.resumable = True
-        mock_checkpoint.agent_type = "worker"
-        mock_checkpoint.progress = 0.5
-        mock_checkpoint.messages = ["msg1", "msg2"]
-        mock_checkpoint.variables = {"key": "value"}
-        mock_checkpoint.last_tool = "bash"
-        mock_checkpoint.timestamp = 123456.0
-        mock_checkpoint.accumulated_runtime_seconds = 0.0
-
-        # Mock storage.load and storage.delete
-        with patch.object(checkpoint_manager._storage, "load", new_callable=AsyncMock) as mock_load:
-            mock_load.return_value = mock_checkpoint
-
-            with patch.object(checkpoint_manager._storage, "delete", new_callable=AsyncMock):
-                initial_resume_count = checkpoint_manager.metrics.resume_count
-                initial_success_count = checkpoint_manager.metrics.resume_success_count
-
-                result = await checkpoint_manager.resume_from_checkpoint("test-task")
-
-                # Verify metrics were recorded
-                assert checkpoint_manager.metrics.resume_count == initial_resume_count + 1
-                assert checkpoint_manager.metrics.resume_success_count == initial_success_count + 1
-                assert checkpoint_manager.metrics.resume_total_ms > 0
-                assert result.success is True
-
-    @pytest.mark.asyncio
-    async def test_resume_checkpoint_records_failure_metrics(self, checkpoint_manager):
-        """Test that failed resume records failure metrics."""
-        # Mock storage.load to return None (checkpoint not found)
-        with patch.object(checkpoint_manager._storage, "load", new_callable=AsyncMock) as mock_load:
-            mock_load.return_value = None
-
-            initial_resume_count = checkpoint_manager.metrics.resume_count
-            initial_failure_count = checkpoint_manager.metrics.resume_failure_count
-
-            with pytest.raises(ValueError, match="No checkpoint found"):
-                await checkpoint_manager.resume_from_checkpoint("test-task")
-
-            # Verify failure metrics were recorded
-            assert checkpoint_manager.metrics.resume_count == initial_resume_count + 1
-            assert checkpoint_manager.metrics.resume_failure_count == initial_failure_count + 1
-
 
 class TestMetricsExport:
     """Test metrics export functionality."""

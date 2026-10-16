@@ -19,6 +19,7 @@ from myrm_agent_harness.agent.sub_agents.orchestrator import (
     run_with_verification,
     wait_children,
 )
+from myrm_agent_harness.agent.sub_agents.result_output import answer_text
 from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
     SubAgentResult,
@@ -1355,6 +1356,17 @@ class TestWaitChildren:
 # ---------------------------------------------------------------------------
 # Non-fatal timeout — SubAgentResult.still_running
 # ---------------------------------------------------------------------------
+
+
+class TestAnswerText:
+    def test_text_of_a_plain_result_is_the_result(self):
+        assert answer_text("answer") == "answer"
+
+    def test_text_of_a_dict_result_is_the_text_it_carries(self):
+        assert answer_text({"text": "answer", "_isolated_child_workspace": "/tmp/iso"}) == "answer"
+
+    def test_text_of_a_dict_result_without_text_is_empty(self):
+        assert answer_text({"note": 1}) == ""
 
 
 class TestSubAgentResultStillRunning:

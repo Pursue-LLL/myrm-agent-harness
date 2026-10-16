@@ -311,6 +311,21 @@ async def test_dispatch_updates_interrupt_tool_approval(ctx):
 
 
 @pytest.mark.asyncio
+async def test_dispatch_updates_announces_every_interrupt_of_a_chunk_with_its_id(ctx):
+    """Parallel tool calls that each ask for approval are each a card the client can answer on its own."""
+    executor = _make_executor(ctx)
+    first = MagicMock(value={"actionRequests": [{"action": "alpha"}]}, id="id-a")
+    second = MagicMock(value={"actionRequests": [{"action": "beta"}]}, id="id-b")
+
+    await executor._dispatch_chunk(("updates", {"__interrupt__": (first, second)}), ctx, [])
+
+    announced = [
+        (e.data["actionRequests"][0]["action"], e.extra_data["interruptId"]) for e in executor._compactor.events
+    ]
+    assert announced == [("alpha", "id-a"), ("beta", "id-b")]
+
+
+@pytest.mark.asyncio
 async def test_dispatch_updates_interrupt(ctx):
     """__interrupt__ in updates data dispatches APPROVAL_REQUIRED."""
     executor = _make_executor(ctx)

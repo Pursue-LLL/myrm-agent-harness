@@ -3,13 +3,12 @@
 [INPUT]
 - .saver::SubagentCheckpoint, SubagentCheckpointStorage (POS: Checkpoint数据结构和存储)
 - .state_extractor::extract_subagent_state_sync, extract_subagent_state_async (POS: 状态提取)
-- agent.types::SubAgentResult, SubAgentStatus (POS: 结果和状态类型)
 
 [OUTPUT]
-- SubagentCheckpointManager: Checkpoint生命周期管理器(create/save/resume/delete)
+- SubagentCheckpointManager: Checkpoint生命周期管理器(create/save/delete)
 
 [POS]
-Subagent checkpoint manager. Handles checkpoint creation, saving, restoration, and deletion.
+Subagent checkpoint manager. Handles checkpoint creation, saving, and deletion.
 
 """
 
@@ -26,17 +25,13 @@ from .saver import SubagentCheckpoint, SubagentCheckpointStorage
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
-from myrm_agent_harness.agent.sub_agents.types import (
-    SubagentConfig,
-    SubAgentResult,
-    SubAgentStatus,
-)
+from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 
 logger = get_agent_logger(__name__)
 
 
 class SubagentCheckpointManager:
-    """Manage checkpoint creation, save, resume, and deletion for subagents."""
+    """Manage checkpoint creation, save, and deletion for subagents."""
 
     def __init__(self) -> None:
         self._storage = SubagentCheckpointStorage()
@@ -329,112 +324,6 @@ class SubagentCheckpointManager:
             last_tool=state.get("last_tool"),
             resumable=bool(state.get("messages")),
         )
-
-    async def resume_from_checkpoint(self, task_id: str) -> SubAgentResult:
-        """Resume subagent from saved checkpoint.
-
-        Args:
-            task_id: Task ID to resume
-
-        Returns:
-            SubAgentResult with checkpoint_data containing:
-            - messages: Complete LangChain conversation history
-            - variables: Runtime context (_last_context)
-            - progress: Execution progress (0.0-1.0)
-            - last_tool: Last executed tool name
-
-        Raises:
-            ValueError: If checkpoint not found or not resumable
-            CheckpointCorruptedError: If the checkpoint file exists but
-                cannot be parsed (partial/corrupt JSON or unknown schema)
-
-        Note:
-            Returns checkpoint data in result.checkpoint_data.
-            Business layer can use messages to create new agent session for seamless continuation.
-        """
-        start_time = time.time()
-
-        try:
-            checkpoint = await self._storage.load(task_id)
-            if not checkpoint:
-                # Record failure metrics
-                self._metrics.resume_count += 1
-                self._metrics.resume_failure_count += 1
-                raise ValueError(f"No checkpoint found for task_id={task_id}")
-
-            if not checkpoint.resumable:
-                # Record failure metrics
-                self._metrics.resume_count += 1
-                self._metrics.resume_failure_count += 1
-                raise ValueError(f"Checkpoint {task_id} is not resumable")
-
-            logger.info(
-                "[subagent:%s] Resuming from checkpoint (agent_type=%s, progress=%.1f%%, messages=%d, context_keys=%d)",
-                task_id,
-                checkpoint.agent_type,
-                checkpoint.progress * 100,
-                len(checkpoint.messages),
-                len(checkpoint.variables),
-            )
-
-            accumulated = checkpoint.accumulated_runtime_seconds if checkpoint.accumulated_runtime_seconds > 0 else None
-
-            result = SubAgentResult(
-                success=True,
-                task_id=task_id,
-                agent_type=checkpoint.agent_type,
-                result=f"Resumed from checkpoint (progress={checkpoint.progress:.1%}, last_tool={checkpoint.last_tool})",
-                duration_seconds=0.0,
-                completed_at=time.time(),
-                status=SubAgentStatus.COMPLETED,
-                checkpoint_data={
-                    "messages": checkpoint.messages,
-                    "variables": checkpoint.variables,
-                    "progress": checkpoint.progress,
-                    "last_tool": checkpoint.last_tool,
-                    "timestamp": checkpoint.timestamp,
-                },
-                accumulated_duration_seconds=accumulated,
-            )
-
-            # Note: checkpoint is NOT deleted here. The caller should call
-            # delete_checkpoint(task_id) after successful restoration to avoid
-            # losing the checkpoint if restoration fails.
-
-            # Record success metrics
-            elapsed_ms = (time.time() - start_time) * 1000
-            self._metrics.resume_count += 1
-            self._metrics.resume_success_count += 1
-            self._metrics.resume_total_ms += elapsed_ms
-
-            logger.info(
-                "[subagent:%s] Checkpoint resume complete (messages=%d, variables=%d, elapsed=%.1fms)",
-                task_id,
-                len(checkpoint.messages),
-                len(checkpoint.variables),
-                elapsed_ms,
-            )
-
-            return result
-
-        except Exception:
-            # Ensure failures are recorded
-            if self._metrics.resume_count == 0 or self._metrics.resume_failure_count == 0:
-                self._metrics.resume_count += 1
-                self._metrics.resume_failure_count += 1
-            raise
-
-    async def delete_checkpoint(self, task_id: str) -> None:
-        """Delete a saved checkpoint after successful restoration.
-
-        Should be called by the business layer after confirming that
-        the checkpoint data has been successfully restored to the agent.
-
-        Args:
-            task_id: Task ID to delete checkpoint for
-        """
-        await self._storage.delete(task_id)
-        logger.info("[subagent:%s] Checkpoint deleted after successful restoration", task_id)
 
     async def save_checkpoint_for_task(
         self,

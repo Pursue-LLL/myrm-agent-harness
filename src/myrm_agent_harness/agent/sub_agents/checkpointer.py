@@ -21,7 +21,10 @@ HITL approval for subagents requires a configured checkpointer (approval/middlew
 requires it so GraphInterrupt state survives the child run). Each subagent uses
 thread_id == task_id (set via context["approval_session_key"]), so one shared
 checkpointer instance keeps threads isolated per subagent and lets a resume pass
-(Command(resume=...)) restore the interrupted graph from the same thread.
+(Command(resume=...)) restore the interrupted graph from the same thread. A resume only
+continues a paused subagent while the owning manager's in-memory approval journal lives;
+after a process restart the stale thread is discarded (discard_stale_subagent_thread) and
+the user is asked again.
 
 The shared saver is intentionally NOT the parent agent's checkpointer: subagent
 message history stays in its own thread and never pollutes the parent thread

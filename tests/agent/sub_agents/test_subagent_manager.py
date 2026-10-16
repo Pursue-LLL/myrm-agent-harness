@@ -3510,14 +3510,6 @@ class TestCheckpointOperations:
         # Should not raise even with no children
         manager._save_all_checkpoints()
 
-    @pytest.mark.asyncio
-    async def test_resume_from_checkpoint_raises_when_not_found(self) -> None:
-        """resume_from_checkpoint raises ValueError when checkpoint not found."""
-        agent = BaseAgent(llm=FakeLLM())
-        manager = agent._subagent_manager
-        with pytest.raises(ValueError, match="No checkpoint found"):
-            await manager.resume_from_checkpoint("nonexistent")
-
 
 # ---------------------------------------------------------------------------
 # Event publishing error handling

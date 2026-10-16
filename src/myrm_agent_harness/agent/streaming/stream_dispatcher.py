@@ -4,6 +4,7 @@
 - agent.streaming.event_handlers::process_messages_chunk, process_updates_chunk (POS: 事件处理器)
 - agent.streaming.artifact_events::collect_inline_artifacts, process_realtime_content_events (POS: Artifact 事件处理器)
 - agent.streaming.escalation_scrubber::EscalationScrubber (POS: 流式层升级标记检测)
+- agent.streaming.interrupt_events::interrupt_events (POS: 中断 → 带 id 的流事件)
 
 [OUTPUT]
 - StreamDispatcherMixin: dispatches events and forwards structured agent_status fields.
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
 
 from .artifact_events import collect_inline_artifacts, process_realtime_content_events
 from .event_handlers import process_messages_chunk, process_updates_chunk
+from .interrupt_events import interrupt_events
 
 if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
@@ -96,51 +98,8 @@ class StreamDispatcherMixin:
         if isinstance(data_dict, dict) and "__interrupt__" in data_dict:
             interrupts = data_dict["__interrupt__"]
             if interrupts and isinstance(interrupts, tuple):
-                interrupt_obj = interrupts[0]
-                interrupt_val = getattr(interrupt_obj, "value", None)
-                if isinstance(interrupt_val, dict):
-                    interrupt_type = interrupt_val.get("type")
-                    action_type = interrupt_val.get("action_type")
-                    if interrupt_type == "ask_question":
-                        logger.warning(" Agent execution suspended for clarification")
-                        await self._emit_event(
-                            {
-                                "type": AgentEventType.CLARIFICATION_REQUIRED.value,
-                                "data": interrupt_val,
-                                "messageId": ctx.message_id,
-                            },
-                            ctx,
-                        )
-                    elif action_type == "swarm_fission":
-                        logger.warning(" Agent execution yielded for Swarm Fission")
-                        await self._emit_event(
-                            {
-                                "type": "swarm_fission",
-                                "data": interrupt_val,
-                                "messageId": ctx.message_id,
-                            },
-                            ctx,
-                        )
-                    elif isinstance(interrupt_val.get("actionRequests"), list) and interrupt_val["actionRequests"]:
-                        logger.warning(" Agent execution suspended for tool approval")
-                        await self._emit_event(
-                            {
-                                "type": AgentEventType.TOOL_APPROVAL_REQUEST.value,
-                                "data": interrupt_val,
-                                "messageId": ctx.message_id,
-                            },
-                            ctx,
-                        )
-                    else:
-                        logger.warning(" Agent execution suspended for approval")
-                        await self._emit_event(
-                            {
-                                "type": AgentEventType.APPROVAL_REQUIRED.value,
-                                "data": interrupt_val,
-                                "messageId": ctx.message_id,
-                            },
-                            ctx,
-                        )
+                for event in interrupt_events(interrupts, ctx.message_id):
+                    await self._emit_event(event, ctx)
             return
 
         async for event in process_updates_chunk(

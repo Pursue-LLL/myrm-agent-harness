@@ -85,7 +85,7 @@ async def _apply_immediate_isolated_sync_back(
             exc,
         )
         record_workspace_merge_failure(f"{result.task_id}: {exc}")
-        extra = dict(result.result) if isinstance(result.result, dict) else {"text": result.result}
+        extra: dict[str, object] = dict(result.result) if isinstance(result.result, dict) else {"text": result.result}
         extra["workspace_merge_status"] = "error"
         extra["workspace_merge_error"] = str(exc)
         return dc_replace(result, result=extra)

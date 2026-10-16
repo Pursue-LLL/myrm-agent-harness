@@ -39,7 +39,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, ClassVar, Literal, Protocol
+from typing import ClassVar, Literal, Protocol
 
 from myrm_agent_harness.agent.sub_agents.handover import (
     AgentHandoverState as AgentHandoverState,
@@ -50,11 +50,8 @@ from myrm_agent_harness.agent.sub_agents.handover import (
 from myrm_agent_harness.agent.sub_agents.hitl_tool_policy import (
     HITL_TOOL_POLICY,
 )
+from myrm_agent_harness.agent.sub_agents.result_output import SubAgentOutput
 from myrm_agent_harness.utils.token_economics.tracker import TokenUsage
-
-if TYPE_CHECKING:
-    pass
-
 
 # ---------------------------------------------------------------------------
 # Subagent Types
@@ -268,7 +265,7 @@ class SubAgentResult:
     success: bool
     task_id: str
     agent_type: str
-    result: str = ""
+    result: SubAgentOutput = ""
     error: str = ""
     token_usage: TokenUsage | None = None
     duration_seconds: float = 0.0
@@ -276,7 +273,7 @@ class SubAgentResult:
     status: SubAgentStatus = SubAgentStatus.COMPLETED
     trace_id: str = ""
     checkpoint_data: dict[str, object] | None = None
-    """Checkpoint data (messages, variables, progress) if resumed from checkpoint"""
+    """Checkpointer thread (``{"thread_id": task_id}``) of a subagent that yielded for Swarm Fission"""
     payload: dict[str, object] | None = None
     """Interrupt payload if status is PENDING_APPROVAL"""
     handover_state: AgentHandoverState | None = None

@@ -99,6 +99,7 @@ from ._agent_helpers import (
     reset_all_guards,
     schedule_post_run_idle_tasks,
 )
+from .resume_addressing import address_resume_to_pending
 from .run_lifecycle import (
     cleanup_run,
     collect_tracker_stats,
@@ -565,9 +566,7 @@ async def run_agent_loop(
 
         if isinstance(query, Command):
             resume_command = await apply_bound_skill_catalog_for_resume(
-                agent_state,
-                query,
-                thread_id,
+                agent_state, await address_resume_to_pending(agent_state._agent, query, thread_id), thread_id
             )
             agent_input = cast("Command[Any] | AgentState[Any]", resume_command)
             logger.info(f" Resume: {resume_command.resume if hasattr(resume_command, 'resume') else resume_command}")

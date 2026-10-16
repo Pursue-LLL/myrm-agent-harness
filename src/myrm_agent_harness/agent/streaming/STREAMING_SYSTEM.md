@@ -39,13 +39,22 @@ dispatcher  handlers      events         recovery*
 
 | Mixin / 模块 | 职责 |
 |--------------|------|
-| `stream_dispatcher.py` | chunk → output_queue；swarm_fission GraphInterrupt 专路由 |
+| `stream_dispatcher.py` | chunk → output_queue；`__interrupt__` 分片交 `interrupt_events.py` 逐中断转事件（swarm_fission 专路由） |
 | `recovery/stream_recovery.py` | 主恢复策略组合（overflow/failover/escalation/retry/iteration-limit） |
 | `recovery/stream_recovery_truncation.py` | max-token 续写、被截断或被扣留（参数不完整/无法解析）的 tool-call 重试 |
 | `recovery/stream_recovery_oneshot.py` | THINKING_SIGNATURE / DUPLICATE_TOOL_USE_ID / IMAGE_TOO_LARGE / MEDIA_REJECTED / ALLOWED_TOOLS_TOOL_CHOICE_REJECTED / LONG_CONTEXT_TIER 等一次性恢复（支持单图超限收缩与多图累积超限历史轮次聚合降级保底，WebUI progress step: `thinking_signature_recovery`, `tool_history_recovery`, `image_shrink_recovery`, `long_context_tier_recovery`, `vision_fallback_recovery`, `media_rejected_recovery`, `allowed_tools_rejected_recovery`） |
 | `recovery/stream_recovery_continuation.py` | steering、subagent 完成、goal continuation |
 | `stream_compactor.py` | 高频流式文本片段合并缓冲（容量/时间/事件类型变更/显式 flush，后台看门狗防幽灵延迟） |
 | `stream_buffer.py` | SSE 断线重连回复缓冲：内存滑动窗口 + GlobalStreamRegistry（Last-Event-ID 短断连复连，无磁盘持久化） |
+
+### 并行中断与按 id 作答
+
+图可以同时在多个任务上挂起（并行子智能体各自等待审批）。LangGraph 为每个中断分配稳定 id（只取决于挂起它的任务，重放时不变）；有多个待决中断时，不带 id 的 resume 会被 LangGraph 拒绝（`When there are multiple pending interrupts, you must specify the interrupt id when resuming`）。
+
+- 发出：`interrupt_events.interrupt_events` 把一个 `__interrupt__` 分片里的每个中断转换为一个流事件，事件顶层带 `interruptId`。部分作答后图重新挂起，仍待决的中断会作为新分片再次发出，客户端按 `interruptId` 去重。
+- 作答：resume 载荷可携带 `interruptId`；`_internals/resume_addressing.address_resume_to_pending` 在 resume 咽喉把它改写为 `Command(resume={interrupt_id: 载荷})`。该 id 已不再待决时 LangGraph 忽略这次答复，运行停在真实待决的中断上，不会把过期答复落到后来挂起的审批上。
+- 不带 id 的答复：待决 ≤1 个时原样透传（既有调用方行为不变）；待决 ≥2 个时，只有全局驳回（`{"decision": "reject"}` 且无 `decisions`，超时计时器所用）会广播给全部待决中断，其余答复（含批准）原样交给 LangGraph 拒绝——批准从不广播。
+- 提示缓存：只有流事件与 resume 载荷变化，提示词与工具 schema 不变。
 
 ### 被扣留的工具调用与断流
 

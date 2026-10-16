@@ -1,6 +1,7 @@
 """Single-round verifier spawn and verify_worker_output entry point.
 
 [INPUT]
+- agent.sub_agents.result_output::answer_text (POS: Subagent result payload (answer text, or a dict carrying isolation merge metadata).)
 - agent.orchestration.signals.catalog::SUBMIT_VERDICT_SIGNAL (POS: SSOT for control-plane signal names)
 - agent.sub_agents._verification_parsing::VerificationVerdict, _parse_verdict, _emit_verification_verdict
 - agent.sub_agents._workspace_diff::take_workspace_snapshot, diff_snapshots
@@ -37,6 +38,7 @@ from myrm_agent_harness.agent.sub_agents._workspace_diff import (
     revert_workspace_mutations,
     take_workspace_snapshot,
 )
+from myrm_agent_harness.agent.sub_agents.result_output import answer_text
 from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
     SubAgentResult,
@@ -265,7 +267,7 @@ async def _execute_verifier_round(
             verdict.summary,
         )
     else:
-        verdict = _parse_verdict(verifier_result.result)
+        verdict = _parse_verdict(answer_text(verifier_result.result))
         logger.info(
             "[verification] Round %d — Regex Verdict=%s confidence=%s summary=%s",
             round_num,
