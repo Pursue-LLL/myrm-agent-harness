@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -9,6 +10,7 @@ import pytest
 from myrm_agent_harness.toolkits.memory._manager.model_collections import (
     ModelCollection,
     current_collection,
+    family_lock,
     memory_collections,
     previous_model_collections,
     retire_if_drained,
@@ -121,3 +123,20 @@ class TestRetireIfDrained:
         await retire_if_drained(vector, "memory_semantic_old")
 
         vector.delete_collection.assert_not_called()
+
+
+class TestFamilyLock:
+    """Managers are built per request over one shared backend, so the lock must follow the backend, not the manager."""
+
+    def test_managers_over_the_same_backend_and_prefix_share_one_lock(self, store, old_config, new_config) -> None:
+        first = manager_for(store, old_config, Embedder(NEW_DIM))
+        second = manager_for(store, new_config, Embedder(NEW_DIM))
+
+        assert family_lock(first._vector, first._config) is family_lock(second._vector, second._config)
+
+    def test_another_prefix_or_another_backend_has_its_own_lock(self, store, new_config) -> None:
+        other_prefix = replace(new_config, collection_prefix=f"{new_config.collection_prefix}x")
+        manager = manager_for(store, new_config, Embedder(NEW_DIM))
+
+        assert family_lock(manager._vector, manager._config) is not family_lock(manager._vector, other_prefix)
+        assert family_lock(AsyncMock(), new_config) is not family_lock(AsyncMock(), new_config)
