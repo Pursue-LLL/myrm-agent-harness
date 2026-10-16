@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from qdrant_client.models import ScoredPoint
@@ -181,6 +181,37 @@ async def test_with_retry_failure(store, mock_client):
     store.MAX_RETRIES = 1
     with pytest.raises(ValueError):
         await store._with_retry(mock_client.collection_exists, collection_name="test")
+
+
+@pytest.mark.asyncio
+async def test_with_retry_recovers_from_transient_error(store, mock_client):
+    store.RETRY_BASE_DELAY = 0
+    mock_client.collection_exists.side_effect = [ConnectionError("reset"), True]
+
+    assert await store._with_retry(mock_client.collection_exists, collection_name="test") is True
+    assert mock_client.collection_exists.call_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Collection `notes_bm25` not found!",
+        "Unexpected Response: 404 (Not Found)\nRaw response content: Not found: Collection `notes_bm25` doesn't exist!",
+    ],
+)
+async def test_with_retry_does_not_back_off_for_a_missing_collection(store, mock_client, message):
+    """Waiting never creates the collection; backing off would stall fail-open callers such as the BM25 mirror."""
+    mock_client.upsert.side_effect = RuntimeError(message)
+
+    with (
+        patch("myrm_agent_harness.toolkits.vector.qdrant.store.asyncio.sleep", new=AsyncMock()) as sleep,
+        pytest.raises(RuntimeError, match="notes_bm25"),
+    ):
+        await store._with_retry(mock_client.upsert, collection_name="notes_bm25")
+
+    assert mock_client.upsert.call_count == 1
+    sleep.assert_not_awaited()
 
 
 # --- Edge-case coverage for evict / close / health & remaining branches ---

@@ -91,6 +91,8 @@ class QdrantVectorStore(QdrantSparseMixin, VectorStore):
             try:
                 return await self._execute(operation, *args, **kwargs)
             except Exception as e:
+                if "not found" in str(e).lower():  # waiting never creates a missing collection
+                    raise
                 last_exception = e
                 if attempt < self.MAX_RETRIES - 1:
                     delay = self.RETRY_BASE_DELAY * (2**attempt)
@@ -102,9 +104,7 @@ class QdrantVectorStore(QdrantSparseMixin, VectorStore):
                 else:
                     logger.warning(f"Qdrant operation failed after {self.MAX_RETRIES} attempts: {e}")
 
-        if last_exception:
-            raise last_exception
-        raise RuntimeError("Unexpected: no exception but operation failed")
+        raise last_exception or RuntimeError("Unexpected: no exception but operation failed")
 
     async def _execute(self, operation: object, *args: object, **kwargs: object) -> object:
         """Execute client operation, handling sync/async transparently."""

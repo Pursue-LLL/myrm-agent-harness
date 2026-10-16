@@ -23,7 +23,7 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 
 | `storage.py` | Mixin | Backend accessors and private store paths | ✅ |
 | `import_export.py` | Mixin | Bulk export (JSON + Markdown), import | ✅ |
-| `reindex.py` | Mixin | Orphan collection detection and re-embedding after model switch | ✅ |
+| `reindex.py` | Mixin | Embedding-model switch migration: orphan collection detection (beneath the BM25 mirror, sized with `count` so named-vector conversation collections are seen) and per-memory migration into the current model's collections — payload copied verbatim, vector re-embedded, ids already present skipped, every read/embed/write failure counted as `failed` | ✅ |
 | `helpers.py` | Internal | `_memory_ref`, `_infer_preference_category` | — |
 | `__init__.py` | Facade | Composes `MemoryManager` | ✅ |
 
