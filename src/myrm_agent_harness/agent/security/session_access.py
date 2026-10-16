@@ -1,4 +1,4 @@
-"""Session-scoped directory access grants (HITL request_directory + path-ASK grant).
+"""Session-scoped directory access grants (path-ASK grant).
 
 [INPUT]
 - core.security.types::AccessRoot, PathPolicy

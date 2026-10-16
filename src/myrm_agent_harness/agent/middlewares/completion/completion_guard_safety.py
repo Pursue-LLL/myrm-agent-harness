@@ -58,7 +58,6 @@ _MUTATION_TOOLS: frozenset[str] = frozenset(
 _INTERACTION_UI_TOOLS: frozenset[str] = frozenset(
     {
         "ask_question_tool",
-        "request_directory_tool",
         "browser_ask_human_tool",
     }
 )

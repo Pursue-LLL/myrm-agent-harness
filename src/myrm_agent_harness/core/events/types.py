@@ -130,7 +130,6 @@ class AgentEventType(StrEnum):
     ITERATION_LIMIT_REACHED = "iteration_limit_reached"
     APPROVAL_REQUIRED = "approval_required"
     CLARIFICATION_REQUIRED = "clarification_required"
-    DIRECTORY_REQUEST_REQUIRED = "directory_request_required"
     GOAL_STATUS = "goal_status"
     ENGINE_LIMIT_REACHED = "engine_limit_reached"
     FILE_DIFF = "file_diff"
