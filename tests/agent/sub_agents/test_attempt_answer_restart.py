@@ -14,6 +14,7 @@ import pytest
 
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
+from myrm_agent_harness.agent.sub_agents.executor_helpers import attach_partial_output, read_partial_output
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
 
@@ -62,7 +63,7 @@ async def _attempt_failing_after(events: list[dict[str, object]]) -> str:
             fire_hook=AsyncMock(),
             hook_event_cls=MagicMock(),
         )
-    return str(failure.value.partial_output)  # type: ignore[attr-defined]
+    return read_partial_output(failure.value)
 
 
 @pytest.mark.asyncio
@@ -87,3 +88,16 @@ async def test_without_restart_every_message_chunk_is_kept() -> None:
     partial = await _attempt_failing_after([_message("step1 "), _message("step2 ")])
 
     assert partial == "step1 step2 "
+
+
+def test_partial_output_roundtrip_keeps_the_first_record_and_defaults_to_empty() -> None:
+    """The retry loop reads back what the attempt recorded; a missing or non-text record reads as empty."""
+    error = RuntimeError("boom")
+    assert read_partial_output(error) == ""
+
+    attach_partial_output(error, "first")
+    attach_partial_output(error, "second")
+    assert read_partial_output(error) == "first"
+
+    error.partial_output = 42  # type: ignore[attr-defined]
+    assert read_partial_output(error) == ""

@@ -10,6 +10,7 @@
 [OUTPUT]
 - _filter_fork_messages, _estimate_msg_tokens: fork context filtering
 - _cascade_cancel_descendants: cascade cancellation
+- attach_partial_output, read_partial_output: carry the text a failed attempt streamed from the attempt to the retry loop on the exception
 - _compact_error_message, _auto_vault_or_truncate: oversized result vault (parent workspace under ISOLATED_COPY), inline artifact, file_read_tool recovery hint
 - _parse_handover_state: handover block parsing
 
@@ -132,6 +133,21 @@ _SUMMARY_HEAD_CHARS = 2000
 _SUMMARY_TAIL_CHARS = 1000
 
 _ERROR_HEAD_RATIO = 0.6
+
+
+_PARTIAL_OUTPUT_ATTR = "partial_output"
+
+
+def attach_partial_output(error: BaseException, text: str) -> None:
+    """Record on ``error`` the answer text a failed attempt streamed; an existing record is kept."""
+    if not hasattr(error, _PARTIAL_OUTPUT_ATTR):
+        setattr(error, _PARTIAL_OUTPUT_ATTR, text)
+
+
+def read_partial_output(error: BaseException) -> str:
+    """Return the answer text recorded by :func:`attach_partial_output`, or ``""``."""
+    value = getattr(error, _PARTIAL_OUTPUT_ATTR, "")
+    return value if isinstance(value, str) else ""
 
 
 def _compact_error_message(error_str: str, max_chars: int) -> str:

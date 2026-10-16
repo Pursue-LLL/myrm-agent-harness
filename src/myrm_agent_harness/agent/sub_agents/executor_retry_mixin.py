@@ -1,7 +1,8 @@
 """SubagentExecutor retry loop and workspace isolation.
 
 [INPUT]
-- .executor_helpers::_cascade_cancel_descendants, _compact_error_message (POS: Pure helper functions for SubagentExecutor mixins and external callers.)
+- .executor_attempt_mixin::SubagentExecutorAttemptMixin (POS: One child-agent run attempt including fork context and result post-processing.)
+- .executor_helpers::_cascade_cancel_descendants, _compact_error_message, read_partial_output (POS: Pure helper functions for SubagentExecutor mixins and external callers.)
 - .types::SubagentBudgetExceededError, SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy (POS: Subagent subsystem core type definitions.)
 - toolkits.llms.errors.exceptions::MyrmLLMError (POS: Standardized LLM Error thrown by the Harness framework.)
 - agent.hooks.executor::fire_hook (POS: Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation.)
@@ -32,7 +33,8 @@ from myrm_agent_harness.utils.runtime.progress_sink import ToolProgressSink
 from myrm_agent_harness.utils.runtime.steering import SteeringToken
 from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
 
-from .executor_helpers import _cascade_cancel_descendants, _compact_error_message
+from .executor_attempt_mixin import SubagentExecutorAttemptMixin
+from .executor_helpers import _cascade_cancel_descendants, _compact_error_message, read_partial_output
 from .types import (
     SubagentBudgetExceededError,
     SubagentConfig,
@@ -43,7 +45,7 @@ from .types import (
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
-    from myrm_agent_harness.utils import CancellationToken
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 logger = get_agent_logger(__name__)
 
@@ -53,7 +55,7 @@ async def _apply_immediate_isolated_sync_back(
     result: SubAgentResult,
     context: dict[str, object],
     isolated_parent_ws: str | None,
-    pending_sync_back: object,
+    pending_sync_back: Callable[[], object],
     parent_agent: BaseAgent,
 ) -> SubAgentResult:
     """Run immediate ISOLATED_COPY sync_back; surface merge failure on result + turn warning."""
@@ -89,7 +91,7 @@ async def _apply_immediate_isolated_sync_back(
         return dc_replace(result, result=extra)
 
 
-class SubagentExecutorRetryMixin:
+class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
     """Run subagents with retries and workspace isolation."""
 
     async def run_with_retry(
@@ -165,7 +167,7 @@ class SubagentExecutorRetryMixin:
         parent_tracker = get_token_tracker()
         parent_taint = get_taint_tracker()
         isolation_succeeded = False
-        pending_sync_back: object | None = None
+        pending_sync_back: Callable[[], object] | None = None
 
         try:
             while retries_left > 0:
@@ -196,7 +198,7 @@ class SubagentExecutorRetryMixin:
                     if isolation_ctx and result.success:
                         isolation_succeeded = True
                         sync_back_fn = context.get("_workspace_sync_back")
-                        if sync_back_fn:
+                        if callable(sync_back_fn):
                             pending_sync_back = sync_back_fn
                             if context.get("_defer_workspace_merge"):
                                 from dataclasses import replace as dc_replace
@@ -226,7 +228,7 @@ class SubagentExecutorRetryMixin:
                         backoff_seconds *= 2
                         continue
                     now = time.time()
-                    partial = getattr(timeout_exc, "partial_output", "") or ""
+                    partial = read_partial_output(timeout_exc)
                     if partial and len(partial) > (config.max_error_chars * 2):
                         partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
                     return SubAgentResult(
@@ -254,7 +256,7 @@ class SubagentExecutorRetryMixin:
                         backoff_seconds *= 2
                         continue
                     now = time.time()
-                    partial = getattr(llm_exc, "partial_output", "") or ""
+                    partial = read_partial_output(llm_exc)
                     if partial and len(partial) > (config.max_error_chars * 2):
                         partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
                     err_result = SubAgentResult(
@@ -282,7 +284,7 @@ class SubagentExecutorRetryMixin:
                     return err_result
                 except SubagentBudgetExceededError as error:
                     now = time.time()
-                    partial = getattr(error, "partial_output", "") or ""
+                    partial = read_partial_output(error)
                     if partial and len(partial) > (config.max_error_chars * 2):
                         partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
                     err_result = SubAgentResult(
@@ -323,7 +325,7 @@ class SubagentExecutorRetryMixin:
                         continue
                     now = time.time()
                     raw_error = f"{type(error).__name__}: {error}"
-                    partial = getattr(error, "partial_output", "") or ""
+                    partial = read_partial_output(error)
                     if partial and len(partial) > (config.max_error_chars * 2):
                         partial = partial[: config.max_error_chars * 2] + "\n…[truncated]"
                     err_result = SubAgentResult(
