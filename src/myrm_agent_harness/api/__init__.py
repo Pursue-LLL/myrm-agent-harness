@@ -107,6 +107,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
     "IntegrationProvider": ("myrm_agent_harness.api.protocols", "IntegrationProvider"),
     "KanbanStore": ("myrm_agent_harness.api.protocols", "KanbanStore"),
+    "InMemoryKanbanStore": ("myrm_agent_harness.toolkits.kanban.stores", "InMemoryKanbanStore"),
     "LLMConfig": ("myrm_agent_harness.api.config", "LLMConfig"),
     "LocalWorkingMemoryBlock": (
         "myrm_agent_harness.agent.context_management.working_memory",

@@ -84,6 +84,16 @@ def test_api_protocols_are_extension_contracts() -> None:
 
 
 @pytest.mark.api
+async def test_api_publishes_in_memory_kanban_store_as_reference_implementation() -> None:
+    from myrm_agent_harness.api import InMemoryKanbanStore, KanbanStore
+
+    store = InMemoryKanbanStore()
+
+    assert issubclass(InMemoryKanbanStore, KanbanStore)
+    assert await store.get_board("missing-board") is None
+
+
+@pytest.mark.api
 def test_create_skill_agent_is_async_factory() -> None:
     from myrm_agent_harness.api import create_skill_agent
 
