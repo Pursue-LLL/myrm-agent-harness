@@ -4,6 +4,7 @@
 - .executor_helpers::_filter_fork_messages, _auto_vault_or_truncate, _parse_handover_state (POS: Pure helper functions for SubagentExecutor mixins and external callers.)
 - .builder::build_child_agent, filter_tools, merge_child_stats (POS: Subagent construction helpers — tool filtering via DelegationCapabilityManifest, model resolution, token merge.)
 - .event_forwarder::SubagentEventForwarder (POS: Subagent event forwarder. Translates subagent events into progress and log events.)
+- agent.streaming.answer_draft::AnswerDraft (POS: Streamed answer text honouring the restart contract.)
 - .types::SubagentBudgetExceededError, SubagentConfig, SubAgentResult, SubAgentStatus (POS: Subagent subsystem core type definitions.)
 - toolkits.llms.errors.exceptions::MyrmLLMError (POS: Standardized LLM Error thrown by the Harness framework.)
 - toolkits.llms.errors.error_types::FailoverReason (POS: LLM failover reason enum.)
@@ -27,6 +28,7 @@ from typing import TYPE_CHECKING
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.security.guards.taint_tracker import get_taint_tracker
+from myrm_agent_harness.agent.streaming.answer_draft import AnswerDraft
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
 from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -136,7 +138,7 @@ class SubagentExecutorAttemptMixin:
             config=config,
         )
         children_agents[task_id] = child_agent
-        messages: list[str] = []
+        answer = AnswerDraft()
 
         # Ensure subagent uses its own thread_id for checkpointing
         context["approval_session_key"] = task_id
@@ -224,26 +226,27 @@ class SubagentExecutorAttemptMixin:
                     raise asyncio.CancelledError()
 
                 event_type = event.get("type")
+                if event_type == AgentEventType.MESSAGE.value and not isinstance(event.get("data"), str):
+                    # The parent reads this answer as a tool result, so a payload that is not text is rendered as text.
+                    event = {**event, "data": str(event.get("data", ""))}
+                answer.feed(event)
 
-                if event_type == AgentEventType.MESSAGE.value:
-                    content = event.get("data", "")
-                    messages.append(content if isinstance(content, str) else str(content))
-                elif event_type == AgentEventType.ERROR.value:
+                if event_type == AgentEventType.ERROR.value:
                     exc = MyrmLLMError(
                         error_code=FailoverReason.UNKNOWN,
                         default_msg=f"Subagent error: {event.get('error', 'Unknown error')}",
                     )
-                    exc.partial_output = "".join(messages)
+                    exc.partial_output = answer.text
                     raise exc
-                else:
+                if event_type != AgentEventType.MESSAGE.value:
                     await event_forwarder.handle_event(event)
 
                 event_forwarder.check_budget()
 
-            raw_result = "".join(messages)
+            raw_result = answer.text
         except Exception as exc:
             if not hasattr(exc, "partial_output"):
-                exc.partial_output = "".join(messages)  # type: ignore[attr-defined]
+                exc.partial_output = answer.text  # type: ignore[attr-defined]
             raise
         finally:
             set_is_subagent(False)
