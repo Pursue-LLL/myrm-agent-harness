@@ -10,7 +10,7 @@ Infrastructure layer.
 | __init__.py | Package | Infrastructure layer. | — |
 | atomic_write.py | Core | Atomic file write with crash-consistency guarantee. | ✅ |
 | sqlite_backup.py | Core | SQLite hot-backup manager with integrity verification, SHA-256 checksum, quarantine, and manifest tracking. | ✅ |
-| sqlite_backup_models.py | Core | Data models and low-level SQLite PRAGMA utilities for sqlite_backup snapshots, verification, and restore results. | ✅ |
+| sqlite_backup_models.py | Core | Data models and low-level SQLite PRAGMA utilities for sqlite_backup snapshots, verification, and restore results; also the temporary-image lifecycle: an interrupted or failed backup removes its `.tmp-` image and SQLite sidecars, and each backup first sweeps images idle for more than 5 minutes (left by a killed process). | ✅ |
 | sqlite_salvage.py | Core | SQLite non-destructive B-Tree page-skipping rowid salvage engine with binary search bad page isolation, orphan session stub healing, native FTS rebuild, and deferred secondary index/view replay. | ✅ |
 | tls_compat.py | Core | Enterprise TLS compatibility for Python 3.13+/OpenSSL 3.x. Narrow relaxation of VERIFY_X509_STRICT for corporate TLS-inspection proxies. Provides `create_httpx_client()` factory for unified TLS-compat injection across all outbound HTTPS exits. | ✅ |
 | cooperative_signals.py | Core | Cooperative pause probe token (`CooperativePauseSignal`) for background maintenance yield. Imported by `toolkits/memory/` and `runtime/cognitive_clock/`. | ✅ |

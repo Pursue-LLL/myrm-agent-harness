@@ -43,13 +43,17 @@ from .sqlite_backup_models import (
     _MANIFEST_VERSION,
     _QUARANTINE_DIR,
     _SNAPSHOTS_DIR,
+    _TMP_PREFIX,
     BackupRecord,
     RestoreResult,
     SnapshotVerificationResult,
     _compute_sha256,
+    _discard_on_failure,
     _pragma_integrity_check,
     _pragma_quick_check,
     _pragma_schema_version,
+    _require_backup_image,
+    _sweep_stale_tmp_backups,
     _timestamp_dirname,
 )
 
@@ -115,34 +119,36 @@ class SQLiteBackupManager:
         self._snapshots_dir.mkdir(parents=True, exist_ok=True)
 
         backup_id = f"{int(time.time() * 1000)}"
-        tmp_name = f".tmp-{backup_id}.sqlite"
+        tmp_name = f"{_TMP_PREFIX}{backup_id}.sqlite"
         final_name = f"backup-{backup_id}.sqlite"
         tmp_path = self._snapshots_dir / tmp_name
         final_path = self._snapshots_dir / final_name
 
         logger.info("[SQLiteBackup] Starting hot backup of %s", self._db_path)
 
-        src = sqlite3.connect(str(self._db_path), timeout=10.0)
-        try:
-            dst = sqlite3.connect(str(tmp_path))
+        swept = _sweep_stale_tmp_backups(self._snapshots_dir)
+        if swept:
+            logger.info("[SQLiteBackup] Removed %d abandoned temporary backup files", swept)
+
+        with _discard_on_failure(tmp_path):
+            src = sqlite3.connect(str(self._db_path), timeout=10.0)
             try:
-                src.backup(dst, pages=_BACKUP_PAGE_BATCH)
+                dst = sqlite3.connect(str(tmp_path))
+                try:
+                    src.backup(dst, pages=_BACKUP_PAGE_BATCH)
+                finally:
+                    dst.close()
             finally:
-                dst.close()
-        finally:
-            src.close()
-
-        qc = _pragma_quick_check(tmp_path)
-        if qc != "ok":
-            tmp_path.unlink(missing_ok=True)
-            msg = f"Backup quick_check failed: {qc}"
-            logger.error("[SQLiteBackup] %s", msg)
-            raise RuntimeError(msg)
-
-        checksum = _compute_sha256(tmp_path)
-        schema_ver = _pragma_schema_version(tmp_path)
-
-        os.replace(str(tmp_path), str(final_path))
+                src.close()
+            _require_backup_image(tmp_path)
+            qc = _pragma_quick_check(tmp_path)
+            if qc != "ok":
+                msg = f"Backup quick_check failed: {qc}"
+                logger.error("[SQLiteBackup] %s", msg)
+                raise RuntimeError(msg)
+            checksum = _compute_sha256(tmp_path)
+            schema_ver = _pragma_schema_version(tmp_path)
+            os.replace(str(tmp_path), str(final_path))
 
         record = BackupRecord(
             backup_id=backup_id,
