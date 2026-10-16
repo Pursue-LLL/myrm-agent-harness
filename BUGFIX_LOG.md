@@ -2,6 +2,23 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-16-010 · 搜索供应商链里被标为「额度耗尽」的供应商在进程重启前一直被跳过：到期时间只在限流状态里生效，耗尽状态没有到期也没有任何复位入口；一次回显了查询词的错误就能让健康的头部供应商整个进程生命周期不再被调用
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED（到期恢复；失败分类收紧与更新密钥时立即复位未做） |
+| **发现时间** | 2026-10-16（复核 topic_02 #141 ④：用真实 `ProviderQuotaTracker` 与单调时钟实测，把时钟与 `depleted_at` 推进 40 天后 `get_status` 仍返回 `DEPLETED`；roadmap 里 S2 的复现是头部对含「quota」的查询返回 `HTTP 400: invalid query` 后被标为耗尽，供应商恢复后头部被调用 0 次） |
+| **修复时间** | 2026-10-16 |
+| **症状** | ① `mark_depleted` 之后 `get_status` 永远返回 `DEPLETED`（旧 `chain.py:75-88` 的耗尽分支不看时间），额度重置或充值之后该供应商也不会再被调用，直到进程重启；② 回显查询词的错误文本里出现 `quota` 一类词会走同一个永久标记，健康的头部供应商因此被一直跳过；③ 在 `myrm-agent-harness/src` 与 `myrm-agent/myrm-agent-server/app` 下，`reset_provider`、`reset_all`、`get_all_states` 除 `chain.py` 本身外没有调用方，没有任何入口能复位 |
+| **关联产品** | myrm-agent-harness `toolkits/web_search/providers/chain.py`；server 与前端未改，不改提示词、消息顺序与工具 schema，提示缓存前缀不受影响 |
+| **根因** | `ProviderQuotaState` 把限流的到期时刻放在 `rate_limited_until`，耗尽只记一个没有读者的墙钟 `depleted_at`，`get_status` 的耗尽分支直接返回；耗尽靠错误文本里的子串判定，误判与真耗尽走同一个永久标记 |
+| **修复** | 状态机只保留一个单调时钟的 `unavailable_until`：限流默认 5 秒、耗尽默认 1 小时（`_DEFAULT_DEPLETED_COOLDOWN_SECONDS`，`mark_depleted(..., cooldown_seconds=)` 可调），到期时删除状态，下一次真实搜索担任探测，仍耗尽则被再次标记，没有另写探测路径；删除零调用方的 `get_all_states()` 与无读者的 `depleted_at`；`ProviderQuotaStatus` 改为 `StrEnum`。1 小时是取舍：额度重置发生在带外（计费周期、充值），追踪器观察不到，一小时在「误判的代价」（跳过一小时）与「探测的成本」（每小时多一次真实搜索）之间折中，没有按供应商实测过 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① roadmap 草案写的是「到期后半开探测一次」，读码后发现状态一删除下一次调用天然就是探测，不需要另写一条探测路径；② 被删除的 `get_all_states()` 在 topic_02 #141 ④ 里被规划接到设置页的健康显示，零调用方的事实让这条依赖落空，已在该条下注明；③ 用例用可拨动的假时钟替换 `chain.py` 里的 `time`，直接断言到期，不 sleep；写变异验证时，变异体若用真实的 `time` 会让限流用例也失败，那是变异体的问题，不是被测行为 |
+| **回归** | `tests/toolkits/web_search/test_chain_quota_hop.py` 11 例通过，其中新增 3 例：`test_depleted_provider_recovers_after_cooldown`（到期前一秒仍耗尽、到期后恢复、再次耗尽会再次标记）、`test_rate_limited_provider_recovers_after_cooldown`、`test_chain_probes_depleted_primary_again_after_cooldown`（链上头部耗尽时由备用供应商出结果，一小时后头部被再次调用）。变异验证：在进程内把 `get_status` 换回「耗尽不看时间」后，`test_depleted_provider_recovers_after_cooldown` 与 `test_chain_probes_depleted_primary_again_after_cooldown` 失败，`test_rate_limited_provider_recovers_after_cooldown` 照常通过（限流语义没变）；ruff、ruff format、mypy 对该文件通过 |
+| **局限** | ① 没有在真实供应商上验证到期后的探测与再次标记；② 耗尽到期固定为 1 小时，「月度额度」与「余额不足」两类没有区分；③ 回显查询词的误判本身没有修（topic_02 #141 ⑤ 的锚定分类），后果由永久缩短为 1 小时；④ 用户在设置里更新密钥或端点时不会立即复位，要等到期；⑤ 没有设置页的健康显示与「立即重试」；⑥ `tests/toolkits/web_search` 整目录里有一条并发压力用例（1000 并发、500 毫秒内完成）在机器负载高时偶发失败，单独重跑通过，与本条无关 |
+| **代码位置** | `toolkits/web_search/providers/chain.py`：`_DEFAULT_DEPLETED_COOLDOWN_SECONDS`（`:50`）、`ProviderQuotaTracker.get_status`（`:77`）、`mark_rate_limited`（`:88`）、`mark_depleted`（`:102`）· `tests/toolkits/web_search/test_chain_quota_hop.py` |
+
 ### BUG-HARNESS-2026-10-16-007 · 同一条消息里两个委派同时停在审批上时，界面只收到第一个中断的卡片；两个中断同时待决时任何答复都被 LangGraph 拒绝，一张已被处理过的旧卡再被点击时答复会落到用户没看到的下一个审批上；同批删掉子代理检查点里无人调用的「按文件快照恢复」半边
 
 | 字段 | 内容 |
