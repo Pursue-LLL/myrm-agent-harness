@@ -162,6 +162,21 @@ async def test_a_provider_that_never_answers_fails_as_a_timeout_within_the_reque
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("wire", ["chat_completions", "responses", "anthropic_messages"])
+async def test_a_synchronous_call_to_a_provider_that_never_answers_fails_as_a_timeout(wire: WireProtocol) -> None:
+    async with _provider(_never_answers) as api_base:
+        llm = _model(api_base, wire, streaming=False)
+        started = time.monotonic()
+        # The provider lives on this event loop, so the blocking call runs in a thread.
+        with pytest.raises(Exception) as caught:
+            await asyncio.wait_for(asyncio.to_thread(llm.invoke, [HumanMessage(content="hi")]), _GUARD_SECONDS)
+        elapsed = time.monotonic() - started
+
+    assert elapsed < _ENDS_WITHIN_SECONDS, f"still waiting for the provider after {elapsed:.0f}s"
+    assert classify_error(caught.value) == ErrorKind.TIMEOUT
+
+
+@pytest.mark.asyncio
 async def test_a_response_that_arrives_later_than_the_request_timeout_is_a_timeout() -> None:
     async def slow(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         await _answers_after(2.5, reader, writer)
