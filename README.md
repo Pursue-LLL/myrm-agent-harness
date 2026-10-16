@@ -149,10 +149,10 @@ agent = await create_skill_agent(
 ### 使用技能后端
 
 ```python
-from myrm_agent_harness.backends.skills import SkillBackend
+from myrm_agent_harness.backends.skills import LocalSkillBackend
 
 # 创建技能后端（业务层）
-skill_backend = SkillBackend.local("./skills")
+skill_backend = LocalSkillBackend("./skills")
 
 agent = await create_skill_agent(
     spec,
@@ -402,15 +402,19 @@ class MyCodeExecutor(CodeExecutor):
 加载技能和技能内容：
 
 ```python
-from myrm_agent_harness.backends.skills import SkillBackend
+from myrm_agent_harness.api import SkillBackend
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 class MySkillBackend(SkillBackend):
+    async def list_skills(self) -> list[SkillMetadata]:
+        ...
     async def load_skills(self, skill_ids: list[str]) -> list[SkillMetadata]:
         ...
     async def get_skill_content(self, skill_name: str) -> str:
         ...
     async def get_skill_resources(self, skill_name: str, path: str) -> bytes:
+        ...
+    async def list_skill_resources(self, skill_name: str) -> list[str]:
         ...
 ```
 

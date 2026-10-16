@@ -50,7 +50,7 @@ class AgentConfig(BaseModel):
     使用 Pydantic 进行严格字段验证，避免运行时错误。
 
     Example:
-        >>> from myrm_agent_harness.backends.skills import CompositeSkillBackend, SkillBackend
+        >>> from myrm_agent_harness.backends.skills import CompositeSkillBackend, LocalSkillBackend, StorageSkillBackend
         >>> from myrm_agent_harness.toolkits.storage import StorageProvider
         >>> from myrm_agent_harness.agent.skills.mcp import MCPConfig
         >>> from myrm_agent_harness.toolkits.code_execution import ExecutionConfig, ExecutionMode
@@ -59,8 +59,8 @@ class AgentConfig(BaseModel):
         ...     llm=LLMConfig(model="gpt-4", api_key="sk-..."),
         ...     skill_backend=CompositeSkillBackend(
         ...         routes={
-        ...             "/user/": SkillBackend.local("./user_skills"),
-        ...             "/system/": SkillBackend.storage(storage_backend),
+        ...             "/user/": LocalSkillBackend("./user_skills"),
+        ...             "/system/": StorageSkillBackend(storage_backend),
         ...         }
         ...     ),
         ...     mcp_configs=[MCPConfig(...)],
