@@ -2,6 +2,23 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-16-012 · 用户接管浏览器后交还时，刷新快照的调用带了一个不存在的参数，每次都抛 TypeError 并被吞成一条警告，快照与差异基线停在接管前；同批删掉浏览器里只写不读的运行遥测与无人调用的动作看门狗
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-16（删除浏览器运行遥测时核对 `browser_session.py` 的调用关系，mypy 报 `Unexpected keyword argument "force" for "snapshot"`；用 `inspect.signature(BrowserSession.snapshot).bind(..., force=True)` 复现 `TypeError: got an unexpected keyword argument 'force'`） |
+| **修复时间** | 2026-10-16 |
+| **症状** | ① 用户在界面交还浏览器控制权时，server 调 `resume_from_takeover`（`task_space_service.py:127`），方法里的 `self.snapshot(force=True)` 每次都抛 `TypeError`，被 `except Exception` 吞成一条 `Failed to refresh snapshot after takeover resume` 警告，元素引用与差异基线没有刷新到用户留下的页面；② 两个测试（`test_browser_session_takeover.py`、`test_takeover_hard_stop.py`）把 `snapshot` 换成 `AsyncMock` 后断言 `assert_awaited_once_with(force=True)`，`AsyncMock` 接受任何关键字，这个错误被断言成了「正确」；③ 同批清理：`BrowserRunTelemetry`（运行时长与传输字节遥测）只有写入方，没有读取方：`NetworkLogger` 每个响应结束时多算一次字节数再写入，`attach_to_context` 没有调用方；`check_action_watchdog`、`get_observability_stats` 没有调用方（产品仓台账已有同样的记录）；`BrowserSession.stats["telemetry"]` 与 `runtime_telemetry` 没有读取方 |
+| **关联产品** | myrm-agent-harness `toolkits/browser/`（`observability.py`、`session/{browser_session,browser_session_lifecycle_mixin,network_logger}.py`）；server 与前端未改（`resume_from_takeover` 的签名不变）；不改提示词、消息顺序与工具 schema，提示缓存前缀不受影响 |
+| **根因** | ① 调用处写的是 `snapshot` 当前签名里没有的参数 `force`，而 `snapshot()` 的签名里只有 `diff`、`update_baseline` 等；② 唯一的覆盖用 `AsyncMock` 替掉了被调用的方法，签名检查被一并替掉；③ 遥测按「写入方、读取方、展示」三段设计，只做了写入这一段 |
+| **修复** | `resume_from_takeover` 改为 `snapshot(diff=False)`：返回值本来就被丢弃，调用只为刷新元素引用与差异基线，不必再算一次与接管前页面的差异（`browser_session.py:386`）；两个测试改断言 `diff=False`，`test_browser_session_takeover.py` 再用 `inspect.signature(BrowserSession.snapshot).bind` 对真实签名核对所用关键字；删除 `BrowserRunTelemetry`、`BrowserObservability.telemetry` 与构造参数、`attach_to_context`、`check_action_watchdog`、`get_observability_stats`、`NetworkLogger` 的 `telemetry` 参数与每个响应的字节计算、`BrowserSession.runtime_telemetry` 与 `stats["telemetry"]`；`BrowserObservability` 保留录像配置、`get_context_kwargs`、`notify_progress`、`mark_task_status`、`cleanup_recording`、`recording_enabled` 与 `video_path` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 删除遥测时 ruff 报 `SIM102`：关闭会话处原来是 `if self._observability:` 里套 `if self._observability.recording_enabled:`，去掉外层的 `mark_closed()` 后两层条件合并为一个；② 被删的 `test_search_quota_and_browser_telemetry.py` 里还有三个搜索指标用例（`WebSearchMetrics` 的供应商额度计数，不属于遥测），先搬到新文件 `tests/toolkits/web_search/test_web_search_metrics.py` 再删旧文件；③ `BUG-HARNESS-2026-10-14-016` 的回归一栏提到的 `test_observability_bandwidth_integration.py` 随被测的字节统计一起删除（它测的就是被删的 `BrowserRunTelemetry`） |
+| **回归** | `tests/toolkits/browser/session/test_browser_session_takeover.py` 与 `test_takeover_hard_stop.py` 共 9 例通过；`tests/toolkits/browser` 与 `tests/toolkits/web_search` 整目录 3576 例通过、1 例跳过（另有 350 例按项目默认标记不收集）；变异验证：把调用改回 `force=True`，两个断言 `diff=False` 的用例失败（2 失败、7 通过），换回后 9 例全过；`inspect.signature(BrowserSession.snapshot).bind(force=True)` 抛 `TypeError` |
+| **局限** | ① 没有在真实浏览器里验证接管交还后第一次快照的内容，下一次 `snapshot()` 此前是否比对了接管前的旧基线只是按代码推断；② 被删的遥测没有保留任何一段，将来要做运行成本或带宽展示，读取侧与写入侧都要从头设计；③ `browser_session.py` 里还有一个与本条无关的既有 mypy 错误（`PageAnalyzer` 收到 `patchright` 的 `Page`，声明的是 `playwright` 的 `Page`），没有动 |
+| **代码位置** | `toolkits/browser/session/browser_session.py::resume_from_takeover`（`:386`）· `toolkits/browser/observability.py::BrowserObservability` · `toolkits/browser/session/network_logger.py::NetworkLogger.__init__` · `tests/toolkits/browser/session/test_browser_session_takeover.py`、`test_takeover_hard_stop.py`、`tests/toolkits/web_search/test_web_search_metrics.py` |
+
 ### BUG-HARNESS-2026-10-16-011 · 搜索链上头部供应商超时、5xx、连不上时不会转移到备用供应商，整次搜索直接失败；查询词里带 quota、429 一类词的搜索，一次超时就能把健康的头部供应商标成额度耗尽或限流
 
 | 字段 | 内容 |

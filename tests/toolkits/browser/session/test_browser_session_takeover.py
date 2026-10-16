@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,10 +14,12 @@ from myrm_agent_harness.toolkits.browser.session.browser_session import BrowserS
 @pytest.fixture
 def mock_session() -> BrowserSession:
     """Create a minimal BrowserSession with mocked internal components."""
-    with patch("myrm_agent_harness.toolkits.browser.session.browser_session.TabController"), \
-         patch("myrm_agent_harness.toolkits.browser.session.browser_session.Navigator"), \
-         patch("myrm_agent_harness.toolkits.browser.session.browser_session.SnapshotManager"), \
-         patch("myrm_agent_harness.toolkits.browser.session.browser_session.Interactor") as mock_interactor_cls:
+    with (
+        patch("myrm_agent_harness.toolkits.browser.session.browser_session.TabController"),
+        patch("myrm_agent_harness.toolkits.browser.session.browser_session.Navigator"),
+        patch("myrm_agent_harness.toolkits.browser.session.browser_session.SnapshotManager"),
+        patch("myrm_agent_harness.toolkits.browser.session.browser_session.Interactor"),
+    ):
         mock_pool = MagicMock()
         mock_ctx_type = MagicMock()
         session = BrowserSession(browser_pool=mock_pool, context_type=mock_ctx_type)
@@ -50,8 +53,11 @@ async def test_session_pause_and_resume_flow(mock_session: BrowserSession) -> No
     await mock_session.resume_from_takeover()
     assert mock_session.user_takeover_active is False
     assert mock_session._user_takeover_event.is_set() is True
-    # Verify snapshot refresh was triggered
-    mock_session.snapshot.assert_awaited_once_with(force=True)
+    # The refresh result is discarded, so it must not spend time diffing against the pre-takeover tree.
+    mock_session.snapshot.assert_awaited_once_with(diff=False)
+    # The mock accepts any keyword, so bind the awaited arguments against the real signature: a stale
+    # parameter name would raise TypeError in production and be swallowed by the resume handler.
+    inspect.signature(BrowserSession.snapshot).bind(mock_session, **mock_session.snapshot.await_args.kwargs)
 
 
 @pytest.mark.asyncio

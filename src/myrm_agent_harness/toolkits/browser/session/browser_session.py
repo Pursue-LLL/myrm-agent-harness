@@ -73,10 +73,7 @@ import logging
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.browser.observability import (
-    BrowserObservability,
-    BrowserRunTelemetry,
-)
+from myrm_agent_harness.toolkits.browser.observability import BrowserObservability
 from myrm_agent_harness.toolkits.browser.recording_manager import RecordingManager
 from myrm_agent_harness.toolkits.browser.utils.selectors import PASSWORD_FIELD_SELECTOR
 
@@ -235,8 +232,7 @@ class BrowserSession(
         self._snapshot_manager: SnapshotManager | None = None
         self._interactor: Interactor | None = None
         self._extractor: Extractor | None = None
-        self._telemetry = observability.telemetry if observability is not None else BrowserRunTelemetry()
-        self._network_logger = NetworkLogger(telemetry=self._telemetry)
+        self._network_logger = NetworkLogger()
         self._network_intelligence = NetworkIntelligence()
         self._web_vitals = WebVitalsCollector()
         self._console_logger = ConsoleLogger()
@@ -386,7 +382,9 @@ class BrowserSession(
         self._user_takeover_event.set()
         logger.info("BrowserSession resumed: user takeover finished, refreshing snapshot")
         try:
-            await self.snapshot(force=True)
+            # The result is discarded: the call only refreshes the refs and the diff baseline to the page the user
+            # left behind, so computing a diff against the pre-takeover tree would be wasted work.
+            await self.snapshot(diff=False)
         except Exception as exc:
             logger.warning("Failed to refresh snapshot after takeover resume: %s", exc)
 
@@ -676,13 +674,4 @@ class BrowserSession(
         if self._download_manager:
             stats["downloads"] = len(self._download_manager.downloads)
 
-        stats["telemetry"] = self.runtime_telemetry.snapshot()
-
         return stats
-
-    @property
-    def runtime_telemetry(self) -> BrowserRunTelemetry:
-        """Runtime compute and network telemetry for this browser session."""
-        if self._observability is not None:
-            return self._observability.telemetry
-        return self._telemetry

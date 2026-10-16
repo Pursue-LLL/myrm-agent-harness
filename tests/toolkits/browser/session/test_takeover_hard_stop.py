@@ -67,7 +67,7 @@ async def test_takeover_resume_unblocks_and_refreshes_snapshot(
     assert resumed_event.is_set() is True
     assert mock_session.user_takeover_active is False
     assert mock_session._user_takeover_event.is_set() is True
-    mock_session.snapshot.assert_awaited_once_with(force=True)
+    mock_session.snapshot.assert_awaited_once_with(diff=False)
     await task
 
 
