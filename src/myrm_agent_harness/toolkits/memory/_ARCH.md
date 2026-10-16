@@ -52,7 +52,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | _manager/  | Composable ``MemoryManager`` implementation modules.                               |
 | _internal/ | Internal implementation details — not part of the public API.                     |
 | cognitive/  | Cognitive memory consolidation layer.                                             |
-| conversation_search/ | Protocol-backed conversation recall tool, source refs, scope/lineage DTOs, **expand_message_id window**, format `message_id`, MemoryManager provider. |
+| conversation_search/ | Protocol-backed conversation recall (served via `memory_search_tool(corpus=sessions)`), source refs, scope/lineage DTOs, **expand_message_id window**, format `message_id`, MemoryManager provider. |
 | graph/      | Graph Store — async graph storage with SQLite CTE backend.                        |
 | integration/ | Integration Memory — pulls data from third-party services into local memory for cross-source semantic retrieval. |
 | protocols/  | Storage-agnostic protocols for the memory system.                                 |

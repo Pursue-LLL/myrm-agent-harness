@@ -22,7 +22,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-CONVERSATION_SEARCH_TOOL_NAME = "conversation_search_tool"
 DEFAULT_CONVERSATION_SEARCH_LIMIT = 5
 MAX_CONVERSATION_SEARCH_LIMIT = 8
 MAX_SNIPPET_CHARS = 700

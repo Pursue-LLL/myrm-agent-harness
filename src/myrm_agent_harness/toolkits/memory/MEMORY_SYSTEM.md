@@ -858,7 +858,7 @@ tools = create_memory_tools(manager=manager)
 
 **Memory MCP HTTP**（`agent_surface/mcp_server/`）：对外暴露 `memory_recall` / `memory_list` / `memory_store` / `memory_manage` 四工具；**`memory_manage` 与 `memory_store` 描述** import `agent_surface/_memory_agent_tool_descriptions` SSOT（`surface=mcp` 工具名映射；store 默认不含 wiki boundary 文案——MCP 面无 wiki 工具、运行时 wiki 拦截由 server 按 agent 经 ContextVar 控制，静态描述不声称 wiki enabled，显式启用场景下 MCP 面也不泄漏 GUI 内部工具名 `wiki_ingest_tool`）；wiki 启用时 `memory_store` 运行时硬拒 document-like 内容（与 GUI `memory_save_tool` 一致，server middleware 传 ContextVar，拒绝消息同样不引用 GUI 内部工具）。recall/list 仍为 MCP 专用 inline 描述。
 
-`conversation_search/` 模块提供 Protocol、formatter 与 `create_conversation_search_tool` 单元测试工厂；产品路径（GeneralAgent 与 Custom 子 Agent）均通过 `memory_search_tool(corpus=sessions)` + Server `MemorySearchPolicy` ACL。Turn1 不 bind standalone LLM 工具名 `conversation_search_tool`。
+`conversation_search/` 模块提供 Protocol、formatter 与 `MemoryConversationSearchProvider`；会话检索只经 `memory_search_tool(corpus=sessions)` + Server `MemorySearchPolicy` ACL 暴露（GeneralAgent 与 Custom 子 Agent 一致），框架不提供独立的 `conversation_search_tool`。
 
 ### 8.3 审批机制
 

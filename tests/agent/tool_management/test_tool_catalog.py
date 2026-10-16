@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.agent.orchestration.hooks import RUNTIME_HOOK_NAMES
 from myrm_agent_harness.agent.orchestration.signals.catalog import (
     ORCHESTRATION_SIGNAL_NAMES,
@@ -95,19 +93,6 @@ def test_validate_layer_product_rejects_default_on_in_extended() -> None:
     registered["web_search_tool"] = ToolLayer.EXTENDED
     errors = validate_layer_product_consistency(registered)
     assert any("default-on but tool is EXTENDED" in err for err in errors)
-
-
-def test_conversation_history_group_without_override_returns_none(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from myrm_agent_harness.agent.tool_management import tool_catalog as catalog_module
-
-    monkeypatch.setitem(
-        catalog_module.TOOL_TO_GROUP,
-        "future_conv_tool",
-        "conversation_history",
-    )
-    assert get_tool_product_id("future_conv_tool") is None
 
 
 def test_load_condition_default_by_layer() -> None:

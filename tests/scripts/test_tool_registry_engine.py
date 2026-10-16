@@ -17,6 +17,7 @@ _repo_root = Path(__file__).resolve().parent.parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
+from scripts import tool_registry_engine
 from scripts.tool_registry_engine import (
     _build_string_constants,
     _collect_basetool_subclass,
@@ -75,7 +76,8 @@ _NOT_STR = 42
     assert "_NOT_STR" not in constants
 
 
-def test_tool_name_resolves_literal_local_and_cross_module_constants() -> None:
+def test_tool_name_resolves_literal_local_and_cross_module_constants(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(tool_registry_engine, "CROSS_MODULE_CONSTANTS", {"IMPORTED_TOOL_NAME": "imported_tool"})
     src = """
 LOCAL = "local_name"
 
@@ -85,7 +87,7 @@ def a(): pass
 @tool("literal_name")
 def b(): pass
 
-@tool(CONVERSATION_SEARCH_TOOL_NAME)
+@tool(IMPORTED_TOOL_NAME)
 def c(): pass
 
 @tool
@@ -96,7 +98,7 @@ def fallback(): pass
     decorators = {n.name: n.decorator_list[0] for n in tree.body if isinstance(n, ast.FunctionDef)}
     assert _tool_name_from_decorator(decorators["a"], "a", constants) == "local_name"
     assert _tool_name_from_decorator(decorators["b"], "b", constants) == "literal_name"
-    assert _tool_name_from_decorator(decorators["c"], "c", constants) == "conversation_search_tool"
+    assert _tool_name_from_decorator(decorators["c"], "c", constants) == "imported_tool"
     assert _tool_name_from_decorator(decorators["fallback"], "fallback", constants) == "fallback"
 
 

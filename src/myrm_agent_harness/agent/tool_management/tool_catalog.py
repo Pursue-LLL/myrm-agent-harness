@@ -163,8 +163,6 @@ def get_tool_product_id(tool_name: str) -> str | None:
         return None
     if group == "web" and tool_name != "web_search_tool":
         return None
-    if group == "conversation_history":
-        return None
 
     return _GROUP_TO_PRODUCT_ID.get(group)
 

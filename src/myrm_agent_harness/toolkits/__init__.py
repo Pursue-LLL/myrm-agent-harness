@@ -49,7 +49,6 @@ __all__ = [
     "LLMManager",
     "RetrieverManager",
     "create_browser_tools",
-    "create_conversation_search_tool",
     "create_cron_tools",
     "create_invoke_acp_agent_tool",
     "create_litellm_model",
@@ -73,10 +72,6 @@ _LAZY_IMPORTS = {
     "create_memory_tools": (
         "myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools",
         "create_memory_tools",
-    ),
-    "create_conversation_search_tool": (
-        "myrm_agent_harness.toolkits.memory.conversation_search",
-        "create_conversation_search_tool",
     ),
     "create_web_fetch_tool": ("myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools", "create_web_fetch_tool"),
     "create_web_search_tool": (

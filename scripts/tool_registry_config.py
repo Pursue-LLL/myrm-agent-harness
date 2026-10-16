@@ -58,9 +58,8 @@ SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset(
 # Built-in tools whose JSON schema is bound by the server (no @tool AST in harness).
 SERVER_BOUND_SCHEMA_TOOL_NAMES: frozenset[str] = frozenset({"request_answer_user_tool"})
 
-CROSS_MODULE_CONSTANTS: dict[str, str] = {
-    "CONVERSATION_SEARCH_TOOL_NAME": "conversation_search_tool",
-}
+# `@tool(NAME)` declarations whose NAME is imported from another module and cannot be resolved by the AST scan.
+CROSS_MODULE_CONSTANTS: dict[str, str] = {}
 
 
 @dataclass(frozen=True)
@@ -75,9 +74,6 @@ class LayerExemption:
 # tool is still unmounted the registry gate fails, which forces a decision (mount it on a profile, or delete the tool).
 # An entry for a tool that no longer exists or is now registered is reported as stale and has to be deleted.
 LAYER_EXEMPT_TOOLS: Mapping[str, LayerExemption] = {
-    "conversation_search_tool": LayerExemption(
-        date(2027, 1, 31), "Declared in toolkits/memory/conversation_search/tool.py; no Turn1 layer entry."
-    ),
     "wiki_compile_tool": LayerExemption(
         date(2027, 1, 31), "Wiki admin tool declared in toolkits/wiki/wiki_agent_tools.py; not a Turn1 action tool."
     ),
@@ -91,20 +87,9 @@ LAYER_EXEMPT_TOOLS: Mapping[str, LayerExemption] = {
 
 ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
     {
-        "create_desktop_tools",
-        "create_browser_tools",
-        "create_skill_select_tool",
-        "create_kanban_tools",
-        "create_conversation_search_tool",
-        "create_cron_tools",
-        "create_invoke_acp_agent_tool",
-        "create_goal_tools",
-        "create_memory_tools",
-        "create_submit_verdict_tool",
         "create_wiki_admin_tools",
         "create_restricted_ax_browser_tools",
-        # Landed selectively-wired: exposed via public api for callers that
-        # supply a live message accessor; not part of the Turn1 meta-tool set.
+        # Not mounted on any agent profile: the caller supplies a live message accessor.
         "create_refetch_historical_turn_tool",
         # Implemented and unit-tested under toolkits/memory/sovereign_migration,
         # deliberately not mounted on any agent profile yet.
