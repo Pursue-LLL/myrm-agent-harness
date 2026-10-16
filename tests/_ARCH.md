@@ -25,7 +25,7 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 | `agent/streaming/broadcast/` | 单元 | ToolBroadcastBus / ToolCallBroadcaster · [agent/streaming/broadcast/_ARCH.md](agent/streaming/broadcast/_ARCH.md) |
 | `integration/` | 集成 | 跨模块集成（含浏览器 wait-strategies 等） |
 | `dev/` | 单元 | vortexai 维护者脚本回归（`test_run_pytest_safe.py`） |
-| `agent/skills/curator/test_curator_engine.py` | 单元 | SkillCurator 生命周期与 LRU 驱逐（勿用通用名 `test_engine.py`，会与 `agent/dynamic_workflow/test_engine.py` 触发 collect import mismatch） |
+| `agent/skills/curator/test_curator_engine.py` | 单元 | SkillCurator 生命周期与豁免规则（勿用通用名 `test_engine.py`，会与 `agent/dynamic_workflow/test_engine.py` 触发 collect import mismatch） |
 | `agent/skills/` | 单元 | 技能子系统测试树 · [agent/skills/_ARCH.md](agent/skills/_ARCH.md) |
 | `agent/_factory/test_mcp_routing_route.py` | 单元 | `route_mcp_servers` direct/PTC/aggregate demotion + compress 边界（mock connection） |
 | `agent/_factory/test_builder_compactor.py` | 单元 | `create_skill_agent` 上下文管道辅助压缩模型 `summarizer_llm` 注入装配 |
