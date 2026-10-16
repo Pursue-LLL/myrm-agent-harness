@@ -12,7 +12,7 @@
 
 [OUTPUT]
 - SubagentExecutorAttemptMixin._inherit_parent_context
-- SubagentExecutorAttemptMixin._run_single_attempt
+- SubagentExecutorAttemptMixin._run_single_attempt: returns the attempt's result (any status) or raises; closing the run with SUBAGENT_STOP is the retry loop's job
 
 [POS]
 One child-agent run attempt including fork context and result post-processing.
@@ -379,17 +379,6 @@ class SubagentExecutorAttemptMixin(SubagentExecutorDelegationMixin):
             status=SubAgentStatus.COMPLETED,
             trace_id=trace_id,
             handover_state=handover_state,
-        )
-        await fire_hook(
-            hook_event_cls.SUBAGENT_STOP,
-            {
-                "task_id": task_id,
-                "agent_type": agent_type,
-                "success": True,
-                "result": final_result,
-                "duration_seconds": duration,
-                "trace_id": trace_id,
-            },
         )
         total_tokens = child_usage.total_tokens if child_usage else 0
         logger.info(

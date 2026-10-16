@@ -10,7 +10,7 @@
 - workspace_coordination.merge.merge_warning::record_workspace_merge_failure (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
 
 [OUTPUT]
-- SubagentExecutorRetryMixin.run_with_retry: immediate ISOLATED_COPY sync_back before return; merge failure records `{task_id}: {error}` turn warning + workspace_merge_status on result; every failure exit (timeout, LLM error, budget, other error, no attempt) fires SUBAGENT_STOP
+- SubagentExecutorRetryMixin.run_with_retry: immediate ISOLATED_COPY sync_back before return; merge failure records `{task_id}: {error}` turn warning + workspace_merge_status on result; every run (any attempt result status, timeout, LLM error, budget, other error, no attempt, cancellation) fires exactly one SUBAGENT_STOP, paired with SUBAGENT_START
 
 [POS]
 Retry loop with workspace isolation, hooks, and graceful cancellation.
@@ -171,32 +171,38 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
         isolation_succeeded = False
         pending_sync_back: Callable[[], object] | None = None
 
+        async def close_run(outcome: SubAgentResult) -> SubAgentResult:
+            """Fire SUBAGENT_STOP for the run's outcome: every return but cancellation goes through here."""
+            payload: dict[str, object] = {
+                "task_id": task_id,
+                "agent_type": agent_type,
+                "success": outcome.success,
+                "status": outcome.status.value,
+                "duration_seconds": outcome.duration_seconds,
+                "trace_id": trace_id,
+            }
+            if outcome.success:
+                payload["result"] = outcome.result
+            else:
+                payload["error"] = outcome.error
+            await fire_hook(HookEvent.SUBAGENT_STOP, payload)
+            return outcome
+
         async def finish_failed(status: SubAgentStatus, error: str, partial: str = "") -> SubAgentResult:
-            """Close the run as failed: every failure return goes through here so SUBAGENT_STOP pairs SUBAGENT_START."""
             now = time.time()
-            failed = SubAgentResult(
-                success=False,
-                task_id=task_id,
-                agent_type=agent_type,
-                result=partial,
-                error=error,
-                duration_seconds=now - start_time,
-                completed_at=now,
-                status=status,
-                trace_id=trace_id,
+            return await close_run(
+                SubAgentResult(
+                    success=False,
+                    task_id=task_id,
+                    agent_type=agent_type,
+                    result=partial,
+                    error=error,
+                    duration_seconds=now - start_time,
+                    completed_at=now,
+                    status=status,
+                    trace_id=trace_id,
+                )
             )
-            await fire_hook(
-                HookEvent.SUBAGENT_STOP,
-                {
-                    "task_id": task_id,
-                    "agent_type": agent_type,
-                    "success": False,
-                    "error": error,
-                    "duration_seconds": failed.duration_seconds,
-                    "trace_id": trace_id,
-                },
-            )
-            return failed
 
         try:
             while retries_left > 0:
@@ -224,6 +230,7 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         on_running_token_usage=on_running_token_usage,
                         internal=internal,
                     )
+                    result = await close_run(result)
                     if isolation_ctx and result.success:
                         isolation_succeeded = True
                         sync_back_fn = context.get("_workspace_sync_back")
