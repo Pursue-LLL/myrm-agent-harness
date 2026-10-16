@@ -1,7 +1,9 @@
-"""Every sub-agent run that fires SUBAGENT_START ends with exactly one SUBAGENT_STOP.
+"""Every sub-agent run that fires SUBAGENT_START ends with a SUBAGENT_STOP.
 
 The hook pair is the contract external subscribers use to open and close a per-run span, so each way one
-attempt can end (a returned result of any status, or an exception of any class) must close it.
+attempt can end (a returned result of any status, or an exception of any class) must close it. A cancellation
+landing while the STOP is still being delivered adds a final ``cancelled`` STOP, so delivery is at-least-once
+and the last STOP always carries the run's final status.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
     SubAgentResult,
     SubAgentStatus,
+    WorkspacePolicy,
 )
 from myrm_agent_harness.core.hooks.types import CallableHookDefinition, HookCallable, HookResult
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
@@ -98,7 +101,7 @@ def _patched(attempt: AsyncMock | None, fire_hook: Callable[..., Awaitable[objec
         yield
 
 
-async def _invoke(config: SubagentConfig) -> SubAgentResult:
+async def _invoke(config: SubagentConfig, context: dict[str, object] | None = None) -> SubAgentResult:
     parent_agent = MagicMock()
     parent_agent._subagent_manager = None
     parent_agent._last_context = {}
@@ -107,7 +110,7 @@ async def _invoke(config: SubagentConfig) -> SubAgentResult:
         agent_type="worker",
         task_description="task",
         config=config,
-        context={},
+        context=context or {},
         tool_registry_getter=lambda: [],
         start_time=0.0,
         parent_agent=parent_agent,
@@ -291,3 +294,48 @@ async def test_a_cancellation_during_stop_delivery_still_gives_every_subscriber_
         stops = [status for event, status in entries if event == HookEvent.SUBAGENT_STOP]
         assert stops, "every subscriber that saw START must see a STOP"
         assert stops[-1] == "cancelled"
+
+
+class _FakeIsolation:
+    """Stand-in for ``isolated_workspace``: yields a child path and a no-op sync-back."""
+
+    async def __aenter__(self) -> tuple[str, Callable[[], None]]:
+        return "/child", lambda: None
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+
+@pytest.mark.asyncio
+async def test_the_stop_is_delivered_before_the_isolated_workspace_is_merged_back() -> None:
+    """Subscribers hear about the finished run before its workspace changes land in the parent."""
+    order: list[str] = []
+
+    async def record_hook(event: str, _payload: dict[str, object]) -> None:
+        order.append(event)
+
+    async def record_sync_back(*, result: SubAgentResult, **_: object) -> SubAgentResult:
+        order.append("sync_back")
+        return result
+
+    config = SubagentConfig(
+        system_prompt="test",
+        timeout_seconds=10,
+        max_retries=1,
+        retry_backoff_seconds=0,
+        workspace_policy=WorkspacePolicy.ISOLATED_COPY,
+    )
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
+            return_value=_FakeIsolation(),
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_retry_mixin._apply_immediate_isolated_sync_back",
+            record_sync_back,
+        ),
+        _patched(AsyncMock(return_value=_SUCCESS_RETURNS[0].values[0]), record_hook),
+    ):
+        await _invoke(config, {"workspace_path": "/parent"})
+
+    assert order == [HookEvent.SUBAGENT_START, HookEvent.SUBAGENT_STOP, "sync_back"]
