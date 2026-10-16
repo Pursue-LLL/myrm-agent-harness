@@ -385,7 +385,7 @@ Hook 异常不影响主流程（catch + warning 日志）。
 | 配置管理 | YAML 配置加载、Pydantic 校验和注册表优先级 |
 | 自动进度与日志 | 子 agent 事件转发为统一的进度和日志事件 |
 | 失败 partial 回传 | 超时 / MyrmLLMError / BudgetExceeded / generic Exception / 未发起任何尝试五条失败路径经同一收尾函数返回结构化 `SubAgentResult(result=partial_output)`，截断保护防 context 爆炸 |
-| Hook 成对 | 每次 run（一次 `run_with_retry`）恰好触发一次 `SUBAGENT_STOP`，与 `SUBAGENT_START` 成对：尝试返回的任何状态（成功 / 失败 / 让出 / 待审批）、超时 / MyrmLLMError / BudgetExceeded / generic Exception / 未发起任何尝试、取消，都由重试层统一收尾；payload 含 `status`，成功带 `result`、失败带 `error`。待审批后的恢复是新的一次 run，各自成对 |
+| Hook 成对 | 每次 run（一次 `run_with_retry`）恰好触发一次 `SUBAGENT_STOP`，与 `SUBAGENT_START` 成对：尝试返回的任何状态（成功 / 失败 / 让出 / 待审批）、超时 / MyrmLLMError / BudgetExceeded / generic Exception / 未发起任何尝试、取消，都由重试层的同一个收尾函数 `close_run` 发出；payload 含 `status`，成功带 `result`、失败带 `error`（取消为 `status=cancelled`、`error=Cancelled`）。STOP 投递是逐个 await 的，投递期间收到取消不会再发第二条 STOP。待审批后的恢复是新的一次 run，各自成对 |
 
 ### 15. Cooperative Subagent Cancellation
 

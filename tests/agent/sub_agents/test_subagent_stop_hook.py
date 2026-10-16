@@ -6,8 +6,9 @@ attempt can end (a returned result of any status, or an exception of any class) 
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable
-from contextlib import ExitStack
+import asyncio
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import ExitStack, contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -82,6 +83,36 @@ _SUCCESS_RETURNS = [
 ]
 
 
+@contextmanager
+def _patched(fire_hook: Callable[..., Awaitable[object]], attempt: AsyncMock | None) -> Iterator[None]:
+    """Replace the hook dispatcher, and the single attempt unless the real pipeline should run."""
+    with ExitStack() as stack:
+        stack.enter_context(patch("myrm_agent_harness.agent.hooks.executor.fire_hook", fire_hook))
+        if attempt is not None:
+            stack.enter_context(patch.object(SubagentExecutor, "_run_single_attempt", attempt))
+        yield
+
+
+async def _invoke(config: SubagentConfig) -> SubAgentResult:
+    parent_agent = MagicMock()
+    parent_agent._subagent_manager = None
+    parent_agent._last_context = {}
+    return await SubagentExecutor().run_with_retry(
+        task_id="stop-pair",
+        agent_type="worker",
+        task_description="task",
+        config=config,
+        context={},
+        tool_registry_getter=lambda: [],
+        start_time=0.0,
+        parent_agent=parent_agent,
+        cancel_flags={},
+        children_agents={},
+        children_steering={},
+        trace_id="trace-1",
+    )
+
+
 async def _run(
     config: SubagentConfig, attempt: AsyncMock | None = None
 ) -> tuple[SubAgentResult, list[tuple[str, dict[str, object]]]]:
@@ -90,27 +121,8 @@ async def _run(
     Without ``attempt`` the real single-attempt pipeline runs.
     """
     fire_hook = AsyncMock()
-    parent_agent = MagicMock()
-    parent_agent._subagent_manager = None
-    parent_agent._last_context = {}
-    with ExitStack() as stack:
-        stack.enter_context(patch("myrm_agent_harness.agent.hooks.executor.fire_hook", fire_hook))
-        if attempt is not None:
-            stack.enter_context(patch.object(SubagentExecutor, "_run_single_attempt", attempt))
-        result = await SubagentExecutor().run_with_retry(
-            task_id="stop-pair",
-            agent_type="worker",
-            task_description="task",
-            config=config,
-            context={},
-            tool_registry_getter=lambda: [],
-            start_time=0.0,
-            parent_agent=parent_agent,
-            cancel_flags={},
-            children_agents={},
-            children_steering={},
-            trace_id="trace-1",
-        )
+    with _patched(fire_hook, attempt):
+        result = await _invoke(config)
     return result, [(call.args[0], call.args[1]) for call in fire_hook.await_args_list]
 
 
@@ -221,3 +233,39 @@ async def test_the_real_pipeline_closes_a_run_whose_tool_allowlist_is_empty() ->
     assert "no tools after filtering" in result.error
     assert [event for event, _ in hooks] == _PAIR
     assert hooks[1][1] == _failure_payload(result)
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_run_is_closed_by_a_stop_that_follows_cancel_complete() -> None:
+    result, hooks = await _run(_config(), AsyncMock(side_effect=asyncio.CancelledError()))
+
+    assert result.status is SubAgentStatus.CANCELLED
+    assert [event for event, _ in hooks] == [
+        HookEvent.SUBAGENT_START,
+        HookEvent.SUBAGENT_CANCEL_COMPLETE,
+        HookEvent.SUBAGENT_STOP,
+    ]
+    assert hooks[2][1] == _failure_payload(result)
+    assert hooks[2][1]["error"] == "Cancelled"
+
+
+@pytest.mark.asyncio
+async def test_a_cancellation_during_stop_delivery_sends_no_second_stop() -> None:
+    delivered: list[str] = []
+    stop_started = asyncio.Event()
+    completed = _SUCCESS_RETURNS[0].values[0]
+
+    async def slow_stop(event: str, payload: dict[str, object]) -> None:
+        delivered.append(event)
+        if event == HookEvent.SUBAGENT_STOP:
+            stop_started.set()
+            await asyncio.sleep(30)
+
+    with _patched(slow_stop, AsyncMock(return_value=completed)):
+        run = asyncio.create_task(_invoke(_config()))
+        await stop_started.wait()
+        run.cancel()
+        result = await run
+
+    assert result.status is SubAgentStatus.CANCELLED
+    assert delivered == [HookEvent.SUBAGENT_START, HookEvent.SUBAGENT_STOP, HookEvent.SUBAGENT_CANCEL_COMPLETE]
