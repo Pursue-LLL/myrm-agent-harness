@@ -14,14 +14,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 
-class StorageCategory(str, Enum):
+class StorageCategory(StrEnum):
     """Categories of persistent state storage."""
 
     SQLITE_DATABASE = "sqlite_database"
     CHECKPOINTS = "checkpoints"
+    WORKSPACES = "workspaces"
     VECTOR_STORE = "vector_store"
     MEMORY_ARCHIVE = "memory_archive"
     EVENT_LOGS = "event_logs"
@@ -56,13 +57,12 @@ class StateSnapshotMetadata:
 
 @dataclass(frozen=True)
 class CompactionResult:
-    """Result of a safe storage compaction operation."""
+    """Result of compacting the state database; the byte counts cover the database file and its write-ahead log."""
 
     success: bool
     initial_bytes: int
     final_bytes: int
     freed_bytes: int
-    purged_checkpoints: int = 0
     wal_truncated: bool = False
     duration_ms: float = 0.0
     message: str = ""

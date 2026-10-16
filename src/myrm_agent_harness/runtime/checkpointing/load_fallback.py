@@ -2,10 +2,11 @@
 
 [INPUT]
 - langgraph.checkpoint.base::BaseCheckpointSaver (POS: LangGraph checkpointer base class)
+- pruning::HistoryPrunable (POS: structural type of a saver that can name and prune threads with superseded history)
 
 [OUTPUT]
-- LoadFallbackCheckpointer: forwards the async saver interface to the wrapped saver; `aget_tuple` returns
-  None instead of raising when the stored payload cannot be deserialized
+- LoadFallbackCheckpointer: forwards the async saver interface (incl. history pruning) to the wrapped saver;
+  `aget_tuple` returns None instead of raising when the stored payload cannot be deserialized
 
 [POS]
 Wraps the SQLite saver the factory builds. A checkpoint written by an older release can reference classes that
@@ -21,6 +22,8 @@ from typing import TYPE_CHECKING
 
 from langgraph.checkpoint.base import BaseCheckpointSaver, Checkpoint, CheckpointTuple
 from langgraph.checkpoint.base import CheckpointMetadata as LGMetadata
+
+from .pruning import HistoryPrunable
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
@@ -99,6 +102,14 @@ class LoadFallbackCheckpointer(BaseCheckpointSaver[str]):
 
     async def adelete_thread(self, thread_id: str) -> None:
         await self._wrapped.adelete_thread(thread_id)
+
+    async def aprune(self, thread_ids: Sequence[str], *, strategy: str = "keep_latest") -> None:
+        await self._wrapped.aprune(thread_ids, strategy=strategy)
+
+    async def alist_prunable_thread_ids(self) -> list[str]:
+        if not isinstance(self._wrapped, HistoryPrunable):
+            raise NotImplementedError(f"{type(self._wrapped).__name__} cannot name threads with prunable history")
+        return await self._wrapped.alist_prunable_thread_ids()
 
     def get_next_version(self, current: str | None, channel: None) -> str:
         return self._wrapped.get_next_version(current, channel)

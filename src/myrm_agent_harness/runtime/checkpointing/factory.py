@@ -3,6 +3,7 @@
 [INPUT]
 - DEPLOY_MODE / CHECKPOINTER_MODE env vars
 - langgraph checkpoint savers (sqlite / memory)
+- pruning::PruningAsyncSqliteSaver (POS: the SQLite saver, able to prune superseded history)
 - load_fallback::LoadFallbackCheckpointer (POS: wraps the SQLite saver)
 
 [OUTPUT]
@@ -80,7 +81,7 @@ async def create_checkpointer(
 
     Decision logic:
     1. mode=memory → MemorySaver (no persistence, dev/test only)
-    2. Default (empty or sqlite) → AsyncSqliteSaver on persistent volume (fail-fast on error)
+    2. Default (empty or sqlite) → PruningAsyncSqliteSaver on persistent volume (fail-fast on error)
 
     Returns:
         (checkpointer, cleanup_callback) — cleanup closes underlying DB connections.
@@ -142,7 +143,7 @@ async def _create_sqlite_checkpointer(
             logger.info("[Shutdown] SQLite connection closed")
 
         logger.info(
-            "Checkpointer: LoadFallbackCheckpointer[AsyncSqliteSaver] (file=%s, serde=dill, persistent, deploy_mode=%s)",
+            "Checkpointer: LoadFallbackCheckpointer[PruningAsyncSqliteSaver] (file=%s, serde=dill, persistent, deploy_mode=%s)",
             db_path,
             deploy_mode,
         )
@@ -166,12 +167,11 @@ async def _create_sqlite_checkpointer(
 async def _build_sqlite_saver(
     conn: aiosqlite.Connection,
 ) -> BaseCheckpointSaver[str]:
-    """Build the AsyncSqliteSaver (dill serde) wrapped so undecodable checkpoints start a fresh session."""
-    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-
+    """Build the prunable AsyncSqliteSaver (dill serde) wrapped so undecodable checkpoints start a fresh session."""
     from .load_fallback import LoadFallbackCheckpointer
+    from .pruning import PruningAsyncSqliteSaver
 
-    base_saver = AsyncSqliteSaver(conn, serde=PickleSerde())
+    base_saver = PruningAsyncSqliteSaver(conn, serde=PickleSerde())
     await base_saver.setup()
     return LoadFallbackCheckpointer(base_saver)
 

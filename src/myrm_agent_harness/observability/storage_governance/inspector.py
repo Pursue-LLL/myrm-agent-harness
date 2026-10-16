@@ -2,6 +2,7 @@
 
 [INPUT]
 - Path (POS: root data directory)
+- Path | None (POS: checkpoint database, whose location the application chooses)
 
 [OUTPUT]
 - StorageGovernanceInspector.inspect() -> StorageGovernanceReport
@@ -16,6 +17,7 @@ import logging
 import os
 import shutil
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
 
 from .types import (
@@ -26,6 +28,21 @@ from .types import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Categories that are one directory of the data directory, in report order.
+_DIRECTORY_CATEGORIES: tuple[tuple[StorageCategory, str, str], ...] = (
+    (StorageCategory.WORKSPACES, "harness", "Agent Workspaces"),
+    (StorageCategory.VECTOR_STORE, "qdrant", "Vector Index & Embeddings"),
+    (StorageCategory.MEMORY_ARCHIVE, "memory", "Long-Term Memory Archive"),
+    (StorageCategory.EVENT_LOGS, "event_logs", "Event Logs & Traces"),
+    (StorageCategory.SNAPSHOTS, "snapshots", "State Snapshots"),
+)
+
+_WAL_WARNING_BYTES = 50 * 1024 * 1024
+_EVENT_LOGS_WARNING_BYTES = 300 * 1024 * 1024
+_SNAPSHOT_ADVICE_MIN_STORAGE_BYTES = 100 * 1024 * 1024
+_HEALTHY_MAX_STORAGE_BYTES = 2 * 1024 * 1024 * 1024
+_HEALTHY_MAX_DISK_USED_PERCENT = 85.0
 
 
 def _safe_dir_size_and_count(dir_path: Path) -> tuple[int, int]:
@@ -46,6 +63,19 @@ def _safe_dir_size_and_count(dir_path: Path) -> tuple[int, int]:
     except OSError:
         pass
     return total_bytes, file_count
+
+
+def _database_footprint(db_file: Path) -> tuple[int, int, dict[str, int]]:
+    """Total bytes, file count and per-file sizes of a SQLite database and its write-ahead log."""
+    total_bytes = 0
+    sizes: dict[str, int] = {}
+    for path in (db_file, db_file.with_name(f"{db_file.name}-wal")):
+        try:
+            sizes[path.name] = path.stat().st_size
+        except OSError:
+            continue
+        total_bytes += sizes[path.name]
+    return total_bytes, len(sizes), sizes
 
 
 def _get_sqlite_table_stats(db_path: Path) -> dict[str, int]:
@@ -77,8 +107,10 @@ def _get_sqlite_table_stats(db_path: Path) -> dict[str, int]:
 class StorageGovernanceInspector:
     """Inspects and attributes disk space across agent persistent storage domains."""
 
-    def __init__(self, data_dir: Path | str) -> None:
+    def __init__(self, data_dir: Path | str, *, checkpoints_db: Path | str | None = None) -> None:
+        """`checkpoints_db` is the checkpoint database file; without it no space is attributed to checkpoints."""
         self._data_dir = Path(data_dir)
+        self._checkpoints_db = Path(checkpoints_db) if checkpoints_db is not None else None
 
     def inspect(self, snapshots: list[StateSnapshotMetadata] | None = None) -> StorageGovernanceReport:
         """Generate a full storage governance report for the target data directory."""
@@ -97,140 +129,67 @@ class StorageGovernanceInspector:
             disk_free = 0
             disk_used_pct = 0.0
 
-        categories: list[StorageCategoryBreakdown] = []
-
-        # 1. SQLite Database (data.db, wal, shm)
-        sqlite_bytes = 0
-        sqlite_count = 0
-        sqlite_details: dict[str, int] = {}
-        db_file = data_dir / "data.db"
-        if db_file.exists():
-            try:
-                db_size = db_file.stat().st_size
-                sqlite_bytes += db_size
-                sqlite_count += 1
-                sqlite_details["data.db"] = db_size
-                sqlite_details.update(_get_sqlite_table_stats(db_file))
-            except OSError:
-                pass
-        wal_file = data_dir / "data.db-wal"
-        if wal_file.exists():
-            try:
-                wal_size = wal_file.stat().st_size
-                sqlite_bytes += wal_size
-                sqlite_count += 1
-                sqlite_details["data.db-wal"] = wal_size
-            except OSError:
-                pass
-
-        categories.append(
+        sqlite_bytes, sqlite_count, sqlite_details = _database_footprint(data_dir / "data.db")
+        if "data.db" in sqlite_details:
+            sqlite_details.update(_get_sqlite_table_stats(data_dir / "data.db"))
+        categories = [
             StorageCategoryBreakdown(
                 category=StorageCategory.SQLITE_DATABASE,
                 display_name="SQLite State Database",
                 bytes=sqlite_bytes,
                 item_count=sqlite_count,
                 details=sqlite_details,
-            )
-        )
-
-        # 2. Checkpoints & Runtime state
-        cp_dir = data_dir / "harness"
-        cp_bytes, cp_count = _safe_dir_size_and_count(cp_dir)
-        categories.append(
-            StorageCategoryBreakdown(
-                category=StorageCategory.CHECKPOINTS,
-                display_name="Session Checkpoints",
-                bytes=cp_bytes,
-                item_count=cp_count,
-            )
-        )
-
-        # 3. Qdrant Vector Store
-        qdrant_dir = data_dir / "qdrant"
-        qdrant_bytes, qdrant_count = _safe_dir_size_and_count(qdrant_dir)
-        categories.append(
-            StorageCategoryBreakdown(
-                category=StorageCategory.VECTOR_STORE,
-                display_name="Vector Index & Embeddings",
-                bytes=qdrant_bytes,
-                item_count=qdrant_count,
-            )
-        )
-
-        # 4. Long-term Memory Archive
-        mem_dir = data_dir / "memory"
-        mem_bytes, mem_count = _safe_dir_size_and_count(mem_dir)
-        categories.append(
-            StorageCategoryBreakdown(
-                category=StorageCategory.MEMORY_ARCHIVE,
-                display_name="Long-Term Memory Archive",
-                bytes=mem_bytes,
-                item_count=mem_count,
-            )
-        )
-
-        # 5. Event Logs & Traces
-        logs_dir = data_dir / "event_logs"
-        logs_bytes, logs_count = _safe_dir_size_and_count(logs_dir)
-        categories.append(
-            StorageCategoryBreakdown(
-                category=StorageCategory.EVENT_LOGS,
-                display_name="Event Logs & Traces",
-                bytes=logs_bytes,
-                item_count=logs_count,
-            )
-        )
-
-        # 6. Snapshots
-        snap_dir = data_dir / "snapshots"
-        snap_bytes, snap_count = _safe_dir_size_and_count(snap_dir)
-        categories.append(
-            StorageCategoryBreakdown(
-                category=StorageCategory.SNAPSHOTS,
-                display_name="State Snapshots",
-                bytes=snap_bytes,
-                item_count=snap_count,
-            )
-        )
-
-        total_storage = sum(cat.bytes for cat in categories)
-
-        # Compute percentage for each category
-        updated_categories: list[StorageCategoryBreakdown] = []
-        for cat in categories:
-            pct = round((cat.bytes / total_storage) * 100, 1) if total_storage > 0 else 0.0
-            updated_categories.append(
+            ),
+            self._checkpoints_breakdown(),
+        ]
+        for category, dirname, display_name in _DIRECTORY_CATEGORIES:
+            dir_bytes, file_count = _safe_dir_size_and_count(data_dir / dirname)
+            categories.append(
                 StorageCategoryBreakdown(
-                    category=cat.category,
-                    display_name=cat.display_name,
-                    bytes=cat.bytes,
-                    item_count=cat.item_count,
-                    percentage=pct,
-                    details=cat.details,
+                    category=category,
+                    display_name=display_name,
+                    bytes=dir_bytes,
+                    item_count=file_count,
                 )
             )
 
-        # Formulate proactive recommendations
+        total_storage = sum(cat.bytes for cat in categories)
+        categories = [
+            replace(cat, percentage=round((cat.bytes / total_storage) * 100, 1) if total_storage > 0 else 0.0)
+            for cat in categories
+        ]
+
+        bytes_by_category = {cat.category: cat.bytes for cat in categories}
         recommended_actions: list[str] = []
-        wal_size = sqlite_details.get("data.db-wal", 0)
-        if wal_size > 50 * 1024 * 1024:  # > 50 MB WAL
+        if sqlite_details.get("data.db-wal", 0) > _WAL_WARNING_BYTES:
             recommended_actions.append("WAL log is over 50MB. Run safe compaction to truncate and flush pages.")
-        if cp_bytes > 500 * 1024 * 1024:  # > 500 MB checkpoints
-            recommended_actions.append("Checkpoint storage exceeds 500MB. Prune completed task checkpoints.")
-        if logs_bytes > 300 * 1024 * 1024:  # > 300 MB logs
+        if bytes_by_category[StorageCategory.EVENT_LOGS] > _EVENT_LOGS_WARNING_BYTES:
             recommended_actions.append("Event logs exceed 300MB. Archive historical trace logs.")
-        if not snapshots and total_storage > 100 * 1024 * 1024:
+        if not snapshots and total_storage > _SNAPSHOT_ADVICE_MIN_STORAGE_BYTES:
             recommended_actions.append("No state snapshot found. Create a baseline snapshot before agent tuning.")
 
-        is_healthy = disk_used_pct < 85.0 and total_storage < 2 * 1024 * 1024 * 1024  # < 2GB
+        is_healthy = disk_used_pct < _HEALTHY_MAX_DISK_USED_PERCENT and total_storage < _HEALTHY_MAX_STORAGE_BYTES
 
         return StorageGovernanceReport(
             total_storage_bytes=total_storage,
             disk_total_bytes=disk_total,
             disk_free_bytes=disk_free,
             disk_used_percentage=disk_used_pct,
-            categories=updated_categories,
+            categories=categories,
             snapshots=snapshots or [],
             recommended_actions=recommended_actions,
             is_growth_healthy=is_healthy,
+        )
+
+    def _checkpoints_breakdown(self) -> StorageCategoryBreakdown:
+        """Space of the checkpoint database and its write-ahead log; file sizes only, row counts would scan it."""
+        checkpoint_bytes, file_count, sizes = (
+            _database_footprint(self._checkpoints_db) if self._checkpoints_db is not None else (0, 0, {})
+        )
+        return StorageCategoryBreakdown(
+            category=StorageCategory.CHECKPOINTS,
+            display_name="Conversation Checkpoints",
+            bytes=checkpoint_bytes,
+            item_count=file_count,
+            details=sizes,
         )
