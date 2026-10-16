@@ -1,8 +1,8 @@
 """A failed sub-agent attempt hands the parent at most twice the error budget of its streamed text.
 
-Every failure branch of the retry loop (timeout, LLM error, budget exceeded, any other error) returns the
-text the attempt streamed as ``SubAgentResult.result``; that text becomes the parent model's tool result,
-so an oversized answer is cut to its head and marked.
+Every failure branch of the retry loop returns the text the attempt streamed as ``SubAgentResult.result``;
+that text becomes the parent model's tool result, so an oversized answer is cut to its head and marked.
+The LLM-error and budget branches' cut is covered in ``test_partial_progress_on_failure.py``.
 """
 
 from __future__ import annotations
@@ -14,9 +14,7 @@ import pytest
 
 from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
 from myrm_agent_harness.agent.sub_agents.executor_helpers import attach_partial_output
-from myrm_agent_harness.agent.sub_agents.types import SubagentBudgetExceededError, SubagentConfig, SubAgentStatus
-from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
-from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
+from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, SubAgentStatus
 
 _MAX_ERROR_CHARS = 50
 _CLIP_AT = _MAX_ERROR_CHARS * 2
@@ -24,12 +22,6 @@ _MARKER = "\n…[truncated]"
 
 _FAILURES = [
     pytest.param(TimeoutError, SubAgentStatus.TIMED_OUT, id="timeout"),
-    pytest.param(
-        lambda: MyrmLLMError(error_code=FailoverReason.OVERLOADED, default_msg="provider down"),
-        SubAgentStatus.FAILED,
-        id="llm",
-    ),
-    pytest.param(lambda: SubagentBudgetExceededError("over budget"), SubAgentStatus.CANCELLED_BY_BUDGET, id="budget"),
     pytest.param(lambda: RuntimeError("boom"), SubAgentStatus.FAILED, id="other"),
 ]
 

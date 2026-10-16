@@ -10,7 +10,7 @@
 - workspace_coordination.merge.merge_warning::record_workspace_merge_failure (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
 
 [OUTPUT]
-- SubagentExecutorRetryMixin.run_with_retry: immediate ISOLATED_COPY sync_back before return; merge failure records `{task_id}: {error}` turn warning + workspace_merge_status on result
+- SubagentExecutorRetryMixin.run_with_retry: immediate ISOLATED_COPY sync_back before return; merge failure records `{task_id}: {error}` turn warning + workspace_merge_status on result; every failure exit (timeout, LLM error, budget, other error, no attempt) fires SUBAGENT_STOP
 
 [POS]
 Retry loop with workspace isolation, hooks, and graceful cancellation.
@@ -171,6 +171,33 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
         isolation_succeeded = False
         pending_sync_back: Callable[[], object] | None = None
 
+        async def fail(status: SubAgentStatus, error: str, partial: str = "") -> SubAgentResult:
+            """Close the run as failed: every failure return goes through here so SUBAGENT_STOP pairs SUBAGENT_START."""
+            now = time.time()
+            failed = SubAgentResult(
+                success=False,
+                task_id=task_id,
+                agent_type=agent_type,
+                result=partial,
+                error=error,
+                duration_seconds=now - start_time,
+                completed_at=now,
+                status=status,
+                trace_id=trace_id,
+            )
+            await fire_hook(
+                HookEvent.SUBAGENT_STOP,
+                {
+                    "task_id": task_id,
+                    "agent_type": agent_type,
+                    "success": False,
+                    "error": error,
+                    "duration_seconds": failed.duration_seconds,
+                    "trace_id": trace_id,
+                },
+            )
+            return failed
+
         try:
             while retries_left > 0:
                 try:
@@ -229,20 +256,10 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         await asyncio.sleep(backoff_seconds)
                         backoff_seconds *= 2
                         continue
-                    now = time.time()
-                    partial = read_partial_output(timeout_exc, partial_budget)
-                    return SubAgentResult(
-                        success=False,
-                        task_id=task_id,
-                        agent_type=agent_type,
-                        result=partial,
-                        error=f"Timeout after {config.timeout_seconds}s"
-                        if config.timeout_seconds is not None
-                        else "Timeout",
-                        duration_seconds=now - start_time,
-                        completed_at=now,
-                        status=SubAgentStatus.TIMED_OUT,
-                        trace_id=trace_id,
+                    return await fail(
+                        SubAgentStatus.TIMED_OUT,
+                        f"Timeout after {config.timeout_seconds}s" if config.timeout_seconds is not None else "Timeout",
+                        read_partial_output(timeout_exc, partial_budget),
                     )
                 except MyrmLLMError as llm_exc:
                     retries_left -= 1
@@ -255,57 +272,17 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         await asyncio.sleep(backoff_seconds)
                         backoff_seconds *= 2
                         continue
-                    now = time.time()
-                    partial = read_partial_output(llm_exc, partial_budget)
-                    err_result = SubAgentResult(
-                        success=False,
-                        task_id=task_id,
-                        agent_type=agent_type,
-                        result=partial,
-                        error=_compact_error_message(str(llm_exc), config.max_error_chars),
-                        duration_seconds=now - start_time,
-                        completed_at=now,
-                        status=SubAgentStatus.FAILED,
-                        trace_id=trace_id,
+                    return await fail(
+                        SubAgentStatus.FAILED,
+                        _compact_error_message(str(llm_exc), config.max_error_chars),
+                        read_partial_output(llm_exc, partial_budget),
                     )
-                    await fire_hook(
-                        HookEvent.SUBAGENT_STOP,
-                        {
-                            "task_id": task_id,
-                            "agent_type": agent_type,
-                            "success": False,
-                            "error": err_result.error,
-                            "duration_seconds": now - start_time,
-                            "trace_id": trace_id,
-                        },
-                    )
-                    return err_result
                 except SubagentBudgetExceededError as error:
-                    now = time.time()
-                    partial = read_partial_output(error, partial_budget)
-                    err_result = SubAgentResult(
-                        success=False,
-                        task_id=task_id,
-                        agent_type=agent_type,
-                        result=partial,
-                        error=str(error),
-                        duration_seconds=now - start_time,
-                        completed_at=now,
-                        status=SubAgentStatus.CANCELLED_BY_BUDGET,
-                        trace_id=trace_id,
+                    return await fail(
+                        SubAgentStatus.CANCELLED_BY_BUDGET,
+                        str(error),
+                        read_partial_output(error, partial_budget),
                     )
-                    await fire_hook(
-                        HookEvent.SUBAGENT_STOP,
-                        {
-                            "task_id": task_id,
-                            "agent_type": agent_type,
-                            "success": False,
-                            "error": err_result.error,
-                            "duration_seconds": now - start_time,
-                            "trace_id": trace_id,
-                        },
-                    )
-                    return err_result
                 except Exception as error:
                     retries_left -= 1
                     logger.error(
@@ -319,44 +296,13 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         await asyncio.sleep(backoff_seconds)
                         backoff_seconds *= 2
                         continue
-                    now = time.time()
-                    raw_error = f"{type(error).__name__}: {error}"
-                    partial = read_partial_output(error, partial_budget)
-                    err_result = SubAgentResult(
-                        success=False,
-                        task_id=task_id,
-                        agent_type=agent_type,
-                        result=partial,
-                        error=_compact_error_message(raw_error, config.max_error_chars),
-                        duration_seconds=now - start_time,
-                        completed_at=now,
-                        status=SubAgentStatus.FAILED,
-                        trace_id=trace_id,
+                    return await fail(
+                        SubAgentStatus.FAILED,
+                        _compact_error_message(f"{type(error).__name__}: {error}", config.max_error_chars),
+                        read_partial_output(error, partial_budget),
                     )
-                    await fire_hook(
-                        HookEvent.SUBAGENT_STOP,
-                        {
-                            "task_id": task_id,
-                            "agent_type": agent_type,
-                            "success": False,
-                            "error": err_result.error,
-                            "duration_seconds": now - start_time,
-                            "trace_id": trace_id,
-                        },
-                    )
-                    return err_result
 
-            now = time.time()
-            return SubAgentResult(
-                success=False,
-                task_id=task_id,
-                agent_type=agent_type,
-                error="Max retries exceeded",
-                duration_seconds=now - start_time,
-                completed_at=now,
-                status=SubAgentStatus.FAILED,
-                trace_id=trace_id,
-            )
+            return await fail(SubAgentStatus.FAILED, "Max retries exceeded")
 
         except asyncio.CancelledError:
             logger.info("[subagent:%s] Cancelled, executing graceful shutdown", task_id)
