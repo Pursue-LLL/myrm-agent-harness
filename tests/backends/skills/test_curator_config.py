@@ -73,8 +73,8 @@ def test_from_dict_keeps_valid_overrides() -> None:
     assert config.grace_period_days == 0
 
 
-def test_from_dict_ignores_keys_of_retired_settings() -> None:
-    """A config file written before the library-size limit and the system-skill switch were removed still loads."""
+def test_from_dict_ignores_unknown_keys() -> None:
+    """Keys the config does not define are ignored and never written back."""
     config = CuratorConfig.from_dict({"max_skills": 80, "protect_system_skills": False, "stale_after_days": 45})
 
     assert config == CuratorConfig(stale_after_days=45)
