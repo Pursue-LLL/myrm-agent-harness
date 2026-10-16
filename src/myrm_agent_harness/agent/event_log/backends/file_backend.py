@@ -282,18 +282,6 @@ class FileEventLogBackend:
         target = self._log_dir / f"{session_id}.jsonl"
         return target if target.exists() else None
 
-    async def close(self) -> None:
-        """End the current run: wait for in-flight appends, then reset the dedup watermark.
-
-        A pooled backend serves consecutive runs whose sequences each restart at 1.
-        """
-        async with self._lock:
-            self._max_seq = 0
-
-    async def cleanup_old_logs(self) -> int:
-        """Remove log files older than retention_days.
-
-        Returns:
     async def remove_session_log(self, session_id: str) -> bool:
         """Delete one session's jsonl file, e.g. when the conversation that produced it is permanently deleted.
 
@@ -317,6 +305,18 @@ class FileEventLogBackend:
                 self._max_seq = 0
         return True
 
+    async def close(self) -> None:
+        """End the current run: wait for in-flight appends, then reset the dedup watermark.
+
+        A pooled backend serves consecutive runs whose sequences each restart at 1.
+        """
+        async with self._lock:
+            self._max_seq = 0
+
+    async def cleanup_old_logs(self) -> int:
+        """Remove log files older than retention_days.
+
+        Returns:
             Number of files deleted
         """
         if not self._log_dir.exists():
