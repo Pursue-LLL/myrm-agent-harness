@@ -10,7 +10,7 @@
 - workspace_coordination.merge.merge_warning::record_workspace_merge_failure (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
 
 [OUTPUT]
-- SubagentExecutorRetryMixin.run_with_retry: immediate ISOLATED_COPY sync_back before return; merge failure records `{task_id}: {error}` turn warning + workspace_merge_status on result; every run (any attempt result status, timeout, LLM error, budget, other error, no attempt, cancellation) closes with SUBAGENT_STOP, paired with SUBAGENT_START; cancellation during STOP delivery sends a final STOP with status=cancelled
+- SubagentExecutorRetryMixin.run_with_retry: immediate ISOLATED_COPY sync_back before return; merge failure records `{task_id}: {error}` turn warning + workspace_merge_status on result; every run (any attempt result status, timeout, LLM error, budget, other error, no attempt, cancellation) closes with SUBAGENT_STOP, paired with SUBAGENT_START; a single cancellation landing during STOP delivery sends a final STOP with status=cancelled, while a second cancellation landing inside the cancel path's own hook delivery ends the run with CancelledError and no STOP
 
 [POS]
 Retry loop with workspace isolation, hooks, and graceful cancellation.
@@ -175,8 +175,9 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
             """Fire SUBAGENT_STOP for the run's outcome; every return goes through here.
 
             Hooks are awaited one by one, so a cancellation can land while the STOP is still being delivered. The
-            cancel path then delivers its own STOP, so every subscriber gets at least one and the last one carries
-            the run's final status.
+            cancel path then delivers its own STOP, so a single cancellation leaves every subscriber with at least
+            one STOP and the last one carries the run's final status. A second cancellation landing while the cancel
+            path is delivering its own hooks propagates and leaves no STOP.
             """
             payload: dict[str, object] = {
                 "task_id": task_id,

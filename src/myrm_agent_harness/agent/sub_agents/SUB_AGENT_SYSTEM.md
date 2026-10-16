@@ -314,7 +314,7 @@ Level 4: parent LLM (继承父 agent 的 LLM，兜底)
 当 `timeout_seconds` 显式设为正整数（≥ 30）时，启用两级超时：
 
 - **等待超时 (wait timeout)**：`config.timeout_seconds`，超时后返回 `SubAgentResult(status=TIMED_OUT, still_running=True)`，子 agent **继续后台运行**，不做 cancel。
-- **硬安全超时 (hard safety timeout)**：`config.timeout_seconds * 3`，作为最终安全网终止真正的 runaway agent。
+- **硬安全超时 (hard safety timeout)**：`config.timeout_seconds * 3`，作为最终安全网终止真正的 runaway agent；到期后结果为 `SubAgentResult(status=TIMED_OUT, error="Hard timeout after Ns")`（不带 `still_running`），而不是 `cancelled`。
 - **LLM 决策权**：超时后 Parent Agent 可选择等待（`subagent_control_tool action=list`）、做别的事、或主动 cancel。
 - **`still_running` 字段**：`SubAgentResult.still_running: bool` 为 True 表示 agent 仍在后台运行。
 
@@ -385,7 +385,7 @@ Hook 异常不影响主流程（catch + warning 日志）。
 | 配置管理 | YAML 配置加载、Pydantic 校验和注册表优先级 |
 | 自动进度与日志 | 子 agent 事件转发为统一的进度和日志事件 |
 | 失败 partial 回传 | 超时 / MyrmLLMError / BudgetExceeded / generic Exception / 未发起任何尝试五条失败路径经同一收尾函数返回结构化 `SubAgentResult(result=partial_output)`，截断保护防 context 爆炸 |
-| Hook 成对 | 每次 run（一次 `run_with_retry`）都以 `SUBAGENT_STOP` 收尾，与 `SUBAGENT_START` 成对：尝试返回的任何状态（成功 / 失败 / 让出 / 待审批）、超时 / MyrmLLMError / BudgetExceeded / generic Exception / 未发起任何尝试、取消，都由重试层的同一个收尾函数 `close_run` 发出；payload 含 `status`，成功带 `result`、失败带 `error`（取消为 `status=cancelled`、`error=Cancelled`）。STOP 投递是逐个 await 的，投递期间收到取消时，取消路径会再发一条 `status=cancelled` 的 STOP，保证每个订阅者至少收到一条，最后一条是最终状态。待审批后的恢复是新的一次 run，各自成对 |
+| Hook 成对 | 每次 run（一次 `run_with_retry`）都以 `SUBAGENT_STOP` 收尾，与 `SUBAGENT_START` 成对：尝试返回的任何状态（成功 / 失败 / 让出 / 待审批）、超时 / MyrmLLMError / BudgetExceeded / generic Exception / 未发起任何尝试、取消，都由重试层的同一个收尾函数 `close_run` 发出；payload 含 `status`，成功带 `result`、失败带 `error`（取消为 `status=cancelled`、`error=Cancelled`）。STOP 投递是逐个 await 的，投递期间收到取消时，取消路径会再发一条 `status=cancelled` 的 STOP，单次取消下每个订阅者至少收到一条，最后一条是最终状态；第二次取消若落在取消路径自己的 hook 投递里，run 以 `CancelledError` 结束，不再发 STOP，订阅方需对未闭合的区间设兜底。硬安全超时杀掉的 run，STOP 是 `status=cancelled`（执行器自己观察到的终态），而返回给父 agent 的结果是 `timed_out`。待审批后的恢复是新的一次 run，各自成对 |
 
 ### 15. Cooperative Subagent Cancellation
 

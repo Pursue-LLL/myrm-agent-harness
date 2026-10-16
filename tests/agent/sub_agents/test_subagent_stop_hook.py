@@ -3,7 +3,8 @@
 The hook pair is the contract external subscribers use to open and close a per-run span, so each way one
 attempt can end (a returned result of any status, or an exception of any class) must close it. A cancellation
 landing while the STOP is still being delivered adds a final ``cancelled`` STOP, so delivery is at-least-once
-and the last STOP always carries the run's final status.
+and the last STOP carries the run's final status; a second cancellation inside the cancel path's own hook
+delivery is the one case that leaves no STOP.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from myrm_agent_harness.agent.hooks.session_access import set_hook_executor
 from myrm_agent_harness.agent.hooks.types import HookEvent
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
+from myrm_agent_harness.agent.sub_agents.manager import SubagentManager
 from myrm_agent_harness.agent.sub_agents.types import (
     SubagentBudgetExceededError,
     SubagentConfig,
@@ -339,3 +341,39 @@ async def test_the_stop_is_delivered_before_the_isolated_workspace_is_merged_bac
         await _invoke(config, {"workspace_path": "/parent"})
 
     assert order == [HookEvent.SUBAGENT_START, HookEvent.SUBAGENT_STOP, "sync_back"]
+
+
+@pytest.mark.asyncio
+async def test_a_run_killed_by_the_hard_timeout_reports_timed_out_while_its_hooks_see_a_cancellation() -> None:
+    """The manager's deadline cancels the run; its result says timed out, the executor's STOP says cancelled."""
+    config = _config()
+    object.__setattr__(config, "timeout_seconds", 0.25)  # hard deadline: 0.75s
+
+    async def hang(*_: object, **__: object) -> None:
+        await asyncio.sleep(60)
+
+    fire_hook = AsyncMock()
+    with (
+        patch("myrm_agent_harness.agent.hooks.graceful_shutdown.get_shutdown_manager"),
+        _patched(AsyncMock(side_effect=hang), fire_hook),
+    ):
+        manager = SubagentManager(parent_agent=MagicMock())
+        result = await manager._run_subagent(
+            task_id="stop-pair",
+            agent_type="worker",
+            task_description="task",
+            config=config,
+            context={},
+            tool_registry_getter=lambda: [],
+            trace_id="trace-1",
+        )
+
+    assert result.status is SubAgentStatus.TIMED_OUT
+    assert result.error == "Hard timeout after 0.75s"
+    hooks = [(call.args[0], call.args[1]) for call in fire_hook.await_args_list]
+    assert [event for event, _ in hooks] == [
+        HookEvent.SUBAGENT_START,
+        HookEvent.SUBAGENT_CANCEL_COMPLETE,
+        HookEvent.SUBAGENT_STOP,
+    ]
+    assert hooks[2][1]["status"] == "cancelled"

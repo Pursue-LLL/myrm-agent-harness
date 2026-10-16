@@ -111,23 +111,29 @@ class SubagentSpawnMixin:
                 return await inner_coro
             hard_timeout = config.timeout_seconds * _HARD_TIMEOUT_MULTIPLIER
             try:
-                return await asyncio.wait_for(inner_coro, timeout=hard_timeout)
+                async with asyncio.timeout(hard_timeout) as deadline:
+                    result = await inner_coro
+                # The executor answers the deadline's cancellation with a CANCELLED result instead of raising,
+                # so an expired deadline is read from the deadline itself; a finished success is kept.
+                if result.success or not deadline.expired():
+                    return result
             except TimeoutError:
-                logger.warning(
-                    "[subagent:%s] Hard timeout after %ss (config timeout=%ss)",
-                    task_id,
-                    hard_timeout,
-                    config.timeout_seconds,
-                )
-                return SubAgentResult(
-                    success=False,
-                    task_id=task_id,
-                    agent_type=agent_type,
-                    error=f"Hard timeout after {hard_timeout}s",
-                    completed_at=time.time(),
-                    status=SubAgentStatus.TIMED_OUT,
-                    trace_id=trace_id,
-                )
+                pass
+            logger.warning(
+                "[subagent:%s] Hard timeout after %ss (config timeout=%ss)",
+                task_id,
+                hard_timeout,
+                config.timeout_seconds,
+            )
+            return SubAgentResult(
+                success=False,
+                task_id=task_id,
+                agent_type=agent_type,
+                error=f"Hard timeout after {hard_timeout}s",
+                completed_at=time.time(),
+                status=SubAgentStatus.TIMED_OUT,
+                trace_id=trace_id,
+            )
 
     async def _run_subagent_inner(
         self,
