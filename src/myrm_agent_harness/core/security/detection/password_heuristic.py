@@ -9,6 +9,10 @@
   text, precision) or not (text that leaves the machine, recall: explicitly assigned short/numeric values count).
   Only keyword anchoring lives here: what counts as a secret value (trim, plausibility, references) is decided by
   secret_value.py, shared with persistence assignment spans and the leak detector.
+- find_keyword_password_spans(): the same spans without the numeric PIN/OTP/2FA codes, for a caller that must not act
+  on a short-lived code.
+- PASSWORD_KEYWORD_RE: the credential keywords the spans are anchored to, for a caller that wants a cheap test of
+  whether a text can hold one at all.
 
 [POS]
 Last-resort detector for secrets that carry no vendor prefix and no high entropy (e.g. "Zk9#mango42"), which the
@@ -37,7 +41,7 @@ from myrm_agent_harness.core.security.detection.secret_value import (
 _PIN_KEYWORD = r"(?-i:PIN)|pin(?=\s*(?:code|number)?\s*(?:(?:is|was)\b|[:=：]|是|为|\d))"
 # A name that ends in the keyword is a label ("DB_PASSWORD"); one that continues it ("passwords", "password_hash") is
 # not. "[PII:password]" is the redactor's own tag, never a label.
-_PASSWORD_KEYWORD_RE = re.compile(
+PASSWORD_KEYWORD_RE = re.compile(
     r"(?<![A-Za-z0-9])(?<!PII:)(?:password|passwd|passphrase|pwd|p@ssword|api secret|secret key|master password|"
     rf"passcode|pass code|otp|2fa code|2fa|{_PIN_KEYWORD}|verification code)(?![A-Za-z0-9_])|密码|口令|验证码",
     re.IGNORECASE,
@@ -115,7 +119,7 @@ def _is_generated_token(token: str) -> bool:
     domains and paths. A token joined by structural symbols is a secret only when it also carries a digit or a strong
     symbol: "Password-Manager" and "example.com/Reset" are words, "xK9-mPq2-Lw8z" is generated.
     """
-    if _PASSWORD_KEYWORD_RE.fullmatch(token) or is_reference_value(token):
+    if PASSWORD_KEYWORD_RE.fullmatch(token) or is_reference_value(token):
         return False
     if any(char in STRUCTURAL_SYMBOLS for char in token) and not any(
         char.isdigit() or char in STRONG_SYMBOLS for char in token
@@ -182,24 +186,10 @@ def _number_before(numbers: list[Span], text: str, keyword: re.Match[str]) -> Sp
     return None
 
 
-def find_password_spans(text: str, *, strict: bool = True) -> list[Span]:
-    """Spans of the secrets anchored to a credential keyword, in text order without duplicates.
-
-    Per keyword occurrence the first rule that finds a value wins: a value the text introduces ("password is X",
-    "密码：X"), else a generated-looking token nearby. Numeric PIN/OTP/2FA codes are anchored separately, preferring a
-    code after the keyword within a tight window, then one just before it in the same clause.
-
-    ``strict`` favours precision, for text that is stored: a value needs eight characters and a digit or symbol.
-    ``strict=False`` favours recall, for text that is about to leave the machine: a value the text assigns to the label
-    with ":", "=" or "：" ("password: 123456", "pwd=hunter2") counts from six characters, letters-only or numeric.
-    """
-    if not text:
-        return []
-
-    text = mask_markdown_emphasis(text)
+def _keyword_spans(text: str, *, strict: bool) -> set[Span]:
     spans: set[Span] = set()
     tokens: list[Span] | None = None
-    for keyword in _PASSWORD_KEYWORD_RE.finditer(text):
+    for keyword in PASSWORD_KEYWORD_RE.finditer(text):
         span = _value_after_connector(text, keyword, strict=strict)
         if span is None:
             if tokens is None:
@@ -207,7 +197,11 @@ def find_password_spans(text: str, *, strict: bool = True) -> list[Span]:
             span = _best_token_near(text, keyword, tokens)
         if span is not None:
             spans.add(span)
+    return spans
 
+
+def _numeric_spans(text: str) -> set[Span]:
+    spans: set[Span] = set()
     numbers: list[Span] | None = None
     for keyword in _NUMERIC_CREDENTIAL_KEYWORD_RE.finditer(text):
         if numbers is None:
@@ -217,4 +211,33 @@ def find_password_spans(text: str, *, strict: bool = True) -> list[Span]:
         )
         if span is not None:
             spans.add(span)
-    return sorted(spans)
+    return spans
+
+
+def find_keyword_password_spans(text: str, *, strict: bool = True) -> list[Span]:
+    """Spans of the passwords anchored to a credential keyword, in text order without duplicates.
+
+    Per keyword occurrence the first rule that finds a value wins: a value the text introduces ("password is X",
+    "密码：X"), else a generated-looking token nearby.
+
+    ``strict`` favours precision, for text that is stored: a value needs eight characters and a digit or symbol.
+    ``strict=False`` favours recall, for text that is about to leave the machine: a value the text assigns to the label
+    with ":", "=" or "：" ("password: 123456", "pwd=hunter2") counts from six characters, letters-only or numeric.
+    """
+    if not text:
+        return []
+    return sorted(_keyword_spans(mask_markdown_emphasis(text), strict=strict))
+
+
+def find_password_spans(text: str, *, strict: bool = True) -> list[Span]:
+    """Spans of the passwords of ``find_keyword_password_spans`` plus the numeric PIN/OTP/2FA codes, in text order
+    without duplicates.
+
+    A numeric code is anchored separately, preferring a code after the keyword within a tight window, then one just
+    before it in the same clause. ``strict`` has the meaning it has for ``find_keyword_password_spans``.
+    """
+    if not text:
+        return []
+
+    text = mask_markdown_emphasis(text)
+    return sorted(_keyword_spans(text, strict=strict) | _numeric_spans(text))
