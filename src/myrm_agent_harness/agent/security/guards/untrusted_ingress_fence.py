@@ -3,7 +3,7 @@
 When an Agent session processes untrusted external messages (e.g., A2A tasks from
 external peers, webhook triggers, public bot mentions), this fence denies high-privilege
 destructive tools (arbitrary execution, file mutation, persistent-memory mutation,
-desktop/mobile control and screen capture, subagent escalation, cron backdoors, and
+desktop control and screen capture, subagent escalation, cron backdoors, and
 skill manipulation) at tool-call time, restricting the Agent to read-only exploration
 and safe operations. Memory mutations are fenced independently of how a host scopes the
 memory namespaces: a persisted instruction steers every later turn that reads that
