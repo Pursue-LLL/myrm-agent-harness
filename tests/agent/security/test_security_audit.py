@@ -1,15 +1,25 @@
-"""Tests for security.audit module — record / get / reset + ContextVar isolation."""
+"""Tests for security.audit module — record / get / reset + ContextVar isolation + decision classification."""
 
+import ast
 import asyncio
+from pathlib import Path
+from typing import get_args
 
 import pytest
 
+import myrm_agent_harness
 from myrm_agent_harness.agent.security.audit import (
+    DecisionKind,
     SecurityDecision,
     get_audit_entries,
+    is_blocking_decision,
+    is_policy_denial,
     record_decision,
     reset_audit_log,
 )
+from myrm_agent_harness.observability.metrics import security_metrics
+
+_SRC_ROOT = Path(myrm_agent_harness.__file__).parent
 
 
 class TestRecordAndGet:
@@ -184,36 +194,155 @@ class TestLookupErrorBranches:
         assert result == []
 
 
+def _recorded_decision_names() -> dict[str, str]:
+    """Every decision name a source file passes to ``record_decision`` as a literal, with one place that does."""
+    names: dict[str, str] = {}
+    for path in sorted(_SRC_ROOT.rglob("*.py")):
+        source = path.read_text(encoding="utf-8")
+        if "record_decision(" not in source:
+            continue
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.Call) and _callee_name(node) == "record_decision":
+                for name in _decision_literals(node):
+                    names.setdefault(name, f"{path.relative_to(_SRC_ROOT)}:{node.lineno}")
+    return names
+
+
+def _callee_name(call: ast.Call) -> str | None:
+    func = call.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return func.id if isinstance(func, ast.Name) else None
+
+
+def _decision_literals(call: ast.Call) -> list[str]:
+    """The decision names a call can pass: a constant, or both arms of a conditional. A variable passes none."""
+    if len(call.args) >= 2:
+        argument: ast.expr | None = call.args[1]
+    else:
+        argument = next((kw.value for kw in call.keywords if kw.arg == "decision"), None)
+    arms = [argument.body, argument.orelse] if isinstance(argument, ast.IfExp) else [argument]
+    return [arm.value for arm in arms if isinstance(arm, ast.Constant) and isinstance(arm.value, str)]
+
+
 class TestDecisionKindCompleteness:
-    def test_all_used_decision_kinds_in_type(self):
-        """Verify known decision kinds used in the codebase are valid."""
-        from typing import get_args
+    def test_every_literal_decision_a_call_site_records_is_declared(self) -> None:
+        recorded = _recorded_decision_names()
+        # A scanner that finds nothing would pass vacuously.
+        assert {"CRON_DENY", "SSRF_BLOCKED", "OUTBOUND_DENY", "TIMEOUT_DENIED"} <= recorded.keys()
 
-        from myrm_agent_harness.agent.security.audit import DecisionKind
+        declared = set(get_args(DecisionKind))
+        undeclared = {name: where for name, where in recorded.items() if name not in declared}
+        assert not undeclared, f"record_decision call sites use names missing from DecisionKind: {undeclared}"
 
-        valid_kinds = set(get_args(DecisionKind))
-        used_kinds = [
+
+# Decisions that stopped the action they were about. A decision whose name carries a stop marker but
+# is absent here has to be an escalation to an approval prompt, never a silent omission.
+_STOPPED = frozenset(
+    {
+        "DENY",
+        "CRON_DENY",
+        "LLM_REVIEW_DENY",
+        "SUBAGENT_AUTO_DENY",
+        "OUTBOUND_DENY",
+        "SHELL_ESCALATION_DENY",
+        "OPERATOR_AS_KEY_DENY",
+        "INGRESS_FENCE_DENY",
+        "INGRESS_FENCE_YOLO_BLOCKED",
+        "YOLO_DENY_OVERRIDE",
+        "READONLY_RESEARCH_LEASE_BLOCKED",
+        "ESTOP_BLOCKED",
+        "SSRF_BLOCKED",
+        "INSECURE_REDIRECT_BLOCKED",
+        "SKILL_HOOK_BLOCK",
+        "HOOK_BLOCKED",
+        "POST_HOOK_BLOCKED",
+        "GUARDRAIL_BLOCKED",
+        "CLARIFICATION_GUARD_BLOCKED",
+        "PII_BLOCKED",
+        "PII_BLOCKED_REDACTED",
+        "INJECTION_BLOCKED",
+        "DANGEROUS_INTENT_BLOCKED",
+        "MISSING_SEMANTICS_BLOCKED",
+        "CREDENTIAL_LEAK_BLOCKED",
+        "NO_CONTEXT_DENIED",
+        "TIMEOUT_DENIED",
+        "USER_DENIED",
+        "USER_REJECTED",
+        "USER_EDIT_REJECTED",
+        "DIGEST_MISMATCH_REJECT",
+        "SCRIPT_INTEGRITY_REJECT",
+        "SCRIPT_OPERAND_DRIFT_REJECT",
+    }
+)
+
+# Named like a stop, yet the call goes on to an approval prompt.
+_ESCALATIONS = (
+    "PROTECTED_INSTRUCTION_ALLOWLIST_BLOCKED",
+    "FINANCIAL_GATE_ALLOWLIST_BLOCKED",
+    "IRREVERSIBLE_ACTION_ALLOWLIST_BLOCKED",
+    "YOLO_FINANCIAL_GATE_BLOCKED",
+    "YOLO_SOCIAL_IRREVERSIBLE_BLOCKED",
+    "YOLO_DESTRUCTIVE_IRREVERSIBLE_BLOCKED",
+)
+
+
+class TestDecisionClassification:
+    def test_blocking_decisions_are_exactly_the_stopped_actions(self) -> None:
+        blocking = {kind for kind in get_args(DecisionKind) if is_blocking_decision(kind)}
+        assert blocking == _STOPPED
+
+    @pytest.mark.parametrize("decision", _ESCALATIONS)
+    def test_an_escalation_is_no_stop_but_still_counts_as_a_denial_in_telemetry(self, decision: str) -> None:
+        assert not is_blocking_decision(decision)
+        assert is_policy_denial(decision)
+
+    @pytest.mark.parametrize("decision", ["ALLOW", "ASK", "TAINT_ESCALATE", "USER_APPROVED", "OUTBOUND_UNCERTAIN"])
+    def test_decisions_that_let_the_action_continue_are_neither(self, decision: str) -> None:
+        assert not is_blocking_decision(decision)
+        assert not is_policy_denial(decision)
+
+    @pytest.mark.parametrize(
+        "decision", ["DENY", "SSRF_BLOCKED", "PII_REDACTED", "CANARY_LEAKED", "CREDENTIAL_LEAK_DETECTED"]
+    )
+    def test_findings_of_block_deny_redact_or_leak_count_as_denials_in_telemetry(self, decision: str) -> None:
+        assert is_policy_denial(decision)
+
+
+class _FakeCounter:
+    def __init__(self) -> None:
+        self.labelled: list[dict[str, str]] = []
+
+    def labels(self, **labels: str) -> "_FakeCounter":
+        self.labelled.append(labels)
+        return self
+
+    def inc(self) -> None:
+        pass
+
+
+class TestPolicyDenialMetric:
+    def test_a_denial_is_counted_under_the_first_finding_in_its_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        counter = _FakeCounter()
+        monkeypatch.setattr(security_metrics, "policy_denial_total", counter)
+        reset_audit_log()
+
+        for decision in (
             "ALLOW",
-            "DENY",
-            "ASK",
             "CRON_DENY",
-            "TAINT_ESCALATE",
-            "YOLO_AUTO_APPROVE",
-            "LLM_REVIEW_ALLOW",
-            "LLM_REVIEW_DENY",
-            "LLM_REVIEW_UNCERTAIN",
-            "SKILL_HOOK_BLOCK",
-            "SKILL_HOOK_APPROVAL",
-            "DOMAIN_RUNTIME_ALLOW",
-            "ALLOWLIST_AUTO_APPROVE",
-            "FREQUENCY_WARN",
-            "FREQUENCY_BREAK",
-            "TURN_BUDGET_BREAK",
-            "SANDBOX_BOUNDARY_ESCALATE",
+            "SSRF_BLOCKED",
+            "PII_REDACTED",
             "PII_BLOCKED_REDACTED",
-            "PII_PSEUDONYMIZED",
-            "DANGEROUS_INTENT_DETECTED",
-            "DANGEROUS_INTENT_BLOCKED",
+            "CANARY_LEAKED",
+            "YOLO_FINANCIAL_GATE_BLOCKED",
+        ):
+            record_decision("tool", decision, "reason")  # type: ignore[arg-type]
+
+        assert counter.labelled == [
+            {"policy": "CRON_DENY", "action": "deny"},
+            {"policy": "SSRF_BLOCKED", "action": "block"},
+            {"policy": "PII_REDACTED", "action": "redact"},
+            {"policy": "PII_BLOCKED_REDACTED", "action": "redact"},
+            {"policy": "CANARY_LEAKED", "action": "leak"},
+            {"policy": "YOLO_FINANCIAL_GATE_BLOCKED", "action": "block"},
         ]
-        for kind in used_kinds:
-            assert kind in valid_kinds, f"{kind} missing from DecisionKind"

@@ -10,6 +10,8 @@ ContextVar accumulator. The log can be retrieved at the end of a run
 [OUTPUT]
 - DecisionKind: the closed set of decision names an audit entry can carry
 - SecurityDecision: a single audit entry
+- is_blocking_decision(): whether a decision stopped the action it was about
+- is_policy_denial(): whether a decision name counts as a policy denial in telemetry
 - record_decision(): append a decision to the current session log
 - get_audit_entries(): retrieve all entries for the current session
 - reset_audit_log(): clear the log (call at the start of each Agent run)
@@ -91,7 +93,66 @@ DecisionKind = Literal[
     "IRREVERSIBLE_ACTION_ALLOWLIST_BLOCKED",
     "NO_CONTEXT_DENIED",
     "PRIVACY_ROUTE",
+    # Approval batch: untrusted-ingress fence, YOLO gates, outbound and shell escalation checks, auto mode
+    "INGRESS_FENCE_DENY",
+    "INGRESS_FENCE_YOLO_BLOCKED",
+    "OPERATOR_AS_KEY_DENY",
+    "READONLY_RESEARCH_LEASE_BLOCKED",
+    "YOLO_DENY_OVERRIDE",
+    "YOLO_FINANCIAL_GATE_BLOCKED",
+    "YOLO_SOCIAL_IRREVERSIBLE_BLOCKED",
+    "YOLO_DESTRUCTIVE_IRREVERSIBLE_BLOCKED",
+    "SOCIAL_IRREVERSIBLE_GATE_ESCALATED",
+    "DESTRUCTIVE_IRREVERSIBLE_GATE_ESCALATED",
+    "REPO_PREFIX_AUTO_APPROVE",
+    "OUTBOUND_ALLOW",
+    "OUTBOUND_DENY",
+    "OUTBOUND_UNCERTAIN",
+    "SHELL_ESCALATION_ALLOW",
+    "SHELL_ESCALATION_DENY",
+    "SHELL_ESCALATION_UNCERTAIN",
+    "AUTO_MODE_SUSPENDED",
+    "AUTO_MODE_SUSPENDED_ALLOW_ESCALATED",
+    # Approval resume: a human answer, checked against the digest the human approved
+    "DIGEST_MISMATCH_REJECT",
+    "SCRIPT_INTEGRITY_REJECT",
+    "SCRIPT_OPERAND_DRIFT_REJECT",
+    "DIRECTORY_GRANTED",
+    "USER_EDIT_REJECTED",
+    # Middleware guards
+    "GUARDRAIL_BLOCKED",
+    "CLARIFICATION_GUARD_BLOCKED",
 ]
+
+# A name carrying one of these refused the action it was about, unless it is listed in _ESCALATIONS.
+_STOP_MARKERS = ("BLOCK", "DENY", "DENIED", "REJECT")
+
+# Named like a stop, but the action goes on to an approval prompt: the auto-approval route was closed
+# and nothing was refused.
+_ESCALATIONS: frozenset[DecisionKind] = frozenset(
+    {
+        "PROTECTED_INSTRUCTION_ALLOWLIST_BLOCKED",
+        "FINANCIAL_GATE_ALLOWLIST_BLOCKED",
+        "IRREVERSIBLE_ACTION_ALLOWLIST_BLOCKED",
+        "YOLO_FINANCIAL_GATE_BLOCKED",
+        "YOLO_SOCIAL_IRREVERSIBLE_BLOCKED",
+        "YOLO_DESTRUCTIVE_IRREVERSIBLE_BLOCKED",
+    }
+)
+
+# Telemetry counts every name that carries a block, deny, redact or leak finding, escalations and
+# content protections included.
+_POLICY_DENIAL_MARKERS = ("BLOCK", "DENY", "REDACT", "LEAK")
+
+
+def is_blocking_decision(decision: str) -> bool:
+    """True when the decision stopped the action it was about, whoever decided."""
+    return decision not in _ESCALATIONS and any(marker in decision for marker in _STOP_MARKERS)
+
+
+def is_policy_denial(decision: str) -> bool:
+    """True when the decision name counts as a policy denial in telemetry (``policy_denial_total``, deny totals)."""
+    return any(marker in decision for marker in _POLICY_DENIAL_MARKERS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,24 +221,28 @@ def record_decision(
         )
     )
 
-    if "BLOCK" in decision or "DENY" in decision or "REDACT" in decision or "LEAK" in decision:
-        try:
-            from myrm_agent_harness.observability.metrics.security_metrics import (
-                policy_denial_total,
-            )
+    if is_policy_denial(decision):
+        _count_policy_denial(decision)
 
-            # Extract basic action like block, redact, deny
-            action = "block"
-            if "REDACT" in decision:
-                action = "redact"
-            elif "DENY" in decision:
-                action = "deny"
-            elif "LEAK" in decision:
-                action = "leak"
-            if policy_denial_total:
-                policy_denial_total.labels(policy=decision, action=action).inc()
-        except ImportError:
-            pass
+
+def _count_policy_denial(decision: str) -> None:
+    try:
+        from myrm_agent_harness.observability.metrics.security_metrics import (
+            policy_denial_total,
+        )
+    except ImportError:
+        return
+
+    # The label is the first finding found, in this order: redact, deny, leak; otherwise block.
+    action = "block"
+    if "REDACT" in decision:
+        action = "redact"
+    elif "DENY" in decision:
+        action = "deny"
+    elif "LEAK" in decision:
+        action = "leak"
+    if policy_denial_total:
+        policy_denial_total.labels(policy=decision, action=action).inc()
 
 
 def get_audit_entries() -> list[SecurityDecision]:
