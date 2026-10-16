@@ -91,7 +91,7 @@ def build_responses_compaction_params(
 
     Args:
         compact_threshold: Token count threshold at which server triggers compaction.
-        store: Whether OpenAI should retain request data (default False for ZDR compliance).
+        store: Whether OpenAI may store the request (default False).
     """
     return {
         "context_management": [
@@ -112,8 +112,13 @@ def parse_compaction_from_response(
         return None
 
     # Check choices or output array (Responses API format)
-    for choice in response_dict.get("choices") or []:
-        delta = choice.get("delta") or choice.get("message") or {}
+    choices = response_dict.get("choices")
+    for choice in choices if isinstance(choices, list) else []:
+        if not isinstance(choice, dict):
+            continue
+        delta = choice.get("delta") or choice.get("message")
+        if not isinstance(delta, dict):
+            continue
         compaction = delta.get("compaction") or delta.get("compaction_item")
         if isinstance(compaction, dict) and compaction.get("id"):
             return NativeCompactionItem(
@@ -124,8 +129,8 @@ def parse_compaction_from_response(
             )
 
     # Check top-level context_management or compaction items
-    output_items = response_dict.get("output_items") or response_dict.get("items") or []
-    for item in output_items:
+    output_items = response_dict.get("output_items") or response_dict.get("items")
+    for item in output_items if isinstance(output_items, list) else []:
         if isinstance(item, dict) and item.get("type") == "compaction":
             return NativeCompactionItem(
                 item_id=str(item.get("id") or item.get("item_id") or ""),
