@@ -9,6 +9,7 @@
 - ..core.parsers::parse_concepts_response (POS: LLM response parser)
 - .postprocess::generate_backlinks, save_metadata (POS: post-compilation steps)
 - .cognitive_map::WikiCognitiveMapService (POS: OKF index/log/hot writers)
+- .batch_settle::fail_extracted, settle_extracted, source_hash (POS: settles a batch's queue rows once its results are saved)
 - .compiler_enqueue::enqueue_changed_sources (POS: compile intake, which raw files go onto the queue)
 - .queue::WikiIngestionQueue (POS: persistent ingestion queue)
 - .sidecar::build_directory_sidecars (POS: bottom-up directory sidecar builder)
@@ -51,6 +52,7 @@ from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptInfo
 
 from . import compiler_enqueue
+from .batch_settle import fail_extracted, settle_extracted, source_hash
 from .cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
 from .cognitive_map.schema_writer import read_index_context
 from .compiler_provenance import (
@@ -86,14 +88,15 @@ class _ArticleBatchStats:
 @dataclass(frozen=True, slots=True)
 class _BatchExtractOutcome:
     concepts: list[ConceptInfo]
-    # Sources whose concepts were extracted. They stay ``processing`` until the batch has written the rest of
-    # their results; only the failures are settled during extraction.
-    extracted_item_ids: list[int]
+    # Sources whose concepts were extracted, each with its file's hash from before extraction read it. They stay
+    # ``processing`` until the batch has written the rest of their results; only the failures are settled during
+    # extraction.
+    read_hashes: dict[int, str | None]
     failure_kinds: list[str]
 
     @property
     def success_count(self) -> int:
-        return len(self.extracted_item_ids)
+        return len(self.read_hashes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -414,9 +417,10 @@ class WikiCompiler:
         """Compile one batch of queue items from extraction to the vault snapshot; the worker and ``compile_all`` both run it.
 
         The batch's sources stay ``processing`` until everything the compile writes for them is saved, so the
-        queue reports work in progress for as long as there is some, and a process that dies midway leaves
-        them for the next one to requeue. ``postprocess_empty`` also runs the post-extraction steps (cognitive
-        map, metadata) when no concept was extracted, as ``compile_all`` does and the worker does not.
+        queue reports work in progress for as long as there is some, and a process that dies midway leaves them for
+        the next one to requeue; a source whose file changed meanwhile is queued again instead of completed.
+        ``postprocess_empty`` also runs the post-extraction steps (cognitive map, metadata) when no concept was
+        extracted, as ``compile_all`` does and the worker does not.
 
         Raises:
             Exception: whatever failed after extraction, after the batch's sources were marked failed.
@@ -441,18 +445,10 @@ class WikiCompiler:
             try:
                 report = await self._postprocess_batch(concepts)
             except Exception as e:
-                logger.error(f"Postprocess failed, marking {len(outcome.extracted_item_ids)} source(s) failed: {e}")
-                resolution = resolve_llm_failure(e)
-                # The queue panel shows this text to the user; the raw exception (often a path or a sqlite error)
-                # stays in the log, and the error kind carries the classification.
-                self._queue.fail_processing(
-                    outcome.extracted_item_ids,
-                    "Compile postprocess failed",
-                    error_kind=resolution.error_kind,
-                    retry_after_seconds=resolution.retry_after_seconds,
-                )
+                logger.error(f"Postprocess failed, marking {len(outcome.read_hashes)} source(s) failed: {e}")
+                fail_extracted(self._queue, list(outcome.read_hashes), e)
                 raise
-            self._queue.complete_processing(outcome.extracted_item_ids)
+            settle_extracted(self._queue, items, outcome.read_hashes)
 
         if not report.embed_paused:
             await self._maybe_commit_vault_git(commit_reason)
@@ -502,7 +498,7 @@ class WikiCompiler:
         """Extract concepts from queue items with configurable parallelism."""
         queue_items = self._sort_queue_items_for_survey(queue_items)
         failure_kinds: list[str] = []
-        extracted_item_ids: list[int] = []
+        read_hashes: dict[int, str | None] = {}
 
         async def _process_single_item(item: QueueItem) -> list[ConceptInfo]:
             item_id = item["id"]
@@ -517,6 +513,8 @@ class WikiCompiler:
                         error_kind=resolution.error_kind,
                     )
                     return []
+                # Hashed before the read: an edit after this point is caught when the batch settles.
+                digest = source_hash(raw_file)
                 if self._semaphore:
                     async with self._semaphore:
                         concepts = await self._extract_concepts_from_doc(raw_file)
@@ -532,7 +530,7 @@ class WikiCompiler:
                     )
                     failure_kinds.append(resolution.error_kind)
                     return []
-                extracted_item_ids.append(item_id)
+                read_hashes[item_id] = digest
                 return concepts
             except Exception as e:
                 logger.error(f"Failed to extract concepts from {raw_file}: {e}")
@@ -578,7 +576,7 @@ class WikiCompiler:
 
         return _BatchExtractOutcome(
             concepts=list(all_concepts.values()),
-            extracted_item_ids=extracted_item_ids,
+            read_hashes=read_hashes,
             failure_kinds=failure_kinds,
         )
 

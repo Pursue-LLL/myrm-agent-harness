@@ -7,6 +7,7 @@ still running, and what a restarted process uses to find the work a dead one lef
 import asyncio
 import json
 import re
+import sqlite3
 import subprocess
 import sys
 import textwrap
@@ -63,11 +64,16 @@ _KILLED_IN_POSTPROCESS = textwrap.dedent(
 class _StubLlm:
     """Answers the extraction of a source with one concept named after it, and every article with a fixed body."""
 
+    def __init__(self) -> None:
+        self.extracted_documents: list[str] = []
+
     async def ainvoke(self, messages: list[object]) -> AIMessage:
         prompt = str(getattr(messages[-1], "content", ""))
         if "# Document Content:" not in prompt:
             return AIMessage(content="## Compiled Truth\nstub article")
-        topic = prompt.rsplit("# Document Content:", 1)[1].split()[0]
+        document = prompt.rsplit("# Document Content:", 1)[1].strip()
+        self.extracted_documents.append(document)
+        topic = document.split()[0]
         return AIMessage(content=json.dumps([{"name": topic, "definition": f"about {topic}"}]))
 
 
@@ -93,12 +99,16 @@ def compiler(wiki_structure: WikiStructure) -> WikiCompiler:
     return _new_compiler(wiki_structure)
 
 
-@pytest.fixture(autouse=True)
-def _stop_background_workers() -> object:
-    yield
+def _cancel_background_workers() -> None:
     for task in WikiCompiler._active_workers.values():
         task.cancel()
     WikiCompiler._active_workers.clear()
+
+
+@pytest.fixture(autouse=True)
+def _stop_background_workers() -> object:
+    yield
+    _cancel_background_workers()
 
 
 async def _instant_sleep(_seconds: float) -> None:
@@ -239,6 +249,135 @@ async def test_a_source_that_was_queued_again_while_its_batch_worked_stays_queue
     # compile_all hands the rest of the queue to a worker that has not run yet.
     assert compiler._queue.get_stats() == {"pending": 1, "processing": 0, "completed": 2, "failed": 0}
     assert compiler._queue.list_pending_file_paths() == [str(again)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entrypoint", ["worker", "compile_all"])
+async def test_a_source_edited_while_its_batch_worked_is_compiled_again(
+    compiler: WikiCompiler, wiki_structure: WikiStructure, monkeypatch: pytest.MonkeyPatch, entrypoint: str
+) -> None:
+    edited = wiki_structure.raw_dir / "alpha.md"
+    original = compiler._generate_articles_batch
+    edits: list[str] = []
+
+    async def rewrite_alpha(*args: object, **kwargs: object) -> object:
+        if not edits:
+            edited.write_text("alpha is a topic that was rewritten.")
+            edits.append("alpha")
+            # A compile requested now cannot queue what the batch holds, so the edit has to be caught at the end.
+            assert await compiler.enqueue_changed_sources() == 0
+        return await original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(compiler, "_generate_articles_batch", rewrite_alpha)
+
+    await _compile_from_the_queue(compiler, entrypoint)
+
+    if entrypoint == "compile_all":
+        # compile_all hands the rest of the queue to a worker that has not run yet; the test runs that drain itself.
+        assert compiler._queue.get_stats() == {"pending": 1, "processing": 0, "completed": 2, "failed": 0}
+        _cancel_background_workers()
+        with patch("asyncio.sleep", side_effect=_instant_sleep):
+            await compiler._worker_loop()
+
+    assert compiler._queue.get_stats() == {"pending": 0, "processing": 0, "completed": 3, "failed": 0}
+    alpha_read = [doc for doc in compiler._llm.extracted_documents if doc.startswith("alpha")]  # type: ignore[attr-defined]
+    assert alpha_read == ["alpha is a topic worth compiling.", "alpha is a topic that was rewritten."]
+
+
+@pytest.mark.asyncio
+async def test_a_source_edited_while_its_concepts_were_being_extracted_is_compiled_again(
+    compiler: WikiCompiler, wiki_structure: WikiStructure, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    edited = wiki_structure.raw_dir / "alpha.md"
+    llm = compiler._llm
+    answer = llm.ainvoke
+    edits: list[str] = []
+
+    async def edit_during_the_model_call(messages: list[object]) -> AIMessage:
+        # The model is answering about the text it was given; the file already differs from it.
+        if not edits and "alpha is a topic worth compiling." in str(getattr(messages[-1], "content", "")):
+            edited.write_text("alpha is a topic that was rewritten.")
+            edits.append("alpha")
+        return await answer(messages)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(llm, "ainvoke", edit_during_the_model_call)
+
+    await _compile_from_the_queue(compiler, "worker")
+
+    assert compiler._queue.get_stats() == {"pending": 0, "processing": 0, "completed": 3, "failed": 0}
+    alpha_read = [doc for doc in llm.extracted_documents if doc.startswith("alpha")]  # type: ignore[attr-defined]
+    assert alpha_read == ["alpha is a topic worth compiling.", "alpha is a topic that was rewritten."]
+
+
+@pytest.mark.asyncio
+async def test_a_source_deleted_while_its_batch_worked_is_still_completed(
+    compiler: WikiCompiler, wiki_structure: WikiStructure, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = compiler._generate_articles_batch
+
+    async def delete_alpha(*args: object, **kwargs: object) -> object:
+        (wiki_structure.raw_dir / "alpha.md").unlink()
+        return await original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(compiler, "_generate_articles_batch", delete_alpha)
+
+    await compiler.compile_all()
+
+    assert compiler._queue.get_stats() == {"pending": 0, "processing": 0, "completed": 3, "failed": 0}
+
+
+@pytest.mark.asyncio
+async def test_a_keep_alive_beat_that_fails_neither_stops_the_batch_nor_goes_unreported_to_the_loop(
+    compiler: WikiCompiler, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(queue_module, "_HEARTBEAT_SECONDS", 0.01)
+    locked = MagicMock(side_effect=sqlite3.OperationalError("database is locked"))
+    monkeypatch.setattr(compiler._queue, "touch_processing", locked)
+    original = compiler._generate_articles_batch
+
+    async def slow_articles(*args: object, **kwargs: object) -> object:
+        await _REAL_SLEEP(0.1)
+        return await original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(compiler, "_generate_articles_batch", slow_articles)
+    loop = asyncio.get_running_loop()
+    unreported: list[dict[str, object]] = []
+    loop.set_exception_handler(lambda _loop, context: unreported.append(context))
+    try:
+        await compiler.compile_all()
+    finally:
+        loop.set_exception_handler(None)
+
+    assert compiler._queue.get_stats() == {"pending": 0, "processing": 0, "completed": 3, "failed": 0}
+    assert locked.call_count >= 2
+    assert unreported == []
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_batch_leaves_its_sources_processing_and_stops_its_keep_alive(
+    compiler: WikiCompiler, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(queue_module, "_HEARTBEAT_SECONDS", 0.01)
+    in_articles = asyncio.Event()
+
+    async def stuck_articles(*_args: object, **_kwargs: object) -> object:
+        in_articles.set()
+        await asyncio.Event().wait()
+        raise AssertionError("never reached")
+
+    monkeypatch.setattr(compiler, "_generate_articles_batch", stuck_articles)
+    task = asyncio.create_task(compiler.compile_all())
+    await in_articles.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    # Not failed and not completed: the next process to open the queue requeues them.
+    assert compiler._queue.get_stats() == {"pending": 0, "processing": 3, "completed": 0, "failed": 0}
+    beats = MagicMock()
+    monkeypatch.setattr(compiler._queue, "touch_processing", beats)
+    await _REAL_SLEEP(0.05)
+    beats.assert_not_called()
 
 
 @pytest.mark.asyncio

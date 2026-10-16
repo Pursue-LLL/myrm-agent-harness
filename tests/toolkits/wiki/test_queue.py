@@ -92,6 +92,20 @@ def test_fail_processing_records_the_failure_on_every_row_still_processing(queue
     assert all(item["retry_after"] for item in failed)
 
 
+def test_requeue_processing_only_moves_rows_that_are_still_processing(queue: WikiIngestionQueue) -> None:
+    queue.add_batch(["/tmp/a.md", "/tmp/b.md", "/tmp/c.md"])
+    held, finished, failed = (item["id"] for item in queue.get_pending_items())
+    for item_id in (held, finished, failed):
+        queue.mark_processing(item_id)
+    queue.complete_processing([finished])
+    queue.fail_processing([failed], "err")
+
+    queue.requeue_processing([held, finished, failed])
+
+    assert queue.get_stats() == {"pending": 1, "processing": 0, "completed": 1, "failed": 1}
+    assert [item["id"] for item in queue.get_pending_items()] == [held]
+
+
 def test_touch_processing_only_refreshes_rows_that_are_processing(queue: WikiIngestionQueue) -> None:
     queue.add_batch(["/tmp/a.md", "/tmp/b.md", "/tmp/c.md"])
     held, waiting, failed = (item["id"] for item in queue.get_pending_items())

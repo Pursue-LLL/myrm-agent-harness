@@ -234,6 +234,18 @@ class WikiIngestionQueue:
                 [(item_id,) for item_id in item_ids],
             )
 
+    def requeue_processing(self, item_ids: Sequence[int]) -> None:
+        """Put the rows a batch worked on back to pending, e.g. when their source changed meanwhile."""
+        with self._get_conn() as conn:
+            conn.executemany(
+                """
+                UPDATE ingestion_queue
+                SET status = 'pending', updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND status = 'processing'
+                """,
+                [(item_id,) for item_id in item_ids],
+            )
+
     def touch_processing(self, item_ids: Sequence[int]) -> None:
         """Mark the rows a batch is still working on as alive, so ``reset_stale_processing`` measures silence."""
         with self._get_conn() as conn:

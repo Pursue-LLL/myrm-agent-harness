@@ -110,7 +110,7 @@ myrm_agent_harness/toolkits/web_fetch/router/domain_metrics.py	506
 myrm_agent_harness/toolkits/web_search/providers/web_searcher.py	544
 myrm_agent_harness/toolkits/wiki/core/claims_contract.py	771
 myrm_agent_harness/toolkits/wiki/maintenance/linter.py	514
-myrm_agent_harness/toolkits/wiki/pipeline/compiler.py	839
+myrm_agent_harness/toolkits/wiki/pipeline/compiler.py	837
 myrm_agent_harness/toolkits/wiki/pipeline/corpus_dedup/store.py	535
 myrm_agent_harness/toolkits/wiki/retrieval/query.py	928
 myrm_agent_harness/toolkits/wiki/wiki_agent_tools.py	628
