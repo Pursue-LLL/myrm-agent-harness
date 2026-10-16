@@ -10,7 +10,7 @@
 - workspace_coordination.merge.merge_warning::record_workspace_merge_failure (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
 
 [OUTPUT]
-- SubagentExecutorRetryMixin.run_with_retry: immediate ISOLATED_COPY sync_back before return; merge failure records `{task_id}: {error}` turn warning + workspace_merge_status on result; every run (any attempt result status, timeout, LLM error, budget, other error, no attempt, cancellation) fires one SUBAGENT_STOP, paired with SUBAGENT_START, and never a second one when cancelled mid-delivery
+- SubagentExecutorRetryMixin.run_with_retry: immediate ISOLATED_COPY sync_back before return; merge failure records `{task_id}: {error}` turn warning + workspace_merge_status on result; every run (any attempt result status, timeout, LLM error, budget, other error, no attempt, cancellation) closes with SUBAGENT_STOP, paired with SUBAGENT_START; cancellation during STOP delivery sends a final STOP with status=cancelled
 
 [POS]
 Retry loop with workspace isolation, hooks, and graceful cancellation.
@@ -171,18 +171,13 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
         isolation_succeeded = False
         pending_sync_back: Callable[[], object] | None = None
 
-        stop_fired = False
-
         async def close_run(outcome: SubAgentResult) -> SubAgentResult:
             """Fire SUBAGENT_STOP for the run's outcome; every return goes through here.
 
-            Hooks are awaited one by one, so a cancellation can land while the STOP is still being delivered; the
-            cancel path then reaches this function again and must not deliver a second, contradicting STOP.
+            Hooks are awaited one by one, so a cancellation can land while the STOP is still being delivered. The
+            cancel path then delivers its own STOP, so every subscriber gets at least one and the last one carries
+            the run's final status.
             """
-            nonlocal stop_fired
-            if stop_fired:
-                return outcome
-            stop_fired = True
             payload: dict[str, object] = {
                 "task_id": task_id,
                 "agent_type": agent_type,
@@ -199,6 +194,7 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
             return outcome
 
         async def finish_failed(status: SubAgentStatus, error: str, partial: str = "") -> SubAgentResult:
+            """Close the run with an unsuccessful outcome: failure, timeout, budget or cancellation."""
             now = time.time()
             return await close_run(
                 SubAgentResult(

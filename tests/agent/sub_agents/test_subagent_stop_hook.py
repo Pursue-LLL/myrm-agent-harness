@@ -13,6 +13,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from myrm_agent_harness.agent.hooks.executor import HookExecutor
+from myrm_agent_harness.agent.hooks.registry import HookRegistry
+from myrm_agent_harness.agent.hooks.session_access import set_hook_executor
 from myrm_agent_harness.agent.hooks.types import HookEvent
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
@@ -22,6 +25,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubAgentResult,
     SubAgentStatus,
 )
+from myrm_agent_harness.core.hooks.types import CallableHookDefinition, HookCallable, HookResult
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
 from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
 
@@ -84,10 +88,11 @@ _SUCCESS_RETURNS = [
 
 
 @contextmanager
-def _patched(fire_hook: Callable[..., Awaitable[object]], attempt: AsyncMock | None) -> Iterator[None]:
-    """Replace the hook dispatcher, and the single attempt unless the real pipeline should run."""
+def _patched(attempt: AsyncMock | None, fire_hook: Callable[..., Awaitable[object]] | None = None) -> Iterator[None]:
+    """Replace the single attempt (unless the real pipeline should run) and optionally the hook dispatcher."""
     with ExitStack() as stack:
-        stack.enter_context(patch("myrm_agent_harness.agent.hooks.executor.fire_hook", fire_hook))
+        if fire_hook is not None:
+            stack.enter_context(patch("myrm_agent_harness.agent.hooks.executor.fire_hook", fire_hook))
         if attempt is not None:
             stack.enter_context(patch.object(SubagentExecutor, "_run_single_attempt", attempt))
         yield
@@ -121,7 +126,7 @@ async def _run(
     Without ``attempt`` the real single-attempt pipeline runs.
     """
     fire_hook = AsyncMock()
-    with _patched(fire_hook, attempt):
+    with _patched(attempt, fire_hook):
         result = await _invoke(config)
     return result, [(call.args[0], call.args[1]) for call in fire_hook.await_args_list]
 
@@ -250,22 +255,39 @@ async def test_a_cancelled_run_is_closed_by_a_stop_that_follows_cancel_complete(
 
 
 @pytest.mark.asyncio
-async def test_a_cancellation_during_stop_delivery_sends_no_second_stop() -> None:
-    delivered: list[str] = []
+async def test_a_cancellation_during_stop_delivery_still_gives_every_subscriber_a_final_stop() -> None:
+    """Hooks run one after another; a cancel landing in the first must not leave the second without a STOP."""
+    seen: dict[str, list[tuple[str, object]]] = {"slow": [], "fast": []}
     stop_started = asyncio.Event()
     completed = _SUCCESS_RETURNS[0].values[0]
 
-    async def slow_stop(event: str, payload: dict[str, object]) -> None:
-        delivered.append(event)
-        if event == HookEvent.SUBAGENT_STOP:
-            stop_started.set()
-            await asyncio.sleep(30)
+    def subscriber(name: str, *, slow_first_stop: bool) -> HookCallable:
+        async def hook(event: str, payload: dict[str, object]) -> HookResult:
+            seen[name].append((event, payload.get("status")))
+            stops = [entry for entry in seen[name] if entry[0] == HookEvent.SUBAGENT_STOP]
+            if slow_first_stop and event == HookEvent.SUBAGENT_STOP and len(stops) == 1:
+                stop_started.set()
+                await asyncio.sleep(30)
+            return HookResult(hook_type="callable", success=True)
 
-    with _patched(slow_stop, AsyncMock(return_value=completed)):
-        run = asyncio.create_task(_invoke(_config()))
-        await stop_started.wait()
-        run.cancel()
-        result = await run
+        return hook
+
+    registry = HookRegistry()
+    for event in (HookEvent.SUBAGENT_START, HookEvent.SUBAGENT_STOP, HookEvent.SUBAGENT_CANCEL_COMPLETE):
+        registry.register(event, CallableHookDefinition(fn=subscriber("slow", slow_first_stop=True), priority=10))
+        registry.register(event, CallableHookDefinition(fn=subscriber("fast", slow_first_stop=False), priority=0))
+    set_hook_executor(HookExecutor(registry))
+    try:
+        with _patched(AsyncMock(return_value=completed)):
+            run = asyncio.create_task(_invoke(_config()))
+            await stop_started.wait()
+            run.cancel()
+            result = await run
+    finally:
+        set_hook_executor(None)
 
     assert result.status is SubAgentStatus.CANCELLED
-    assert delivered == [HookEvent.SUBAGENT_START, HookEvent.SUBAGENT_STOP, HookEvent.SUBAGENT_CANCEL_COMPLETE]
+    for entries in seen.values():
+        stops = [status for event, status in entries if event == HookEvent.SUBAGENT_STOP]
+        assert stops, "every subscriber that saw START must see a STOP"
+        assert stops[-1] == "cancelled"
