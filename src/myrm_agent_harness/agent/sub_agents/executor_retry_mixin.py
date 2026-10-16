@@ -230,7 +230,7 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         on_running_token_usage=on_running_token_usage,
                         internal=internal,
                     )
-                    result = await close_run(result)
+                    await close_run(result)
                     if isolation_ctx and result.success:
                         isolation_succeeded = True
                         sync_back_fn = context.get("_workspace_sync_back")
