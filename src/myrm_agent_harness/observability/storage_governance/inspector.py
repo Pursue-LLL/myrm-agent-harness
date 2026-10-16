@@ -1,6 +1,9 @@
 """Storage inspector for Agent persistent state storage governance.
 
 [INPUT]
+- layout::resolve_layout (POS: decides which category owns which part of the disk, without measuring anything)
+- walker::measure_tree (POS: filesystem leaf that adds up the regular files of one tree)
+- types::StorageCategory, StorageGovernanceReport (POS: category enum and report model of the storage ledger)
 - Path (POS: root data directory)
 - Mapping[StorageCategory, Iterable[Path]] (POS: where the application keeps each category, which it alone knows)
 

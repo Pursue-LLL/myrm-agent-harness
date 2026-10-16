@@ -1,6 +1,7 @@
 """Ownership rules of the storage ledger.
 
 [INPUT]
+- types::StorageCategory (POS: category enum of the storage ledger; its declaration order is the report order)
 - Path | str (POS: root data directory)
 - Mapping[StorageCategory, Iterable[Path | str]] (POS: the paths each category owns, wherever they live)
 
@@ -12,8 +13,8 @@
 Decides, without measuring anything, which category owns which part of the disk:
 - a file belongs to the category with the deepest declared path at or above it, so a nested declaration carves its
   subtree out of the enclosing one;
-- a declared path that is not a directory is a database file, and the `-wal`, `-shm` and `-journal` files SQLite
-  keeps beside it belong to it too;
+- a declared path that is not an existing directory is treated as a database file, and the `-wal`, `-shm` and
+  `-journal` files SQLite keeps beside it belong to it too;
 - what is left of the data directory is `OTHER`; declared paths may live outside the data directory (a relocated
   volume) and are then measured where they are.
 """

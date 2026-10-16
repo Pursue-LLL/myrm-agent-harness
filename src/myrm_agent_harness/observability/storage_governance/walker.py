@@ -37,6 +37,9 @@ def measure_tree(root: str, skip: frozenset[str] = frozenset()) -> TreeSize:
     loop, into the total. An entry whose `os.path.normcase`d path is in `skip` is left out together with
     everything below it: it belongs to another category. Whatever cannot be read (a directory without permission,
     a file removed during the walk) counts as empty.
+
+    Sizes are apparent (`st_size`), not the blocks allocated on disk: every name of a hard-linked file counts in
+    full and a sparse file counts its logical length.
     """
     try:
         root_stat = os.lstat(root)
