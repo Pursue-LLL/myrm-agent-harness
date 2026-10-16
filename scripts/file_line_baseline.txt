@@ -85,7 +85,7 @@ myrm_agent_harness/toolkits/llms/adapters/chat_model/model.py	514
 myrm_agent_harness/toolkits/llms/adapters/chat_model/sync_mixin.py	535
 myrm_agent_harness/toolkits/llms/errors/classifier.py	741
 myrm_agent_harness/toolkits/llms/fallback/manager.py	609
-myrm_agent_harness/toolkits/llms/image/generator.py	571
+myrm_agent_harness/toolkits/llms/image/generator.py	557
 myrm_agent_harness/toolkits/llms/routing/complexity_router.py	803
 myrm_agent_harness/toolkits/llms/video/generator.py	532
 myrm_agent_harness/toolkits/llms/video/video_engine.py	544
@@ -106,7 +106,7 @@ myrm_agent_harness/toolkits/vector/qdrant/store.py	592
 myrm_agent_harness/toolkits/web_fetch/engine/base.py	532
 myrm_agent_harness/toolkits/web_fetch/router/adaptive_router.py	657
 myrm_agent_harness/toolkits/web_fetch/router/domain_metrics.py	506
-myrm_agent_harness/toolkits/web_search/providers/web_searcher.py	544
+myrm_agent_harness/toolkits/web_search/providers/web_searcher.py	528
 myrm_agent_harness/toolkits/wiki/core/claims_contract.py	771
 myrm_agent_harness/toolkits/wiki/maintenance/linter.py	514
 myrm_agent_harness/toolkits/wiki/pipeline/compiler.py	700
