@@ -56,6 +56,13 @@ dispatcher  handlers      events         recovery*
 - 流在收到最终元数据块之前断开时，`finish_reason` 记为 `__stream_dropped__`，`map_to_completion_status` 将其映射为 `truncated`，并禁止“补全 JSON”式修复；
 - 上游在没有 `finish_reason` 时干净关闭，LiteLLM 流包装器会合成 `stop`，块层与正常结束完全相同，因此不会被记为断流（`finish_reason` 与遥测口径不变）。适配器改读包装器自己记录的提供方结束标记（`received_finish_reason` / `intermittent_finish_reason`，`StreamAggregator.provider_finish`）：两者都为空说明提供方没有结束这条流，工具参数不再补全，该调用按被扣留处理并走上面的重试；没有这两个标记的流（Responses 线路）仍只看 `finish_reason`。停在字符串内部的参数无论如何都拒绝执行（`litellm_utils.py` 的 `truncated_mid_value`）。
 
+### 恢复重放与回复文本（重启契约）
+
+恢复处理器（模型切换、溢出压缩、一次性恢复等）会让 `StreamExecutor` 重新驱动同一份 `agent_input`，并通过 STATUS 事件的顶层 `restart: true`（`MODEL_ESCALATED` 为 `data.restart: true`）告知消费者“在途段落将被重新流式输出”。仅给出提示、不重放的 STATUS（如备用模型未配置）不带该标记。
+
+- 执行图带检查点（`thread_id` = session_key 或 message_id）：已完成的工具步骤随检查点保留，重放时模型从其后续写，工具不会重复执行，工具步骤之前的文本也不会重发。因此重启只作废“最近一次 `tool_start` 之后”的在途段落，而不是整条回复。
+- `answer_draft.AnswerDraft` 是该规则唯一的消费端实现：`feed(event)` 累积 `message` 文本、在 `tool_start` 处标记段落起点、遇重启事件丢弃在途段落并返回文本是否变化；`restart()` 供调用方在别的通道得知同一次切换时显式调用（幂等）。拼装最终回复的消费者（IM 通道、定时任务、看板、评测、自动续跑、WebUI 持久化）都使用它；语音播报不使用——已朗读的音频无法收回。
+
 ---
 
 ## 清洗与纪律

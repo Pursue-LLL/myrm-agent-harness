@@ -35,9 +35,10 @@
   ],
   "custom_model_not_found_user_message": "{service_name}のモデル '{model_name}' が見つかりません",
   "custom_model_not_found_resolution_steps": [
-    "{service_name}が実行中であることを確認してください",
-    "利用可能なモデルを確認: {list_models_url}",
-    "Ollamaの場合：ollama pull {model_name} でモデルをダウンロードしてください"
+    "'{model_name}' が {service_name} にダウンロードされていることを確認してください",
+    "'ollama list' を実行するか、LM Studio のモデル一覧を確認してください",
+    "モデル名のスペルを確認してください（大文字と小文字は区別されます）",
+    "未インストールの場合は、モデルをダウンロードしてください"
   ],
   "rate_limit_user_message": "APIレート制限に達しました",
   "rate_limit_resolution_steps": [
@@ -53,7 +54,7 @@
     "弱いモデルの設定でJSONモードが正しいことを確認してください",
     "ツール呼び出し引数のスキーマが正しいことを確認してください"
   ],
-  "context_overflow_user_message": "コンテキスト長の制限を超えました（約 {token_count} トークン）",
+  "context_overflow_user_message": "コンテキスト長の制限を超えました",
   "context_overflow_resolution_steps": [
     "入力を短くするか、ファイル添付を削減してください",
     "会話履歴をクリアしてください（新しいチャットを開始）",

@@ -35,8 +35,8 @@
   ],
   "custom_model_not_found_user_message": "{service_name}의 모델 '{model_name}'을(를) 찾을 수 없습니다",
   "custom_model_not_found_resolution_steps": [
-    "{service_name}가 실행 중인지 확인하세요",
-    "사용 가능한 모델 확인: {list_models_url}",
+    "'{model_name}'이(가) {service_name}에 다운로드되어 있는지 확인하세요",
+    "'ollama list'를 실행하거나 LM Studio 모델 목록을 확인하세요",
     "모델 이름 철자 확인(대소문자 구분)",
     "모델이 설치되어 있지 않다면 다운로드하세요"
   ],
@@ -54,7 +54,7 @@
     "약한 모델 설정에서 JSON 모드가 올바른지 확인하세요",
     "도구 호출 인수 스키마가 올바른지 확인하세요"
   ],
-  "context_overflow_user_message": "컨텍스트 길이 제한을 초과했습니다(약 {token_count} 토큰)",
+  "context_overflow_user_message": "컨텍스트 길이 제한을 초과했습니다",
   "context_overflow_resolution_steps": [
     "입력을 줄이거나 파일 첨부를 줄이세요",
     "대화 기록을 지우세요(새 채팅 시작)",

@@ -9,6 +9,7 @@
 | 文件 | 地位 | 职责 |
 | --- | --- | --- |
 | `__init__.py` | 入口 | 包入口（不再导出符号，调用方按模块路径导入） |
+| `answer_draft.py` | 核心 | 流式回复文本累积器 `AnswerDraft` 与重启契约判定 `is_answer_restart`：恢复重放时只丢弃“最近一次 `tool_start` 之后”的在途段落（已完成的工具步骤由检查点保留，模型从其后续写，之前的文本不会重发）；所有从 `process_stream` 事件拼最终回复的消费者统一使用，禁止各自重写该规则 |
 | `artifact_events.py` | 核心 | 工件事件处理（文件工件、UI工件、内联图片工件与实时内容更新） |
 | `channel_output_hints.py` | 核心 | 交付渠道输出格式提示词生成（Channel-Aware Output Guidance）与前置提示保障 |
 | `citation_audit.py` | 核心 | 流式回复引用标记审计（【N】序号与信息源对照验证） |
@@ -27,3 +28,4 @@
 | `stream_executor.py` | 核心 | 流式执行引擎生命周期封装（Agent.astream 调度、重试恢复与异常拦截） |
 | `types.py` | 核心 | 流式事件类型定义与 core.events.types 兼容重导出 |
 | `utils.py` | 辅助 | 时间戳规则、时区管理上下文变量及工具名称规范化等通用辅助函数 |
+| `zero_replay/` | 子包 | 零事件重放前后端无缝重连协议核心引擎（单次原子快照基线 + 纯实时增量流门禁过滤）。参见 [zero_replay/_ARCH.md](zero_replay/_ARCH.md) |

@@ -35,9 +35,10 @@
   ],
   "custom_model_not_found_user_message": "Modell '{model_name}' in {service_name} nicht gefunden",
   "custom_model_not_found_resolution_steps": [
-    "Bestätigen Sie, dass {service_name} läuft",
-    "Verfügbare Modelle prüfen: {list_models_url}",
-    "Für Ollama: ollama pull {model_name} zum Herunterladen des Modells"
+    "Bestätigen Sie, dass '{model_name}' auf {service_name} heruntergeladen ist",
+    "Führen Sie 'ollama list' aus oder prüfen Sie die Modellliste in LM Studio",
+    "Prüfen Sie die Schreibweise des Modellnamens (Groß-/Kleinschreibung beachten)",
+    "Laden Sie das Modell herunter, falls es nicht installiert ist"
   ],
   "rate_limit_user_message": "API-Ratenlimit erreicht",
   "rate_limit_resolution_steps": [
@@ -53,7 +54,7 @@
     "Überprüfen Sie Schwachmodell-Konfiguration für JSON-Modus",
     "Überprüfen Sie, ob Tool-Call-Argument-Schema korrekt ist"
   ],
-  "context_overflow_user_message": "Kontextlängenlimit überschritten (~{token_count} Token)",
+  "context_overflow_user_message": "Kontextlängenlimit überschritten",
   "context_overflow_resolution_steps": [
     "Reduzieren Sie Ihre Eingabe oder Dateianhänge",
     "Löschen Sie den Konversationsverlauf (neuen Chat starten)",
