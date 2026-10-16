@@ -35,7 +35,7 @@ async def test_generate_oversized_inline_video_rejected() -> None:
     provider = FalVideoProvider()
     oversized_bytes = b"0" * (6 * 1024 * 1024)
 
-    with pytest.raises(ValueError, match="Reference video exceeds .* limit"):
+    with pytest.raises(ValueError, match=r"Reference video exceeds .* limit"):
         await provider.generate("test continuation", _cfg(), reference_videos=[oversized_bytes])
 
 

@@ -144,7 +144,7 @@ class TestSearchGithubCode:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_unexpected_exception_returns_none(self) -> None:
+    async def test_unreadable_json_payload_returns_none(self) -> None:
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.json.side_effect = RuntimeError("Malformed JSON payload simulation")

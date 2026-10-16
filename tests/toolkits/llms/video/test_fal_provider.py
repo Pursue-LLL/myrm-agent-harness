@@ -594,7 +594,7 @@ class TestFalVideoProviderGenerate:
         with (
             patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
             patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.secure_get", AsyncMock(return_value=bad_dl_resp)),
-            pytest.raises(RuntimeError, match="Failed to download video from .* HTTP 404"),
+            pytest.raises(RuntimeError, match=r"Failed to download video from .* HTTP 404"),
         ):
             await provider.generate("test prompt", _cfg())
 
@@ -822,7 +822,7 @@ class TestFalVideoProviderGenerate:
             patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
             patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.secure_get", AsyncMock(return_value=bad_dl_resp)),
             patch("asyncio.sleep", AsyncMock()),
-            pytest.raises(RuntimeError, match="Failed to download video from .* HTTP 403"),
+            pytest.raises(RuntimeError, match=r"Failed to download video from .* HTTP 403"),
         ):
             await provider.generate("test prompt", _cfg())
 
