@@ -1,9 +1,9 @@
 """
 [POS] src/myrm_agent_harness/core/security/readonly_research_sandbox/facade.py
-[INPUT] threading, typing, .ephemeral_cow_overlay, .readonly_lease_manager, .types
-[OUTPUT] ReadOnlyResearchSandboxFacade
+[INPUT] threading, typing, .readonly_lease_manager, .types
+[OUTPUT] ReadOnlyResearchSandboxFacade, get_readonly_research_sandbox_facade
 
-Unified Facade for Read-Only Autonomous Research Lease & Immutable Snapshot Sandbox Suite.
+Unified Facade for the Read-Only Autonomous Research Lease: grants, revokes and enforces leases, and counts them.
 Strict typing applied: No `Any` types allowed.
 """
 
@@ -11,26 +11,21 @@ from __future__ import annotations
 
 import threading
 
-from .ephemeral_cow_overlay import EphemeralCowOverlay
 from .readonly_lease_manager import ReadOnlyLeaseManager
 from .types import (
-    EphemeralCowFileRecord,
     LeaseStatusEnum,
     ReadOnlyLeaseRecord,
     ReadOnlyResearchMetrics,
-    ReadOnlyShieldBadge,
     ResearchModeEnum,
-    WorkspaceSnapshot,
 )
 
 
 class ReadOnlyResearchSandboxFacade:
-    """Coordinates read-only lease contracts, in-memory CoW overlays, purity verification, and badges."""
+    """Coordinates read-only lease contracts and their telemetry."""
 
     def __init__(self, default_ttl_seconds: float = 3600.0) -> None:
         self._lock = threading.RLock()
         self._lease_manager = ReadOnlyLeaseManager(default_ttl_seconds=default_ttl_seconds)
-        self._cow_overlay = EphemeralCowOverlay()
         self._metrics = ReadOnlyResearchMetrics()
 
     def grant_research_lease(
@@ -74,80 +69,6 @@ class ReadOnlyResearchSandboxFacade:
                 self._metrics.write_attempts_blocked += 1
         return allowed, reason
 
-    def take_snapshot(
-        self, session_id: str, baseline_files: dict[str, str | bytes]
-    ) -> WorkspaceSnapshot:
-        """Capture immutable cryptographic baseline snapshot of protected workspace."""
-        return self._cow_overlay.take_snapshot(session_id, baseline_files)
-
-    def get_snapshot(self, session_id: str) -> WorkspaceSnapshot | None:
-        """Retrieve baseline snapshot."""
-        return self._cow_overlay.get_snapshot(session_id)
-
-    def write_ephemeral_output(
-        self, session_id: str, virtual_path: str, content: str | bytes
-    ) -> EphemeralCowFileRecord:
-        """Write intermediate research output strictly into in-memory CoW overlay."""
-        rec = self._cow_overlay.write_ephemeral_file(session_id, virtual_path, content)
-        with self._lock:
-            self._metrics.ephemeral_cow_files_staged += 1
-        return rec
-
-    def read_ephemeral_output(self, session_id: str, virtual_path: str) -> bytes | None:
-        """Read intermediate file from CoW overlay."""
-        return self._cow_overlay.read_ephemeral_file(session_id, virtual_path)
-
-    def list_ephemeral_outputs(self, session_id: str) -> list[EphemeralCowFileRecord]:
-        """List all transient files created in session's CoW overlay."""
-        return self._cow_overlay.list_ephemeral_files(session_id)
-
-    def purge_ephemeral_overlay(self, session_id: str) -> int:
-        """Purge and destroy in-memory CoW overlay on research task completion."""
-        purged = self._cow_overlay.purge_overlay(session_id)
-        with self._lock:
-            self._metrics.overlays_purged_count += 1
-        return purged
-
-    def verify_workspace_purity(
-        self, session_id: str, current_files: dict[str, str | bytes]
-    ) -> tuple[bool, str]:
-        """Verify that current workspace matches baseline snapshot without pollution."""
-        is_pure, explanation = self._cow_overlay.verify_workspace_purity(session_id, current_files)
-        with self._lock:
-            self._metrics.purity_verifications_count += 1
-        return is_pure, explanation
-
-    def get_shield_badge(
-        self, session_id: str, current_files: dict[str, str | bytes] | None = None
-    ) -> ReadOnlyShieldBadge:
-        """Construct real-time UI security indicator badge."""
-        lease = self._lease_manager.get_lease(session_id)
-        is_active = lease is not None and lease.status == LeaseStatusEnum.ACTIVE
-        mode = lease.research_mode if lease else ResearchModeEnum.GENERAL_INTERACTIVE
-        lease_id = lease.lease_id if lease else None
-
-        overlay_files = self._cow_overlay.list_ephemeral_files(session_id)
-        cow_active = len(overlay_files) > 0
-
-        purity_verified = True
-        if current_files is not None:
-            purity_verified, _ = self._cow_overlay.verify_workspace_purity(session_id, current_files)
-
-        label = (
-            "🛡️ Active Read-Only Research Mode (Side-effects Physically Stripped)"
-            if is_active
-            else "General Interactive Mode"
-        )
-
-        return ReadOnlyShieldBadge(
-            is_read_only_active=is_active,
-            active_lease_id=lease_id,
-            research_mode=mode,
-            cow_overlay_active=cow_active,
-            workspace_purity_verified=purity_verified,
-            badge_label=label,
-        )
-
     def get_metrics(self) -> ReadOnlyResearchMetrics:
         """Retrieve operational telemetry snapshot."""
         with self._lock:
@@ -156,9 +77,6 @@ class ReadOnlyResearchSandboxFacade:
                 active_leases_count=self._metrics.active_leases_count,
                 leases_revoked_count=self._metrics.leases_revoked_count,
                 write_attempts_blocked=self._metrics.write_attempts_blocked,
-                ephemeral_cow_files_staged=self._metrics.ephemeral_cow_files_staged,
-                overlays_purged_count=self._metrics.overlays_purged_count,
-                purity_verifications_count=self._metrics.purity_verifications_count,
             )
 
 
@@ -174,4 +92,3 @@ def get_readonly_research_sandbox_facade() -> ReadOnlyResearchSandboxFacade:
             if _GLOBAL_READONLY_RESEARCH_FACADE is None:
                 _GLOBAL_READONLY_RESEARCH_FACADE = ReadOnlyResearchSandboxFacade()
     return _GLOBAL_READONLY_RESEARCH_FACADE
-

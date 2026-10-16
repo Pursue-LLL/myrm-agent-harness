@@ -58,7 +58,6 @@ def _cleanup_state() -> None:
         "test-ro-lease-sess-05",
     ):
         facade.revoke_lease(sess)
-        facade.purge_ephemeral_overlay(sess)
 
 
 @pytest.mark.asyncio

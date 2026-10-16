@@ -1,22 +1,36 @@
 """
 [POS] tests/unit/test_auto_review_resolution_suite.py
-[INPUT] myrm_agent_harness.core.security.auto_review_resolution
-[OUTPUT] Unit test suite for Auto-Review Denial Four-Way Adaptive Resolution State Machine
+[INPUT] myrm_agent_harness.core.security.auto_review_resolution, agent.middlewares.approval.denial_diagnostic_bridge
+[OUTPUT] Unit test suite for the Auto-Review Denial diagnostic and the model-facing denial message built from it
 
 Strict typing applied: No `Any` types allowed.
 """
 
 from __future__ import annotations
 
+import gc
+import re
+
+import pytest
+
+from myrm_agent_harness.agent.middlewares.approval.denial_diagnostic_bridge import (
+    build_auto_review_denial_message,
+    infer_denial_reason_code,
+)
 from myrm_agent_harness.core.security.auto_review_resolution import (
-    AutoReviewResolutionFacade,
+    DenialDiagnosticPayload,
     DenialDiagnosticReporter,
     DenialReasonCodeEnum,
-    FourWayResolutionStateMachine,
-    HandoverDeckManager,
-    HandoverStatusEnum,
     ResolutionBranchEnum,
 )
+
+_DIAGNOSTIC_ID = re.compile(r"Diagnostic ID: diag-[0-9a-f]{12}")
+
+
+def _diagnostic_id(message: str) -> str:
+    match = _DIAGNOSTIC_ID.search(message)
+    assert match is not None, message
+    return match.group()
 
 
 def test_diagnostic_reporter_inference() -> None:
@@ -53,129 +67,70 @@ def test_diagnostic_reporter_inference() -> None:
     assert diag_breach.suggested_branch == ResolutionBranchEnum.STOP_OPERATION
 
 
-def test_four_way_state_machine_loop_breaker() -> None:
-    """Test isomorphic retry loop breaking after repeated failures on same action."""
-    sm = FourWayResolutionStateMachine(max_isomorphic_attempts=2)
-    session_id = "sess-loop-01"
+@pytest.mark.parametrize(
+    ("reason", "tool_name", "expected"),
+    [
+        ("Unauthorized path /etc/hosts", "file_write_tool", DenialReasonCodeEnum.UNAUTHORIZED_PATH),
+        ("Credential egress blocked", "web_fetch_tool", DenialReasonCodeEnum.SENSITIVE_DATA_LEAK),
+        ("Too many requests", "web_search_tool", DenialReasonCodeEnum.RATE_LIMIT_EXCEEDED),
+        ("Sandbox escape attempt", "bash_code_execute_tool", DenialReasonCodeEnum.SANDBOX_ISOLATION_BREACH),
+        ("Blocked by policy", "delete_everything", DenialReasonCodeEnum.HIGH_RISK_ACTION),
+        ("Irreversible destructive command", "bash_code_execute_tool", DenialReasonCodeEnum.HIGH_RISK_ACTION),
+        ("Blocked by policy", "file_write_tool", DenialReasonCodeEnum.POLICY_VIOLATION),
+        # The first matching family wins: a path that also mentions a credential is a path denial.
+        ("Credential file outside the allowed path", "file_read_tool", DenialReasonCodeEnum.UNAUTHORIZED_PATH),
+    ],
+)
+def test_reason_code_follows_the_denial_text_and_the_tool(
+    reason: str, tool_name: str, expected: DenialReasonCodeEnum
+) -> None:
+    assert infer_denial_reason_code(reason, tool_name) == expected
 
-    diag = DenialDiagnosticReporter.generate_diagnostic(
-        blocked_action="modify_root_cert",
-        denial_reason="Root certificate modification forbidden.",
-        reason_code=DenialReasonCodeEnum.POLICY_VIOLATION,
-        policy_rule_id="RULE-ROOT-01",
+
+def test_denial_message_is_the_structured_text_the_model_reads() -> None:
+    """Pins the exact model-facing wording, so a change to it is a deliberate edit and never a side effect."""
+    reason = "Unauthorized path /etc/hosts"
+    hint = "\n[HINT: stop retrying]"
+
+    message = build_auto_review_denial_message("file_write_tool", reason, hint)
+
+    assert message.replace(_diagnostic_id(message), "Diagnostic ID: <id>") == (
+        "Tool execution denied by security policy: Unauthorized path /etc/hosts\n"
+        "[HINT: stop retrying]\n"
+        "\n"
+        "[SECURITY_DENIAL_DIAGNOSTIC]\n"
+        "Diagnostic ID: <id>\n"
+        "Reason Code: UNAUTHORIZED_PATH\n"
+        "Suggested Branch: TRY_ALTERNATIVE\n"
+        "Allowed Alternatives:\n"
+        "  - read-only file inspection via file_read\n"
+        "  - create patch file in workspace instead of system directory\n"
+        "  - ask user for elevated path grant\n"
+        "\n"
+        "Instruction: You must now adapt by choosing one of the four resolution branches:\n"
+        "1. ASK_USER: Ask the user for explicit authorization or clarification.\n"
+        "2. TRY_ALTERNATIVE: Attempt one of the allowed alternatives above.\n"
+        "3. HANDOVER_TO_USER: Hand this specific operation over to the user for manual confirmation.\n"
+        "4. STOP_OPERATION: Terminate the blocked trajectory safely and report findings to user."
     )
 
-    # First attempt: TRY_ALTERNATIVE is permitted
-    sm.register_denial(session_id, diag)
-    branch1, _ = sm.evaluate_effective_branch(session_id, ResolutionBranchEnum.TRY_ALTERNATIVE)
-    assert branch1 == ResolutionBranchEnum.TRY_ALTERNATIVE
 
-    # Second attempt: still within limit
-    sm.register_denial(session_id, diag)
-    branch2, _ = sm.evaluate_effective_branch(session_id, ResolutionBranchEnum.TRY_ALTERNATIVE)
-    assert branch2 == ResolutionBranchEnum.TRY_ALTERNATIVE
+def test_every_denial_gets_its_own_diagnostic_id() -> None:
+    ids = {_diagnostic_id(build_auto_review_denial_message("file_write_tool", "Blocked by policy")) for _ in range(50)}
 
-    # Third attempt: threshold exceeded (> 2) -> forced HANDOVER_TO_USER
-    sm.register_denial(session_id, diag)
-    branch3, reason3 = sm.evaluate_effective_branch(session_id, ResolutionBranchEnum.TRY_ALTERNATIVE)
-    assert branch3 == ResolutionBranchEnum.HANDOVER_TO_USER
-    assert "Loop breaker engaged" in reason3
-
-    # Commit decision and verify history
-    rec = sm.commit_resolution_decision(
-        session_id=session_id,
-        chosen_branch=ResolutionBranchEnum.HANDOVER_TO_USER,
-        rationale="Automated loop break accepted",
-    )
-    assert rec.chosen_branch == ResolutionBranchEnum.HANDOVER_TO_USER
-    assert len(sm.get_history(session_id)) == 1
-    assert sm.get_active_denial(session_id) is None
+    assert len(ids) == 50
 
 
-def test_handover_deck_lifecycle() -> None:
-    """Test staging, execution, and dismissal of human handover decks."""
-    mgr = HandoverDeckManager()
-    session_id = "sess-deck-01"
-
-    # Stage card
-    deck = mgr.stage_handover(
-        session_id=session_id,
-        task_description="Apply sensitive database migration",
-        prepared_command="alembic upgrade head",
-        parameters={"db": "prod_users", "revision": "head"},
-        guidance_notes="Please confirm DB replica lag before releasing.",
-    )
-    assert deck.status == HandoverStatusEnum.STAGED
-    assert len(mgr.list_staged_handovers(session_id)) == 1
-
-    # User executes
-    exec_deck = mgr.execute_handover(deck.handover_id)
-    assert exec_deck is not None
-    assert exec_deck.status == HandoverStatusEnum.EXECUTED_BY_USER
-    assert exec_deck.executed_at is not None
-    assert len(mgr.list_staged_handovers(session_id)) == 0
-
-    # Stage and dismiss another
-    deck2 = mgr.stage_handover(
-        session_id=session_id,
-        task_description="Delete old backup volume",
-        prepared_command="rm -rf /volumes/backup_2025",
-        parameters={},
-        guidance_notes="Irreversible operation.",
-    )
-    dism_deck = mgr.dismiss_handover(deck2.handover_id)
-    assert dism_deck is not None
-    assert dism_deck.status == HandoverStatusEnum.DISMISSED_BY_USER
+def _live_diagnostics() -> int:
+    gc.collect()
+    return sum(1 for obj in gc.get_objects() if isinstance(obj, DenialDiagnosticPayload))
 
 
-def test_facade_end_to_end_and_metrics() -> None:
-    """Test facade coordinated reporting, evaluation, handover staging, and metrics."""
-    facade = AutoReviewResolutionFacade()
-    session_id = "sess-facade-01"
+def test_denials_leave_no_per_denial_state_behind() -> None:
+    """A long-lived process turns each denial into a message and keeps nothing, however many it sees."""
+    before = _live_diagnostics()
 
-    # 1. Report denial
-    diag = facade.report_and_register_denial(
-        session_id=session_id,
-        blocked_action="git_push_main",
-        denial_reason="Direct push to main branch blocked by branch protection.",
-        reason_code=DenialReasonCodeEnum.POLICY_VIOLATION,
-        policy_rule_id="RULE-GIT-MAIN",
-        context_data={"branch": "main"},
-    )
-    assert diag.blocked_action == "git_push_main"
-    assert facade.get_active_denial(session_id) is not None
+    for run in range(500):
+        build_auto_review_denial_message("bash_code_execute_tool", f"Irreversible destructive delete in run {run}")
 
-    # 2. Evaluate branch
-    eff_branch, _ = facade.evaluate_branch(session_id, ResolutionBranchEnum.HANDOVER_TO_USER)
-    assert eff_branch == ResolutionBranchEnum.HANDOVER_TO_USER
-
-    # 3. Stage handover card
-    deck = facade.stage_handover_deck(
-        session_id=session_id,
-        task_description="Create PR and push to feature branch instead",
-        prepared_command="git checkout -b fix-auth && git push origin fix-auth",
-        parameters={"branch": "fix-auth"},
-        guidance_notes="Safe feature branch diversion.",
-    )
-    assert deck.status == HandoverStatusEnum.STAGED
-
-    # 4. User executes card
-    executed_deck = facade.execute_handover(deck.handover_id)
-    assert executed_deck is not None
-    assert executed_deck.status == HandoverStatusEnum.EXECUTED_BY_USER
-
-    # 5. Commit decision
-    rec = facade.commit_resolution(
-        session_id=session_id,
-        chosen_branch=ResolutionBranchEnum.HANDOVER_TO_USER,
-        rationale="Handed over feature branch push to human.",
-        handover_id=deck.handover_id,
-    )
-    assert rec.handover_id == deck.handover_id
-
-    # 6. Verify metrics
-    metrics = facade.get_metrics()
-    assert metrics.total_denials_processed == 1
-    assert metrics.branch_handover_count == 1
-    assert metrics.handovers_executed_by_user == 1
-    assert metrics.branch_stop_count == 0
+    assert _live_diagnostics() == before

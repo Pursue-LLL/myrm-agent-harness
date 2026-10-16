@@ -3,8 +3,7 @@
 Verifies:
 - Security auto-review and policy DENY decisions invoke the diagnostic bridge
 - Denial messages contain structured LLM-reflective diagnostics ([SECURITY_DENIAL_DIAGNOSTIC])
-- Denials are recorded in FourWayResolutionStateMachine / AutoReviewResolutionFacade
-- High-risk operations stage a human handover deck card
+- High-risk operations suggest handing the action over to the user
 - Non-interactive batch evaluations generate adaptive resolution diagnostics
 """
 
@@ -29,11 +28,6 @@ from myrm_agent_harness.agent.security.types import (
     ReviewDecision,
     ReviewResult,
     SecurityConfig,
-)
-from myrm_agent_harness.core.security.auto_review_resolution import (
-    DenialReasonCodeEnum,
-    ResolutionBranchEnum,
-    get_auto_review_resolution_facade,
 )
 
 
@@ -78,7 +72,7 @@ def _cleanup_state() -> None:
 
 
 @pytest.mark.asyncio
-async def test_policy_denial_generates_structured_diagnostic_and_stages_handover() -> None:
+async def test_policy_denial_generates_structured_diagnostic() -> None:
     session_id = "test-approval-resolution-sess-01"
 
     config = SecurityConfig(
@@ -125,20 +119,6 @@ async def test_policy_denial_generates_structured_diagnostic_and_stages_handover
     assert "3. HANDOVER_TO_USER" in content_str
     assert "4. STOP_OPERATION" in content_str
 
-    # 2. Verify state machine registration in facade
-    facade = get_auto_review_resolution_facade()
-    active_denial = facade.get_active_denial(session_id)
-    assert active_denial is not None
-    assert active_denial.reason_code == DenialReasonCodeEnum.HIGH_RISK_ACTION
-    assert active_denial.suggested_branch == ResolutionBranchEnum.HANDOVER_TO_USER
-
-    # 3. Verify handover deck card staged
-    staged_cards = facade.list_staged_handovers(session_id)
-    assert len(staged_cards) >= 1
-    latest_card = staged_cards[-1]
-    assert latest_card.prepared_command == "bash_code_execute_tool"
-    assert "rm -rf" in latest_card.task_description
-
 
 @pytest.mark.asyncio
 async def test_non_interactive_llm_review_denial_creates_adaptive_diagnostic() -> None:
@@ -178,10 +158,3 @@ async def test_non_interactive_llm_review_denial_creates_adaptive_diagnostic() -
     assert "[SECURITY_DENIAL_DIAGNOSTIC]" in denial_message
     assert "Reason Code: SENSITIVE_DATA_LEAK" in denial_message
     assert "Suggested Branch: TRY_ALTERNATIVE" in denial_message
-
-    # Verify state machine registration
-    facade = get_auto_review_resolution_facade()
-    active_denial = facade.get_active_denial(session_id)
-    assert active_denial is not None
-    assert active_denial.reason_code == DenialReasonCodeEnum.SENSITIVE_DATA_LEAK
-    assert active_denial.suggested_branch == ResolutionBranchEnum.TRY_ALTERNATIVE

@@ -1,7 +1,7 @@
 """Denial Diagnostic Bridge connecting security auto-review denials to 4-way adaptive resolution.
 
 [INPUT]
-- Tool name, invocation arguments, security denial reason, session identifier, and optional hints.
+- Tool name, security denial reason, and an optional hint.
 
 [OUTPUT]
 - Structured, LLM-reflective denial diagnostic message embedding reason codes,
@@ -13,12 +13,9 @@
 
 from __future__ import annotations
 
-import json
-
 from myrm_agent_harness.core.security.auto_review_resolution import (
+    DenialDiagnosticReporter,
     DenialReasonCodeEnum,
-    ResolutionBranchEnum,
-    get_auto_review_resolution_facade,
 )
 
 
@@ -48,54 +45,18 @@ def infer_denial_reason_code(reason: str, tool_name: str) -> DenialReasonCodeEnu
     return DenialReasonCodeEnum.POLICY_VIOLATION
 
 
-def build_auto_review_denial_message(
-    tool_name: str,
-    args: dict[str, object] | None,
-    reason: str,
-    session_key: str,
-    hint: str = "",
-) -> str:
-    """Synthesize structured denial message with 4-way adaptive resolution guidance."""
-    # Summarize tool action
-    args_summary = ""
-    if args:
-        try:
-            args_summary = json.dumps(args, ensure_ascii=False, default=str)
-            if len(args_summary) > 200:
-                args_summary = args_summary[:200] + "..."
-        except Exception:
-            args_summary = str(args)[:200]
+def build_auto_review_denial_message(tool_name: str, reason: str, hint: str = "") -> str:
+    """Synthesize structured denial message with 4-way adaptive resolution guidance.
 
-    blocked_action = f"{tool_name}({args_summary})" if args_summary else tool_name
-    reason_code = infer_denial_reason_code(reason, tool_name)
-    facade = get_auto_review_resolution_facade()
-
-    # Register structured denial in session state machine
-    context_data = {"tool_name": tool_name}
-    if args_summary:
-        context_data["args_summary"] = args_summary
-
-    diag = facade.report_and_register_denial(
-        session_id=session_key,
-        blocked_action=blocked_action,
+    Stateless: the diagnostic exists only to render this message, so a long-lived process keeps nothing per denial.
+    """
+    diag = DenialDiagnosticReporter.generate_diagnostic(
+        blocked_action=tool_name,
         denial_reason=reason,
-        reason_code=reason_code,
+        reason_code=infer_denial_reason_code(reason, tool_name),
         policy_rule_id="SECURITY_AUTO_REVIEW_GATE",
-        context_data=context_data,
     )
 
-    # If suggested branch is HANDOVER_TO_USER, pre-stage a handover deck card
-    if diag.suggested_branch == ResolutionBranchEnum.HANDOVER_TO_USER:
-        param_dict = {str(k): str(v) for k, v in (args or {}).items()}
-        facade.stage_handover_deck(
-            session_id=session_key,
-            task_description=f"Action blocked: {blocked_action}",
-            prepared_command=tool_name,
-            parameters=param_dict,
-            guidance_notes=f"Security auto-review blocked this action ({reason}). You may manually review and execute.",
-        )
-
-    # Format structured message for agent reflection
     alternatives_str = "\n".join(f"  - {alt}" for alt in diag.allowed_alternatives)
     message_parts = [
         f"Tool execution denied by security policy: {reason}{hint}",

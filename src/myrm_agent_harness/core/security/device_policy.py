@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from langchain_core.messages import ToolCall
 
 _DEFAULT_MAX_BATCH_SIZE: int = 15
@@ -146,7 +148,7 @@ def _detect_compound_command_risk(
 
 
 def evaluate_batch_risk(
-    tool_calls: list[ToolCall | dict[str, Any]],
+    tool_calls: Sequence[ToolCall | dict[str, Any]],
     policy: DeviceSecurityPolicy | None = None,
     *,
     permission_resolver: Any = None,

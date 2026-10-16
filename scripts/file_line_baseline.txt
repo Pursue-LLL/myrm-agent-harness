@@ -23,7 +23,7 @@ myrm_agent_harness/agent/meta_tools/file_ops/core/file_operation_service.py	649
 myrm_agent_harness/agent/meta_tools/file_ops/file_read_tool.py	507
 myrm_agent_harness/agent/meta_tools/spawn_subagent/delegate_task_tool.py	618
 myrm_agent_harness/agent/middlewares/approval/_batch_decisions.py	697
-myrm_agent_harness/agent/middlewares/approval/batch_processor.py	1225
+myrm_agent_harness/agent/middlewares/approval/batch_processor.py	1199
 myrm_agent_harness/agent/middlewares/completion/completion_guard.py	514
 myrm_agent_harness/agent/middlewares/context_pipeline/context_pipeline_middleware.py	533
 myrm_agent_harness/agent/middlewares/tooling/_tool_guards.py	689

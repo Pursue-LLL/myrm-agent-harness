@@ -1,7 +1,7 @@
 """
 [POS] tests/unit/test_readonly_research_sandbox_suite.py
 [INPUT] myrm_agent_harness.core.security.readonly_research_sandbox
-[OUTPUT] Unit test suite for Read-Only Autonomous Research Lease & Immutable Snapshot Sandbox
+[OUTPUT] Unit test suite for the Read-Only Autonomous Research Lease
 
 Strict typing applied: No `Any` types allowed.
 """
@@ -14,7 +14,6 @@ import pytest
 
 from myrm_agent_harness.core.security.readonly_research_sandbox import (
     DEFAULT_READ_ONLY_TOOLS,
-    EphemeralCowOverlay,
     LeaseStatusEnum,
     ReadOnlyLeaseManager,
     ReadOnlyResearchSandboxFacade,
@@ -91,82 +90,41 @@ def test_custom_allowed_tools_replace_the_default_allow_list(tool: str, expected
     assert allowed is expected
 
 
-def test_ephemeral_cow_overlay_snapshot_and_purity() -> None:
-    """Test immutable snapshot baseline, purity verification, and in-memory CoW overlay purge."""
-    overlay = EphemeralCowOverlay()
-    session_id = "sess-cow-01"
-    baseline = {
-        "src/main.py": "print('hello')",
-        "config.json": '{"env": "prod"}',
-    }
-
-    # 1. Take baseline snapshot
-    snap = overlay.take_snapshot(session_id, baseline)
-    assert len(snap.root_digest) == 64
-    assert snap.file_manifest_hashes["src/main.py"] is not None
-
-    # 2. Baseline purity matches
-    is_pure, _ = overlay.verify_workspace_purity(session_id, baseline)
-    assert is_pure is True
-
-    # 3. Pollution detected if real workspace is modified
-    polluted = dict(baseline)
-    polluted["unauthorized_dump.txt"] = "malicious payload"
-    is_pure_p, reason_p = overlay.verify_workspace_purity(session_id, polluted)
-    assert is_pure_p is False
-    assert "Pollution detected: 1 added" in reason_p
-
-    # 4. Transient in-memory CoW output writes do not pollute base
-    rec = overlay.write_ephemeral_file(session_id, "charts/analysis.png", b"\x89PNG\r\n\x1a\n")
-    assert rec.virtual_path == "charts/analysis.png"
-    assert overlay.read_ephemeral_file(session_id, "charts/analysis.png") == b"\x89PNG\r\n\x1a\n"
-    assert len(overlay.list_ephemeral_files(session_id)) == 1
-
-    # 5. Purge overlay on completion
-    purged_count = overlay.purge_overlay(session_id)
-    assert purged_count == 1
-    assert len(overlay.list_ephemeral_files(session_id)) == 0
-
-
-def test_facade_end_to_end_and_badge_metrics() -> None:
-    """Test facade end-to-end lease enforcement, badge generation, and metrics."""
+def test_facade_grants_enforces_and_counts_leases() -> None:
+    """The facade is the process-wide entry point: it grants, enforces and revokes leases and counts each step."""
     facade = ReadOnlyResearchSandboxFacade()
     session_id = "sess-facade-ro"
-    workspace = {"README.md": "# Research Study"}
 
-    # 1. Take snapshot and grant lease
-    facade.take_snapshot(session_id, workspace)
     lease = facade.grant_research_lease(session_id, ResearchModeEnum.AUTONOMOUS_RESEARCH)
     assert lease.status == LeaseStatusEnum.ACTIVE
+    assert facade.get_lease(session_id) == lease
 
-    # 2. Verify shield badge
-    badge = facade.get_shield_badge(session_id, workspace)
-    assert badge.is_read_only_active is True
-    assert badge.research_mode == ResearchModeEnum.AUTONOMOUS_RESEARCH
-    assert badge.workspace_purity_verified is True
-    assert "Read-Only Research Mode" in badge.badge_label
+    assert facade.evaluate_tool(session_id, "file_read_tool")[0] is True
+    assert facade.evaluate_tool(session_id, "bash_code_execute_tool")[0] is False
 
-    # 3. Evaluate tool blocking and metrics
-    allowed_w, _ = facade.evaluate_tool(session_id, "bash_code_execute_tool")
-    assert allowed_w is False
-
-    # 4. Ephemeral CoW write and badge cow_active flag
-    facade.write_ephemeral_output(session_id, "temp_data.csv", "id,val\n1,10\n")
-    badge_cow = facade.get_shield_badge(session_id)
-    assert badge_cow.cow_overlay_active is True
-
-    # 5. Purge overlay and verify purity
-    purged = facade.purge_ephemeral_overlay(session_id)
-    assert purged == 1
-
-    is_pure, _ = facade.verify_workspace_purity(session_id, workspace)
-    assert is_pure is True
-
-    # 6. Metrics
     metrics = facade.get_metrics()
     assert metrics.total_leases_granted == 1
     assert metrics.active_leases_count == 1
     assert metrics.write_attempts_blocked == 1
-    assert metrics.ephemeral_cow_files_staged == 1
-    assert metrics.overlays_purged_count == 1
-    assert metrics.purity_verifications_count >= 1
+
+    revoked = facade.revoke_lease(session_id)
+    assert revoked is not None
+    assert revoked.status == LeaseStatusEnum.REVOKED
+    assert facade.get_lease(session_id) is None
+    assert facade.evaluate_tool(session_id, "bash_code_execute_tool")[0] is True
+
+    metrics = facade.get_metrics()
+    assert metrics.active_leases_count == 0
+    assert metrics.leases_revoked_count == 1
+
+
+def test_leases_of_different_sessions_do_not_affect_each_other() -> None:
+    facade = ReadOnlyResearchSandboxFacade()
+    facade.grant_research_lease("sess-a")
+
+    assert facade.evaluate_tool("sess-a", "file_write_tool")[0] is False
+    assert facade.evaluate_tool("sess-b", "file_write_tool")[0] is True
+
+    facade.revoke_lease("sess-b")
+
+    assert facade.get_lease("sess-a") is not None
