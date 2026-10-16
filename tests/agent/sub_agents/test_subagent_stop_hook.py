@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import ExitStack, contextmanager
+from dataclasses import fields
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -30,7 +31,13 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubAgentStatus,
     WorkspacePolicy,
 )
-from myrm_agent_harness.core.hooks.types import CallableHookDefinition, HookCallable, HookResult
+from myrm_agent_harness.core.hooks.types import (
+    CallableHookDefinition,
+    HookCallable,
+    HookResult,
+    SubagentStartPayload,
+    SubagentStopPayload,
+)
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
 from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
 
@@ -201,6 +208,18 @@ async def test_an_attempt_that_returns_a_success_status_is_closed(returned: SubA
         "duration_seconds": returned.duration_seconds,
         "trace_id": "trace-1",
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("returned", [_FAILED_RETURN, _SUCCESS_RETURNS[0].values[0]], ids=["failed", "completed"])
+async def test_the_fired_payloads_match_the_typed_payload_contract(returned: SubAgentResult) -> None:
+    """The exported payload dataclasses are what subscribers type against, so they must name every fired key."""
+    _, hooks = await _run(_config(), AsyncMock(return_value=returned))
+
+    start, stop = (payload for _, payload in hooks)
+    assert set(start) == {f.name for f in fields(SubagentStartPayload)}
+    assert set(stop) <= {f.name for f in fields(SubagentStopPayload)}
+    assert {"status", "trace_id"} <= set(stop)
 
 
 class _StubChild:

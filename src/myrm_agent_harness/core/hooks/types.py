@@ -248,6 +248,7 @@ class SubagentStartPayload:
     task_id: str
     agent_type: str
     task_description: str
+    trace_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,9 +256,11 @@ class SubagentStopPayload:
     task_id: str
     agent_type: str
     success: bool
+    status: str = ""
     result: str = ""
     error: str = ""
     duration_seconds: float = 0.0
+    trace_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
