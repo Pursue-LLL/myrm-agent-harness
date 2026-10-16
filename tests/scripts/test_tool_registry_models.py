@@ -90,12 +90,12 @@ def test_orphan_factories_skips_whitelist_and_called() -> None:
     """Only factories with zero call sites AND not whitelisted are orphans."""
     report = ScanReport(
         factories={
-            "create_browser_tools": Path("/whitelisted.py"),
+            "create_wiki_admin_tools": Path("/whitelisted.py"),
             "create_orphan_tool": Path("/orphan.py"),
             "create_used_tool": Path("/used.py"),
         },
         factory_call_sites={
-            "create_browser_tools": [],
+            "create_wiki_admin_tools": [],
             "create_orphan_tool": [],
             "create_used_tool": [Path("/caller.py")],
         },
