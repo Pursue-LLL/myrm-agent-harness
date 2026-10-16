@@ -203,7 +203,7 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                             if context.get("_defer_workspace_merge"):
                                 from dataclasses import replace as dc_replace
 
-                                extra = (
+                                extra: dict[str, object] = (
                                     dict(result.result) if isinstance(result.result, dict) else {"text": result.result}
                                 )
                                 extra["_workspace_sync_back"] = sync_back_fn
