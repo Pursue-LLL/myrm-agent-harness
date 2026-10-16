@@ -17,6 +17,7 @@ _repo_root = Path(__file__).resolve().parent.parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
+from scripts import tool_registry_models
 from scripts.tool_registry_config import SERVER_TREE_AVAILABLE
 from scripts.tool_registry_models import ScanReport, ToolDeclaration
 from scripts.validate_tool_registry import (
@@ -190,6 +191,8 @@ def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str], **scan_kwargs: o
 
     monkeypatch.setattr(cli, "scan", _fake_scan)
     monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 1, "HIGH_PRIORITY": 1, "EXTENDED": 1, "EXTERNAL": 0})
+    # The stubbed report declares only synthetic tools, so every real LAYER_EXEMPT_TOOLS entry would read as stale.
+    monkeypatch.setattr(tool_registry_models, "LAYER_EXEMPT_TOOLS", {})
     # main() compares real TOOL_* maps against the stubbed scan report; isolate metadata.
     monkeypatch.setattr(
         cli,
@@ -295,9 +298,7 @@ def test_main_generate_docs_exit_1_when_marker_missing(
     assert "TOOL_COUNT_BEGIN" in err or "TOOL_CATALOG_BEGIN" in err
 
 
-def test_count_doc_coverage_flags_unregistered_total(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_count_doc_coverage_flags_unregistered_total(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     import scripts.validate_tool_registry as cli
 
     monkeypatch.setattr(cli, "_COUNT_DOC_DIR", tmp_path)
@@ -311,23 +312,17 @@ def test_count_doc_coverage_flags_unregistered_total(
     assert "TOOL_COUNT_BEGIN" in errors[0]
 
 
-def test_count_doc_coverage_allows_subset_counts(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_count_doc_coverage_allows_subset_counts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     import scripts.validate_tool_registry as cli
 
     monkeypatch.setattr(cli, "_COUNT_DOC_DIR", tmp_path)
     monkeypatch.setattr(cli, "_REQUIRED_COUNT_DOCS", ())
-    (tmp_path / "ok.md").write_text(
-        "| 最小场景 | 8 个 | CORE + HIGH_PRIORITY 13 个工具 |\n", encoding="utf-8"
-    )
+    (tmp_path / "ok.md").write_text("| 最小场景 | 8 个 | CORE + HIGH_PRIORITY 13 个工具 |\n", encoding="utf-8")
 
     assert cli._check_count_doc_coverage() == []
 
 
-def test_count_doc_coverage_allows_registered_doc(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_count_doc_coverage_allows_registered_doc(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     import scripts.validate_tool_registry as cli
 
     registered = tmp_path / "registered.md"
@@ -338,16 +333,12 @@ def test_count_doc_coverage_allows_registered_doc(
     assert cli._check_count_doc_coverage() == []
 
 
-def test_count_doc_coverage_flags_unlisted_marker_block(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_count_doc_coverage_flags_unlisted_marker_block(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     import scripts.validate_tool_registry as cli
 
     monkeypatch.setattr(cli, "_COUNT_DOC_DIR", tmp_path)
     monkeypatch.setattr(cli, "_REQUIRED_COUNT_DOCS", ())
-    (tmp_path / "blocked.md").write_text(
-        f"intro\n{cli._BLOCK_BEGIN}\nbody\n{cli._BLOCK_END}\n", encoding="utf-8"
-    )
+    (tmp_path / "blocked.md").write_text(f"intro\n{cli._BLOCK_BEGIN}\nbody\n{cli._BLOCK_END}\n", encoding="utf-8")
 
     errors = cli._check_count_doc_coverage()
 
