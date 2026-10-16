@@ -226,8 +226,8 @@ class TestEdgeCaseEndpoints:
 class TestTimeoutPropagationToLiteLLM:
     """Verify timeout values actually reach litellm layer (spy, no full mock)."""
 
-    def test_force_timeout_equals_request_timeout(self) -> None:
-        """ChatLiteLLM._default_params['force_timeout'] matches request_timeout."""
+    def test_timeout_equals_request_timeout(self) -> None:
+        """ChatLiteLLM._default_params['timeout'] matches request_timeout."""
         llm = create_litellm_model(
             "llama-3.1-70b",
             base_url="http://localhost:11434",
@@ -236,23 +236,21 @@ class TestTimeoutPropagationToLiteLLM:
         )
 
         params = llm._default_params
-        assert params["force_timeout"] == _LOCAL_REQUEST_TIMEOUT
+        assert params["timeout"] == _LOCAL_REQUEST_TIMEOUT
 
-    def test_remote_force_timeout_default(self) -> None:
-        """Remote endpoint: force_timeout = default 300s."""
-        api_key, base_url, model = _get_basic_llm_config()
-
-        llm = create_litellm_model(model, base_url=base_url, api_key=api_key)
+    def test_remote_timeout_default(self) -> None:
+        """Remote endpoint: timeout = default 300s (a fixed non-reasoning model, so the configured one cannot raise it)."""
+        llm = create_litellm_model("openai/gpt-4o", base_url="https://api.openai.com/v1", api_key="sk-test")
 
         params = llm._default_params
-        assert params["force_timeout"] == 300.0
+        assert params["timeout"] == 300.0
 
-    def test_reasoning_floor_propagates_to_force_timeout(self) -> None:
-        """Reasoning model: force_timeout = reasoning floor (600s)."""
+    def test_reasoning_floor_propagates_to_timeout(self) -> None:
+        """Reasoning model: timeout = reasoning floor (600s)."""
         llm = create_litellm_model("o3", api_key="sk-test")
 
         params = llm._default_params
-        assert params["force_timeout"] == 600.0
+        assert params["timeout"] == 600.0
 
 
 class TestRemoteApiRealCall:

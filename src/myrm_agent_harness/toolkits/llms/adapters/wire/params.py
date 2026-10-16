@@ -38,7 +38,8 @@ def build_responses_kwargs(
     requested_max = params.get("max_output_tokens") or params.get("max_tokens")
     max_output = resolve_min_output_tokens(int(requested_max) if isinstance(requested_max, int) else None)
 
-    extra_body = params.get("extra_body") if isinstance(params.get("extra_body"), dict) else {}
+    raw_extra_body = params.get("extra_body")
+    extra_body: dict[str, Any] = raw_extra_body if isinstance(raw_extra_body, dict) else {}
     reasoning = extra_body.get("reasoning")
     if not isinstance(reasoning, dict):
         reasoning_effort = params.get("reasoning_effort") or extra_body.get("reasoning_effort")
@@ -78,8 +79,6 @@ def build_responses_kwargs(
         kwargs["top_p"] = params["top_p"]
     if params.get("timeout") is not None:
         kwargs["timeout"] = params["timeout"]
-    if params.get("force_timeout") is not None:
-        kwargs["timeout"] = params["force_timeout"]
     extra_headers = params.get("extra_headers")
     if isinstance(extra_headers, dict):
         kwargs["extra_headers"] = extra_headers

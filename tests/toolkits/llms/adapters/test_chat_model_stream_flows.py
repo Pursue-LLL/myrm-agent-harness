@@ -465,7 +465,6 @@ class TestContextOverflowFastFail:
 
         model.client.completion = MagicMock(side_effect=_boom)
         model.empty_retry_enabled = False
-        model.max_retries = 0
 
         # is_context_overflow is imported lazily inside _generate; monkeypatch its
         # module attribute directly.

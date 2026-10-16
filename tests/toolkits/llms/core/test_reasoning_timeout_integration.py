@@ -1,7 +1,7 @@
 """Integration tests for reasoning_timeout — no mocks on core path.
 
 Validates that create_litellm_model correctly propagates timeout floors
-to the ChatLiteLLM instance, and that the force_timeout parameter reaches
+to the ChatLiteLLM instance, and that the timeout parameter reaches
 the LiteLLM completion layer during a real API call.
 """
 
@@ -20,18 +20,18 @@ _ENV_TEST = Path(__file__).resolve().parents[5] / "myrm-agent" / "myrm-agent-ser
 
 
 class TestReasoningTimeoutIntegration:
-    """Full-path integration: create_litellm_model → ChatLiteLLM → force_timeout."""
+    """Full-path integration: create_litellm_model → ChatLiteLLM → timeout."""
 
     def test_reasoning_model_gets_elevated_timeout(self) -> None:
         """create_litellm_model('openai/o3') should create instance with 600s timeout."""
         llm = create_litellm_model("openai/o3", api_key="sk-test")
         assert llm.request_timeout == 600.0
 
-    def test_reasoning_model_force_timeout_in_params(self) -> None:
-        """force_timeout in litellm params must equal the reasoning floor."""
+    def test_reasoning_model_timeout_in_params(self) -> None:
+        """timeout in litellm params must equal the reasoning floor."""
         llm = create_litellm_model("deepseek/deepseek-r1", api_key="sk-test")
         params = llm._default_params
-        assert params["force_timeout"] == 600.0
+        assert params["timeout"] == 600.0
 
     def test_non_reasoning_model_keeps_default_timeout(self) -> None:
         """Non-reasoning models should retain the default 300s timeout."""
@@ -60,12 +60,12 @@ class TestReasoningTimeoutIntegration:
         llm = create_litellm_model(model, api_key="sk-test")
         assert llm.request_timeout == expected_timeout
 
-    def test_force_timeout_consistency(self) -> None:
-        """force_timeout from _default_params must match request_timeout."""
+    def test_timeout_consistency(self) -> None:
+        """timeout from _default_params must match request_timeout."""
         for model, expected in [("openai/o3", 600.0), ("gemini-2.5-pro", 450.0)]:
             llm = create_litellm_model(model, api_key="sk-test")
             params = llm._default_params
-            assert params["force_timeout"] == expected
+            assert params["timeout"] == expected
             assert llm.request_timeout == expected
 
 
@@ -78,12 +78,12 @@ class TestReasoningTimeoutStreamingPath:
         assert llm.streaming is True
         assert llm.request_timeout == 600.0
 
-    def test_streaming_force_timeout_in_default_params(self) -> None:
-        """force_timeout in _default_params should be correct in streaming mode."""
+    def test_streaming_timeout_in_default_params(self) -> None:
+        """timeout in _default_params should be correct in streaming mode."""
         llm = create_litellm_model("deepseek/deepseek-r1", api_key="sk-test", streaming=True)
         params = llm._default_params
         assert params["stream"] is True
-        assert params["force_timeout"] == 600.0
+        assert params["timeout"] == 600.0
 
     def test_non_reasoning_streaming_uses_default(self) -> None:
         """Non-reasoning streaming model keeps default 300s."""
@@ -104,7 +104,7 @@ class TestReasoningTimeoutLLMManagerPath:
             api_key="sk-test",
             streaming=True,
         )
-        assert llm.request_timeout == 600.0  # type: ignore[union-attr]
+        assert llm.request_timeout == 600.0  # type: ignore[attr-defined]
 
     @pytest.mark.asyncio
     async def test_manager_non_reasoning_default_timeout(self) -> None:
@@ -116,7 +116,7 @@ class TestReasoningTimeoutLLMManagerPath:
             api_key="sk-test",
             streaming=True,
         )
-        assert llm.request_timeout == 300.0  # type: ignore[union-attr]
+        assert llm.request_timeout == 300.0  # type: ignore[attr-defined]
 
 
 class TestReasoningTimeoutRealAPI:
@@ -161,7 +161,7 @@ class TestReasoningTimeoutRealAPI:
             temperature=0.0,
             max_tokens=5,
         )
-        assert llm.request_timeout == llm._default_params["force_timeout"]
+        assert llm.request_timeout == llm._default_params["timeout"]
 
         try:
             result = llm.invoke("Say 'hi'")
@@ -173,17 +173,16 @@ class TestReasoningTimeoutRealAPI:
         assert content
 
     def test_real_call_timeout_propagates_to_litellm(self, env_config: dict[str, str]) -> None:
-        """Verify force_timeout actually reaches litellm.completion() kwargs.
+        """Verify timeout actually reaches litellm.completion() kwargs.
 
         Uses a spy on litellm.completion to capture the actual timeout value sent.
         """
         import litellm
 
-        captured_kwargs: dict = {}
-        original_completion = litellm.completion
+        captured_kwargs: dict[str, object] = {}
 
         def spy_completion(*args: object, **kwargs: object) -> dict[str, object]:
-            captured_kwargs.update(kwargs)  # type: ignore[arg-type]
+            captured_kwargs.update(kwargs)
             # Return a minimal valid response — this test validates timeout kwargs,
             # not upstream gateway response parsing (opencode-go may emit null fields).
             return {
@@ -212,5 +211,5 @@ class TestReasoningTimeoutRealAPI:
             llm.invoke("Say 'ok'")
 
         assert captured_kwargs, "litellm.completion kwargs were not captured"
-        timeout_val = captured_kwargs.get("force_timeout") or captured_kwargs.get("timeout")
+        timeout_val = captured_kwargs.get("timeout")
         assert timeout_val == llm.request_timeout

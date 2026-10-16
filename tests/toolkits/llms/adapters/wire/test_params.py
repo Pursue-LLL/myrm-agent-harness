@@ -35,7 +35,7 @@ def test_build_responses_kwargs_maps_optional_fields() -> None:
             "tool_choice": "auto",
             "temperature": 0.2,
             "top_p": 0.9,
-            "force_timeout": 30,
+            "timeout": 30,
             "extra_headers": {"X-Test": "1"},
         },
     )

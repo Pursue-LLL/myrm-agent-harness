@@ -144,7 +144,10 @@ class ChatLiteLLM(
     api_base: str | None = None
     organization: str | None = None
     custom_llm_provider: str | None = None
-    request_timeout: float | tuple[float, float] | None = 300.0
+    # Seconds to wait for the provider's next bytes, handed to litellm as ``timeout``: a stream that keeps producing
+    # is not cut, a provider that goes silent is. ``first_event_timeout`` and ``inter_chunk_timeout`` guard the
+    # stream after the response has started.
+    request_timeout: float | None = 300.0
     temperature: float | None = None
     model_kwargs: dict[str, Any] = Field(default_factory=dict)
     extra_body: dict[str, Any] | None = Field(default=None)
@@ -165,7 +168,6 @@ class ChatLiteLLM(
         default=None,
         description="Egress HTTP/SOCKS5 proxy URL for outbound API requests",
     )
-    max_retries: int = 1
     empty_retry_enabled: bool = Field(
         default=True,
         description="Enable retry on empty response (EmptyChoicesError/EmptyStreamError)",
@@ -237,7 +239,7 @@ class ChatLiteLLM(
         set_model_value = self.model_name or self.model
         params = {
             "model": set_model_value,
-            "force_timeout": self.request_timeout,
+            "timeout": self.request_timeout,
             "max_tokens": self.max_tokens,
             "stream": self.streaming,
             "n": self.n,
@@ -267,7 +269,6 @@ class ChatLiteLLM(
         litellm_client.organization = self.organization
         creds: dict[str, Any] = {
             "model": set_model_value,
-            "force_timeout": self.request_timeout,
             "api_base": self.api_base,
             "api_key": self.api_key or self.openai_api_key,
         }
