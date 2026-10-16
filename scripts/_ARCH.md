@@ -60,7 +60,7 @@ python scripts/check_test_source_assertions.py            # 全量扫描 tests/
 python scripts/check_test_source_assertions.py --incremental  # pre-commit: changed tests only
 python scripts/check_module_coverage.py --data .coverage  # 需先以 --cov 产出覆盖率数据
 python scripts/check_module_reachability.py               # 全量：harness 每个单元须有生产消费者
-python scripts/check_module_reachability.py --server      # server 树自身单元（server CI 调用，--server-root 指定 app/）
+python scripts/check_module_reachability.py --server      # server 树自身单元（--server-root 指定 app/；手动运行，没有 CI 或 hook 调用）
 python scripts/check_module_reachability.py --incremental  # 仅 harness 源码变更时运行（hook 用，当前未登记）
 python scripts/check_module_reachability.py --json        # 机器可读（死单元 / 仅 server 消费单元）
 python scripts/check_import_resolvability.py              # 全量：每条一方 import 须指向真实模块与名字（CI）
