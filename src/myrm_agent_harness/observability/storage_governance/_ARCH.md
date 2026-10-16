@@ -1,7 +1,7 @@
 # storage_governance/
 
 ## Overview
-Subsystem for Agent persistent state storage governance, space inspection, safe non-blocking compaction, and snapshot-based disaster recovery/rollback.
+Subsystem for Agent persistent state storage governance, space inspection, online compaction, and snapshot-based disaster recovery/rollback.
 
 ## File Index
 

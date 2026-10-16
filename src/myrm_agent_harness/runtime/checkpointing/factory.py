@@ -36,7 +36,8 @@ class PickleSerde:
     Uses dill for enhanced serialization to support complex objects (e.g., ChatLiteLLM)
     that contain module references. Falls back to pickle on failure.
 
-    Typical checkpoint size: 3-10KB (verified via testing).
+    A checkpoint holds the full channel state, so its size grows with the conversation; those above
+    ``_LARGE_CHECKPOINT_THRESHOLD`` are logged.
     """
 
     def dumps_typed(self, obj: object) -> tuple[str, bytes]:

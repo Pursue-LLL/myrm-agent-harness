@@ -32,7 +32,11 @@ class StorageCategory(StrEnum):
 
 @dataclass(frozen=True)
 class StorageCategoryBreakdown:
-    """Breakdown metrics for a specific storage category."""
+    """Breakdown metrics for a specific storage category.
+
+    `item_count` is the number of files behind the category; a database category holds just its database file and
+    its write-ahead log.
+    """
 
     category: StorageCategory
     display_name: str

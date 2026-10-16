@@ -7,7 +7,9 @@
 - StateStorageCompactor.compact() -> CompactionResult
 
 [POS]
-Truncates the state database's write-ahead log and reclaims its free pages without locking readers or writers out.
+Truncates the state database's write-ahead log and reclaims its free pages while the application keeps running.
+A long-running reader keeps the log from being emptied, and writers wait with the truncation for at most the busy
+timeout; the result says whether the log could really be truncated.
 Checkpoint history is not compacted here: `runtime/checkpointing/pruning.py` prunes and shrinks its own database.
 """
 
