@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from pathlib import Path
 
 import pytest
@@ -79,7 +81,7 @@ def data_dir(tmp_path: Path) -> Path:
     return root
 
 
-def test_every_byte_of_the_data_directory_lands_in_exactly_one_category(data_dir: Path):
+def test_every_byte_of_the_data_directory_lands_in_exactly_one_category(data_dir: Path) -> None:
     report = StorageGovernanceInspector(data_dir, layout=_server_layout(data_dir)).inspect()
 
     assert _by_category(report) == {
@@ -99,7 +101,7 @@ def test_every_byte_of_the_data_directory_lands_in_exactly_one_category(data_dir
     assert report.disk_free_bytes >= 0
 
 
-def test_categories_are_reported_in_declaration_order_with_other_last(data_dir: Path):
+def test_categories_are_reported_in_declaration_order_with_other_last(data_dir: Path) -> None:
     layout = _server_layout(data_dir)
     shuffled = dict(reversed(layout.items()))
 
@@ -108,7 +110,7 @@ def test_categories_are_reported_in_declaration_order_with_other_last(data_dir: 
     assert [c.category for c in report.categories] == [*layout, StorageCategory.OTHER]
 
 
-def test_only_declared_categories_are_reported_besides_other(data_dir: Path):
+def test_only_declared_categories_are_reported_besides_other(data_dir: Path) -> None:
     layout = {StorageCategory.CHECKPOINTS: (data_dir / "checkpoints.db",)}
 
     report = StorageGovernanceInspector(data_dir, layout=layout).inspect()
@@ -117,7 +119,7 @@ def test_only_declared_categories_are_reported_besides_other(data_dir: Path):
     assert report.total_storage_bytes == _apparent_size(data_dir)
 
 
-def test_paths_outside_the_data_directory_are_measured_where_they_are(tmp_path: Path):
+def test_paths_outside_the_data_directory_are_measured_where_they_are(tmp_path: Path) -> None:
     data_dir = tmp_path / "myrm_data"
     nas = tmp_path / "nas"
     _write(data_dir / "data.db", 1000)
@@ -141,7 +143,7 @@ def test_paths_outside_the_data_directory_are_measured_where_they_are(tmp_path: 
     assert report.total_storage_bytes == _apparent_size(data_dir) + _apparent_size(nas)
 
 
-def test_the_deepest_declared_path_owns_a_nested_subtree(tmp_path: Path):
+def test_the_deepest_declared_path_owns_a_nested_subtree(tmp_path: Path) -> None:
     data_dir = tmp_path / "myrm_data"
     _write(data_dir / "harness" / "workspace" / "a.md", 300)
     _write(data_dir / "harness" / ".memories" / "m.md", 70)
@@ -157,7 +159,7 @@ def test_the_deepest_declared_path_owns_a_nested_subtree(tmp_path: Path):
     assert report.total_storage_bytes == _apparent_size(data_dir)
 
 
-def test_journals_follow_their_database_but_lookalike_files_do_not(tmp_path: Path):
+def test_journals_follow_their_database_but_lookalike_files_do_not(tmp_path: Path) -> None:
     data_dir = tmp_path / "myrm_data"
     for suffix, size in (("", 1000), ("-wal", 100), ("-shm", 10), ("-journal", 1)):
         _write(data_dir / f"data.db{suffix}", size)
@@ -172,7 +174,7 @@ def test_journals_follow_their_database_but_lookalike_files_do_not(tmp_path: Pat
     }
 
 
-def test_a_live_database_is_attributed_together_with_its_write_ahead_log(tmp_path: Path):
+def test_a_live_database_is_attributed_together_with_its_write_ahead_log(tmp_path: Path) -> None:
     data_dir = tmp_path / "myrm_data"
     data_dir.mkdir()
     db_file = data_dir / "data.db"
@@ -197,7 +199,7 @@ def test_a_live_database_is_attributed_together_with_its_write_ahead_log(tmp_pat
     }
 
 
-def test_other_is_reported_even_when_nothing_is_left_over(tmp_path: Path):
+def test_other_is_reported_even_when_nothing_is_left_over(tmp_path: Path) -> None:
     data_dir = tmp_path / "myrm_data"
     _write(data_dir / "data.db", 10)
 
@@ -208,7 +210,7 @@ def test_other_is_reported_even_when_nothing_is_left_over(tmp_path: Path):
     assert _by_category(report)[StorageCategory.OTHER] == (0, 0)
 
 
-def test_a_category_that_owns_the_whole_data_directory_leaves_nothing_for_other(tmp_path: Path):
+def test_a_category_that_owns_the_whole_data_directory_leaves_nothing_for_other(tmp_path: Path) -> None:
     data_dir = tmp_path / "myrm_data"
     _write(data_dir / "a.bin", 10)
     _write(data_dir / "sub" / "b.bin", 20)
@@ -218,7 +220,7 @@ def test_a_category_that_owns_the_whole_data_directory_leaves_nothing_for_other(
     assert _by_category(report) == {StorageCategory.MEMORY_ARCHIVE: (30, 2), StorageCategory.OTHER: (0, 0)}
 
 
-def test_inspecting_a_data_directory_that_does_not_exist_yet_creates_nothing(tmp_path: Path):
+def test_inspecting_a_data_directory_that_does_not_exist_yet_creates_nothing(tmp_path: Path) -> None:
     data_dir = tmp_path / "not" / "yet"
     layout = {StorageCategory.CHECKPOINTS: (tmp_path / "missing.db",)}
 
@@ -230,7 +232,7 @@ def test_inspecting_a_data_directory_that_does_not_exist_yet_creates_nothing(tmp
     assert [(c.bytes, c.item_count) for c in report.categories] == [(0, 0), (0, 0)]
 
 
-def test_links_inside_a_category_are_not_followed(tmp_path: Path):
+def test_links_inside_a_category_are_not_followed(tmp_path: Path) -> None:
     data_dir = tmp_path / "myrm_data"
     outside = tmp_path / "outside"
     _write(data_dir / "memory" / "m.md", 5)
@@ -248,7 +250,7 @@ def test_links_inside_a_category_are_not_followed(tmp_path: Path):
     assert _by_category(report) == {StorageCategory.MEMORY_ARCHIVE: (5, 1), StorageCategory.OTHER: (0, 0)}
 
 
-def test_a_declared_root_that_is_a_link_is_followed_once(tmp_path: Path):
+def test_a_declared_root_that_is_a_link_is_followed_once(tmp_path: Path) -> None:
     data_dir = tmp_path / "myrm_data"
     relocated = tmp_path / "volume" / "qdrant"
     _write(relocated / "meta.json", 40)
@@ -265,13 +267,13 @@ def test_a_declared_root_that_is_a_link_is_followed_once(tmp_path: Path):
     assert _by_category(report) == {StorageCategory.VECTOR_STORE: (40, 1), StorageCategory.OTHER: (0, 0)}
 
 
-def test_an_unreadable_directory_counts_as_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_an_unreadable_directory_counts_as_empty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = tmp_path / "tree"
     _write(root / "readable" / "a.bin", 10)
     _write(root / "locked" / "b.bin", 20)
     real_scandir = os.scandir
 
-    def scandir(path: str | os.PathLike[str]):
+    def scandir(path: str | os.PathLike[str]) -> AbstractContextManager[Iterator[os.DirEntry[str]]]:
         if os.fspath(path).endswith("locked"):
             raise PermissionError(path)
         return real_scandir(path)
@@ -281,7 +283,7 @@ def test_an_unreadable_directory_counts_as_empty(tmp_path: Path, monkeypatch: py
     assert measure_tree(str(root)) == (10, 1)
 
 
-def test_measure_tree_leaves_skipped_paths_to_their_owner(tmp_path: Path):
+def test_measure_tree_leaves_skipped_paths_to_their_owner(tmp_path: Path) -> None:
     root = tmp_path / "tree"
     _write(root / "a.bin", 10)
     _write(root / "owned" / "b.bin", 20)
@@ -290,14 +292,14 @@ def test_measure_tree_leaves_skipped_paths_to_their_owner(tmp_path: Path):
     assert measure_tree(str(root), frozenset({os.path.normcase(root / "owned")})) == (10, 1)
 
 
-def test_measure_tree_accepts_a_single_file_and_a_missing_path(tmp_path: Path):
+def test_measure_tree_accepts_a_single_file_and_a_missing_path(tmp_path: Path) -> None:
     file = _write(tmp_path / "one.db", 123)
 
     assert measure_tree(str(file)) == (123, 1)
     assert measure_tree(str(tmp_path / "missing")) == (0, 0)
 
 
-def test_snapshot_manager_lifecycle(tmp_path: Path):
+def test_snapshot_manager_lifecycle(tmp_path: Path) -> None:
     """Test creating, listing, restoring, and deleting point-in-time snapshots."""
     data_dir = tmp_path / "myrm_data"
     data_dir.mkdir(parents=True, exist_ok=True)
