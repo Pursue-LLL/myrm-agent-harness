@@ -7,7 +7,7 @@
 [OUTPUT]
 - ProviderQuotaStatus: Enum of provider health states
 - ProviderQuotaState: Dataclass tracking individual provider status and cooldowns
-- ProviderQuotaTracker: Thread-safe in-memory tracker for provider quota and rate-limit states
+- ProviderQuotaTracker: Thread-safe in-memory tracker whose depleted and rate-limited states both expire after a cooldown
 - default_quota_tracker: Default singleton instance of ProviderQuotaTracker
 - search_provider_chain: async failover search across priority-ordered provider configs with smart skip
 
@@ -21,7 +21,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.web_search.core.error_handling import (
@@ -45,9 +45,12 @@ logger = logging.getLogger(__name__)
 
 _CHAIN_WALL_CLOCK_SECONDS = 45.0
 _DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS = 5.0
+# Quota resets (billing cycles, top-ups) happen out of band and the tracker cannot observe them, so a depleted
+# provider is probed again after this window; a provider that is still exhausted is re-marked by that probe.
+_DEFAULT_DEPLETED_COOLDOWN_SECONDS = 3600.0
 
 
-class ProviderQuotaStatus(str, Enum):
+class ProviderQuotaStatus(StrEnum):
     """Health and quota state for an upstream search provider."""
 
     HEALTHY = "healthy"
@@ -60,8 +63,7 @@ class ProviderQuotaState:
     """State snapshot for a specific provider."""
 
     status: ProviderQuotaStatus = ProviderQuotaStatus.HEALTHY
-    rate_limited_until: float = 0.0
-    depleted_at: float = 0.0
+    unavailable_until: float = 0.0  # time.monotonic() deadline after which the provider is probed again
     reason: str = ""
 
 
@@ -73,18 +75,14 @@ class ProviderQuotaTracker:
         self._lock = threading.Lock()
 
     def get_status(self, provider: str) -> tuple[ProviderQuotaStatus, str]:
-        """Check provider status, handling transient rate-limit expiration automatically."""
+        """Check provider status; an elapsed cooldown drops the state so the provider is probed again."""
         with self._lock:
             state = self._states.get(provider)
             if state is None:
                 return ProviderQuotaStatus.HEALTHY, ""
-            if state.status == ProviderQuotaStatus.DEPLETED:
-                return ProviderQuotaStatus.DEPLETED, state.reason
-            if state.status == ProviderQuotaStatus.RATE_LIMITED:
-                if time.monotonic() < state.rate_limited_until:
-                    return ProviderQuotaStatus.RATE_LIMITED, state.reason
-                state.status = ProviderQuotaStatus.HEALTHY
-                return ProviderQuotaStatus.HEALTHY, ""
+            if time.monotonic() < state.unavailable_until:
+                return state.status, state.reason
+            del self._states[provider]
             return ProviderQuotaStatus.HEALTHY, ""
 
     def mark_rate_limited(
@@ -97,16 +95,21 @@ class ProviderQuotaTracker:
         with self._lock:
             self._states[provider] = ProviderQuotaState(
                 status=ProviderQuotaStatus.RATE_LIMITED,
-                rate_limited_until=time.monotonic() + cooldown_seconds,
+                unavailable_until=time.monotonic() + cooldown_seconds,
                 reason=reason,
             )
 
-    def mark_depleted(self, provider: str, reason: str = "") -> None:
-        """Mark provider as persistently depleted until explicit reset."""
+    def mark_depleted(
+        self,
+        provider: str,
+        reason: str = "",
+        cooldown_seconds: float = _DEFAULT_DEPLETED_COOLDOWN_SECONDS,
+    ) -> None:
+        """Mark provider as quota-exhausted until the cooldown elapses."""
         with self._lock:
             self._states[provider] = ProviderQuotaState(
                 status=ProviderQuotaStatus.DEPLETED,
-                depleted_at=time.time(),
+                unavailable_until=time.monotonic() + cooldown_seconds,
                 reason=reason,
             )
 
@@ -119,26 +122,6 @@ class ProviderQuotaTracker:
         """Reset all tracked provider quota states."""
         with self._lock:
             self._states.clear()
-
-    def get_all_states(self) -> dict[str, dict[str, object]]:
-        """Return snapshot of all provider states for observability."""
-        with self._lock:
-            now = time.monotonic()
-            result: dict[str, dict[str, object]] = {}
-            for provider, state in self._states.items():
-                is_active_rl = state.status == ProviderQuotaStatus.RATE_LIMITED and now < state.rate_limited_until
-                effective_status = (
-                    state.status
-                    if state.status != ProviderQuotaStatus.RATE_LIMITED or is_active_rl
-                    else ProviderQuotaStatus.HEALTHY
-                )
-                result[provider] = {
-                    "status": effective_status.value,
-                    "reason": state.reason,
-                    "depleted_at": state.depleted_at,
-                    "cooldown_remaining": (max(0.0, state.rate_limited_until - now) if is_active_rl else 0.0),
-                }
-            return result
 
 
 default_quota_tracker = ProviderQuotaTracker()

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     is_persistent_quota_depleted_error,
     is_quota_or_rate_limit_error,
@@ -11,10 +14,17 @@ from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     ErrorContext,
     SearchAPIError,
 )
+from myrm_agent_harness.toolkits.web_search.providers import chain as chain_module
 from myrm_agent_harness.toolkits.web_search.providers.chain import (
+    _DEFAULT_DEPLETED_COOLDOWN_SECONDS,
     ProviderQuotaStatus,
     ProviderQuotaTracker,
     _should_stop_chain,
+    search_provider_chain,
+)
+from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
+    SearchServiceConfig,
+    WebSearcher,
 )
 
 
@@ -102,6 +112,80 @@ def test_provider_quota_tracker_workflow() -> None:
     assert status == ProviderQuotaStatus.HEALTHY
 
 
+class _FakeClock:
+    """Replaces the `time` module inside chain.py so cooldown expiry is deterministic."""
+
+    def __init__(self) -> None:
+        self.now = 1_000.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+@pytest.fixture
+def fake_clock(monkeypatch: pytest.MonkeyPatch) -> _FakeClock:
+    clock = _FakeClock()
+    monkeypatch.setattr(chain_module, "time", clock)
+    return clock
+
+
+def test_depleted_provider_recovers_after_cooldown(fake_clock: _FakeClock) -> None:
+    tracker = ProviderQuotaTracker()
+    tracker.mark_depleted("tavily", reason="plan limit exceeded")
+
+    fake_clock.advance(_DEFAULT_DEPLETED_COOLDOWN_SECONDS - 1)
+    assert tracker.get_status("tavily") == (ProviderQuotaStatus.DEPLETED, "plan limit exceeded")
+
+    fake_clock.advance(1)
+    assert tracker.get_status("tavily") == (ProviderQuotaStatus.HEALTHY, "")
+
+    tracker.mark_depleted("tavily", reason="still exhausted")
+    assert tracker.get_status("tavily") == (ProviderQuotaStatus.DEPLETED, "still exhausted")
+
+
+def test_rate_limited_provider_recovers_after_cooldown(fake_clock: _FakeClock) -> None:
+    tracker = ProviderQuotaTracker()
+    tracker.mark_rate_limited("brave", cooldown_seconds=5.0, reason="429")
+
+    fake_clock.advance(4.9)
+    assert tracker.get_status("brave") == (ProviderQuotaStatus.RATE_LIMITED, "429")
+
+    fake_clock.advance(0.2)
+    assert tracker.get_status("brave") == (ProviderQuotaStatus.HEALTHY, "")
+
+
+@pytest.mark.asyncio
+async def test_chain_probes_depleted_primary_again_after_cooldown(
+    fake_clock: _FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    chain = [
+        SearchServiceConfig(search_service="tavily", api_key="tvly-key"),
+        SearchServiceConfig(search_service="perplexity", api_key="pplx-key"),
+    ]
+    tracker = ProviderQuotaTracker()
+    tracker.mark_depleted("tavily", reason="plan limit exceeded")
+
+    async def fake_search(
+        self: WebSearcher,
+        query: str,
+        num_results: int = 5,
+        extra_params_override: dict[str, str | int | bool] | None = None,
+    ) -> list[SearchResult]:
+        return [SearchResult(title=self.config.search_service, link="https://example.com", snippet=query)]
+
+    monkeypatch.setattr(WebSearcher, "search", fake_search)
+
+    _, winner = await search_provider_chain(chain, "q", 5, quota_tracker=tracker)
+    assert winner == "perplexity"
+
+    fake_clock.advance(_DEFAULT_DEPLETED_COOLDOWN_SECONDS)
+    _, winner = await search_provider_chain(chain, "q", 5, quota_tracker=tracker)
+    assert winner == "tavily"
+
+
 def test_browser_run_telemetry_bandwidth_and_watchdog() -> None:
     """测试 BrowserRunTelemetry 带宽度量与看门狗计数"""
     import time
@@ -130,5 +214,3 @@ def test_browser_run_telemetry_bandwidth_and_watchdog() -> None:
     safe = obs.check_action_watchdog(action_start_time=start_time, timeout_seconds=180.0)
     assert safe is False
     assert obs.telemetry.watchdog_tripped_count == 1
-
-
