@@ -2,7 +2,7 @@
 
 [INPUT]
 - .circuit::CompileCircuitStore (POS: SQLite compile circuit store)
-- .failure_policy::evaluate_batch_pause, is_transient_error_kind, resolve_embed_failure, resolve_io_failure, resolve_llm_failure (POS: error resolution rules)
+- .failure_policy::TRANSIENT_ERROR_KINDS, evaluate_batch_pause, is_transient_error_kind, resolve_embed_failure, resolve_io_failure, resolve_llm_failure (POS: error resolution rules)
 - .sanitize::sanitize_display_message (POS: display message sanitizer)
 - .types::CompilePhase, CompileRunSnapshot, FailureResolution (POS: resilience state types)
 
@@ -17,6 +17,7 @@ from .circuit import CompileCircuitStore
 from .failure_policy import (
     EMBED_WINDOW_VIOLATION,
     IO_MISSING,
+    TRANSIENT_ERROR_KINDS,
     evaluate_batch_pause,
     is_transient_error_kind,
     resolve_embed_failure,
@@ -29,6 +30,7 @@ from .types import CompilePhase, CompileRunSnapshot, FailureResolution
 __all__ = [
     "EMBED_WINDOW_VIOLATION",
     "IO_MISSING",
+    "TRANSIENT_ERROR_KINDS",
     "CompileCircuitStore",
     "CompilePhase",
     "CompileRunSnapshot",

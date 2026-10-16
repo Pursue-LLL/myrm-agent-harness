@@ -170,6 +170,42 @@ def test_get_transient_retryable_items_skips_non_transient(
     assert len(retryable) == 0
 
 
+def test_get_transient_retryable_items_not_starved_by_older_permanent_failures(
+    queue: WikiIngestionQueue,
+) -> None:
+    permanent = [f"/tmp/permanent-{i}.md" for i in range(12)]
+    transient = ["/tmp/limited-a.md", "/tmp/limited-b.md"]
+    queue.add_batch(permanent + transient)
+    for item in queue.get_pending_items(limit=20):
+        kind = ErrorKind.RATE_LIMIT.value if item["file_path"] in transient else ErrorKind.FORMAT_ERROR.value
+        queue.mark_failed(item["id"], "failed", error_kind=kind)
+    with queue._get_conn() as conn:
+        conn.execute(
+            "UPDATE ingestion_queue SET updated_at = datetime('now', '-1 hour') WHERE error_kind = ?",
+            (ErrorKind.FORMAT_ERROR.value,),
+        )
+
+    retryable = queue.get_transient_retryable_items(max_retries=3, limit=3)
+
+    assert sorted(item["file_path"] for item in retryable) == sorted(transient)
+
+
+def test_get_transient_retryable_items_oldest_first_up_to_limit(queue: WikiIngestionQueue) -> None:
+    paths = [f"/tmp/limited-{i}.md" for i in range(4)]
+    queue.add_batch(paths)
+    for age_minutes, item in enumerate(queue.get_pending_items(limit=10)):
+        queue.mark_failed(item["id"], "limited", error_kind=ErrorKind.OVERLOADED.value)
+        with queue._get_conn() as conn:
+            conn.execute(
+                "UPDATE ingestion_queue SET updated_at = datetime('now', ?) WHERE id = ?",
+                (f"-{(age_minutes + 1) * 10} minutes", item["id"]),
+            )
+
+    retryable = queue.get_transient_retryable_items(max_retries=3, limit=2)
+
+    assert [item["file_path"] for item in retryable] == [paths[3], paths[2]]
+
+
 def test_reset_for_retry(queue: WikiIngestionQueue) -> None:
     queue.add_item("/tmp/test.md")
     items = queue.get_pending_items()

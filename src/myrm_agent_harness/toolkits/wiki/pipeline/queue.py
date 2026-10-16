@@ -6,7 +6,7 @@
 - pathlib::Path (POS: standard library file path operations)
 - typing::Literal, TypedDict (POS: standard library types)
 - ..core.structure::WikiStructure (POS: database path retrieval)
-- .resilience::CompileCircuitStore, is_transient_error_kind (POS: compile pause + retry policy)
+- .resilience::CompileCircuitStore, TRANSIENT_ERROR_KINDS (POS: compile pause + retry policy)
 - .queue_recovery::requeue_orphaned_processing (POS: requeues rows a dead process left processing)
 - utils.logger_utils::get_agent_logger (POS: agent logger)
 
@@ -37,9 +37,9 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .queue_recovery import requeue_orphaned_processing
 from .resilience import (
+    TRANSIENT_ERROR_KINDS,
     CompileCircuitStore,
     CompileRunSnapshot,
-    is_transient_error_kind,
     sanitize_display_message,
 )
 
@@ -49,6 +49,10 @@ logger = get_agent_logger(__name__)
 STALE_PROCESSING_SECONDS = 300
 # The beat is several times shorter, so one missed beat (a locked database) does not make a live batch look dead.
 _HEARTBEAT_SECONDS = STALE_PROCESSING_SECONDS / 5
+# The kinds are filtered in SQL: a ``LIMIT`` applied before a Python-side filter would let the oldest permanent
+# failures use up the whole window and starve the transient ones.
+_TRANSIENT_KINDS_SQL = ", ".join("?" for _ in TRANSIENT_ERROR_KINDS)
+_TRANSIENT_KINDS_PARAMS = tuple(sorted(TRANSIENT_ERROR_KINDS))
 
 
 class QueueItem(TypedDict):
@@ -331,11 +335,11 @@ class WikiIngestionQueue:
         """Failed transient items eligible for automatic retry (respects backoff)."""
         with self._get_conn() as conn:
             cursor = conn.execute(
-                """
+                f"""
                 SELECT * FROM ingestion_queue
                 WHERE status = 'failed'
                   AND retry_count < ?
-                  AND error_kind IS NOT NULL
+                  AND error_kind IN ({_TRANSIENT_KINDS_SQL})
                   AND (
                     retry_after IS NULL
                     OR retry_after <= CURRENT_TIMESTAMP
@@ -343,10 +347,9 @@ class WikiIngestionQueue:
                 ORDER BY updated_at ASC
                 LIMIT ?
                 """,
-                (max_retries, limit * 3),
+                (max_retries, *_TRANSIENT_KINDS_PARAMS, limit),
             )
-            items = cast(list[QueueItem], [dict(row) for row in cursor.fetchall()])
-        return [item for item in items if is_transient_error_kind(item.get("error_kind") or "")][:limit]
+            return cast(list[QueueItem], [dict(row) for row in cursor.fetchall()])
 
     def reset_for_retry(self, item_id: int) -> None:
         with self._get_conn() as conn:
@@ -364,22 +367,18 @@ class WikiIngestionQueue:
     def reset_transient_failed(self) -> int:
         """Reset only transient failed items back to pending."""
         with self._get_conn() as conn:
-            cursor = conn.execute("SELECT id, error_kind FROM ingestion_queue WHERE status = 'failed'")
-            reset_ids = [row["id"] for row in cursor.fetchall() if is_transient_error_kind(row["error_kind"] or "")]
-            if not reset_ids:
-                return 0
-            conn.executemany(
-                """
+            cursor = conn.execute(
+                f"""
                 UPDATE ingestion_queue
                 SET status = 'pending',
                     error_message = NULL,
                     retry_after = NULL,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+                WHERE status = 'failed' AND error_kind IN ({_TRANSIENT_KINDS_SQL})
                 """,
-                [(item_id,) for item_id in reset_ids],
+                _TRANSIENT_KINDS_PARAMS,
             )
-            return len(reset_ids)
+            return cursor.rowcount
 
     def reset_failed(self) -> int:
         """Reset all failed items to pending (manual recovery)."""

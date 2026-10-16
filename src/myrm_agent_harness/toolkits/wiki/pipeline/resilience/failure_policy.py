@@ -8,6 +8,7 @@
 [OUTPUT]
 - resolve_io_failure, resolve_llm_failure, resolve_embed_failure: map failures to queue retry/pause policy
 - evaluate_batch_pause: batch-level compile circuit pause decision
+- TRANSIENT_ERROR_KINDS: the error kinds a queued retry can recover from, shared with the queue's retry selection
 - is_transient_error_kind: transient retry eligibility filter
 - EMBED_WINDOW_VIOLATION: embed input window error kind for compile circuit + UI
 
@@ -26,7 +27,7 @@ from .types import FailureResolution
 IO_MISSING = "io_missing"
 EMBED_WINDOW_VIOLATION = "embed_window_violation"
 
-_TRANSIENT_KINDS: frozenset[str] = frozenset(
+TRANSIENT_ERROR_KINDS: frozenset[str] = frozenset(
     {
         ErrorKind.RATE_LIMIT.value,
         ErrorKind.OVERLOADED.value,
@@ -87,7 +88,7 @@ def resolve_llm_failure(exc: Exception) -> FailureResolution:
     error_kind = classify_error(exc).value
     retryable = error_kind not in _NON_RETRY_KINDS
     backoff = _TRANSIENT_BACKOFF_SECONDS.get(error_kind, 0) if retryable else 0
-    counts_toward_pause = error_kind in _TRANSIENT_KINDS or error_kind in _PAUSE_KINDS
+    counts_toward_pause = error_kind in TRANSIENT_ERROR_KINDS or error_kind in _PAUSE_KINDS
     return FailureResolution(
         error_kind=error_kind,
         retryable=retryable,
@@ -97,7 +98,7 @@ def resolve_llm_failure(exc: Exception) -> FailureResolution:
 
 
 def is_transient_error_kind(error_kind: str) -> bool:
-    return error_kind in _TRANSIENT_KINDS
+    return error_kind in TRANSIENT_ERROR_KINDS
 
 
 def evaluate_batch_pause(*, success_count: int, failure_kinds: list[str]) -> tuple[bool, str, str]:
@@ -110,7 +111,7 @@ def evaluate_batch_pause(*, success_count: int, failure_kinds: list[str]) -> tup
         primary = pause_kinds[0]
         return True, sanitize_display_message("API credentials or billing rejected further compiles"), primary
 
-    if len(failure_kinds) >= 3 and all(kind in _TRANSIENT_KINDS for kind in failure_kinds):
+    if len(failure_kinds) >= 3 and all(kind in TRANSIENT_ERROR_KINDS for kind in failure_kinds):
         primary = failure_kinds[0]
         return True, sanitize_display_message("Repeated rate limit or overload errors paused compilation"), primary
 
