@@ -1,10 +1,9 @@
-"""Comprehensive test suite for Compaction Continuation Acceptance Metrics & A/B Harness."""
+"""Compaction continuation fidelity assertions and their EvalRunner integration."""
 
 from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.eval.compaction_ab import CompactionABEvaluator
 from myrm_agent_harness.eval.compaction_assertions import (
     canonicalize_tool_name,
     evaluate_compaction_assertions,
@@ -73,45 +72,6 @@ async def test_evaluate_compaction_assertions_forbidden_claim_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_compaction_ab_evaluator_pareto_output() -> None:
-    """Verify CompactionABEvaluator correctly calculates token savings and 5D comparative score."""
-    evaluator = CompactionABEvaluator()
-
-    baseline_resp = AgentResponse(
-        answer="Reading raw dataset to verify revenue under USD currency for reports/fin_2026.xlsx.",
-        tools_called=["file_read_tool"],
-    )
-    compacted_resp = AgentResponse(
-        answer="Reading dataset to verify revenue strictly under USD currency for reports/fin_2026.xlsx.",
-        tools_called=["read_file"],
-    )
-
-    assertion = CompactionAssertion(
-        expected_constraints=("USD currency",),
-        required_artifacts=("reports/fin_2026.xlsx",),
-        expected_tools=("read_file",),
-    )
-
-    result = await evaluator.evaluate_continuation_ab(
-        task_name="financial_report_continuation",
-        baseline_response=baseline_resp,
-        compacted_response=compacted_resp,
-        assertions=[assertion],
-        baseline_context_tokens=100000,
-        compacted_context_tokens=25000,
-    )
-
-    assert result.passed is True
-    assert result.token_savings_pct == 75.0
-    assert result.fidelity_score.overall_fidelity >= 0.80
-
-    res_dict = result.to_dict()
-    assert res_dict["token_savings_pct"] == 75.0
-    assert res_dict["passed"] is True
-    assert "fidelity" in res_dict
-
-
-@pytest.mark.asyncio
 async def test_eval_runner_integration_with_compaction_assertion() -> None:
     """Verify EvalRunner automatically evaluates CompactionAssertion when present on EvalCase."""
     class DummyExecutor:
@@ -142,46 +102,3 @@ async def test_eval_runner_integration_with_compaction_assertion() -> None:
     assert result.total_cases == 1
     assert result.pass_count == 1
     assert result.all_passed is True
-
-
-@pytest.mark.asyncio
-async def test_multi_compaction_assertions_aggregation() -> None:
-    """Verify CompactionABEvaluator aggregates fidelity scores across multiple assertions."""
-    evaluator = CompactionABEvaluator()
-
-    baseline_resp = AgentResponse(
-        answer="Step 1 in USD currency targeting dataset.csv. Step 2 in EUR targeting metrics.json.",
-        tools_called=["read_file", "write_file"],
-    )
-    compacted_resp = AgentResponse(
-        answer="Step 1 strictly in USD currency targeting dataset.csv. Step 2 in EUR targeting metrics.json.",
-        tools_called=["read_file", "write_file"],
-    )
-
-    assertion1 = CompactionAssertion(
-        expected_constraints=("USD currency",),
-        required_artifacts=("dataset.csv",),
-        expected_tools=("read_file",),
-        min_fidelity_score=0.85,
-    )
-    assertion2 = CompactionAssertion(
-        expected_constraints=("EUR",),
-        required_artifacts=("metrics.json",),
-        expected_tools=("write_file",),
-        min_fidelity_score=0.85,
-    )
-
-    result = await evaluator.evaluate_continuation_ab(
-        task_name="multi_step_continuation",
-        baseline_response=baseline_resp,
-        compacted_response=compacted_resp,
-        assertions=[assertion1, assertion2],
-        baseline_context_tokens=80000,
-        compacted_context_tokens=20000,
-    )
-
-    assert result.passed is True
-    assert result.token_savings_pct == 75.0
-    assert result.fidelity_score.constraint_recall == 1.0
-    assert result.fidelity_score.artifact_coverage == 1.0
-    assert result.fidelity_score.overall_fidelity >= 0.85

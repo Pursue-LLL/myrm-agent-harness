@@ -239,15 +239,3 @@ class TestEvalManifest:
         assert OperationalAssuranceCategory.SANDBOX_EXHAUSTION.value == "sandbox_exhaustion"
         assert OperationalAssuranceCategory.SKILL_CONFLICT.value == "skill_conflict"
         assert OperationalAssuranceCategory.EVIDENCE_EXPIRATION.value == "evidence_expiration"
-
-    def test_benchmark_spec_compaction_ab_support(self) -> None:
-        from myrm_agent_harness.eval.benchmarks import BenchmarkSpec
-
-        spec = BenchmarkSpec(
-            id="test_bench",
-            display_name="Test Benchmark",
-            description="Testing compaction AB support",
-        )
-        assert spec.supports_compaction_ab is True
-        d = spec.to_dict()
-        assert d["supports_compaction_ab"] is True

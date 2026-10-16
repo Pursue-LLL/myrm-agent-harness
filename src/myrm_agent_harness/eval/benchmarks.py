@@ -74,7 +74,6 @@ class BenchmarkSpec:
     scoring: str = "llm_judge"
     required_tools: tuple[str, ...] = ()
     supports_memory_ab: bool = True
-    supports_compaction_ab: bool = True
     canary_protected: bool = False
     canary_token: str = ""
     max_tool_calls: int = 0
@@ -92,7 +91,6 @@ class BenchmarkSpec:
             "scoring": self.scoring,
             "required_tools": list(self.required_tools),
             "supports_memory_ab": self.supports_memory_ab,
-            "supports_compaction_ab": self.supports_compaction_ab,
             "canary_protected": self.canary_protected,
             "canary_token": self.canary_token,
             "max_tool_calls": self.max_tool_calls,
