@@ -15,8 +15,6 @@ Detailed design: [STORAGE_SYSTEM.md](STORAGE_SYSTEM.md)
 | config.py | Config | Storage configuration module. The storage root is derived from MYRM_DATA_DIR with a ~/.myrm fallback | ✅ |
 | factory.py | Core | Storage factory layer. Creates the local storage provider for a configuration and provides | ✅ |
 | local.py | Core | Local file system storage backend. Stores files on local filesystem, suitable for development and | ✅ |
-| paths.py | Core | Storage path utility module. Centrally manages storage system path generation, ensuring all | ✅ |
-| types.py | Config | Storage layer type definitions. Defines base types and enums related to storage paths (path conventi | ✅ |
 
 ## Key Dependencies
 

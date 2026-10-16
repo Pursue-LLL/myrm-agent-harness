@@ -37,7 +37,7 @@ def _get_default_storage_path() -> str:
 class StorageConfig:
     """Storage configuration."""
 
-    # The key layout under the root is defined by paths.py and its consumers.
+    # The key layout under the root belongs to the business layer; this layer only resolves keys against it.
     base_path: str = field(default_factory=_get_default_storage_path)
 
     def get_base_path(self) -> Path:

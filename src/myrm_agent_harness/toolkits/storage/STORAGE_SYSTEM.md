@@ -8,7 +8,7 @@
 
 - **统一接口**：所有存储操作通过 `StorageProvider` ABC 进行，业务层无需关心底层实现
 - **协议驱动**：框架层定义协议，业务层注入实现（依赖反转）
-- **路径约定**：通过 `paths.py` 统一管理存储路径，确保全局一致性
+- **键无关**：存储层只按 key 存取，key 的布局（文件 / 技能 / 配置的目录约定）由业务层定义
 - **零业务耦合**：存储层只关注数据存取，不包含任何业务逻辑
 
 ---
@@ -39,8 +39,6 @@
 │  local.py         → LocalStorageBackend (继承 BaseFileSystemBackend) │
 │  factory.py       → create/get/set_storage_provider              │
 │  config.py        → StorageConfig (存储根目录)                   │
-│  types.py         → FilePurpose, SkillType                       │
-│  paths.py         → 路径生成工具                                 │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -86,7 +84,7 @@
 - **继承**: `BaseFileSystemBackend`
 - **用途**: 框架唯一内置后端：本地部署、开发环境与云端沙箱（根目录经 `MYRM_DATA_DIR` 指向持久卷）
 - **特有逻辑**: 路径解析（`_resolve_key_to_path`）、写入后设置 chmod 0o600、list 文件列表
-- **安全**: `_resolve_key_to_path()` 通过 `safe_join_path()` 校验，防止路径遍历与符号链接逃逸（见 §10）
+- **安全**: `_resolve_key_to_path()` 通过 `safe_join_path()` 校验，防止路径遍历与符号链接逃逸（见 §9）
 
 ---
 
@@ -108,37 +106,9 @@ set_storage_provider(custom_backend)  # 注入自定义 StorageProvider
 
 ---
 
-## 6. 存储路径约定
+## 6. 键约定归业务层
 
-### 6.1 路径结构
-
-```
-{base_path}/
-├── files/                          # 文件
-│   ├── uploads/{file_id}           # 用户上传
-│   ├── generated/{file_id}         # 技能生成
-│   └── skill/{file_id}             # 技能包文件
-│
-├── skills/                         # 技能存储
-│   ├── prebuilt/{skill_id}/        # 预构建技能
-│   │   ├── SKILL.md
-│   │   └── _metadata.json
-│   ├── local/{skill_id}/           # 本地技能
-│   └── workspace/{skill_id}/       # 工作目录技能
-│
-└── config/
-    └── skills.json                 # 技能配置
-```
-
-### 6.2 路径生成函数
-
-| 函数 | 输出示例 |
-|------|----------|
-| `get_file_storage_path(fid, UPLOAD)` | `files/uploads/{fid}` |
-| `get_file_metadata_path(path)` | `{path}.meta.json` |
-| `get_skill_storage_path(PREBUILT, sid)` | `skills/prebuilt/{sid}` |
-| `get_skill_metadata_path(type, sid)` | `skills/{type}/{sid}/_metadata.json` |
-| `get_user_config_path(name)` | `config/{name}.json` |
+存储层不预设任何 key 布局：`StorageProvider` 接收的 key 是不透明的相对路径。文件、技能与用户配置的目录约定（`files/{purpose}/…`、`skills/{type}/…`、`config/{name}.json`）及其生成函数由 Server 的 `app/core/storage/paths.py` 与 `types.py` 持有。
 
 ---
 
@@ -164,31 +134,7 @@ class StorageConfig:
 
 ---
 
-## 8. 类型定义
-
-### FilePurpose (文件用途)
-
-决定文件在 `files/` 下的子目录：
-
-| 枚举值 | 目录 | 说明 |
-|--------|------|------|
-| `UPLOAD` | `uploads/` | 用户上传的输入文件 |
-| `GENERATED` | `generated/` | 技能生成的输出文件 |
-| `SKILL` | `skill/` | 技能包内容文件 |
-
-### SkillType (技能类型)
-
-决定技能在 `skills/` 下的子目录：
-
-| 枚举值 | 目录 | 说明 |
-|--------|------|------|
-| `PREBUILT` | `prebuilt/` | 系统预构建技能 |
-| `LOCAL` | `local/` | 用户配置路径下扫描到的文件系统技能 |
-| `WORKSPACE` | `workspace/` | 工作目录下发现的项目级技能 |
-
----
-
-## 9. 命名规范
+## 8. 命名规范
 
 | 概念 | 后缀 | 示例 | 说明 |
 |------|------|------|------|
@@ -197,7 +143,7 @@ class StorageConfig:
 
 ---
 
-## 10. 安全设计
+## 9. 安全设计
 
 ### 路径遍历防护
 
