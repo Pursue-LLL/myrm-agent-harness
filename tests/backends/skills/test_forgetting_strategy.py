@@ -365,7 +365,59 @@ def test_evaluate_skill_health_findings_wrong_but_frequent() -> None:
     assert f.severity == "critical"
     assert f.pinned is True
     assert f.recommended_action == "unpin_and_archive"
+    # The UI phrases the finding from these parameters; the English `message` is never shown.
+    assert f.details == {"observed_count": 20, "success_count": 2, "failure_count": 18, "trust": "trusted"}
     assert diagnosis.health_score < 100.0
+
+
+def test_wrong_but_frequent_reports_installed_trust_by_name() -> None:
+    """INSTALLED is the zero-valued trust level; it must be reported by name, not mistaken for 'no trust set'."""
+    skill = create_skill_metadata(
+        "registry_scraper",
+        usage_stats=SkillUsageStats(
+            call_count=20,
+            success_count=2,
+            failure_count=18,
+            lifecycle_status=SkillLifecycleStatus.ACTIVE,
+        ),
+    )
+    object.__setattr__(skill, "trust", SkillTrust.INSTALLED)
+
+    diagnosis = evaluate_skill_health_findings([skill], CuratorConfig(min_call_count_for_quality_check=5))
+
+    assert diagnosis.findings[0].details["trust"] == "installed"
+
+
+def test_evaluate_skill_health_findings_stale_pinned() -> None:
+    """A pinned skill idle past the stale threshold is reported with its idle day count; a recent one is not."""
+    cfg = CuratorConfig(stale_after_days=30)
+    now = datetime.now(UTC)
+
+    def pinned_skill(name: str, idle_days: int) -> SkillMetadata:
+        return create_skill_metadata(
+            name,
+            usage_stats=SkillUsageStats(
+                call_count=3,
+                success_count=3,
+                failure_count=0,
+                pinned=True,
+                last_used_at=now - timedelta(days=idle_days),
+                lifecycle_status=SkillLifecycleStatus.ACTIVE,
+            ),
+        )
+
+    diagnosis = evaluate_skill_health_findings(
+        [pinned_skill("forgotten_notes", 45), pinned_skill("fresh_notes", 10)], cfg
+    )
+
+    assert len(diagnosis.findings) == 1
+    f = diagnosis.findings[0]
+    assert f.skill_name == "forgotten_notes"
+    assert f.finding_type == "stale_pinned"
+    assert f.severity == "info"
+    assert f.pinned is True
+    assert f.recommended_action == "unpin_and_archive"
+    assert f.details == {"days_inactive": 45}
 
 
 def test_evaluate_skill_health_findings_bloat() -> None:
@@ -387,4 +439,7 @@ def test_evaluate_skill_health_findings_bloat() -> None:
     diagnosis = evaluate_skill_health_findings(skills, cfg)
     assert diagnosis.total_skills == 5
     assert diagnosis.active_skills == 5
-    assert any(f.finding_type == "hoarding_bloat" for f in diagnosis.findings)
+    bloat = [f for f in diagnosis.findings if f.finding_type == "hoarding_bloat"]
+    assert len(bloat) == 1
+    assert bloat[0].severity == "warning"
+    assert bloat[0].details == {"active_count": 5, "max_skills": 2, "excess": 3}

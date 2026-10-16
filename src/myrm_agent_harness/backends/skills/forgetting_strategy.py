@@ -362,7 +362,7 @@ def evaluate_skill_health_findings(
                         "observed_count": stats.observed_count,
                         "success_count": stats.success_count,
                         "failure_count": stats.failure_count,
-                        "trust": skill.trust.value if skill.trust else "local",
+                        "trust": skill.trust.name.lower(),
                     },
                 )
             )
