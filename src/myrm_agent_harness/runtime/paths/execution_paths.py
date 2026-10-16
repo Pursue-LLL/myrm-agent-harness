@@ -14,28 +14,38 @@ Path Structure:
     │   │   ├── snapshots/           ← Pre-compression full conversation snapshots
     │   │   └── scratchpad/          ← Agent active externalization
     │   └── system/                  ← System configuration files
-    ├── workspace/                    ← User workspace
-    │   ├── projects/                ← User projects
-    │   ├── artifacts/               ← Agent-generated artifacts
-    │   └── skills/                  ← Custom skills
-    └── .claude/                     ← Legacy system configuration
+    ├── .memories/                    ← Memory storage
+    └── workspace/                    ← User workspace
+        ├── projects/                ← User projects
+        ├── artifacts/               ← Agent-generated artifacts
+        └── skills/                  ← Custom skills
 
 Compatibility:
     Supports both /persistent and /workspace paths for flexible deployment.
 
+Persistent root:
+    The volume root is ``/persistent`` unless the deployment layer sets ``MYRM_PERSISTENT_ROOT``
+    (local development without a mount). Every root is derived from it on each call, so a root
+    configured after import is honored by every caller and nothing keeps a stale copy.
+
 [INPUT]
-- (none)
+- MYRM_PERSISTENT_ROOT (optional infra env): persistent volume root; default /persistent
 
 [OUTPUT]
+- PERSISTENT_ROOT_ENV: Name of the environment variable that relocates the persistent volume root.
+- get_persistent_root: The persistent volume root currently in effect.
+- get_workspace_root: The workspace root under the persistent volume.
 - get_context_root: The context root currently in effect.
-- get_compacted_output_path: Get path for compacted tool output (auto-generates UUID).
-- get_content_addressed_compacted_output_path: Get stable path for compacted tool output.
-- get_content_addressed_compacted_restore_map_path: Get sidecar path for targeted restore hints.
-- get_context_archive_sidecar_path_candidates: Resolve archive sidecar candidates for tool path forms.
+- get_memories_root: The memory storage root under the persistent volume.
 - get_evicted_output_path: Get path for evicted large bash output (auto-generates UU...
 - get_scratchpad_path: Get path for agent scratchpad file.
 - get_snapshot_path: Get path for pre-compression conversation snapshot (auto-...
 - get_system_config_path: Get path for system configuration file.
+- get_context_session_dir / get_context_subdir / get_context_file_path: Session-scoped context layout.
+- get_workspace_relative_path: Convert an absolute path to a workspace-relative one.
+- ensure_context_dir_exists: Create a session context directory.
+- sanitize_path_segment / sanitize_filename: Traversal-safe path components.
+- is_context_path: Whether a path lies under the context root.
 
 [POS]
 Unified execution path constants and utilities.
@@ -49,31 +59,41 @@ import uuid
 from pathlib import Path
 from typing import Literal
 
-# ============ Core Path Constants ============
+# ============ Core Path Roots ============
 
-# Persistent volume mount point (Docker Volume)
-PERSISTENT_ROOT = "/persistent"
+# Environment variable the deployment layer sets when the volume is not mounted at /persistent.
+PERSISTENT_ROOT_ENV = "MYRM_PERSISTENT_ROOT"
 
-# Workspace root (user files, projects, artifacts)
-WORKSPACE_ROOT = f"{PERSISTENT_ROOT}/workspace"
-
-# Context offload root (compressed tool outputs, scratchpad)
-CONTEXT_ROOT = f"{PERSISTENT_ROOT}/.context"
-
-# Artifacts root (agent-generated files)
-ARTIFACTS_ROOT = f"{WORKSPACE_ROOT}/artifacts"
-
-# Memories root (memory storage)
-MEMORIES_ROOT = f"{PERSISTENT_ROOT}/.memories"
-
-# System configuration root
-SYSTEM_CONFIG_ROOT = f"{CONTEXT_ROOT}/system"
-
-# Legacy system configuration root (for backward compatibility)
-LEGACY_SYSTEM_CONFIG_ROOT = f"{PERSISTENT_ROOT}/.claude"
+_DEFAULT_PERSISTENT_ROOT = "/persistent"
 
 # Alternative workspace path for compatibility
 LEGACY_WORKSPACE_ROOT = "/workspace"
+
+
+def get_persistent_root() -> str:
+    """Return the persistent volume root currently in effect.
+
+    Read from ``MYRM_PERSISTENT_ROOT`` at call time, falling back to ``/persistent``. Callers that
+    need a root import this function instead of a constant, so they always agree with the paths
+    the writers produce, whenever the deployment layer sets the variable.
+    """
+    configured = os.environ.get(PERSISTENT_ROOT_ENV, "").strip().rstrip("/")
+    return configured or _DEFAULT_PERSISTENT_ROOT
+
+
+def get_workspace_root() -> str:
+    """Return the workspace root (user files, projects, artifacts)."""
+    return f"{get_persistent_root()}/workspace"
+
+
+def get_context_root() -> str:
+    """Return the context offload root (compressed tool outputs, scratchpad)."""
+    return f"{get_persistent_root()}/.context"
+
+
+def get_memories_root() -> str:
+    """Return the memory storage root."""
+    return f"{get_persistent_root()}/.memories"
 
 
 # ============ Context Subdirectories ============
@@ -89,107 +109,6 @@ CONTEXT_SUBDIRS: dict[ContextSubdir, str] = {
 
 
 # ============ Specialized Path Functions ============
-
-
-def get_context_root() -> str:
-    """Return the context root currently in effect.
-
-    Local development without a ``/persistent`` mount rebinds ``CONTEXT_ROOT`` at startup, after
-    importers have run. Code that needs the root outside this module reads it here at call time
-    instead of importing the constant, so it always agrees with the paths the writers produce.
-    """
-    return CONTEXT_ROOT
-
-
-def get_compacted_output_path(session_id: str, tool_name: str, compressed: bool = False) -> str:
-    """Get path for compacted tool output (auto-generates UUID).
-
-    Args:
-        session_id: Session identifier (e.g., chat_id)
-        tool_name: Tool name (e.g., 'web_search', 'bash')
-        compressed: Whether the file will be gzip-compressed (affects extension)
-
-    Returns:
-        Absolute path to compacted output file
-
-    Examples:
-        >>> get_compacted_output_path("chat_abc123", "web_search")
-        '/persistent/.context/chat_abc123/compacted/web_search_a3f5c8d1.txt'
-        >>> get_compacted_output_path("chat_abc123", "web_search", compressed=True)
-        '/persistent/.context/chat_abc123/compacted/web_search_a3f5c8d1.txt.gz'
-
-    """
-    safe_session = _sanitize_path_segment(session_id)
-    safe_tool = _sanitize_path_segment(tool_name)
-    unique_id = uuid.uuid4().hex[:8]
-    ext = ".txt.gz" if compressed else ".txt"
-    filename = f"{safe_tool}_{unique_id}{ext}"
-    return f"{CONTEXT_ROOT}/{safe_session}/compacted/{filename}"
-
-
-def get_content_addressed_compacted_output_path(
-    session_id: str,
-    tool_name: str,
-    content_sha256: str,
-    content_size_bytes: int,
-    compressed: bool = False,
-) -> str:
-    """Get stable session-scoped path for content-addressed compacted output.
-
-    The hash is scoped under the session directory, so it provides retry safety
-    without introducing cross-user or cross-session deduplication.
-    """
-    safe_session = _sanitize_path_segment(session_id)
-    safe_tool = _sanitize_path_segment(tool_name)
-    normalized_hash = "".join(ch for ch in content_sha256.lower() if ch in "0123456789abcdef")
-    if len(normalized_hash) != 64:
-        raise ValueError("content_sha256 must be a 64-character hexadecimal digest")
-
-    safe_size = max(content_size_bytes, 0)
-    prefix = normalized_hash[:2]
-    ext = ".txt.gz" if compressed else ".txt"
-    filename = f"{safe_tool}_{normalized_hash[:24]}_{safe_size}{ext}"
-    return f"{CONTEXT_ROOT}/{safe_session}/compacted/sha256/{prefix}/{filename}"
-
-
-def get_content_addressed_compacted_metadata_path(
-    session_id: str,
-    tool_name: str,
-    content_sha256: str,
-    content_size_bytes: int,
-    compressed: bool = False,
-) -> str:
-    """Get stable metadata path for content-addressed compacted output."""
-    return (
-        get_content_addressed_compacted_output_path(
-            session_id,
-            tool_name,
-            content_sha256,
-            content_size_bytes,
-            compressed=compressed,
-        )
-        + ".meta.json"
-    )
-
-
-def get_content_addressed_compacted_restore_map_path(
-    session_id: str,
-    tool_name: str,
-    content_sha256: str,
-    content_size_bytes: int,
-    compressed: bool = False,
-) -> str:
-    """Get stable restore-map sidecar path for content-addressed compacted output."""
-    return (
-        get_content_addressed_compacted_output_path(
-            session_id,
-            tool_name,
-            content_sha256,
-            content_size_bytes,
-            compressed=compressed,
-        )
-        + ".restore.json"
-    )
 
 
 def get_evicted_output_path(session_id: str, *, source: str = "output", ext: str = "txt") -> str:
@@ -212,9 +131,9 @@ def get_evicted_output_path(session_id: str, *, source: str = "output", ext: str
         build_evicted_basename,
     )
 
-    safe_session = _sanitize_path_segment(session_id)
+    safe_session = sanitize_path_segment(session_id)
     filename = build_evicted_basename(source, ext=ext)
-    return f"{CONTEXT_ROOT}/{safe_session}/evicted/{filename}"
+    return f"{get_context_root()}/{safe_session}/evicted/{filename}"
 
 
 def get_scratchpad_path(session_id: str, filename: str) -> str:
@@ -232,9 +151,9 @@ def get_scratchpad_path(session_id: str, filename: str) -> str:
         '/persistent/.context/chat_abc123/scratchpad/notes.txt'
 
     """
-    safe_session = _sanitize_path_segment(session_id)
-    safe_filename = _sanitize_filename(filename)
-    return f"{CONTEXT_ROOT}/{safe_session}/scratchpad/{safe_filename}"
+    safe_session = sanitize_path_segment(session_id)
+    safe_filename = sanitize_filename(filename)
+    return f"{get_context_root()}/{safe_session}/scratchpad/{safe_filename}"
 
 
 def get_snapshot_path(session_id: str, compressed: bool = False) -> str:
@@ -254,12 +173,12 @@ def get_snapshot_path(session_id: str, compressed: bool = False) -> str:
         '/persistent/.context/chat_abc123/snapshots/1712345678_a3f5c8d1.jsonl.gz'
 
     """
-    safe_session = _sanitize_path_segment(session_id)
+    safe_session = sanitize_path_segment(session_id)
     timestamp = int(time.time())
     unique_id = uuid.uuid4().hex[:8]
     ext = ".jsonl.gz" if compressed else ".jsonl"
     filename = f"{timestamp}_{unique_id}{ext}"
-    return f"{CONTEXT_ROOT}/{safe_session}/snapshots/{filename}"
+    return f"{get_context_root()}/{safe_session}/snapshots/{filename}"
 
 
 def get_system_config_path(config_name: str) -> str:
@@ -276,11 +195,11 @@ def get_system_config_path(config_name: str) -> str:
         '/persistent/.context/system/settings.json'
 
     """
-    safe_filename = _sanitize_filename(config_name)
-    return f"{SYSTEM_CONFIG_ROOT}/{safe_filename}"
+    safe_filename = sanitize_filename(config_name)
+    return f"{get_context_root()}/system/{safe_filename}"
 
 
-# ============ Legacy Path Utilities (for backward compatibility) ============
+# ============ Session Context Layout ============
 
 
 def get_context_session_dir(session_id: str) -> str:
@@ -297,8 +216,8 @@ def get_context_session_dir(session_id: str) -> str:
         '/persistent/.context/chat_abc123'
 
     """
-    safe_session = _sanitize_path_segment(session_id)
-    return f"{CONTEXT_ROOT}/{safe_session}"
+    safe_session = sanitize_path_segment(session_id)
+    return f"{get_context_root()}/{safe_session}"
 
 
 def get_context_subdir(session_id: str, subdir: ContextSubdir) -> str:
@@ -342,7 +261,7 @@ def get_context_file_path(
 
     """
     subdir_path = get_context_subdir(session_id, subdir)
-    safe_filename = _sanitize_filename(filename)
+    safe_filename = sanitize_filename(filename)
     return f"{subdir_path}/{safe_filename}"
 
 
@@ -362,49 +281,12 @@ def get_workspace_relative_path(absolute_path: str) -> str:
         'workspace/project/file.py'
 
     """
-    if absolute_path.startswith(PERSISTENT_ROOT + "/"):
-        return absolute_path[len(PERSISTENT_ROOT) + 1 :]
+    persistent_root = get_persistent_root()
+    if absolute_path.startswith(persistent_root + "/"):
+        return absolute_path[len(persistent_root) + 1 :]
     if absolute_path.startswith(LEGACY_WORKSPACE_ROOT + "/"):
         return absolute_path[len(LEGACY_WORKSPACE_ROOT) + 1 :]
     return absolute_path.lstrip("/")
-
-
-def get_context_archive_sidecar_path_candidates(
-    archive_path: str,
-    *,
-    suffix: str = ".restore.json",
-) -> tuple[str, ...]:
-    """Return stable sidecar candidates for archive path forms exposed to tools.
-
-    Archive references may be surfaced as absolute sandbox paths, `/persistent`-
-    relative paths, workspace-relative paths, or `.context/...` tool arguments.
-    The candidates are intentionally ordered from the literal argument to the
-    canonical persistent locations so local tests and sandbox runtime both work.
-    """
-    raw_path = archive_path.strip()
-    if not raw_path:
-        return ()
-
-    archive_candidates: list[str] = [raw_path]
-    is_absolute = raw_path.startswith("/")
-    if raw_path.startswith(f"{PERSISTENT_ROOT}/"):
-        archive_candidates.append(get_workspace_relative_path(raw_path))
-    elif raw_path.startswith(".context/") or raw_path.startswith("workspace/"):
-        archive_candidates.append(f"{PERSISTENT_ROOT}/{raw_path}")
-    elif raw_path.startswith(f"{LEGACY_WORKSPACE_ROOT}/"):
-        archive_candidates.append(f"{WORKSPACE_ROOT}/{raw_path[len(LEGACY_WORKSPACE_ROOT) + 1 :]}")
-    elif not is_absolute:
-        archive_candidates.extend((f"{WORKSPACE_ROOT}/{raw_path}", f"{PERSISTENT_ROOT}/{raw_path}"))
-
-    sidecars: list[str] = []
-    seen: set[str] = set()
-    for candidate in archive_candidates:
-        sidecar = f"{candidate}{suffix}"
-        if sidecar in seen:
-            continue
-        seen.add(sidecar)
-        sidecars.append(sidecar)
-    return tuple(sidecars)
 
 
 def ensure_context_dir_exists(
@@ -439,7 +321,7 @@ def ensure_context_dir_exists(
 # ============ Path Sanitization ============
 
 
-def _sanitize_path_segment(segment: str) -> str:
+def sanitize_path_segment(segment: str) -> str:
     """Sanitize path segment to prevent path traversal attacks.
 
     Args:
@@ -449,11 +331,11 @@ def _sanitize_path_segment(segment: str) -> str:
         Sanitized segment (alphanumeric + _ - only)
 
     Examples:
-        >>> _sanitize_path_segment("chat_abc123")
+        >>> sanitize_path_segment("chat_abc123")
         'chat_abc123'
-        >>> _sanitize_path_segment("../../../etc/passwd")
+        >>> sanitize_path_segment("../../../etc/passwd")
         'etc_passwd'
-        >>> _sanitize_path_segment("tool@name#123")
+        >>> sanitize_path_segment("tool@name#123")
         'tool_name_123'
 
     """
@@ -462,7 +344,7 @@ def _sanitize_path_segment(segment: str) -> str:
     return sanitized if sanitized else "default"
 
 
-def _sanitize_filename(filename: str) -> str:
+def sanitize_filename(filename: str) -> str:
     """Sanitize filename to prevent path traversal and special characters.
 
     Args:
@@ -472,11 +354,11 @@ def _sanitize_filename(filename: str) -> str:
         Sanitized filename
 
     Examples:
-        >>> _sanitize_filename("report.txt")
+        >>> sanitize_filename("report.txt")
         'report.txt'
-        >>> _sanitize_filename("../../../etc/passwd")
+        >>> sanitize_filename("../../../etc/passwd")
         'etc_passwd'
-        >>> _sanitize_filename("file@#$%.txt")
+        >>> sanitize_filename("file@#$%.txt")
         'file____.txt'
 
     """
@@ -506,4 +388,5 @@ def is_context_path(path: str) -> bool:
 
     """
     abs_path = os.path.abspath(path)
-    return abs_path.startswith(CONTEXT_ROOT + "/") or abs_path == CONTEXT_ROOT
+    context_root = get_context_root()
+    return abs_path.startswith(context_root + "/") or abs_path == context_root

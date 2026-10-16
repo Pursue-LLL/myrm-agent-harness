@@ -28,10 +28,10 @@ from myrm_agent_harness.runtime.context.cleanup import (
 )
 from myrm_agent_harness.runtime.context.instance_metrics import record_cleanup
 from myrm_agent_harness.runtime.paths.execution_paths import (
-    _sanitize_path_segment,
     get_context_root,
     get_context_session_dir,
     get_workspace_relative_path,
+    sanitize_path_segment,
 )
 
 if TYPE_CHECKING:
@@ -94,7 +94,7 @@ PY"""
             )
         logger.info(
             "CONTEXT_CLEANUP session=%s path=%s",
-            _sanitize_path_segment(chat_id),
+            sanitize_path_segment(chat_id),
             session_rel_path,
         )
         record_cleanup("session", 1)

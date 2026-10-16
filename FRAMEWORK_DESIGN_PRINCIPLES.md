@@ -47,12 +47,13 @@ Harness 区分两类配置，避免「零 env」与「生产需要路径注入�
 | 类别 | 配置方式 | 示例 | 说明 |
 |------|----------|------|------|
 | **Agent 行为** | WebUI / YAML / Pydantic 模型 | `AgentConfig`、`LLMConfig`、技能开关 | 用户通过产品 WebUI 配置，**不**要求终端 export |
-| **基础设施路径** | 可选环境变量（opt-in） | `MYRM_DATA_DIR`、`MYRM_LOCALES_DIR`、`MYRM_GATEWAY_*` | 由部署层（server、Tauri、SaaS sandbox）注入，指向持久化 Volume 或覆盖目录 |
+| **基础设施路径** | 可选环境变量（opt-in） | `MYRM_DATA_DIR`、`MYRM_PERSISTENT_ROOT`、`MYRM_LOCALES_DIR`、`MYRM_GATEWAY_*` | 由部署层（server、Tauri、SaaS sandbox）注入，指向持久化 Volume 或覆盖目录 |
 
 **路径派生规则**（统一语义，实现可分散在各模块）：
 
 - `MYRM_DATA_DIR` 未设置 → 回退 `~/.myrm` 或 cwd 相对 `.myrm/`（模块文档须写明回退行为）
 - `MYRM_DATA_DIR` 已设置 → 子路径派生：`{MYRM_DATA_DIR}/checkpoints`、`{MYRM_DATA_DIR}/storage`、`{MYRM_DATA_DIR}/.estop_state.json` 等
+- `MYRM_PERSISTENT_ROOT` 未设置 → `/persistent`；已设置 → `.context`、`.memories`、`workspace` 由它派生。每次调用时读取（`runtime/paths/execution_paths.py::get_persistent_root`），部署层在启动后才设置也对所有调用方生效；禁止导入时复制根路径或运行时改写模块常量
 - `MYRM_LOCALES_DIR` 未设置 → 使用 harness 内置 `agent/errors/diagnostics/i18n/locales/`；业务层可用 `register_translations()` 扩展
 
 **框架边界**：Harness **不得**硬编码 monorepo 路径或反向读取 `myrm-agent-server` 文件；i18n、checkpoint、storage 等必须自带默认数据或 Protocol 注入点。

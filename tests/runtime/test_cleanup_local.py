@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.runtime.context.cleanup import CONTEXT_RETENTION_DAYS, cleanup_context_files_local
-from myrm_agent_harness.runtime.paths import execution_paths
+from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT_ENV
 
 _DAY_S = 86400
 
@@ -18,7 +18,7 @@ _DAY_S = 86400
 def context_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / ".context"
     root.mkdir()
-    monkeypatch.setattr(execution_paths, "CONTEXT_ROOT", str(root))
+    monkeypatch.setenv(PERSISTENT_ROOT_ENV, str(tmp_path))
     return root
 
 
@@ -34,7 +34,7 @@ def test_retention_window_defaults_to_fourteen_days() -> None:
 
 
 def test_cleanup_local_no_context_root(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(execution_paths, "CONTEXT_ROOT", "/nonexistent")
+    monkeypatch.setenv(PERSISTENT_ROOT_ENV, "/nonexistent")
 
     assert cleanup_context_files_local() == 0
 

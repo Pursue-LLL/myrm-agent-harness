@@ -56,9 +56,9 @@ from myrm_agent_harness.runtime.maintenance import (
     get_maintenance_scheduler,
     init_maintenance_scheduler,
 )
+from myrm_agent_harness.runtime.paths.archive_paths import get_compacted_output_path
 from myrm_agent_harness.runtime.paths.execution_paths import (
     ensure_context_dir_exists,
-    get_compacted_output_path,
     get_context_session_dir,
     get_workspace_relative_path,
 )

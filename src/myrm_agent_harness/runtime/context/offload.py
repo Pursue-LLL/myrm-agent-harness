@@ -86,10 +86,10 @@ from myrm_agent_harness.runtime.paths.compression import (
     should_compress,
 )
 from myrm_agent_harness.runtime.paths.execution_paths import (
-    _sanitize_path_segment,
     ensure_context_dir_exists,
     get_snapshot_path,
     get_workspace_relative_path,
+    sanitize_path_segment,
 )
 from myrm_agent_harness.runtime.quota.errors import QuotaExceededError
 from myrm_agent_harness.runtime.quota.protocols import StorageQuotaChecker
@@ -123,7 +123,7 @@ async def _record_context_archive_access(path: str, session_id: str) -> None:
         logger.debug(
             "Context archive access tracking skipped path=%s session=%s: %s",
             path,
-            _sanitize_path_segment(session_id),
+            sanitize_path_segment(session_id),
             exc,
         )
 
@@ -138,12 +138,12 @@ def _serialize_message(msg: BaseMessage) -> str:
             "id": getattr(msg, "id", None),
             "content": msg.content,
         }
-        if hasattr(msg, "tool_calls") and msg.tool_calls:
-            record["tool_calls"] = msg.tool_calls
-        if hasattr(msg, "tool_call_id") and msg.tool_call_id:
-            record["tool_call_id"] = msg.tool_call_id
-        if hasattr(msg, "name") and msg.name:
-            record["name"] = msg.name
+        if tool_calls := getattr(msg, "tool_calls", None):
+            record["tool_calls"] = tool_calls
+        if tool_call_id := getattr(msg, "tool_call_id", None):
+            record["tool_call_id"] = tool_call_id
+        if name := getattr(msg, "name", None):
+            record["name"] = name
         if msg.additional_kwargs:
             record["additional_kwargs"] = msg.additional_kwargs
 
@@ -229,7 +229,7 @@ def create_context_snapshot_callback(
             logger.info(
                 "CONTEXT_SNAPSHOT path=%s session=%s messages=%d bytes=%d compressed=%d ratio=%.2f duration_ms=%.1f",
                 rel_path,
-                _sanitize_path_segment(session_id),
+                sanitize_path_segment(session_id),
                 len(messages),
                 original_size,
                 compressed_size,
@@ -244,7 +244,7 @@ def create_context_snapshot_callback(
         except Exception as exc:
             logger.warning(
                 "Context snapshot write failed for session=%s: %s",
-                _sanitize_path_segment(session_id),
+                sanitize_path_segment(session_id),
                 exc,
             )
             record_offload_failure("context_snapshot")
@@ -324,8 +324,8 @@ def create_compress_offload_callback(
                 logger.info(
                     "CONTEXT_OFFLOAD_REUSED path=%s tool=%s session=%s bytes=%d stored=%d compressed=%s duration_ms=%.1f",
                     existing_archive.rel_path,
-                    _sanitize_path_segment(tool_name),
-                    _sanitize_path_segment(session_id),
+                    sanitize_path_segment(tool_name),
+                    sanitize_path_segment(session_id),
                     original_size,
                     existing_archive.stored_bytes,
                     use_compression,
@@ -354,8 +354,8 @@ def create_compress_offload_callback(
                 except Exception as compression_error:
                     logger.warning(
                         "Compression failed for tool=%s session=%s bytes=%d, writing uncompressed: %s",
-                        _sanitize_path_segment(tool_name),
-                        _sanitize_path_segment(session_id),
+                        sanitize_path_segment(tool_name),
+                        sanitize_path_segment(session_id),
                         original_size,
                         compression_error,
                     )
@@ -383,8 +383,8 @@ def create_compress_offload_callback(
                 logger.info(
                     "CONTEXT_OFFLOAD_REUSED path=%s tool=%s session=%s bytes=%d stored=%d compressed=%s duration_ms=%.1f",
                     archive_write.rel_path,
-                    _sanitize_path_segment(tool_name),
-                    _sanitize_path_segment(session_id),
+                    sanitize_path_segment(tool_name),
+                    sanitize_path_segment(session_id),
                     original_size,
                     archive_write.stored_bytes,
                     use_compression,
@@ -406,8 +406,8 @@ def create_compress_offload_callback(
             logger.info(
                 "CONTEXT_OFFLOAD path=%s tool=%s session=%s bytes=%d compressed=%s ratio=%.2f duration_ms=%.1f",
                 archive_write.rel_path,
-                _sanitize_path_segment(tool_name),
-                _sanitize_path_segment(session_id),
+                sanitize_path_segment(tool_name),
+                sanitize_path_segment(session_id),
                 original_size,
                 use_compression,
                 compression_ratio,

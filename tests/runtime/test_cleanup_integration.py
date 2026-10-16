@@ -14,17 +14,17 @@ import pytest
 from myrm_agent_harness.runtime.context.cleanup import CONTEXT_RETENTION_DAYS, cleanup_context_files_async
 from myrm_agent_harness.runtime.context.file_access_tracker import FileAccessTracker, reset_tracker
 from myrm_agent_harness.runtime.context.instance_metrics import ContextMetrics, set_context_metrics
-from myrm_agent_harness.runtime.paths import execution_paths
+from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT_ENV
 
 _DAY_S = 86400
 
 
 @pytest.fixture
 def context_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Temporary context root, bound the way the startup shim rebinds it."""
+    """Temporary context root, relocated the way the deployment layer relocates the persistent root."""
     root = tmp_path / ".context"
     root.mkdir()
-    monkeypatch.setattr(execution_paths, "CONTEXT_ROOT", str(root))
+    monkeypatch.setenv(PERSISTENT_ROOT_ENV, str(tmp_path))
     return root
 
 
@@ -133,7 +133,7 @@ async def test_cleanup_uses_the_shared_tracker_when_none_is_given(context_root: 
 
 @pytest.mark.asyncio
 async def test_cleanup_async_no_context_root(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(execution_paths, "CONTEXT_ROOT", "/nonexistent")
+    monkeypatch.setenv(PERSISTENT_ROOT_ENV, "/nonexistent")
 
     assert await cleanup_context_files_async(access_tracker=AsyncMock()) == 0
 

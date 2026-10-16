@@ -475,9 +475,9 @@ async def _record_file_tracking_async(evicted_path: str, tool_msg: ToolMessage, 
     try:
         from myrm_agent_harness.runtime.context.file_access_tracker import get_file_access_tracker
         from myrm_agent_harness.runtime.context.instance_metrics import record_file_access
-        from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT
+        from myrm_agent_harness.runtime.paths.execution_paths import get_persistent_root
 
-        file_path = f"{PERSISTENT_ROOT}/{evicted_path}"
+        file_path = f"{get_persistent_root()}/{evicted_path}"
 
         access_tracker = await get_file_access_tracker()
         await access_tracker.record_access(file_path, session_id=chat_id)

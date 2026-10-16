@@ -356,7 +356,7 @@ class TestCleanupSessionContextFilesEdgeCases:
 
     @pytest.mark.asyncio
     async def test_context_root_exists_but_session_dir_missing(self) -> None:
-        """When CONTEXT_ROOT exists but the session directory doesn't, should skip."""
+        """When the context root exists but the session directory doesn't, should skip."""
         from typing import cast
 
         from myrm_agent_harness.runtime.context.offload import (
@@ -374,9 +374,9 @@ class TestCleanupSessionContextFilesEdgeCases:
         executor = StubExecutor()
 
         def selective_isdir(path: str) -> bool:
-            from myrm_agent_harness.runtime.paths.execution_paths import CONTEXT_ROOT
+            from myrm_agent_harness.runtime.paths.execution_paths import get_context_root
 
-            return path == CONTEXT_ROOT
+            return path == get_context_root()
 
         with patch(
             "myrm_agent_harness.runtime.context.cleanup_ops.os.path.isdir",

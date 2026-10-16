@@ -1,8 +1,8 @@
-"""Context cleanup and the file access tracker follow a context root configured after import.
+"""Context cleanup and the file access tracker follow a persistent root configured after import.
 
-Without a ``/persistent`` mount (local dev) the server rebinds ``execution_paths.CONTEXT_ROOT`` at
-startup, and every writer derives its paths from the new value. Cleanup and the access tracker must
-read the same value at call time: a copy taken at import time makes cleanup scan a directory nothing
+Without a ``/persistent`` mount (local dev) the server points ``MYRM_PERSISTENT_ROOT`` at a local
+directory at startup, and every writer derives its paths from it. Cleanup and the access tracker must
+read the same root at call time: a copy taken at import time makes cleanup scan a directory nothing
 writes to, and points the tracker at a path that does not exist on the machine.
 """
 
@@ -33,7 +33,7 @@ from myrm_agent_harness.runtime.context.file_access_tracker import (
     reset_tracker,
 )
 from myrm_agent_harness.runtime.context.session.session_context_pins import write_pinned_files
-from myrm_agent_harness.runtime.paths import execution_paths
+from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT_ENV
 from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 
 _FORTY_DAYS_S = 40 * 86400
@@ -41,10 +41,10 @@ _FORTY_DAYS_S = 40 * 86400
 
 @pytest.fixture
 def local_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """The context root as the local-dev startup shim rebinds it."""
+    """The context root once the local-dev startup shim has relocated the persistent root."""
     root = tmp_path / "harness" / ".context"
     root.mkdir(parents=True)
-    monkeypatch.setattr(execution_paths, "CONTEXT_ROOT", str(root))
+    monkeypatch.setenv(PERSISTENT_ROOT_ENV, str(root.parent))
     return root
 
 
@@ -63,7 +63,7 @@ def _write_aged(path: Path, age_s: float) -> None:
 
 
 @pytest.mark.asyncio
-async def test_orphan_cleanup_scans_the_rebound_context_root(local_root: Path) -> None:
+async def test_orphan_cleanup_scans_the_relocated_context_root(local_root: Path) -> None:
     stale = local_root / "old-chat" / "evicted" / "output.txt"
     _write_aged(stale, _FORTY_DAYS_S)
     tracker = AsyncMock()
@@ -76,7 +76,7 @@ async def test_orphan_cleanup_scans_the_rebound_context_root(local_root: Path) -
 
 
 @pytest.mark.asyncio
-async def test_session_cleanup_acts_on_the_rebound_context_root(local_root: Path) -> None:
+async def test_session_cleanup_acts_on_the_relocated_context_root(local_root: Path) -> None:
     session_dir = local_root / "chat_deleted"
     _write_aged(session_dir / "evicted" / "output.txt", 60)
     executor = MagicMock()
@@ -91,13 +91,13 @@ async def test_session_cleanup_acts_on_the_rebound_context_root(local_root: Path
     assert repr(str(session_dir)) in script
 
 
-def test_a_tracker_without_an_explicit_path_uses_the_rebound_context_root(local_root: Path) -> None:
+def test_a_tracker_without_an_explicit_path_uses_the_relocated_context_root(local_root: Path) -> None:
     assert FileAccessTracker()._db_path == str(local_root / ".file_access.db")
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("fresh_tracker")
-async def test_the_shared_tracker_keeps_its_database_inside_the_rebound_context_root(local_root: Path) -> None:
+async def test_the_shared_tracker_keeps_its_database_inside_the_relocated_context_root(local_root: Path) -> None:
     tracker = await get_file_access_tracker()
     tracked = local_root / "chat_a" / "compacted" / "out.txt"
     await tracker.record_access(str(tracked), session_id="chat_a")
@@ -129,7 +129,7 @@ async def test_a_file_the_agent_read_survives_cleanup_while_an_unread_one_of_the
     assert not unread.exists()
 
 
-def test_pins_and_branches_live_inside_the_rebound_context_root(local_root: Path) -> None:
+def test_pins_and_branches_live_inside_the_relocated_context_root(local_root: Path) -> None:
     write_pinned_files("chat_a", ["src/a.py"])
     append_context_branch("chat_a", snapshot_path=".context/chat_a/snapshots/s.jsonl", label="before")
 

@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 # Run at import time to isolate harness tests as well
 _temp_workspace = tempfile.mkdtemp(prefix="myrm_harness_test_")
 os.environ["MYRM_DATA_DIR"] = _temp_workspace
+# Tests see the default /persistent root unless one sets MYRM_PERSISTENT_ROOT itself (through monkeypatch).
+os.environ.pop("MYRM_PERSISTENT_ROOT", None)
 os.environ["OTEL_METRICS_EXPORTER"] = "none"
 os.environ["OTEL_TRACES_EXPORTER"] = "none"
 
