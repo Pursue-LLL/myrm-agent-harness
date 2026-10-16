@@ -64,6 +64,11 @@ _MIN_UNANCHORED_CLASSES = 4
 _TOKEN_WINDOW_BEFORE = 32
 _TOKEN_WINDOW_AFTER = 80
 
+# A shell or compose variable ("$DB_PASSWORD", "${DB_PASSWORD}", "${DB_PASSWORD:-x}") names where a secret is kept. Its
+# keyword anchors no value: the text after it ("@db:5432/app") belongs to the URL or command around it.
+_VARIABLE_REFERENCE_BEFORE_RE = re.compile(r"\$\{?\w*\Z")
+_VARIABLE_NAME_WINDOW = 64
+
 # keyword + filler ("for MyHome-5G") + connector + value. The filler never crosses a sentence end or a label
 # delimiter, so the first connector after the keyword introduces its value.
 _VALUE_CHAR = r"(?![,;\"'`])[\x21-\x7e]"
@@ -186,10 +191,17 @@ def _number_before(numbers: list[Span], text: str, keyword: re.Match[str]) -> Sp
     return None
 
 
+def _is_variable_reference(text: str, keyword: re.Match[str]) -> bool:
+    start = keyword.start()
+    return _VARIABLE_REFERENCE_BEFORE_RE.search(text, max(0, start - _VARIABLE_NAME_WINDOW), start) is not None
+
+
 def _keyword_spans(text: str, *, strict: bool) -> set[Span]:
     spans: set[Span] = set()
     tokens: list[Span] | None = None
     for keyword in PASSWORD_KEYWORD_RE.finditer(text):
+        if _is_variable_reference(text, keyword):
+            continue
         span = _value_after_connector(text, keyword, strict=strict)
         if span is None:
             if tokens is None:

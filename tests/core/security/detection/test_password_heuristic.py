@@ -357,6 +357,32 @@ class TestFindKeywordPasswordSpans:
             "pwd=hunter2", strict=False
         )
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "DATABASE_URL=postgres://app:${DB_PASSWORD}@db:5432/app",
+            "postgres://app:$DB_PASSWORD@db:5432/app",
+            "curl -u admin:$PASSWORD https://example.com/a:b12345X",
+            "echo ${DB_PASSWORD:-changeme}",
+        ],
+        ids=["compose-braces", "shell-variable", "curl-user", "default-value"],
+    )
+    @pytest.mark.parametrize("strict", [True, False])
+    def test_a_variable_reference_anchors_no_value_in_the_text_around_it(self, text: str, strict: bool) -> None:
+        assert find_keyword_password_spans(text, strict=strict) == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "price is $5 and my password is Zk9#mango42",
+            "$ password: Zk9#mango42",
+            "export DB_PASSWORD=Zk9#mango42",
+        ],
+        ids=["dollar-amount", "shell-prompt", "export"],
+    )
+    def test_a_dollar_sign_near_a_real_password_does_not_hide_it(self, text: str) -> None:
+        assert [text[start:end] for start, end in find_keyword_password_spans(text)] == ["Zk9#mango42"]
+
     def test_empty_text_has_no_spans(self) -> None:
         assert find_keyword_password_spans("") == []
 
