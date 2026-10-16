@@ -51,7 +51,6 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 
 | Submodule | Description |
 |-----------|-------------|
-| capability_fit/ | 能力-所有者匹配派发与防盲目误派防御子系统（支持 native 直达、插件归属、编码重定向、低置信度澄清与高风险审批门禁）。详见 [capability_fit/_ARCH.md](capability_fit/_ARCH.md)。 |
 | multiplexer/ | 持久化多智能体会话多路复用器与跨 Agent 互视/指导机制（支持多会话切片管理、无头工作者标记、inspect_agent_session 与 instruct_agent）。详见 [multiplexer/_ARCH.md](multiplexer/_ARCH.md)。 |
 | device_mesh/ | 边缘设备网格与多节点分布式调度器（支持局域网/Tailscale 边缘设备注册、Token 配对门禁、心跳遥测监测与多智能体跨节点命令派发工具）。详见 [device_mesh/_ARCH.md](device_mesh/_ARCH.md)。 |
 | todo_store/ | 跨进程/跨插件共享 Todo 计划声明存储与控制字符安全清洗 HUD 只读投影子系统（支持严格 20 项与字符上限门禁、双向 C0/C1 与 ANSI 剥离清洗、只读 HUD 投射与标准元工具）。详见 [todo_store/_ARCH.md](todo_store/_ARCH.md)。 |
