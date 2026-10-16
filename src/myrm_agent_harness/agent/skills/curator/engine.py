@@ -123,7 +123,7 @@ class SkillCurator:
             skills: All skills to evaluate (caller handles which skills to include)
             force: If True, bypass the enabled check (for manual triggers)
             protected_names: Skills the caller depends on (e.g. bound by an automation).
-                They are exempt from every transition and do not count toward ``max_skills``.
+                They are exempt from every transition.
             installed_names: Skills the caller knows were installed rather than authored here.
                 They are exempt in the same way while ``CuratorConfig.protect_installed_skills`` is on.
 
@@ -143,8 +143,6 @@ class SkillCurator:
             except Exception as e:
                 result.errors.append(f"{skill.name}: {e}")
                 logger.warning("Curator error evaluating skill '%s': %s", skill.name, e)
-
-        self._apply_lru_eviction([s for s in skills if s.name not in exempt_names], now, result)
 
         if result.total_transitions > 0:
             logger.info(
@@ -236,46 +234,6 @@ class SkillCurator:
         except Exception as e:
             logger.error("Consolidation pass failed: %s", e)
             return None
-
-    def _apply_lru_eviction(self, skills: list[SkillMetadata], now: datetime, result: CuratorRunResult) -> None:
-        """Evict least-recently-used skills when active count exceeds max_skills."""
-        already_transitioned = {t.skill_name for t in result.transitions}
-        lru_candidates = self._strategy.select_lru_candidates(skills)
-        for reason in lru_candidates:
-            if reason.skill_name in already_transitioned:
-                continue
-
-            skill = next((s for s in skills if s.name == reason.skill_name), None)
-            if skill is None:
-                continue
-
-            skill_path = Path(skill.storage_path) if skill.storage_path else None
-            if skill_path is None:
-                result.errors.append(f"{skill.name}: no storage_path for LRU eviction")
-                continue
-
-            target = SkillLifecycleStatus(reason.target_status)
-            current_status = str(SkillLifecycleStatus(skill.usage_stats.lifecycle_status).value)
-            target_status = str(target.value)
-
-            self._stats.update_lifecycle_status(skill_path, target)
-            result.transitions.append(
-                CuratorTransition(
-                    skill_name=skill.name,
-                    skill_path=str(skill_path),
-                    from_status=current_status,
-                    to_status=target_status,
-                    reason_type=reason.reason_type,
-                    reason_message=reason.reason_message,
-                    timestamp=now,
-                )
-            )
-            logger.info(
-                "Curator LRU eviction: %s → %s for '%s'",
-                current_status,
-                target_status,
-                skill.name,
-            )
 
     def _evaluate_skill(
         self,

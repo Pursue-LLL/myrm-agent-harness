@@ -49,22 +49,6 @@ def test_should_not_forget_never_used_within_stale_threshold() -> None:
     assert strategy.should_forget(skill) is None
 
 
-def test_protect_system_skills_exempt() -> None:
-    """Prebuilt skills under /prebuilt/ are exempt when protect_system_skills is True."""
-    config = CuratorConfig(stale_after_days=7, protect_system_skills=True, grace_period_days=0)
-    strategy = DefaultForgettingStrategy(config)
-
-    old_created = datetime.now(UTC) - timedelta(days=100)
-    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old_created)
-    skill = SkillMetadata(
-        name="prebuilt_skill",
-        description="Test skill",
-        storage_path="/opt/myrm/assets/prebuilt/foo_skill",
-        usage_stats=stats,
-    )
-    assert strategy.should_forget(skill) is None
-
-
 def test_should_forget_low_quality_skill() -> None:
     """Test that low quality skills are marked for forgetting."""
     config = CuratorConfig(min_call_count_for_quality_check=5, min_success_rate=0.5)
@@ -157,56 +141,6 @@ def test_low_quality_needs_observed_outcomes_not_just_uses() -> None:
         assert reason is None
 
 
-def test_select_lru_candidates() -> None:
-    """Test LRU candidate selection."""
-    config = CuratorConfig(max_skills=3)
-    strategy = DefaultForgettingStrategy(config)
-
-    # Create skills with different last_used_at
-    skills = [
-        create_skill_metadata(
-            f"skill_{i}",
-            usage_stats=SkillUsageStats(
-                call_count=1,
-                success_count=1,
-                failure_count=0,
-                last_used_at=datetime.now(UTC) - timedelta(days=i),
-            ),
-        )
-        for i in range(5)
-    ]
-
-    candidates = strategy.select_lru_candidates(skills)
-
-    # Should select 2 LRU skills (5 total - 3 max = 2 to remove)
-    assert len(candidates) == 2
-    assert all(c.reason_type == "lru_eviction" for c in candidates)
-
-
-def test_select_lru_candidates_no_eviction_needed() -> None:
-    """Test that LRU doesn't evict when under limit."""
-    config = CuratorConfig(max_skills=10)
-    strategy = DefaultForgettingStrategy(config)
-
-    skills = [
-        create_skill_metadata(
-            f"skill_{i}",
-            usage_stats=SkillUsageStats(
-                call_count=1,
-                success_count=1,
-                failure_count=0,
-                last_used_at=datetime.now(UTC),
-            ),
-        )
-        for i in range(5)
-    ]
-
-    candidates = strategy.select_lru_candidates(skills)
-
-    # Should not evict any (5 < 10)
-    assert len(candidates) == 0
-
-
 def test_curator_config_round_trip() -> None:
     """CuratorConfig to_dict / from_dict preserves consolidation default false."""
     config = CuratorConfig(stale_after_days=14, consolidation_enabled=False)
@@ -285,9 +219,9 @@ def test_stale_skill_promoted_to_archive() -> None:
 
 
 def test_strategy_config_property() -> None:
-    config = CuratorConfig(max_skills=5)
+    config = CuratorConfig(stale_after_days=45)
     strategy = DefaultForgettingStrategy(config)
-    assert strategy.config.max_skills == 5
+    assert strategy.config.stale_after_days == 45
 
 
 def test_forgetting_reason_dataclass() -> None:

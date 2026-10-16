@@ -17,7 +17,6 @@ _MINIMUMS = [
     ("stale_after_days", 1),
     ("archive_after_days", 1),
     ("grace_period_days", 0),
-    ("max_skills", 1),
     ("min_call_count_for_quality_check", 1),
     ("consolidation_min_skills", 1),
     ("consolidation_min_cluster_size", 2),
@@ -55,8 +54,7 @@ def test_ratio_outside_unit_interval_is_rejected(field_name: str, value: float) 
 @pytest.mark.parametrize(
     "data",
     [
-        {"max_skills": 0},
-        {"max_skills": -3},
+        {"stale_after_days": -3},
         {"stale_after_days": 0},
         {"archive_after_days": 0},
         {"interval_hours": 0},
@@ -69,7 +67,16 @@ def test_from_dict_refuses_degenerate_values(data: dict[str, object]) -> None:
 
 
 def test_from_dict_keeps_valid_overrides() -> None:
-    config = CuratorConfig.from_dict({"max_skills": 80, "grace_period_days": 0})
+    config = CuratorConfig.from_dict({"stale_after_days": 45, "grace_period_days": 0})
 
-    assert config.max_skills == 80
+    assert config.stale_after_days == 45
     assert config.grace_period_days == 0
+
+
+def test_from_dict_ignores_keys_of_retired_settings() -> None:
+    """A config file written before the library-size limit and the system-skill switch were removed still loads."""
+    config = CuratorConfig.from_dict({"max_skills": 80, "protect_system_skills": False, "stale_after_days": 45})
+
+    assert config == CuratorConfig(stale_after_days=45)
+    assert "max_skills" not in config.to_dict()
+    assert "protect_system_skills" not in config.to_dict()

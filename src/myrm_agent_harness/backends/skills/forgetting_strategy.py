@@ -13,7 +13,7 @@ that should be transitioned through the lifecycle state machine
 [OUTPUT]
 - ForgettingReason: Reason and target lifecycle state for a transition.
 - ForgettingStrategy: Protocol for skill forgetting strategies.
-- DefaultForgettingStrategy: Default strategy with pinned / grace / source checks.
+- DefaultForgettingStrategy: Default strategy with pinned / grace / lifecycle checks.
 
 [POS]
 Skill forgetting / curator strategies to prevent skill accumulation.
@@ -41,7 +41,7 @@ class ForgettingReason:
     """Name of the skill"""
 
     reason_type: str
-    """Reason type: stale, inactive, low_quality, lru_eviction"""
+    """Reason type: stale, inactive, low_quality, archive"""
 
     reason_message: str
     """Human-readable explanation"""
@@ -68,25 +68,17 @@ class ForgettingStrategy(Protocol):
         """
         ...
 
-    def select_lru_candidates(
-        self,
-        skills: list[SkillMetadata],
-    ) -> list[ForgettingReason]:
-        """Select LRU eviction candidates when skill count exceeds max."""
-        ...
-
 
 class DefaultForgettingStrategy:
     """Default skill forgetting strategy with curator-aware checks.
 
     Evaluation order:
     1. Pinned / evolution-locked check — exempt from all automated transitions
-    2. Source check — prebuilt/system skills optionally exempt
-    3. Grace period — recently discovered skills are exempt (configurable days)
-    4. Already archived — skip (terminal state for auto-transitions)
-    5. Archive promotion — stale skill past archive threshold
-    6. Stale check — inactivity or never-used
-    7. Low quality — success rate below threshold
+    2. Grace period — recently discovered skills are exempt (configurable days)
+    3. Already archived — skip (terminal state for auto-transitions)
+    4. Archive promotion — stale skill past archive threshold
+    5. Stale check — inactivity or never-used
+    6. Low quality — success rate below threshold
 
     Design:
     - Configurable thresholds via CuratorConfig
@@ -109,23 +101,17 @@ class DefaultForgettingStrategy:
         if stats.pinned or skill.evolution_locked:
             return None
 
-        # 2. Prebuilt/system skills optionally exempt
-        if self._config.protect_system_skills and skill.storage_path:
-            normalized = skill.storage_path.replace("\\", "/")
-            if "/prebuilt/" in normalized:
-                return None
-
-        # 3. Grace period — recently discovered skills are exempt
+        # 2. Grace period — recently discovered skills are exempt
         if stats.created_at is not None:
             age_days = (datetime.now(UTC) - stats.created_at).days
             if age_days < self._config.grace_period_days:
                 return None
 
-        # 4. Already archived — no further auto-transitions
+        # 3. Already archived — no further auto-transitions
         if stats.lifecycle_status == SkillLifecycleStatus.ARCHIVED:
             return None
 
-        # 5. Archive promotion: stale skill past archive threshold
+        # 4. Archive promotion: stale skill past archive threshold
         if stats.lifecycle_status == SkillLifecycleStatus.STALE:
             reference_time = stats.last_used_at or stats.created_at
             if reference_time is not None:
@@ -141,7 +127,7 @@ class DefaultForgettingStrategy:
                         target_status=SkillLifecycleStatus.ARCHIVED,
                     )
 
-        # 6. Stale check — never used past threshold, or long inactive
+        # 5. Stale check — never used past threshold, or long inactive
         if stats.last_used_at is None and stats.call_count == 0:
             reference_time = stats.created_at
             if reference_time is not None:
@@ -177,7 +163,7 @@ class DefaultForgettingStrategy:
                     target_status=target,
                 )
 
-        # 7. Low quality check (only after enough runs with an observed outcome)
+        # 6. Low quality check (only after enough runs with an observed outcome)
         if (
             stats.observed_count >= self._config.min_call_count_for_quality_check
             and stats.success_rate < self._config.min_success_rate
@@ -195,49 +181,3 @@ class DefaultForgettingStrategy:
             )
 
         return None
-
-    def select_lru_candidates(
-        self,
-        skills: list[SkillMetadata],
-    ) -> list[ForgettingReason]:
-        """Select LRU eviction candidates when skill count exceeds max.
-
-        Only considers active, non-pinned, non-locked, non-grace-period skills.
-        """
-        now = datetime.now(UTC)
-        eligible = [
-            s
-            for s in skills
-            if not s.usage_stats.pinned
-            and not s.evolution_locked
-            and s.usage_stats.lifecycle_status == SkillLifecycleStatus.ACTIVE
-            and not self._in_grace_period(s.usage_stats, now)
-        ]
-
-        if len(eligible) <= self._config.max_skills:
-            return []
-
-        sorted_skills = sorted(
-            eligible,
-            key=lambda s: s.usage_stats.last_used_at or datetime.min.replace(tzinfo=UTC),
-        )
-
-        evict_count = len(eligible) - self._config.max_skills
-        candidates = sorted_skills[:evict_count]
-
-        return [
-            ForgettingReason(
-                skill_name=skill.name,
-                reason_type="lru_eviction",
-                reason_message=(f"LRU eviction (active skill count {len(eligible)} > max {self._config.max_skills})"),
-                stats=skill.usage_stats,
-                target_status=SkillLifecycleStatus.STALE,
-            )
-            for skill in candidates
-        ]
-
-    def _in_grace_period(self, stats: SkillUsageStats, now: datetime) -> bool:
-        """Check if a skill's stats indicate it's within the grace period."""
-        if stats.created_at is None:
-            return False
-        return (now - stats.created_at).days < self._config.grace_period_days

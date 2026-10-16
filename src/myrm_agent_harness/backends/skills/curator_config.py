@@ -1,10 +1,9 @@
 """Skill curator configuration, validated at construction.
 
 A curator sweep runs unattended and without confirmation, so a degenerate
-threshold (a zero-day stale window, an active-skill limit of zero) would make
-every eligible skill (not pinned, past its grace period) due in a single pass. The
-config type therefore refuses to exist with such values and raises ``ValueError``
-instead.
+threshold (a zero-day stale window) would make every eligible skill (not pinned,
+past its grace period) due in a single pass. The config type therefore refuses to
+exist with such values and raises ``ValueError`` instead.
 
 [INPUT]
 - dataclasses::asdict, dataclass (POS: Python dataclass utilities)
@@ -24,7 +23,6 @@ from dataclasses import asdict, dataclass
 _DEFAULT_STALE_DAYS = 30
 _DEFAULT_ARCHIVE_DAYS = 90
 _DEFAULT_MIN_SUCCESS_RATE = 0.3
-_DEFAULT_MAX_SKILLS = 50
 _DEFAULT_MIN_CALL_COUNT_FOR_QUALITY_CHECK = 5
 _DEFAULT_GRACE_PERIOD_DAYS = 7
 _DEFAULT_INTERVAL_HOURS = 168  # 7 days
@@ -32,14 +30,12 @@ _DEFAULT_CONSOLIDATION_MIN_SKILLS = 10
 _DEFAULT_CONSOLIDATION_MIN_CLUSTER_SIZE = 3
 _DEFAULT_CONSOLIDATION_SIMILARITY_THRESHOLD = 0.75
 
-# Inclusive lower bounds. Below them a threshold collapses onto "now" (every skill is
-# due) or removes the capacity (every skill is over the limit).
+# Inclusive lower bounds. Below them a threshold collapses onto "now" and every skill is due.
 _MINIMUMS: dict[str, int] = {
     "interval_hours": 1,
     "stale_after_days": 1,
     "archive_after_days": 1,
     "grace_period_days": 0,
-    "max_skills": 1,
     "min_call_count_for_quality_check": 1,
     "consolidation_min_skills": 1,
     "consolidation_min_cluster_size": 2,
@@ -93,19 +89,12 @@ class CuratorConfig:
     """Minimum success rate threshold (0.0-1.0).  Skills below this after
     min_call_count_for_quality_check observed outcomes may be considered low quality."""
 
-    max_skills: int = _DEFAULT_MAX_SKILLS
-    """Maximum number of active skills before LRU eviction kicks in."""
-
     min_call_count_for_quality_check: int = _DEFAULT_MIN_CALL_COUNT_FOR_QUALITY_CHECK
     """Minimum number of observed run outcomes before evaluating success rate."""
 
     protect_installed_skills: bool = True
     """When True, the skills the caller reports as installed (hub/registry) via
     ``SkillCurator.run(installed_names=...)`` are exempt from curator transitions."""
-
-    protect_system_skills: bool = True
-    """When True, prebuilt/system skills (storage path contains ``/prebuilt/``)
-    are exempt from curator transitions."""
 
     # --- Consolidation (Umbrella Merge) settings ---
 
@@ -145,12 +134,10 @@ class CuratorConfig:
             archive_after_days=_config_int(data, "archive_after_days", _DEFAULT_ARCHIVE_DAYS),
             grace_period_days=_config_int(data, "grace_period_days", _DEFAULT_GRACE_PERIOD_DAYS),
             min_success_rate=_config_float(data, "min_success_rate", _DEFAULT_MIN_SUCCESS_RATE),
-            max_skills=_config_int(data, "max_skills", _DEFAULT_MAX_SKILLS),
             min_call_count_for_quality_check=_config_int(
                 data, "min_call_count_for_quality_check", _DEFAULT_MIN_CALL_COUNT_FOR_QUALITY_CHECK
             ),
             protect_installed_skills=bool(data.get("protect_installed_skills", True)),
-            protect_system_skills=bool(data.get("protect_system_skills", True)),
             consolidation_enabled=bool(data.get("consolidation_enabled", False)),
             consolidation_min_skills=_config_int(data, "consolidation_min_skills", _DEFAULT_CONSOLIDATION_MIN_SKILLS),
             consolidation_min_cluster_size=_config_int(

@@ -6,7 +6,7 @@ Covers:
 - Archive promotion for long-stale skills
 - Pinned skill exemption
 - Grace period exemption
-- LRU eviction when active count exceeds max_skills
+- A large active library is left alone (no size limit)
 - Low quality detection
 - Error resilience (bad skill data)
 - Stale auto-recovery on usage (via SkillStatsCollector integration)
@@ -200,48 +200,16 @@ class TestExemptions:
         assert unprotected.run(skills, force=True, installed_names=installed).total_transitions == 1
 
 
-# ── LRU eviction ─────────────────────────────────────────────────────────
+# ── No library size limit ────────────────────────────────────────────────
 
 
-class TestLRUEviction:
-    def test_lru_eviction_when_exceeds_max(self, collector: SkillStatsCollector) -> None:
-        config = CuratorConfig(max_skills=3, stale_after_days=365)
-        skills = [_make_skill(f"skill_{i}", last_used_days_ago=50 - i) for i in range(5)]
-        curator = SkillCurator(collector, config)
+class TestNoLibrarySizeLimit:
+    def test_large_active_library_is_left_alone(self, collector: SkillStatsCollector) -> None:
+        skills = [_make_skill(f"skill_{i}", last_used_days_ago=1 + i % 20) for i in range(120)]
+        curator = SkillCurator(collector, CuratorConfig())
         result = curator.run(skills, force=True)
-        lru_transitions = [t for t in result.transitions if t.reason_type == "lru_eviction"]
-        assert len(lru_transitions) == 2
-
-    def test_lru_eviction_skips_no_storage_path(self, collector: SkillStatsCollector) -> None:
-        config = CuratorConfig(max_skills=2, stale_after_days=365)
-        normal = _make_skill("normal", last_used_days_ago=50)
-        no_path = _make_skill("no_path", last_used_days_ago=100, storage_path=None)
-        no_path.storage_path = None
-        recent = _make_skill("recent", last_used_days_ago=1)
-        curator = SkillCurator(collector, config)
-        result = curator.run([normal, no_path, recent], force=True)
-        error_names = [e for e in result.errors if "no_path" in e]
-        assert len(error_names) >= 1
-
-    def test_lru_skips_already_transitioned(self, collector: SkillStatsCollector) -> None:
-        config = CuratorConfig(max_skills=2, stale_after_days=5)
-        skills = [
-            _make_skill("already_stale_by_inactivity", last_used_days_ago=100),
-            _make_skill("recent_a", last_used_days_ago=1),
-            _make_skill("recent_b", last_used_days_ago=2),
-        ]
-        curator = SkillCurator(collector, config)
-        result = curator.run(skills, force=True)
-        transitioned_names = {t.skill_name for t in result.transitions}
-        assert "already_stale_by_inactivity" in transitioned_names
-
-    def test_no_lru_eviction_under_threshold(self, collector: SkillStatsCollector) -> None:
-        config = CuratorConfig(max_skills=10, stale_after_days=365)
-        skills = [_make_skill(f"skill_{i}") for i in range(5)]
-        curator = SkillCurator(collector, config)
-        result = curator.run(skills, force=True)
-        lru_transitions = [t for t in result.transitions if t.reason_type == "lru_eviction"]
-        assert len(lru_transitions) == 0
+        assert result.total_transitions == 0
+        assert result.errors == []
 
 
 # ── Error resilience ─────────────────────────────────────────────────────

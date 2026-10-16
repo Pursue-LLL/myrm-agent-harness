@@ -33,7 +33,6 @@ def curator(stats_collector: SkillStatsCollector) -> SkillCurator:
         grace_period_days=7,
         stale_after_days=30,
         archive_after_days=90,
-        max_skills=2,
     )
     return SkillCurator(stats_collector, config)
 
@@ -124,19 +123,14 @@ def test_curator_stale_to_archived(curator: SkillCurator):
     assert result.transitions[0].to_status == "archived"
 
 
-def test_curator_lru_eviction(curator: SkillCurator):
-    # Max skills is 2. We provide 3 active skills.
-    # The oldest used one should be evicted to stale.
-    s1 = create_mock_skill("s1", days_idle=1, days_old=10)
-    s2 = create_mock_skill("s2", days_idle=2, days_old=10)
-    s3 = create_mock_skill("s3", days_idle=3, days_old=10)
+def test_curator_leaves_a_large_active_library_alone(curator: SkillCurator):
+    # The sweep judges each skill on its own idleness and quality; the size of the library is not a reason to move any.
+    skills = [create_mock_skill(f"s{i}", days_idle=1 + i % 20, days_old=10 + i % 20) for i in range(120)]
 
-    result = curator.run([s1, s2, s3])
+    result = curator.run(skills)
 
-    assert result.total_transitions == 1
-    assert result.stale_count == 1
-    assert result.transitions[0].skill_name == "s3"
-    assert result.transitions[0].reason_type == "lru_eviction"
+    assert result.total_transitions == 0
+    assert result.errors == []
 
 
 def test_curator_skips_protected_skill(curator: SkillCurator):
@@ -157,20 +151,6 @@ def test_curator_protected_skill_never_archived(curator: SkillCurator):
 
     assert result.skipped_protected == 1
     assert result.total_transitions == 0
-
-
-def test_curator_protected_skill_leaves_lru_pool(curator: SkillCurator):
-    # max_skills=2. The least recently used skill is protected, so it must neither
-    # be evicted nor count toward the active cap (same as pinned): only the pool of
-    # two unprotected skills remains, which fits within the cap.
-    bound = create_mock_skill("bound", days_idle=3, days_old=10)
-    s1 = create_mock_skill("s1", days_idle=1, days_old=10)
-    s2 = create_mock_skill("s2", days_idle=2, days_old=10)
-
-    result = curator.run([s1, s2, bound], protected_names=frozenset({"bound"}))
-
-    assert result.total_transitions == 0
-    assert result.skipped_protected == 1
 
 
 def test_curator_protected_skill_not_counted_as_pinned(curator: SkillCurator):
@@ -223,19 +203,6 @@ def test_curator_installed_skill_is_curated_when_protection_is_off(stats_collect
 
     assert result.skipped_protected == 0
     assert [t.skill_name for t in result.transitions] == ["from-store"]
-
-
-def test_curator_installed_skill_leaves_lru_pool(curator: SkillCurator):
-    # max_skills=2: the least recently used skill is installed, so it neither gets evicted
-    # nor counts toward the active cap; the two authored skills fit within it.
-    installed = create_mock_skill("from-store", days_idle=3, days_old=10)
-    s1 = create_mock_skill("s1", days_idle=1, days_old=10)
-    s2 = create_mock_skill("s2", days_idle=2, days_old=10)
-
-    result = curator.run([s1, s2, installed], installed_names=frozenset({"from-store"}))
-
-    assert result.total_transitions == 0
-    assert result.skipped_protected == 1
 
 
 @pytest.mark.parametrize(("protect_installed", "expected"), [(True, [["free"]]), (False, [["from-store", "free"]])])

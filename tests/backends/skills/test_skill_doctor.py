@@ -37,7 +37,7 @@ def test_evaluate_skill_health_findings_wrong_but_frequent() -> None:
         call_count=20,
         success_count=2,  # 10% success rate
         failure_count=18,
-        pinned=True,  # Pinned exempts it from LRU eviction!
+        pinned=True,  # Pinned exempts it from automatic archiving.
         lifecycle_status=SkillLifecycleStatus.ACTIVE,
     )
     bad_skill = create_skill_metadata("buggy_crawler", usage_stats=bad_stats)
@@ -101,9 +101,8 @@ def test_evaluate_skill_health_findings_stale_pinned() -> None:
     assert f.details == {"days_inactive": 45}
 
 
-def test_evaluate_skill_health_findings_bloat() -> None:
-    """Test detecting library bloat when active skills exceed max_skills."""
-    cfg = CuratorConfig(max_skills=2)
+def test_doctor_does_not_flag_library_size() -> None:
+    """A large library of healthy skills is not a defect: the sweep has no size limit to report on."""
     skills = [
         create_skill_metadata(
             f"skill_{i}",
@@ -114,13 +113,12 @@ def test_evaluate_skill_health_findings_bloat() -> None:
                 lifecycle_status=SkillLifecycleStatus.ACTIVE,
             ),
         )
-        for i in range(5)
+        for i in range(120)
     ]
 
-    diagnosis = evaluate_skill_health_findings(skills, cfg)
-    assert diagnosis.total_skills == 5
-    assert diagnosis.active_skills == 5
-    bloat = [f for f in diagnosis.findings if f.finding_type == "hoarding_bloat"]
-    assert len(bloat) == 1
-    assert bloat[0].severity == "warning"
-    assert bloat[0].details == {"active_count": 5, "max_skills": 2, "excess": 3}
+    diagnosis = evaluate_skill_health_findings(skills, CuratorConfig())
+
+    assert diagnosis.total_skills == 120
+    assert diagnosis.active_skills == 120
+    assert diagnosis.findings == []
+    assert diagnosis.health_score == 100.0

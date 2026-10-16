@@ -1,7 +1,7 @@
 """Skill library health diagnostics (the curator "doctor").
 
 Reports anti-patterns the rule-based lifecycle sweep does not act on by itself: skills that run
-often but fail, pinned skills gone idle, and a library grown past its target size.
+often but fail, and pinned skills gone idle.
 
 [INPUT]
 - backends.skills.curator_config::CuratorConfig (POS: Skill curator configuration.)
@@ -31,7 +31,7 @@ class SkillDoctorFinding:
     """A diagnostic finding indicating an anti-pattern or health issue with a skill."""
 
     skill_name: str
-    finding_type: str  # "wrong_but_frequent", "hoarding_bloat", "stale_pinned"
+    finding_type: str  # "wrong_but_frequent", "stale_pinned"
     severity: str  # "critical", "warning", "info"
     message: str
     call_count: int
@@ -87,8 +87,7 @@ def evaluate_skill_health_findings(
     Detects:
     1. WRONG_BUT_FREQUENT: Enough observed run outcomes (>= min_call_count) with low success rate (< min_success_rate),
        especially when pinned or installed, which bypasses normal forgetting.
-    2. HOARDING_BLOAT: Active skill count exceeding threshold or large clusters of unpruned skills.
-    3. STALE_PINNED: Pinned skills inactive for > stale_after_days.
+    2. STALE_PINNED: Pinned skills inactive for > stale_after_days.
     """
     cfg = config or CuratorConfig()
     now = datetime.now(UTC)
@@ -120,7 +119,7 @@ def evaluate_skill_health_findings(
             msg = (
                 f"Skill '{skill.name}' ran {stats.observed_count} times with an observed outcome but has low success rate "
                 f"({stats.success_rate:.1%}). "
-                f"{'It is PINNED, exempting it from automatic LRU eviction.' if stats.pinned else 'Degrading agent performance.'}"
+                f"{'It is PINNED, exempting it from automatic archiving.' if stats.pinned else 'Degrading agent performance.'}"
             )
             findings.append(
                 SkillDoctorFinding(
@@ -153,27 +152,6 @@ def evaluate_skill_health_findings(
                         details={"days_inactive": days_inactive},
                     )
                 )
-
-    # Check 3: Hoarding / Library bloat
-    if active > cfg.max_skills:
-        excess = active - cfg.max_skills
-        findings.append(
-            SkillDoctorFinding(
-                skill_name="[Library Bloat]",
-                finding_type="hoarding_bloat",
-                severity="warning",
-                message=f"Active skills ({active}) exceed target limit ({cfg.max_skills}) by {excess}.",
-                call_count=0,
-                success_rate=1.0,
-                pinned=False,
-                recommended_action="archive",
-                details={
-                    "active_count": active,
-                    "max_skills": cfg.max_skills,
-                    "excess": excess,
-                },
-            )
-        )
 
     # Calculate overall health score (100 base, deductions for findings)
     score = 100.0

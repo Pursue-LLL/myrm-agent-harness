@@ -17,8 +17,8 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | prerequisites/ | Core | Skill runtime prerequisites contract, host system dependency sniffing (OS/binaries/Python), and cross-platform one-click remediation command generators. | ✅ |
 | market_protocols.py | Core | SkillMarketBackend protocol and search/install result types. | ✅ |
 | curator_config.py | Core | `CuratorConfig`: curator knobs, defaults and construction-time range validation (`ValueError` outside the safe ranges). | ✅ |
-| forgetting_strategy.py | Core | Curator forgetting strategies (pinned, evolution lock, prebuilt/system, grace); installed-skill exemption is applied by the engine from the caller's `installed_names`. | ✅ |
-| skill_doctor.py | Core | Skill library health report for the curator doctor: `evaluate_skill_health_findings` flags frequently failing skills (needs enough observed run outcomes), idle pinned skills and library bloat. Each finding carries a type code plus `details` parameters that the UI phrases itself; read-only, never changes lifecycle state. | ✅ |
+| forgetting_strategy.py | Core | Curator forgetting strategies (pinned, evolution lock, grace, stale/archive, low quality); installed-skill exemption is applied by the engine from the caller's `installed_names`. | ✅ |
+| skill_doctor.py | Core | Skill library health report for the curator doctor: `evaluate_skill_health_findings` flags frequently failing skills (needs enough observed run outcomes) and idle pinned skills. Each finding carries a type code plus `details` parameters that the UI phrases itself; read-only, never changes lifecycle state. | ✅ |
 | local.py | Core | Local filesystem skill backend; filters archived skills via lifecycle stats. | ✅ |
 | memory.py | Core | In-memory skill backend for dynamic and MCP-generated skills. | ✅ |
 | permission_templates.py | Core | Out-of-the-box permission templates for skill declarations. | ✅ |
