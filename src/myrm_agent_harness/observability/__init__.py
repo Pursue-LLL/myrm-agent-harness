@@ -58,10 +58,8 @@ from .spend_control import (
     SpendInterventionTier,
 )
 from .storage_governance import (
-    CompactionResult,
     StateSnapshotManager,
     StateSnapshotMetadata,
-    StateStorageCompactor,
     StorageCategory,
     StorageCategoryBreakdown,
     StorageGovernanceInspector,
@@ -72,7 +70,6 @@ from .tracing import JsonFormatter, TracingContext, TracingLogFilter
 __all__ = [
     "AuditSummaryStats",
     "AuditTrailEntry",
-    "CompactionResult",
     "ComplianceOutcome",
     "ComplianceReport",
     "ComplianceTrailExporter",
@@ -97,7 +94,6 @@ __all__ = [
     "SpendInterventionTier",
     "StateSnapshotManager",
     "StateSnapshotMetadata",
-    "StateStorageCompactor",
     "StorageCategory",
     "StorageCategoryBreakdown",
     "StorageGovernanceInspector",
