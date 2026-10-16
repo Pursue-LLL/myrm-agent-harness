@@ -3,6 +3,8 @@
 The absolute gate fails while any unit is unwired, which in-flight work keeps true for long stretches.
 Diff mode stays enforceable regardless: a unit fails only when it is dead now and was not dead at the
 merge-base with a reference revision, so it names exactly the units a change orphans or adds unwired.
+"Now" is the working tree as it lies on disk, untracked files included: the verdict covers committed
+changes only on a clean checkout, which is what CI runs.
 
 There is no baseline file and no allowlist. The comparison tree is rebuilt from git on every run, so a
 unit is "already dead" only because it really was dead at the merge-base. Whatever cannot be established
