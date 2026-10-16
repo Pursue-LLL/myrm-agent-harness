@@ -201,7 +201,7 @@ async def test_a_batch_task_that_needs_approval_is_declined_with_a_readable_reas
     by_index = {item["task_index"]: item for item in output["results"]}  # type: ignore[attr-defined]
     assert by_index[0]["success"] is True
     assert by_index[1]["success"] is False
-    assert "needs your approval" in by_index[1]["error"]
+    assert "needs the user's approval" in by_index[1]["error"]
     assert "Interrupt(" not in str(output)
     assert subagents.resumes("beta") == 0
     release.assert_awaited_once_with(next(c["task_id"] for c in subagents.calls if c["task_description"] == "beta"))
@@ -232,6 +232,6 @@ async def test_a_swarm_fission_task_that_needs_approval_is_declined_outside_any_
     by_index = {item["task_index"]: item for item in resumed["results"]}  # type: ignore[attr-defined]
     assert by_index[0]["success"] is True
     assert by_index[1]["success"] is False
-    assert "needs your approval" in by_index[1]["error"]
+    assert "needs the user's approval" in by_index[1]["error"]
     assert subagents.resumes("beta") == 0
     release.assert_awaited_once()

@@ -300,7 +300,9 @@ async def discard_stale_subagent_thread(thread_id: str) -> None:
     """Drop a thread an earlier process left under ``thread_id`` before a new subagent starts on that id.
 
     A subagent waiting for approval keeps its thread across restarts; a new subagent started on the same id would
-    inherit that conversation. An id without a thread costs one lookup and changes nothing.
+    inherit that conversation. An id without a thread costs one lookup and changes nothing. This runs before every
+    first spawn, so it never raises: a store that cannot be opened is left alone, and a thread whose blob cannot be
+    loaded (written by another version, damaged) is dropped like any other stale one.
     """
     config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
     try:
@@ -309,6 +311,8 @@ async def discard_stale_subagent_thread(thread_id: str) -> None:
     except (OSError, sqlite3.Error) as exc:
         logger.warning("[SubagentCheckpointer] Could not look up thread %s: %s", thread_id, exc)
         return
+    except Exception as exc:  # the serde may raise anything for a blob it cannot load
+        logger.warning("[SubagentCheckpointer] Thread %s is unreadable (%s)", thread_id, exc)
     logger.info("[SubagentCheckpointer] Dropping stale thread %s left by an earlier process", thread_id)
     await delete_subagent_checkpoint(thread_id)
 

@@ -306,7 +306,7 @@ async def test_an_unanswerable_approval_is_declined_and_frees_the_paused_subagen
 
     assert isinstance(result, SubAgentResult)
     assert (result.success, result.status, result.payload) == (False, SubAgentStatus.BLOCKED, None)
-    assert "needs your approval" in result.error
+    assert "needs the user's approval" in result.error
     ask.assert_not_called()
     free.assert_awaited_once_with("child")
     assert subagent.resumed_with == []

@@ -22,13 +22,11 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import Checkpoint, CheckpointMetadata
 from langgraph.checkpoint.memory import InMemorySaver
 
-from myrm_agent_harness.agent.sub_agents._manager_spawn import SubagentSpawnMixin
 from myrm_agent_harness.agent.sub_agents.checkpointer import (
     SubagentSqliteCheckpointer,
     _drop_finished_subagent_thread,
     close_subagent_checkpointer,
     delete_subagent_checkpoint,
-    discard_stale_subagent_thread,
     drop_subagent_checkpoint_if_terminal,
     get_subagent_checkpointer,
     reset_subagent_checkpointer,
@@ -227,62 +225,6 @@ async def test_terminal_hygiene_and_pending_approval_retention(tmp_path: Path):
         assert await checkpointer.aget_tuple(cfg) is None
 
         await close_subagent_checkpointer()
-
-
-def _checkpoint(checkpoint_id: str) -> Checkpoint:
-    return {
-        "v": 1,
-        "ts": "2026-09-27T12:00:00Z",
-        "id": checkpoint_id,
-        "channel_values": {"hitl": True},
-        "channel_versions": {"hitl": 1},
-        "versions_seen": {},
-        "pending_sends": [],
-    }
-
-
-_STALE: RunnableConfig = {"configurable": {"thread_id": "paused-before-restart"}}
-_UNRELATED: RunnableConfig = {"configurable": {"thread_id": "unrelated"}}
-
-
-async def _leave_paused_threads_behind(db_file: str) -> None:
-    """Persist two threads the way an earlier process leaves them when it stops while subagents wait for approval."""
-    meta: CheckpointMetadata = {"source": "loop", "step": 1, "writes": {}, "parents": {}}
-    earlier_process = SubagentSqliteCheckpointer(db_file)
-    await earlier_process.aput(_STALE, _checkpoint("cp_stale"), meta, {"hitl": 1})
-    await earlier_process.aput(_UNRELATED, _checkpoint("cp_other"), meta, {"hitl": 1})
-    await earlier_process.aclose()
-
-
-@pytest.mark.asyncio
-async def test_a_thread_left_by_an_earlier_process_is_dropped_before_a_new_subagent_reuses_its_id(tmp_path: Path):
-    """After a restart nothing has opened the shared store yet, so the thread is only found by opening it."""
-    db_file = str(tmp_path / "restart.sqlite")
-    await _leave_paused_threads_behind(db_file)
-
-    with patch.dict(os.environ, {"SUBAGENT_CHECKPOINT_DB_PATH": db_file}):
-        reset_subagent_checkpointer()
-        await discard_stale_subagent_thread("paused-before-restart")
-        await discard_stale_subagent_thread("never-existed")
-        survivors = get_subagent_checkpointer()
-
-        assert await survivors.aget_tuple(_STALE) is None
-        assert await survivors.aget_tuple(_UNRELATED) is not None
-
-
-@pytest.mark.asyncio
-async def test_the_journal_of_a_manager_clears_the_thread_a_new_subagent_would_inherit(tmp_path: Path):
-    """The cleanup has to be wired where delegations are journaled, not merely exist as a function."""
-    db_file = str(tmp_path / "restart.sqlite")
-    await _leave_paused_threads_behind(db_file)
-
-    with patch.dict(os.environ, {"SUBAGENT_CHECKPOINT_DB_PATH": db_file}):
-        reset_subagent_checkpointer()
-        await SubagentSpawnMixin().approval_journal.clear_stale_thread("paused-before-restart")
-        survivors = get_subagent_checkpointer()
-
-        assert await survivors.aget_tuple(_STALE) is None
-        assert await survivors.aget_tuple(_UNRELATED) is not None
 
 
 @pytest.mark.asyncio

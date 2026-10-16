@@ -49,8 +49,8 @@ ThreadCleaner = Callable[[str], Awaitable[None]]
 _UNANSWERABLE: ContextVar[bool] = ContextVar("subagent_approvals_unanswerable", default=False)
 
 _DECLINED = (
-    "This task needs your approval, which cannot be requested while tasks run in parallel. "
-    "Delegate it on its own (mode=single, wait=true) so the approval can be shown."
+    "This task needs the user's approval, which cannot be requested while tasks run in parallel. "
+    "Delegate it on its own and wait for its result so the approval can be shown."
 )
 
 

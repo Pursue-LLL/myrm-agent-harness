@@ -42,6 +42,9 @@ if TYPE_CHECKING:
 
 logger = get_agent_logger(__name__)
 
+# Read by ``sub_agents.spawn_prep.resolve_delegate_parallel_write_batch`` while concurrent writers share the parent.
+_WRITE_BATCH_FLAG = "_parallel_write_batch_active"
+
 
 def _normalize_race_winner_for_batch_merge(winner_result: dict[str, object]) -> dict[str, object]:
     """Ensure batch_merge sees sync_back / isolated metadata under result."""
@@ -157,7 +160,7 @@ async def run_parallel_task_requests(
 
     parallel_write_batch = sum(1 for task in tasks if not task.readonly) > 1
     if parallel_write_batch:
-        parent_agent._parallel_write_batch_active = True
+        setattr(parent_agent, _WRITE_BATCH_FLAG, True)
 
     if race:
         try:
@@ -227,7 +230,7 @@ async def run_parallel_task_requests(
         finally:
             if parallel_write_batch:
                 with suppress(AttributeError):
-                    delattr(parent_agent, "_parallel_write_batch_active")
+                    delattr(parent_agent, _WRITE_BATCH_FLAG)
 
     try:
         coros = [_run_task(task, index) for index, task in enumerate(tasks)]
@@ -235,7 +238,7 @@ async def run_parallel_task_requests(
     finally:
         if parallel_write_batch:
             with suppress(AttributeError):
-                delattr(parent_agent, "_parallel_write_batch_active")
+                delattr(parent_agent, _WRITE_BATCH_FLAG)
 
     final_results: list[dict[str, object]] = []
     for index, gathered_result in enumerate(gathered):
