@@ -323,6 +323,34 @@ async def test_chain_fails_after_trying_every_provider_during_a_full_outage(monk
 
 
 @pytest.mark.asyncio
+async def test_chain_ends_without_a_hop_when_the_budget_is_spent_inside_a_provider(
+    fake_clock: _FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[str] = []
+
+    async def slow_failure(
+        self: WebSearcher,
+        query: str,
+        num_results: int = 5,
+        extra_params_override: dict[str, str | int | bool] | None = None,
+    ) -> list[SearchResult]:
+        calls.append(self.config.search_service)
+        fake_clock.advance(chain_module._CHAIN_WALL_CLOCK_SECONDS)
+        raise TimeoutError("Request timed out")
+
+    monkeypatch.setattr(WebSearcher, "search", slow_failure)
+    metrics = WebSearchMetrics()
+
+    with pytest.raises(AllQueriesFailedError):
+        await search_provider_chain(
+            _two_provider_chain(), "weather", 5, metrics=metrics, quota_tracker=ProviderQuotaTracker()
+        )
+
+    assert calls == ["tavily"]
+    assert metrics.chain_hop_count == 0
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "query",
     ["how to raise aws service quota", "http 429 too many requests meaning", "out of credits meaning"],

@@ -175,6 +175,13 @@ async def search_provider_chain(
         if time.monotonic() >= deadline:
             break
         provider = hop_config.search_service
+        if index > 0:
+            # A hop is counted when the next provider is attempted, not when the previous one fails: if that failure
+            # spent the chain budget, the deadline check above ends the chain and no hop happened.
+            previous_provider = execution_chain[index - 1].search_service
+            logger.warning("Search chain hop '%s' failed, trying next provider: %s", previous_provider, provider)
+            if metrics is not None:
+                metrics.record_chain_hop(from_provider=previous_provider, to_provider=provider)
         hop_searcher = WebSearcher(hop_config, metrics=metrics)
         try:
             results = await hop_searcher.search(
@@ -206,19 +213,6 @@ async def search_provider_chain(
                     exc,
                 )
                 tracker.mark_rate_limited(provider, reason=str(exc))
-
-            if index < len(execution_chain) - 1:
-                next_provider = execution_chain[index + 1].search_service
-                logger.warning(
-                    "Search chain hop '%s' failed, trying next provider: %s",
-                    provider,
-                    next_provider,
-                )
-                if metrics is not None:
-                    metrics.record_chain_hop(
-                        from_provider=provider,
-                        to_provider=next_provider,
-                    )
 
     message = str(last_error) if last_error is not None else "All search providers in chain failed"
     raise AllQueriesFailedError(message) from last_error
