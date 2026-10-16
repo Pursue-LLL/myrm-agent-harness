@@ -15,6 +15,7 @@ from langchain_core.messages import AIMessage
 
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+from myrm_agent_harness.toolkits.wiki.pipeline import queue_recovery
 from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
 from myrm_agent_harness.toolkits.wiki.pipeline.queue import WikiIngestionQueue
 from myrm_agent_harness.toolkits.wiki.pipeline.queue_recovery import requeue_orphaned_processing
@@ -95,7 +96,32 @@ def test_a_second_queue_on_the_same_vault_leaves_the_live_workers_rows_alone(wik
     assert second.get_stats()["processing"] == 1
 
 
-def test_threads_opening_one_database_at_once_sweep_it_exactly_once(tmp_path: Path) -> None:
+class _ParkingRegistry(dict[str, object]):
+    """Holds every reader back until all threads have read, so a check-then-set lets each of them in."""
+
+    def __init__(self, parties: int) -> None:
+        super().__init__()
+        self._all_have_read = threading.Barrier(parties, timeout=10)
+
+    def _hold_back[T](self, value: T) -> T:
+        self._all_have_read.wait()
+        return value
+
+    def __contains__(self, key: object) -> bool:
+        return self._hold_back(super().__contains__(key))
+
+    def __getitem__(self, key: str) -> object:
+        return self._hold_back(super().__getitem__(key))
+
+    def get(self, key: str, default: object = None, /) -> object:
+        return self._hold_back(super().get(key, default))
+
+
+def test_threads_opening_one_database_at_once_sweep_it_exactly_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    thread_count = 8
+    monkeypatch.setattr(queue_recovery, "_OPENED_DATABASES", _ParkingRegistry(thread_count))
     sweeps: list[int] = []
 
     @contextmanager
@@ -106,27 +132,16 @@ def test_threads_opening_one_database_at_once_sweep_it_exactly_once(tmp_path: Pa
         yield conn
         conn.close()
 
-    thread_count, databases = 16, 800
-    barrier = threading.Barrier(thread_count)
-    previous_interval = sys.getswitchinterval()
-    sys.setswitchinterval(1e-6)  # switch threads as often as possible to expose a check-then-set race
-    try:
-        for index in range(databases):
-            db_path = tmp_path / f"queue-{index}.db"
-            sweeps.clear()
+    def open_database() -> None:
+        requeue_orphaned_processing(tmp_path / "queue.db", counting_conn)
 
-            def open_database(path: Path = db_path) -> None:
-                barrier.wait()
-                requeue_orphaned_processing(path, counting_conn)
+    threads = [threading.Thread(target=open_database) for _ in range(thread_count)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
-            threads = [threading.Thread(target=open_database) for _ in range(thread_count)]
-            for thread in threads:
-                thread.start()
-            for thread in threads:
-                thread.join()
-            assert len(sweeps) == 1, f"database {index} was swept {len(sweeps)} times"
-    finally:
-        sys.setswitchinterval(previous_interval)
+    assert len(sweeps) == 1
 
 
 @pytest.mark.asyncio
