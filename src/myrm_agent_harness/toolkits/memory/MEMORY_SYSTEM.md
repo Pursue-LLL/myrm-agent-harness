@@ -402,11 +402,8 @@ _decision_latency.record(latency_ms, {"use_dual": use_dual})
 
 写入路径：所有记忆在写入前经过 `memory_scanner.py` 扫描。
 
-**心理安全与无痕模式 (Psychological Safety & Incognito Mode)：**
+**心理安全 (Psychological Safety)：**
 1. **Harmful State Detector**: `memory_scanner.py` 内置了有害心理状态检测器，用于拦截可能导致 "AI Psychosis"（AI 精神病）的严重负面心理状态（如自残、重度抑郁、被害妄想等）。当检测到此类状态时，扫描器会返回 `BLOCKED`，防止 AI 永久存储和强化这些瞬态情绪。
-2. **Incognito Mode (无痕模式)**: 会话级的“不读写记忆”模式。开启后：
-   - **AI 记忆隔离**：Server 业务层会强制将 `enable_memory` 设为 `False`，从物理层面彻底卸载所有记忆工具（不创建 MemoryManager，不注入 memory_save 等工具）。这确保了 AI 无法读取全局记忆，也不会自动或主动提取新记忆。
-   - **会话本身不在记忆范围内**：会话消息是否落库、是否进入历史与检索、何时清除，由 Server 业务层负责，harness 不对此作保证。
 
 读取路径：`MemoryContextMiddleware` 注入时采用指令层级。**Stable（Profile/Rules/Self-Instructions/Corrections）**封装在 `<user_memory_context>` 的 **SystemMessage** 中。**Learned Preferences / Learned Rules**放入 **HumanMessage**，先 `sanitize()` 与逐项 `_escape_xml_item()`（降低伪造围栏标签风险），再由 `wrap_untrusted(..., source="memory_context")` 生成 `<<<UNTRUSTED_DATA id="…">>>` 信封，与同进程已注入的 `SECURITY_BOUNDARY_SYSTEM_RULES` 契约一致。
 
