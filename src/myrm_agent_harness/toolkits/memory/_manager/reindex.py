@@ -309,5 +309,5 @@ class MemoryManagerReindexMixin:
             return
         vectors = await embed_batch([d.content for d in documents], embedding, self._cache)
         await vector.upsert(
-            target, [d.model_copy(update={"vector": vector}) for d, vector in zip(documents, vectors, strict=True)]
+            target, [d.model_copy(update={"vector": fresh}) for d, fresh in zip(documents, vectors, strict=True)]
         )
