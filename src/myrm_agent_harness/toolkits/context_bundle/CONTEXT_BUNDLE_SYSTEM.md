@@ -15,8 +15,7 @@ Server (ContextBundleService, ResolvedContextBinding)
 Harness (ContextBundleFacade)
         ├── memory_path      → MemoryManager (existing)
         ├── harness_path     → LocalStorageBackend / workspace scene
-        ├── index registry   → ContextIndexRegistry (per-scene health probes)
-        └── lifecycle hooks  → OpenClaw-style phases (registration only)
+        └── index registry   → ContextIndexRegistry (per-scene health probes)
 ```
 
 ## Volume Layout (schema_version = 1)
@@ -31,8 +30,8 @@ Context offload files (compacted outputs, evicted outputs, snapshots) belong to 
 context root (`runtime/paths/execution_paths`), not to the bundle: the layout never declares a
 second path for them.
 
-Task cwd (user project directory) is carried on `AgentContextOverlay.task_workspace_root`
-in `ResolvedContextBinding`, decoupled from long-lived memory paths.
+Task cwd (user project directory) is not part of the bundle: callers pass it per call
+(e.g. `vault_dir(workspace_root)`), which keeps it decoupled from long-lived memory paths.
 
 ### Task workspace artifact vault
 

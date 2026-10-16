@@ -4,14 +4,13 @@
 - myrm_agent_harness.core.artifacts.paths::resolve_workspace_artifact_vault_dir (POS: workspace artifact vault path SSOT)
 - toolkits.storage.base::StorageProvider (POS: storage provider abstract base class)
 - toolkits.storage.local::LocalStorageBackend (POS: local storage backend implementation)
-- .hooks::ContextLifecycleHooks (POS: context lifecycle hook registration)
 - .index::ContextIndexRegistry (POS: context index registration protocol)
 - .spec::ContextBundleSpec, ContextScene (POS: context bundle specification types)
 - .volume::VolumeLayout (POS: context bundle volume layout)
 
 [OUTPUT]
 - ContextBundleHealth: non-content health snapshot
-- ContextBundleFacade: unified entry for memory/storage/index/hooks paths
+- ContextBundleFacade: unified entry for memory/storage/index paths
 
 [POS]
 Thin facade over existing Harness storage and volume paths. Does not create MemoryManager or
@@ -28,7 +27,6 @@ from myrm_agent_harness.core.artifacts.paths import resolve_workspace_artifact_v
 from myrm_agent_harness.toolkits.storage.base import StorageProvider
 from myrm_agent_harness.toolkits.storage.local import LocalStorageBackend
 
-from .hooks import ContextLifecycleHooks
 from .index import ContextIndexRegistry
 from .spec import ContextBundleSpec, ContextScene
 from .volume import VolumeLayout
@@ -55,13 +53,11 @@ class ContextBundleFacade:
         volume: VolumeLayout,
         spec: ContextBundleSpec,
         index_registry: ContextIndexRegistry | None = None,
-        lifecycle_hooks: ContextLifecycleHooks | None = None,
         storage_backend: StorageProvider | None = None,
     ) -> None:
         self._volume = volume
         self._spec = spec
         self._index = index_registry or ContextIndexRegistry()
-        self._hooks = lifecycle_hooks or ContextLifecycleHooks()
         self._storage = storage_backend
 
     @classmethod
@@ -96,12 +92,6 @@ class ContextBundleFacade:
     def qdrant_path(self) -> Path:
         return self._volume.qdrant_path
 
-    def task_workspace_root(self) -> Path | None:
-        overlay = self._spec.agent_overlay
-        if overlay is None or not overlay.task_workspace_root:
-            return None
-        return Path(overlay.task_workspace_root).expanduser().resolve()
-
     def vault_dir(self, workspace_root: str | Path) -> Path:
         """Directory where agent ArtifactVault stores objects for a task workspace."""
         return resolve_workspace_artifact_vault_dir(workspace_root)
@@ -114,18 +104,9 @@ class ContextBundleFacade:
     def index(self) -> ContextIndexRegistry:
         return self._index
 
-    def hooks(self) -> ContextLifecycleHooks:
-        return self._hooks
-
     def scene_path(self, scene: ContextScene) -> Path:
-        """Memory volume for MEMORY; the task cwd (or the harness root) for WORKSPACE."""
-        if scene is ContextScene.MEMORY:
-            return self._volume.memory_path
-        task_root = self.task_workspace_root()
-        return task_root if task_root is not None else self._volume.harness_path
-
-    def allows_persistent_write(self, scene: ContextScene) -> bool:
-        return self._spec.allows_persistent_write(scene)
+        """Memory volume for MEMORY; the harness root for WORKSPACE."""
+        return self._volume.memory_path if scene is ContextScene.MEMORY else self._volume.harness_path
 
     async def health(self) -> ContextBundleHealth:
         state_dir = self._volume.state_dir

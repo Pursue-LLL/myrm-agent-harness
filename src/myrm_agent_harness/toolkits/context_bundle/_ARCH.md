@@ -9,11 +9,10 @@ Detailed design: [CONTEXT_BUNDLE_SYSTEM.md](CONTEXT_BUNDLE_SYSTEM.md)
 
 | File | Role | Description |
 |------|------|-------------|
-| `spec.py` | Core | `ContextBundleSpec`, `ContextScene`, `IncognitoPolicy`, `AgentContextOverlay` |
+| `spec.py` | Core | `ContextBundleSpec`, `ContextScene` |
 | `volume.py` | Core | `VolumeLayout` — MYRM_DATA_DIR path mapping + manifest |
-| `facade.py` | Core | `ContextBundleFacade` — memory/storage/index/hooks entry; `vault_dir()` delegates to `core.artifacts.paths` |
+| `facade.py` | Core | `ContextBundleFacade` — memory/storage/index entry; `vault_dir()` delegates to `core.artifacts.paths` |
 | `index.py` | Protocol | `ContextIndexRegistry` extension mount point (optional index backends) |
-| `hooks.py` | Protocol | `ContextLifecycleHooks` mount point for OpenClaw-style lifecycle |
 | `health.py` | Core | Scene health probe adapters (`MemorySceneHealthBackend`, `WorkspaceSceneHealthBackend`) |
 | `migrate.py` | Core | Dry-run + non-destructive manifest/directory migration |
 | `__init__.py` | Package | Public exports |
@@ -34,8 +33,8 @@ Detailed design: [CONTEXT_BUNDLE_SYSTEM.md](CONTEXT_BUNDLE_SYSTEM.md)
   qdrant/
 ```
 
-Task workspace cwd (user-selected project directory) is expressed via
-`AgentContextOverlay.task_workspace_root` on the Server binding, decoupled from memory paths.
+Task workspace cwd (user-selected project directory) is not part of the bundle: callers pass it per
+call (e.g. `vault_dir(workspace_root)`), decoupled from memory paths.
 
 ### Task workspace artifact vault
 

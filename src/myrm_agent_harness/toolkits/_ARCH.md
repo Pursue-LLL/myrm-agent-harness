@@ -169,7 +169,7 @@ Does your code need to import anything from agent/?
 | memory/proactive/ | Proactive follow-up tracking — implicit promise extraction; host implements `CommitmentStore`. See [COMMITMENT_SYSTEM.md](memory/proactive/COMMITMENT_SYSTEM.md). |
 | computer_use/ | System-wide desktop automation — screen capture + coordinate-based input (macOS/Linux). |
 | cron/ | Scheduled task framework — scheduling engine, CRUD manager, built-in strategies. |
-| context_bundle/ | Unified context bundle — volume layout, facade, index/lifecycle hook registration. |
+| context_bundle/ | Unified context bundle — volume layout, facade, index registration. |
 | file_parsers/ | File format parsers — PDF, DOCX, Excel, text, and structured data extraction. |
 | kanban/ | Durable multi-task scheduling — heartbeat, zombie detection, run/event audit trail. |
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image/video/tts generation and vision understanding (`llms/vision/`). |
