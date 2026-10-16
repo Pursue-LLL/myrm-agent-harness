@@ -250,8 +250,27 @@ _OUTAGE_FAILURES = {
     "cannot_connect": SearchAPIError(
         "Cannot connect to search service", ErrorContext(error_code="ConnectionError", retryable=True)
     ),
+    "http_500": SearchAPIError(
+        "Search service error (500 Internal Server Error)", ErrorContext(status_code=500, retryable=True)
+    ),
+    "http_408": SearchAPIError("Search request timeout (408)", ErrorContext(status_code=408, retryable=True)),
     "bare_timeout": TimeoutError("Request timed out"),
     "bare_connection_refused": ConnectionError("Connection refused"),
+    "dns_failure": OSError("nodename nor servname provided, or not known"),
+}
+
+# Failures that blame the request or the account rather than the provider's health: the chain moves on all the same.
+_REJECTION_FAILURES = {
+    "http_400": SearchAPIError("Search request rejected (400)", ErrorContext(status_code=400)),
+    "http_401": SearchAPIError("Search authentication failed (401)", ErrorContext(status_code=401)),
+    "http_402": SearchAPIError("Search payment required (402)", ErrorContext(status_code=402)),
+    "http_403": SearchAPIError("Search access forbidden (403)", ErrorContext(status_code=403)),
+    "http_404": SearchAPIError("Search endpoint not found (404)", ErrorContext(status_code=404)),
+    "http_429": SearchAPIError("Search service rate limited (429)", ErrorContext(status_code=429)),
+    "wrapped_plan_limit": RuntimeError(
+        "litellm.InternalServerError: TavilyException - Request exceeds your plan's set usage limit"
+    ),
+    "plain_runtime_error": RuntimeError("unexpected search failure"),
 }
 
 
@@ -269,6 +288,21 @@ async def test_chain_hops_past_a_provider_outage(monkeypatch: pytest.MonkeyPatch
     assert metrics.chain_hop_count == 1
     # An outage is not a quota event: the provider stays eligible for the very next call.
     assert tracker.get_status("tavily") == (ProviderQuotaStatus.HEALTHY, "")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", _REJECTION_FAILURES.values(), ids=_REJECTION_FAILURES.keys())
+async def test_chain_hops_past_a_provider_rejection(monkeypatch: pytest.MonkeyPatch, failure: Exception) -> None:
+    calls = _install_search(monkeypatch, {"tavily": failure})
+    metrics = WebSearchMetrics()
+
+    _, winner = await search_provider_chain(
+        _two_provider_chain(), "weather", 5, metrics=metrics, quota_tracker=ProviderQuotaTracker()
+    )
+
+    assert winner == "perplexity"
+    assert calls == ["tavily", "perplexity"]
+    assert metrics.chain_hop_count == 1
 
 
 @pytest.mark.asyncio
