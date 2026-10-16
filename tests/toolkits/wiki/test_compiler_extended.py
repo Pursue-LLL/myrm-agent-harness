@@ -979,7 +979,7 @@ async def test_generate_backlinks_read_exception(
 async def test_extract_concepts_batch_process_exception(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test _extract_concepts_batch handles exception in _process_single_item (lines 277-280).
 
-    Triggers the outer `except Exception` by making mark_completed raise.
+    Triggers the outer `except Exception` by making the extraction step raise.
     """
     llm = AsyncMock()
     llm.ainvoke.return_value = AIMessage(content='[{"name": "X", "definition": "Y"}]')
@@ -992,10 +992,11 @@ async def test_extract_concepts_batch_process_exception(wiki_structure: WikiStru
     compiler._queue.add_item(raw)
     items = compiler._queue.get_pending_items(limit=1)
 
-    with patch.object(compiler._queue, "mark_completed", side_effect=RuntimeError("DB error")):
+    with patch.object(compiler, "_extract_concepts_from_doc", side_effect=RuntimeError("DB error")):
         batch_outcome = await compiler._extract_concepts_batch(items)
     concepts = batch_outcome.concepts
     assert concepts == []
+    assert compiler._queue.get_stats()["failed"] == 1
 
 
 # --- Compile survey session branches ---
@@ -1141,7 +1142,7 @@ async def test_extract_concepts_batch_base_exception_recorded(
     compiler._queue.add_item(raw)
     items = compiler._queue.get_pending_items(limit=1)
 
-    with patch.object(compiler._queue, "mark_completed", side_effect=_FatalError()):
+    with patch.object(compiler, "_extract_concepts_from_doc", side_effect=_FatalError()):
         batch_outcome = await compiler._extract_concepts_batch(items)
     assert batch_outcome.concepts == []
     assert batch_outcome.failure_kinds

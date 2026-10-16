@@ -53,13 +53,63 @@ def test_mark_processing(queue: WikiIngestionQueue) -> None:
     assert len(pending) == 0
 
 
-def test_mark_completed(queue: WikiIngestionQueue) -> None:
+def test_complete_processing(queue: WikiIngestionQueue) -> None:
     queue.add_item("/tmp/test.md")
     items = queue.get_pending_items()
-    queue.mark_completed(items[0]["id"])
+    queue.mark_processing(items[0]["id"])
+    queue.complete_processing([items[0]["id"]])
     stats = queue.get_stats()
     assert stats["completed"] == 1
     assert stats["pending"] == 0
+
+
+def test_settling_a_batch_leaves_a_row_queued_again_meanwhile_alone(queue: WikiIngestionQueue) -> None:
+    queue.add_batch(["/tmp/a.md", "/tmp/b.md"])
+    ids = [item["id"] for item in queue.get_pending_items()]
+    for item_id in ids:
+        queue.mark_processing(item_id)
+    queue.add_item("/tmp/a.md")
+
+    queue.complete_processing(ids)
+
+    assert queue.get_stats() == {"pending": 1, "processing": 0, "completed": 1, "failed": 0}
+    assert queue.list_pending_file_paths() == ["/tmp/a.md"]
+
+
+def test_fail_processing_records_the_failure_on_every_row_still_processing(queue: WikiIngestionQueue) -> None:
+    queue.add_batch(["/tmp/a.md", "/tmp/b.md", "/tmp/c.md"])
+    ids = [item["id"] for item in queue.get_pending_items()]
+    for item_id in ids:
+        queue.mark_processing(item_id)
+    queue.add_item("/tmp/c.md")
+
+    queue.fail_processing(ids, "rate limited", error_kind=ErrorKind.RATE_LIMIT.value, retry_after_seconds=120)
+
+    assert queue.get_stats() == {"pending": 1, "processing": 0, "completed": 0, "failed": 2}
+    failed = queue.get_failed_items()
+    assert {item["error_kind"] for item in failed} == {ErrorKind.RATE_LIMIT.value}
+    assert {item["retry_count"] for item in failed} == {1}
+    assert all(item["retry_after"] for item in failed)
+
+
+def test_touch_processing_only_refreshes_rows_that_are_processing(queue: WikiIngestionQueue) -> None:
+    queue.add_batch(["/tmp/a.md", "/tmp/b.md", "/tmp/c.md"])
+    held, waiting, failed = (item["id"] for item in queue.get_pending_items())
+    queue.mark_processing(held)
+    queue.mark_failed(failed, "err")
+    with queue._get_conn() as conn:
+        conn.execute("UPDATE ingestion_queue SET updated_at = datetime('now', '-400 seconds')")
+
+    queue.touch_processing([held, waiting, failed])
+
+    assert queue.reset_stale_processing() == 0
+    assert queue.get_stats() == {"pending": 1, "processing": 1, "completed": 0, "failed": 1}
+    with queue._get_conn() as conn:
+        untouched = conn.execute(
+            "SELECT COUNT(*) FROM ingestion_queue WHERE updated_at < datetime('now', '-300 seconds')"
+        ).fetchone()[0]
+    # The failed and the pending row keep their place in the ``updated_at`` ordering the panel and the retry use.
+    assert untouched == 2
 
 
 def test_mark_failed_increments_retry(queue: WikiIngestionQueue) -> None:
@@ -139,7 +189,8 @@ def test_cancel_pending(queue: WikiIngestionQueue) -> None:
 def test_get_stats(queue: WikiIngestionQueue) -> None:
     queue.add_batch(["/tmp/a.md", "/tmp/b.md"])
     items = queue.get_pending_items()
-    queue.mark_completed(items[0]["id"])
+    queue.mark_processing(items[0]["id"])
+    queue.complete_processing([items[0]["id"]])
     queue.mark_failed(items[1]["id"], "err")
     stats = queue.get_stats()
     assert stats["completed"] == 1

@@ -1,12 +1,14 @@
 """Wiki ingestion queue using SQLite for persistent batch processing.
 
 [INPUT]
+- asyncio (POS: standard library event loop, drives the keep-alive timer)
 - sqlite3 (POS: standard library database)
 - pathlib::Path (POS: standard library file path operations)
 - typing::Literal, TypedDict (POS: standard library types)
 - ..core.structure::WikiStructure (POS: database path retrieval)
 - .resilience::CompileCircuitStore, is_transient_error_kind (POS: compile pause + retry policy)
 - .queue_recovery::requeue_orphaned_processing (POS: requeues rows a dead process left processing)
+- utils.logger_utils::get_agent_logger (POS: agent logger)
 
 [OUTPUT]
 - WikiIngestionQueue: SQLite-driven persistent file ingestion queue
@@ -15,12 +17,15 @@
 [POS]
 Wiki persistent queue. Queues large volumes of raw files for serial or controlled batch processing,
 with checkpoint recovery (a database's first open in a process requeues the rows a dead process left
-``processing``), retry mechanism, and status tracking. Solves OOM and API rate-limit issues during
-large-scale knowledge base imports.
+``processing``), retry mechanism, and status tracking. A batch holds its rows ``processing`` until all of
+their work is done (``keep_alive`` keeps them from looking stale meanwhile), then settles them with
+``complete_processing`` / ``fail_processing``, which leave a row alone once a newer request has put it back to
+pending. Solves OOM and API rate-limit issues during large-scale knowledge base imports.
 """
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import sqlite3
 from collections.abc import Iterator, Sequence
@@ -28,6 +33,7 @@ from pathlib import Path
 from typing import Literal, TypedDict, cast
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .queue_recovery import requeue_orphaned_processing
 from .resilience import (
@@ -36,6 +42,13 @@ from .resilience import (
     is_transient_error_kind,
     sanitize_display_message,
 )
+
+logger = get_agent_logger(__name__)
+
+# A ``processing`` row silent for this long is taken for abandoned by ``reset_stale_processing``.
+STALE_PROCESSING_SECONDS = 300
+# The beat is several times shorter, so one missed beat (a locked database) does not make a live batch look dead.
+_HEARTBEAT_SECONDS = STALE_PROCESSING_SECONDS / 5
 
 
 class QueueItem(TypedDict):
@@ -202,9 +215,13 @@ class WikiIngestionQueue:
                 (item_id,),
             )
 
-    def mark_completed(self, item_id: int) -> None:
+    def complete_processing(self, item_ids: Sequence[int]) -> None:
+        """Finish the rows a batch has done all of its work for.
+
+        A row a newer request already put back to pending is left alone: that request still has to be served.
+        """
         with self._get_conn() as conn:
-            conn.execute(
+            conn.executemany(
                 """
                 UPDATE ingestion_queue
                 SET status = 'completed',
@@ -212,10 +229,42 @@ class WikiIngestionQueue:
                     error_kind = NULL,
                     retry_after = NULL,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+                WHERE id = ? AND status = 'processing'
                 """,
-                (item_id,),
+                [(item_id,) for item_id in item_ids],
             )
+
+    def touch_processing(self, item_ids: Sequence[int]) -> None:
+        """Mark the rows a batch is still working on as alive, so ``reset_stale_processing`` measures silence."""
+        with self._get_conn() as conn:
+            conn.executemany(
+                "UPDATE ingestion_queue SET updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'processing'",
+                [(item_id,) for item_id in item_ids],
+            )
+
+    @contextlib.contextmanager
+    def keep_alive(self, item_ids: Sequence[int]) -> Iterator[None]:
+        """Keep the rows a batch works on from looking stale while the batch runs, however long that takes.
+
+        Enter it on the running event loop: the timer fires between the batch's awaits.
+        """
+        loop = asyncio.get_running_loop()
+        interval = _HEARTBEAT_SECONDS
+        timer: asyncio.TimerHandle
+
+        def beat() -> None:
+            nonlocal timer
+            timer = loop.call_later(interval, beat)
+            try:
+                self.touch_processing(item_ids)
+            except sqlite3.Error as exc:
+                logger.warning("Queue keep-alive beat failed, the next one retries: %s", exc)
+
+        timer = loop.call_later(interval, beat)
+        try:
+            yield
+        finally:
+            timer.cancel()
 
     def mark_failed(
         self,
@@ -225,36 +274,46 @@ class WikiIngestionQueue:
         error_kind: str = "unknown",
         retry_after_seconds: int = 0,
     ) -> None:
+        self._fail([item_id], error_message, error_kind, retry_after_seconds, only_processing=False)
+
+    def fail_processing(
+        self,
+        item_ids: Sequence[int],
+        error_message: str,
+        *,
+        error_kind: str = "unknown",
+        retry_after_seconds: int = 0,
+    ) -> None:
+        """Fail the rows a batch could not finish; a row a newer request put back to pending is left alone."""
+        self._fail(item_ids, error_message, error_kind, retry_after_seconds, only_processing=True)
+
+    def _fail(
+        self,
+        item_ids: Sequence[int],
+        error_message: str,
+        error_kind: str,
+        retry_after_seconds: int,
+        *,
+        only_processing: bool,
+    ) -> None:
         safe_message = sanitize_display_message(error_message)
         with self._get_conn() as conn:
-            if retry_after_seconds > 0:
-                conn.execute(
-                    """
-                    UPDATE ingestion_queue
-                    SET status = 'failed',
-                        retry_count = retry_count + 1,
-                        error_message = ?,
-                        error_kind = ?,
-                        retry_after = datetime('now', ? || ' seconds'),
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """,
-                    (safe_message, error_kind, f"+{retry_after_seconds}", item_id),
-                )
-            else:
-                conn.execute(
-                    """
-                    UPDATE ingestion_queue
-                    SET status = 'failed',
-                        retry_count = retry_count + 1,
-                        error_message = ?,
-                        error_kind = ?,
-                        retry_after = NULL,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """,
-                    (safe_message, error_kind, item_id),
-                )
+            conn.executemany(
+                """
+                UPDATE ingestion_queue
+                SET status = 'failed',
+                    retry_count = retry_count + 1,
+                    error_message = ?,
+                    error_kind = ?,
+                    retry_after = CASE WHEN ? > 0 THEN datetime('now', ? || ' seconds') END,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND (? = 0 OR status = 'processing')
+                """,
+                [
+                    (safe_message, error_kind, retry_after_seconds, f"+{retry_after_seconds}", item_id, only_processing)
+                    for item_id in item_ids
+                ],
+            )
 
     def get_transient_retryable_items(self, max_retries: int = 3, limit: int = 5) -> list[QueueItem]:
         """Failed transient items eligible for automatic retry (respects backoff)."""
@@ -341,7 +400,7 @@ class WikiIngestionQueue:
             )
             return int(cursor.rowcount)
 
-    def reset_stale_processing(self, stale_seconds: int = 300) -> int:
+    def reset_stale_processing(self, stale_seconds: int = STALE_PROCESSING_SECONDS) -> int:
         with self._get_conn() as conn:
             cursor = conn.execute(
                 """

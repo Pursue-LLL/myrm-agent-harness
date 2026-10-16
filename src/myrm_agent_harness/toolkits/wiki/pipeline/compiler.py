@@ -86,8 +86,23 @@ class _ArticleBatchStats:
 @dataclass(frozen=True, slots=True)
 class _BatchExtractOutcome:
     concepts: list[ConceptInfo]
-    success_count: int
+    # Sources whose concepts were extracted. They stay ``processing`` until the batch has written the rest of
+    # their results; only the failures are settled during extraction.
+    extracted_item_ids: list[int]
     failure_kinds: list[str]
+
+    @property
+    def success_count(self) -> int:
+        return len(self.extracted_item_ids)
+
+
+@dataclass(frozen=True, slots=True)
+class _BatchReport:
+    concepts_count: int
+    articles: _ArticleBatchStats
+    synthesis_staged: int = 0
+    backlinks_created: int = 0
+    embed_paused: bool = False
 
 
 class WikiCompiler:
@@ -324,46 +339,7 @@ class WikiCompiler:
                 consecutive_empty = 0
                 logger.info(f"Worker draining {len(pending_items)} items from queue...")
 
-                self._ensure_compile_session()
-                self._queue.set_compile_phase("semantic_compile")
-                batch_outcome = await self._extract_concepts_batch(pending_items)
-                should_pause, pause_reason, primary_kind = evaluate_batch_pause(
-                    success_count=batch_outcome.success_count,
-                    failure_kinds=batch_outcome.failure_kinds,
-                )
-                if should_pause:
-                    self._queue.pause_compile(pause_reason, primary_kind)
-                    logger.warning("Compile worker paused: %s", pause_reason)
-                    continue
-
-                all_concepts = batch_outcome.concepts
-                if all_concepts:
-                    self._queue.set_compile_phase("postprocess")
-                    articles = await self._generate_articles_batch(all_concepts)
-                    self._maybe_pause_for_embed_failure(articles)
-                    if articles.embed_pause_kind:
-                        continue
-                    synthesis_result = await run_contradiction_synthesis_pass(
-                        self._llm,
-                        self._structure,
-                        self._compile_config,
-                        self._indexer,
-                        all_concepts,
-                    )
-                    if synthesis_result.synthesis_staged:
-                        logger.info(
-                            "CCSP staged %s evolution page(s) from %s pair(s)",
-                            synthesis_result.synthesis_staged,
-                            synthesis_result.pairs_considered,
-                        )
-                    self._refresh_cognitive_map(all_concepts, batch=True)
-                    if self._config.enable_backlinks:
-                        await self._generate_backlinks(all_concepts)
-                    if self._config.enable_directory_sidecars:
-                        await self._build_sidecars(all_concepts)
-                    await self._save_metadata(len(all_concepts), articles.generated)
-                    await self._maybe_commit_vault_git("compile batch")
-
+                await self._run_batch(pending_items, commit_reason="compile batch", postprocess_empty=False)
                 await asyncio.sleep(1)
         except Exception as e:
             logger.error(f"Wiki worker loop failed: {e}")
@@ -404,76 +380,104 @@ class WikiCompiler:
                 articles_generated=0,
                 backlinks_created=0,
                 duration_ms=int((datetime.now(UTC) - start_time).total_seconds() * 1000),
-                articles_pending=0,
-                articles_published=0,
-                articles_blocked=0,
-                synthesis_pending=0,
             )
 
         if not pending_items:
             logger.info("No pending files to compile in queue")
             self._refresh_cognitive_map([], summary="Compile requested; ingestion queue empty")
-            return CompileResult(
-                concepts_count=0,
-                articles_generated=0,
-                backlinks_created=0,
-                duration_ms=0,
-                articles_pending=0,
-                articles_published=0,
-                articles_blocked=0,
-                synthesis_pending=0,
-            )
+            return CompileResult(concepts_count=0, articles_generated=0, backlinks_created=0)
 
         logger.info(f"Processing batch of {len(pending_items)} files from queue")
 
+        report = await self._run_batch(pending_items, commit_reason="compile", postprocess_empty=True)
+        articles = report.articles
+
+        duration_ms = 0
+        if not report.embed_paused:
+            self._maybe_clear_compile_session()
+            duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
+            # Start background worker to drain the rest of the queue if any
+            self.start_background_worker()
+
+        return CompileResult(
+            concepts_count=report.concepts_count,
+            articles_generated=articles.generated,
+            backlinks_created=report.backlinks_created,
+            duration_ms=duration_ms,
+            articles_pending=articles.pending,
+            articles_published=articles.published,
+            articles_blocked=articles.blocked,
+            synthesis_pending=report.synthesis_staged,
+        )
+
+    async def _run_batch(self, items: list[QueueItem], *, commit_reason: str, postprocess_empty: bool) -> _BatchReport:
+        """Compile one batch of queue items from extraction to the vault snapshot; the worker and ``compile_all`` both run it.
+
+        The batch's sources stay ``processing`` until everything the compile writes for them is saved, so the
+        queue reports work in progress for as long as there is some, and a process that dies midway leaves
+        them for the next one to requeue. ``postprocess_empty`` also runs the post-extraction steps (cognitive
+        map, metadata) when no concept was extracted, as ``compile_all`` does and the worker does not.
+
+        Raises:
+            Exception: whatever failed after extraction, after the batch's sources were marked failed.
+        """
         self._ensure_compile_session()
         self._queue.set_compile_phase("semantic_compile")
+        with self._queue.keep_alive([item["id"] for item in items]):
+            outcome = await self._extract_concepts_batch(items)
+            should_pause, pause_reason, primary_kind = evaluate_batch_pause(
+                success_count=outcome.success_count,
+                failure_kinds=outcome.failure_kinds,
+            )
+            if should_pause:
+                self._queue.pause_compile(pause_reason, primary_kind)
+                logger.warning("Compile worker paused: %s", pause_reason)
+            concepts = outcome.concepts
+            logger.info(f"Extracted {len(concepts)} concepts from batch")
+            if not concepts and not postprocess_empty:
+                return _BatchReport(0, _ArticleBatchStats(generated=0, pending=0, published=0, blocked=0))
 
-        # Step 1: Extract concepts sequentially from the queue batch
-        batch_outcome = await self._extract_concepts_batch(pending_items)
-        should_pause, pause_reason, primary_kind = evaluate_batch_pause(
-            success_count=batch_outcome.success_count,
-            failure_kinds=batch_outcome.failure_kinds,
-        )
-        if should_pause:
-            self._queue.pause_compile(pause_reason, primary_kind)
-        all_concepts = batch_outcome.concepts
-        logger.info(f"Extracted {len(all_concepts)} concepts from batch")
+            self._queue.set_compile_phase("postprocess" if concepts else "semantic_compile")
+            try:
+                report = await self._postprocess_batch(concepts)
+            except Exception as e:
+                logger.error(f"Postprocess failed, marking {len(outcome.extracted_item_ids)} source(s) failed: {e}")
+                resolution = resolve_llm_failure(e)
+                # The queue panel shows this text to the user; the raw exception (often a path or a sqlite error)
+                # stays in the log, and the error kind carries the classification.
+                self._queue.fail_processing(
+                    outcome.extracted_item_ids,
+                    "Compile postprocess failed",
+                    error_kind=resolution.error_kind,
+                    retry_after_seconds=resolution.retry_after_seconds,
+                )
+                raise
+            self._queue.complete_processing(outcome.extracted_item_ids)
 
-        if all_concepts:
-            self._queue.set_compile_phase("postprocess")
-        else:
-            self._queue.set_compile_phase("semantic_compile")
+        if not report.embed_paused:
+            await self._maybe_commit_vault_git(commit_reason)
+        return report
 
-        # Step 2: Generate articles for each concept
-        batch_stats = await self._generate_articles_batch(all_concepts)
-        self._maybe_pause_for_embed_failure(batch_stats)
+    async def _postprocess_batch(self, concepts: list[ConceptInfo]) -> _BatchReport:
+        """Write everything a batch's concepts produce: articles, evolution pages, map, backlinks, sidecars, metadata."""
+        articles = await self._generate_articles_batch(concepts)
+        self._maybe_pause_for_embed_failure(articles)
         logger.info(
             "Generated %s articles (published=%s pending=%s blocked=%s)",
-            batch_stats.generated,
-            batch_stats.published,
-            batch_stats.pending,
-            batch_stats.blocked,
+            articles.generated,
+            articles.published,
+            articles.pending,
+            articles.blocked,
         )
-
-        if batch_stats.embed_pause_kind:
-            return CompileResult(
-                concepts_count=len(all_concepts),
-                articles_generated=batch_stats.generated,
-                backlinks_created=0,
-                duration_ms=0,
-                articles_pending=batch_stats.pending,
-                articles_published=batch_stats.published,
-                articles_blocked=batch_stats.blocked,
-                synthesis_pending=0,
-            )
+        if articles.embed_pause_kind:
+            return _BatchReport(len(concepts), articles, embed_paused=True)
 
         synthesis_result = await run_contradiction_synthesis_pass(
             self._llm,
             self._structure,
             self._compile_config,
             self._indexer,
-            all_concepts,
+            concepts,
         )
         if synthesis_result.synthesis_staged:
             logger.info(
@@ -482,50 +486,25 @@ class WikiCompiler:
                 synthesis_result.pairs_considered,
             )
 
-        # Step 3: Refresh OKF cognitive map (index/log/hot)
-        self._refresh_cognitive_map(all_concepts, batch=True)
+        self._refresh_cognitive_map(concepts, batch=True)
 
-        # Step 4: Generate backlinks
         backlinks_count = 0
         if self._config.enable_backlinks:
-            backlinks_count = await self._generate_backlinks(all_concepts)
+            backlinks_count = await self._generate_backlinks(concepts)
             logger.info(f"Created {backlinks_count} backlinks")
-
-        # Step 5: Build directory sidecars (L0/L1)
         if self._config.enable_directory_sidecars:
-            await self._build_sidecars(all_concepts)
+            await self._build_sidecars(concepts)
 
-        # Step 6: Update metadata
-        await self._save_metadata(len(all_concepts), batch_stats.generated)
-
-        await self._maybe_commit_vault_git("compile")
-
-        self._maybe_clear_compile_session()
-
-        duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
-
-        # Start background worker to drain the rest of the queue if any
-        self.start_background_worker()
-
-        return CompileResult(
-            concepts_count=len(all_concepts),
-            articles_generated=batch_stats.generated,
-            backlinks_created=backlinks_count,
-            duration_ms=duration_ms,
-            articles_pending=batch_stats.pending,
-            articles_published=batch_stats.published,
-            articles_blocked=batch_stats.blocked,
-            synthesis_pending=synthesis_result.synthesis_staged,
-        )
+        await self._save_metadata(len(concepts), articles.generated)
+        return _BatchReport(len(concepts), articles, synthesis_result.synthesis_staged, backlinks_count)
 
     async def _extract_concepts_batch(self, queue_items: list[QueueItem]) -> _BatchExtractOutcome:
         """Extract concepts from queue items with configurable parallelism."""
         queue_items = self._sort_queue_items_for_survey(queue_items)
         failure_kinds: list[str] = []
-        success_count = 0
+        extracted_item_ids: list[int] = []
 
         async def _process_single_item(item: QueueItem) -> list[ConceptInfo]:
-            nonlocal success_count
             item_id = item["id"]
             raw_file = Path(item["file_path"])
             self._queue.mark_processing(item_id)
@@ -553,8 +532,7 @@ class WikiCompiler:
                     )
                     failure_kinds.append(resolution.error_kind)
                     return []
-                self._queue.mark_completed(item_id)
-                success_count += 1
+                extracted_item_ids.append(item_id)
                 return concepts
             except Exception as e:
                 logger.error(f"Failed to extract concepts from {raw_file}: {e}")
@@ -600,7 +578,7 @@ class WikiCompiler:
 
         return _BatchExtractOutcome(
             concepts=list(all_concepts.values()),
-            success_count=success_count,
+            extracted_item_ids=extracted_item_ids,
             failure_kinds=failure_kinds,
         )
 
