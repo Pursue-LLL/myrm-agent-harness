@@ -2,6 +2,40 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-17-001 · 存储占用台账只认 server 的五个固定目录名和两个数据库文件：备份目录、其余目录与文件、数据库的 `-shm`、被部署搬到别处的记忆与日志都不在账上，各类占用之和对不上状态目录；框架里写死了业务层的目录名，查看占用还会顺手创建不存在的数据目录；同批删掉没有兑现承诺的压缩器、按固定阈值给出的建议与无人读取的逐表行数
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-16（核对存储治理的对外说法与实现时读 `inspector.py`：目录名与数据库路径写死，没有「其余」一类；随后在改动前的源码（`65d24ab17^`）上，用临时目录里的合成状态目录复现） |
+| **修复时间** | 2026-10-16 至 2026-10-17（先删除没有兑现的部分 `63c713437`，再改归属规则 `65d24ab17`，补测试类型 `71f04aed7`） |
+| **症状** | ① 合成状态目录（`data.db` 及其 `-wal`、`-shm`，检查点库，工作区、向量库、记忆、事件日志、快照目录，备份目录，上传目录与一个配置文件，共 7,933,768 字节）：改动前各类占用之和 5,950,000 字节，差 1,983,768 字节 = 备份目录 1,700,000（含一个 100,000 字节的 `.tmp-` 孤儿）+ 上传目录与配置文件 251,000 + `data.db-shm` 32,768，这三样没有任何类别提到；② 记忆与事件日志挪到另一块盘（部署用的 NAS 布局）：两类显示 0 字节（实际共 400,000），差额扩大为 2,383,768；③ 对一个不存在的状态目录调用 `inspect()`，检查器先 `mkdir` 把它建出来（改动前创建了该目录）；④ 同一模块里有四样没有兑现承诺或没有读取方的东西：`StateStorageCompactor`（WAL 截断加 `PRAGMA optimize`，应用侧已经覆盖：SQLite 自己做检查点，`VACUUM` 在 server 的存储优化里；增量 vacuum 的分支对没有开 `auto_vacuum` 的库不可达）、`recommended_actions` 与 `is_growth_healthy`（按固定字节阈值产生，用户无从据以行动）、逐表行数 `details` 与 `display_name` 回退（没有读取方） |
+| **关联产品** | myrm-agent-harness `observability/storage_governance/`（`layout.py`、`walker.py`、`inspector.py`、`types.py`、`__init__.py` 与 `observability/__init__.py` 的导出、`_ARCH.md`）；`StorageGovernanceInspector` 的构造由 `checkpoints_db=` 改为必填的关键字 `layout=`，仓内唯一的生产调用方是 server 的 `app/api/system/router.py`（产品仓同日条目 `BUG-AGENT-2026-10-17-001`）；删除的符号 `StateStorageCompactor`、`CompactionResult`、`recommended_actions`、`is_growth_healthy`、`details`、`display_name`，全仓检索没有其他引用；不改提示词 |
+| **根因** | ① 业务层的目录布局写进了框架：检查器写死了 server 的五个目录名与两个数据库路径，部署搬走路径或 server 新增目录时账本不认，也违背「框架只放自己的规则」；② 没有「其余」一类，各类之和不对应状态目录；数据库只统计 `-wal`，不统计 `-shm` 与 `-journal`；③ 查看接口先 `mkdir`，读操作有写副作用；④ 压缩器、建议与逐表行数没有核对过它们对用户是否起作用：压缩器做的事应用已经做了，建议依据固定阈值，逐表行数没有读取方 |
+| **修复** | `StorageGovernanceInspector(data_dir, layout=...)`：应用声明每个类别的路径，检查器只负责规则与量取。归属规则在 `layout.py`（纯路径逻辑，不触碰磁盘）：文件归属于声明路径最深的类别；声明为非目录的路径视为数据库文件，其 `-wal` / `-shm` / `-journal` 一并归属；数据目录里没有被认领的部分报为 `other`（永远排在最后，不可声明，声明会抛 `ValueError`）；声明路径可以在数据目录之外；同一路径被两个类别声明时归先出现的类别并记一条警告，不让整份报告失败。量取在 `walker.py`（`os.scandir` 迭代实现）：符号链接不跟随也不计，只计常规文件的表观大小。`inspect()` 不再创建目录。新增类别 `sqlite_backups`（排在 `snapshots` 之前，`other` 永远最后）。删除上述四样，类别仍按文件大小归属，共用的报告类型保留 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 项目的 mypy 只门禁 `src`，测试里 25 处缺少返回类型一直没人看见，核对时才由 `no-untyped-def` 报出，随 `71f04aed7` 补齐；② 核对「各类之和等于总量」不能拿检查器自己的遍历当基准：测试里用一次独立的 `os.walk` 作为基准，被测代码与基准各走一遍 |
+| **回归** | `tests/observability/test_storage_governance.py` 与 `test_storage_layout.py` 共 24 例通过（harness `dc7937b41`），含：各类之和等于对数据目录独立遍历的结果、NAS 式布局、WAL 模式的活库、符号链接、不可读目录、三种 sidecar；归属规则的 8 个变异各使至少一例失败（提交 `65d24ab17` 说明里的记录，落地时测得）；同一份合成状态目录在改动前后的对照（复现脚本放在 /tmp，没有入库）：① 改动前差 1,983,768 字节，改动后各类之和 7,933,768 与独立遍历一致，差 0；② 搬到另一块盘的记忆与事件日志，改动前显示 0，改动后在原位报出 300,000 与 100,000，差 0；③ 对不存在的目录 `inspect()` 之后该目录是否被创建：改动前是，改动后否；目录量取在 6 万个文件、暖缓存下：`os.walk` 加 `Path.stat` 为 440–460 ms，`os.scandir` 迭代为 211–285 ms，总量一致（两次测量，记录在提交 `65d24ab17` 的说明里）；ruff、ruff format、mypy（strict）对触及文件无问题 |
+| **局限** | ① 报告的是文件的表观大小，不是磁盘块占用，稀疏文件与块对齐会让总量与 `du` 不一致；符号链接不跟随：把某个目录以链接形式放进数据目录时，链接指向的内容不计入（声明的路径本身是链接时会解析一次）；② 没有在本机真实数据目录上测过耗时与差额（不用真实数据做开发测试），目录量取的数字来自合成目录；③ 删除的是公开导出的符号，仓内检索没有其他引用，仓外使用者没有核对；④ 与 `BUG-HARNESS-2026-10-16-013` 相同：改动在本地源码、没有 push、没有发布，服务端依赖固定 `==0.1.0rc5`：新的服务端代码用到 `layout=` 与 `StorageCategory.SQLITE_BACKUPS`，只能在发布 harness 并 `./myrm harness sync-lock` 之后一起上线，拆开会让 `GET /system/storage/governance` 报错（按代码推断，没有在 rc5 上实测）；⑤ 存储优化前生成的 `data.db.optimize_backup` 落在 `other`，没有归入 `sqlite_backups` |
+| **代码位置** | `observability/storage_governance/layout.py::resolve_layout` · `walker.py::measure_tree` · `inspector.py::StorageGovernanceInspector` · `tests/observability/test_storage_governance.py`、`test_storage_layout.py` |
+
+### BUG-HARNESS-2026-10-16-013 · 备份在复制或哈希途中失败、或进程被杀时，临时备份镜像及其 `-journal` / `-wal` 永远留在备份目录里，保留份数不会回收它们；镜像在复制后消失时，校验会新建一个空库，`create_backup` 把它当作成功发布出一个 0 字节的备份
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-16（核对存储占用由哪些文件构成时通读 `SQLiteBackupManager.create_backup`：临时镜像 `.tmp-<毫秒时间戳>.sqlite` 只在 `quick_check` 失败的一个分支里删除；随后在改动前的源码（`caa08dcfb^`）上，用临时目录里的合成库跑通下面三个场景） |
+| **修复时间** | 2026-10-16（`caa08dcfb`） |
+| **症状** | ① 复制完成后写入失败（用「计算哈希时抛 `OSError: disk full`」模拟）：`snapshots/` 里留下 `.tmp-….sqlite` 与 `.tmp-….sqlite-journal`；② 备份进程被杀后留下镜像与 `-wal`（用一个闲置 10 分钟的 `.tmp-` 文件模拟）：之后连续成功备份 5 次（保留 3 份），两个孤儿文件仍在，目录里是 2 个孤儿加 3 份备份，空间不会自己回来；每次失败或被杀最多留下一份数据库大小的文件（按复制方式推断，没有在真实库上量过）；③ 镜像在复制结束后消失（用「复制连接关闭时删掉镜像」模拟）：校验时 `sqlite3.connect` 对不存在的路径会新建数据库，`quick_check` 答 ok，`create_backup` 返回成功并发布 `backup-*.sqlite`，大小 0 字节；③ 在改动前没有已知的触发者（没有任何代码会删这个镜像），是为新增的清扫配套补上的保险 |
+| **关联产品** | myrm-agent-harness `infra/sqlite_backup_models.py`、`infra/sqlite_backup.py`；调用方不用改：`create_backup()` 的签名与返回值不变，只多一种失败（镜像缺失或为空时抛 `RuntimeError`）；server 里的四处调用在 `app/lifecycle/schedulers.py`、`app/server/lifespan.py`、`app/database/connection.py`、`app/services/repair/sqlite_repair.py`；不改提示词、消息顺序与工具 schema |
+| **根因** | ① 清理只写在 `quick_check` 失败这一个分支里，复制、哈希与发布都不在保护内，`KeyboardInterrupt` 一类的 `BaseException` 更不会被处理；② 没有任何位置回收被杀进程留下的文件，保留份数的修剪只认 `backup-*`；③ `sqlite3.connect` 对不存在的路径会新建数据库，校验函数因此对一个已消失的镜像也答 ok |
+| **修复** | `infra/sqlite_backup_models.py` 新增三件：`_discard_on_failure`（上下文管理器，块内出现任何异常，包括 `KeyboardInterrupt`，都先删镜像及 `-journal` / `-wal` / `-shm`，再原样抛出）；`_require_backup_image`（镜像不存在或为空时抛 `RuntimeError`，且不创建文件）；`_sweep_stale_tmp_backups`（每次备份开始前清扫快照目录里 `.tmp-` 开头、闲置超过 5 分钟的文件，不跟随符号链接、不碰 `backup-*`，目录不存在或个别文件删不掉都不影响本次备份）；`create_backup` 把复制、校验、哈希与发布整段放进 `_discard_on_failure`，复制之后先过 `_require_backup_image` 再校验 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 清扫用修改时间判断是否被遗弃：正在复制的镜像一直被写入，所以只清闲置 5 分钟以上的；并且只认 `.tmp-` 前缀，不从名字推断 `backup-*` 是孤儿（各有一例用例）；② 复现脚本第一版在校验函数里删镜像，这发生在 `_require_backup_image` 之后，守卫看不到，改动后的代码也发布了 0 字节备份，看上去像没修好；改成在复制连接关闭时删镜像后，改动前发布 0 字节、改动后拒绝，才与守卫所在的位置一致；③ 变异检查里「清扫跟随符号链接」第一版同时改了 `stat` 与 `is_file`，这个变异存活了；拆成两个后，只让 `is_file` 跟随的变异被杀死（链接会被当成文件删掉），只让 `stat` 跟随的变异存活但与原行为等价（`is_file(follow_symlinks=False)` 对链接恒为假，链接从不会被删） |
+| **回归** | `tests/infra/test_sqlite_backup_tmp_cleanup.py` 15 例通过；`tests/infra` 整目录 354 例通过（harness `dc7937b41`）；对 `sqlite_backup_models.py` 做 7 个有观察效果的变异（失败后不删镜像、守卫放行缺失或空镜像、清扫什么也不删、清扫不看闲置时间、清扫碰非 `.tmp-` 名字、只让 `is_file` 跟随链接、只在 `Exception` 时清理），各使 5、2、2、2、1、1、2 例失败，恢复后 15 例通过；同一份复现脚本（放在 /tmp，没有入库）在改动前后的源码上各跑一遍：① 改动前留下 2 个文件，改动后 0 个；② 5 次备份之后，改动前 2 个孤儿仍在，改动后只剩 3 份备份；③ 改动前发布 0 字节备份，改动后拒绝并抛出 `Backup image .tmp-… is missing or empty after the copy`，目录为空；ruff、ruff format、mypy（strict）对触及的源文件与测试文件无问题 |
+| **局限** | ① 清扫没有跨进程锁：同一目录里两个备份并行、且前一个的校验阶段（只读镜像，不更新修改时间）超过 5 分钟时，后一个的清扫会删掉前一个的镜像，前一个在计算校验和或发布时抛 `FileNotFoundError`，这次备份失败（不会发布空库，也没有重试）；这个窗口按代码推断，没有复现，也没有量过真实库的校验耗时；② 没有查看本机真实备份目录里是否已有 `.tmp-` 孤儿（不用真实数据做开发测试），已有的会在下一次备份时（闲置超过 5 分钟）被清扫；③ 改动在本地源码（版本 `0.1.0rc6`），没有 push，也没有发布：服务端仓固定的依赖是 `myrm-agent-harness==0.1.0rc5`，按锁文件安装的环境仍是旧行为，先发布 harness，再 `./myrm harness sync-lock`；④ 「内容没变就不再备份」（路线图 topic_05 #53 ⑥ 后半）没有做 |
+| **代码位置** | `infra/sqlite_backup_models.py::_discard_tmp_backup`、`_discard_on_failure`、`_require_backup_image`、`_sweep_stale_tmp_backups` · `infra/sqlite_backup.py::SQLiteBackupManager.create_backup` · `tests/infra/test_sqlite_backup_tmp_cleanup.py` |
+
 ### BUG-HARNESS-2026-10-16-012 · 用户接管浏览器后交还时，刷新快照的调用带了一个不存在的参数，每次都抛 TypeError 并被吞成一条警告，快照与差异基线停在接管前；同批删掉浏览器里只写不读的运行遥测与无人调用的动作看门狗
 
 | 字段 | 内容 |
