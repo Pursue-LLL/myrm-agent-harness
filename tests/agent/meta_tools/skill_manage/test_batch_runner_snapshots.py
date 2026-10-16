@@ -46,6 +46,10 @@ def _reader(content: str | None) -> MagicMock:
 _SAVE: list[dict[str, object]] = [
     {"action": "save", "name": "demo", "content": "---\nname: demo\ndescription: new\n---\nnew body"}
 ]
+_PATCH: list[dict[str, object]] = [
+    {"action": "patch", "name": "demo", "old_content": "stored body", "new_content": "patched body"}
+]
+PATCHED = STORED.replace("stored body", "patched body")
 
 
 @pytest.mark.asyncio
@@ -143,3 +147,53 @@ async def test_a_delete_is_final_and_leaves_no_undo_record(locale: str, note: st
     assert "Batch applied successfully" not in output
     assert "batch_id=" not in output
     assert SKILL_BATCH_JSON_PREFIX not in output
+
+
+@pytest.mark.asyncio
+async def test_a_patch_edits_a_skill_the_turn_backend_cannot_see_through_the_writers_storage() -> None:
+    write_backend = _write_backend()
+
+    output = await run_skill_manage_batch(
+        write_backend=write_backend,
+        skill_backend=_reader(None),
+        similarity_checker=None,
+        operations=_PATCH,
+        snapshot_reader=_reader(STORED),
+    )
+
+    assert "patched successfully" in output
+    assert write_backend.save_skill.await_args.kwargs["content"] == PATCHED
+
+
+@pytest.mark.asyncio
+async def test_a_patch_edits_what_the_writer_will_overwrite_not_a_stale_turn_view() -> None:
+    write_backend = _write_backend()
+    stale_turn_backend = _reader(STORED.replace("stored body", "older body"))
+
+    output = await run_skill_manage_batch(
+        write_backend=write_backend,
+        skill_backend=stale_turn_backend,
+        similarity_checker=None,
+        operations=_PATCH,
+        snapshot_reader=_reader(STORED),
+    )
+
+    assert "patched successfully" in output
+    assert write_backend.save_skill.await_args.kwargs["content"] == PATCHED
+    stale_turn_backend.get_skill_content.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_a_patch_falls_back_to_the_turn_backend_for_a_skill_outside_the_writers_storage() -> None:
+    write_backend = _write_backend()
+
+    output = await run_skill_manage_batch(
+        write_backend=write_backend,
+        skill_backend=_reader(STORED),
+        similarity_checker=None,
+        operations=_PATCH,
+        snapshot_reader=_reader(None),
+    )
+
+    assert "patched successfully" in output
+    assert write_backend.save_skill.await_args.kwargs["content"] == PATCHED

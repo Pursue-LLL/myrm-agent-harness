@@ -2,7 +2,8 @@
 
 [INPUT]
 - _manage_handlers action handlers
-- backends.skills.protocols::SkillBackend (snapshot reads when the host gives no dedicated reader)
+- backends.skills.protocols::SkillBackend (the turn's skills: snapshot reads when the host gives no dedicated reader,
+  and where a patch looks for a skill the writer's storage lacks)
 
 [OUTPUT]
 - run_skill_manage_batch: execute operations with snapshot/rollback
@@ -12,6 +13,9 @@
 Framework batch runner. Snapshots touched skills before applying ops; rolls back on failure.
 A batch that deletes a skill is final: a deleted package cannot be rebuilt from a SKILL.md snapshot, so it gets
 no undo record (no hook call, no batch id or undo hint in the output).
+A patch edits the SKILL.md in the storage the writer overwrites when that storage has the skill, and only otherwise
+the turn's skill backend: the backend lists the skills mounted for the turn, so it cannot see one the agent saved
+earlier, and a stale view of a skill would be patched and then written over the newer file.
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, Protocol
 
 from myrm_agent_harness.agent.meta_tools.skills.manage._manage_handlers import (
+    SkillContentSource,
     _handle_delete,
     _handle_evolution_lock,
     _handle_patch,
@@ -122,6 +127,28 @@ async def _capture_snapshots(
     return snapshots
 
 
+class _FirstSourceWithSkill:
+    """A skill's SKILL.md from the first source that has it, in the order given."""
+
+    def __init__(self, sources: list[SkillContentSource]) -> None:
+        self._sources = sources
+
+    async def get_skill_content(self, skill_name: str) -> str:
+        for source in self._sources:
+            try:
+                return await source.get_skill_content(skill_name)
+            except FileNotFoundError:
+                continue
+        raise FileNotFoundError(skill_name)
+
+
+def _patch_source(
+    snapshot_reader: SkillSnapshotReader | None, skill_backend: SkillBackend | None
+) -> SkillContentSource | None:
+    sources: list[SkillContentSource] = [source for source in (snapshot_reader, skill_backend) if source is not None]
+    return _FirstSourceWithSkill(sources) if sources else None
+
+
 async def _restore_snapshot(
     write_backend: ScanningSkillWriteBackend,
     snapshot: SkillBatchSnapshot,
@@ -178,7 +205,7 @@ def _collect_touch_sets(
 
 async def _run_single_op(
     write_backend: ScanningSkillWriteBackend,
-    skill_backend: SkillBackend | None,
+    patch_source: SkillContentSource | None,
     similarity_checker: SkillSimilarityChecker | None,
     op: dict[str, object],
     index: int,
@@ -196,7 +223,7 @@ async def _run_single_op(
     if action == "patch":
         return await _handle_patch(
             write_backend,
-            skill_backend,
+            patch_source,
             name,
             str(op.get("old_content") or ""),
             str(op.get("new_content") or ""),
@@ -259,8 +286,9 @@ async def run_skill_manage_batch(
 ) -> str:
     """Apply skill_manage operations atomically; rollback snapshots on any failure.
 
-    ``skill_backend`` supplies the content a patch edits. Snapshots are read through ``snapshot_reader`` when the
-    host gives one, otherwise through ``skill_backend``.
+    Snapshots are read through ``snapshot_reader`` when the host gives one, otherwise through ``skill_backend``. A
+    patch edits the content ``snapshot_reader`` has for the skill and falls back to ``skill_backend`` for a skill the
+    reader lacks.
     """
     if not operations:
         return "Error: 'operations' must be a non-empty array."
@@ -284,13 +312,14 @@ async def run_skill_manage_batch(
         snapshot_reader if snapshot_reader is not None else skill_backend, skill_names, resource_paths
     )
     batch_id = str(uuid.uuid4())
+    patch_source = _patch_source(snapshot_reader, skill_backend)
     results: list[str] = []
 
     try:
         for i, op in enumerate(normalized):
             msg = await _run_single_op(
                 write_backend,
-                skill_backend,
+                patch_source,
                 similarity_checker,
                 op,
                 i,

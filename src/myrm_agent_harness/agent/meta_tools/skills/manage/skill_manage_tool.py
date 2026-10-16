@@ -130,8 +130,8 @@ def create_skill_manage_tool(
 ) -> BaseTool:
     """Create the skill management tool.
 
-    ``snapshot_reader`` is where pre-batch snapshots are read (see ``SkillSnapshotReader``); it defaults to
-    ``skill_backend``, which only sees the skills mounted for the turn.
+    ``snapshot_reader`` is where pre-batch snapshots are read and the first place a patch looks for its skill (see
+    ``SkillSnapshotReader``); without one both use ``skill_backend``, which only sees the skills mounted for the turn.
     """
 
     @tool("skill_manage_tool", description=resolve_skill_manage_tool_description(locale), args_schema=SkillManageInput)
