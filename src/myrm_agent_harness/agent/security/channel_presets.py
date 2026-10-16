@@ -181,7 +181,8 @@ def build_channel_security_config(
 
     For Cron jobs, a **non-empty** ``declared_capabilities`` replaces the capability
     set with that exact list. When empty, the CRON channel preset capabilities are
-    kept (unrestricted within the preset — matches UI "leave empty for all").
+    kept (unrestricted within the preset — matches UI "leave empty for all"), except that
+    ``file_write_tool`` / ``file_edit_tool`` stay denied unless ``file_write`` is declared.
     ``declared_allowed_roots`` provides additional path access grants (union-merged
     with existing allowed_roots). Applies to all channel types.
     """
@@ -254,13 +255,9 @@ def build_channel_security_config(
 
     if channel_type == ChannelType.CRON:
         plan_confirm_enabled = False
-        # Unattended execution hardening: by default, deny destructive file writes and edits
-        # in CRON channels unless explicitly elevated via allow_unattended_write in agent_security_raw.
-        allow_unattended_write = False
-        if agent_security_raw and isinstance(agent_security_raw, dict):
-            allow_unattended_write = bool(agent_security_raw.get("allow_unattended_write", False))
-
-        if not allow_unattended_write:
+        # Unattended jobs write files only when their declaration names ``file_write``. The test is on
+        # the declared names, not on the effective set, so the unrestricted default never grants it.
+        if "file_write" not in declared_capabilities:
             ruleset = merge(
                 ruleset,
                 (

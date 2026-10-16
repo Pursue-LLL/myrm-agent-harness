@@ -31,7 +31,7 @@ from myrm_agent_harness.agent.middlewares.approval.batch_processor import regist
 from myrm_agent_harness.agent.middlewares.approval.helpers import clear_all_session_denials_for_tests
 from myrm_agent_harness.agent.security.audit import get_audit_entries, reset_audit_log
 from myrm_agent_harness.agent.security.channel_presets import build_channel_security_config
-from myrm_agent_harness.agent.security.guards.taint_tracker import get_taint_tracker, reset_taint_tracker
+from myrm_agent_harness.agent.security.guards.taint_tracker import TaintLabel, get_taint_tracker, reset_taint_tracker
 from myrm_agent_harness.agent.security.session_access import set_session_access_roots
 from myrm_agent_harness.agent.security.tool_registry import resolve_permission_type
 from myrm_agent_harness.agent.security.types import AccessRoot, SecurityConfig
@@ -251,3 +251,30 @@ class TestCronRunThroughTheMiddleware:
     async def test_job_directories_run(self, dirs: Dirs) -> None:
         assert await _denials("grep_tool", {"path": str(dirs.workspace / "notes"), "pattern": "todo"}) == []
         assert await _denials("grep_tool", {"path": str(dirs.vault / "raw"), "pattern": "todo"}) == []
+
+    async def test_declared_file_write_runs_inside_the_job_directories(self, dirs: Dirs) -> None:
+        assert await _denials("file_write_tool", {"path": str(dirs.workspace / "notes.md"), "content": "x"}) == []
+        assert await _denials("file_edit_tool", {"path": str(dirs.vault / "raw" / "a.md"), "edits": []}) == []
+
+    @pytest.mark.parametrize("location", ["elsewhere/x.md", "workspace/AGENTS.md", "workspace/.env"])
+    async def test_writes_outside_the_directories_or_on_protected_files_are_denied(
+        self, dirs: Dirs, location: str
+    ) -> None:
+        directory, name = location.split("/")
+
+        denials = await _denials("file_write_tool", {"path": str(getattr(dirs, directory) / name), "content": "x"})
+
+        assert len(denials) == 1
+        assert "cannot ask for approval" in denials[0]
+
+    async def test_web_content_does_not_interrupt_a_declared_in_zone_write(self, dirs: Dirs) -> None:
+        get_taint_tracker().record(TaintLabel.EXTERNAL_NETWORK, "https://example.com/feed")
+
+        assert await _denials("file_write_tool", {"path": str(dirs.workspace / "digest.md"), "content": "x"}) == []
+
+    async def test_write_without_the_declaration_is_denied(self, dirs: Dirs) -> None:
+        set_security_config(build_channel_security_config("cron", declared_capabilities=("net_fetch", "file_read")))
+
+        denials = await _denials("file_write_tool", {"path": str(dirs.workspace / "notes.md"), "content": "x"})
+
+        assert len(denials) == 1

@@ -275,6 +275,45 @@ class TestBuildChannelSecurityConfig:
         config = build_channel_security_config("cron", declared_allowed_roots=("/tmp/jobs",))
         assert "/tmp/jobs" in config.path_policy.allowed_roots
 
+    def test_cron_file_write_tools_are_denied_unless_file_write_is_declared(self) -> None:
+        # No declaration: the unrestricted default set still carries file_write, so the ruleset's explicit
+        # DENY decides. A declaration without file_write: the capability fence decides first.
+        cases = (((), "denied by policy"), (("shell_exec", "file_read"), "Capability not granted"))
+        for declared, reason_fragment in cases:
+            config = build_channel_security_config("cron", declared_capabilities=declared)
+            for tool_name in ("file_write_tool", "file_edit_tool"):
+                action, reason = evaluate_tool_call(
+                    "file_write", {"path": "/tmp/jobs/a.md"}, config, workspace_root="/tmp/jobs", tool_name=tool_name
+                )
+                assert action == PermissionAction.DENY, (declared, tool_name)
+                assert reason_fragment in reason, (declared, tool_name, reason)
+
+    def test_cron_declared_file_write_leaves_the_decision_to_the_path_zones(self) -> None:
+        config = build_channel_security_config("cron", declared_capabilities=("file_write",))
+
+        def verdict(path: str, tool_name: str = "file_write_tool") -> PermissionAction:
+            action, _ = evaluate_tool_call(
+                "file_write", {"path": path}, config, workspace_root="/tmp/jobs", tool_name=tool_name
+            )
+            return action
+
+        assert verdict("/tmp/jobs/report.md") == PermissionAction.ALLOW
+        assert verdict("/tmp/jobs/report.md", "file_edit_tool") == PermissionAction.ALLOW
+        assert verdict("/tmp/elsewhere/report.md") == PermissionAction.ASK
+        assert verdict("/tmp/jobs/AGENTS.md") == PermissionAction.ASK
+        assert verdict("/tmp/jobs/.env") == PermissionAction.ASK
+
+    def test_cron_ignores_the_retired_unattended_write_flag(self) -> None:
+        config = build_channel_security_config(
+            "cron",
+            declared_capabilities=("shell_exec",),
+            agent_security_raw={"allow_unattended_write": True},
+        )
+        action, _ = evaluate_tool_call(
+            "file_write", {"path": "/tmp/jobs/a.md"}, config, workspace_root="/tmp/jobs", tool_name="file_write_tool"
+        )
+        assert action == PermissionAction.DENY
+
     def test_web_chat_with_declared_allowed_roots(self) -> None:
         config = build_channel_security_config("web_chat", declared_allowed_roots=("/home/user/projects",))
         assert "/home/user/projects" in config.path_policy.allowed_roots
