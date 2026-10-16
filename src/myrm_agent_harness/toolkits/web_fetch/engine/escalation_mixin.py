@@ -46,20 +46,6 @@ class FetchEngineEscalationMixin:
         from ..escalation.metrics import web_fetch_escalation_metrics
 
         web_fetch_escalation_metrics.record_triggered()
-        try:
-            from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-            await dispatch_custom_event(
-                "agent_status",
-                {
-                    "event": "tool_fallback",
-                    "tool": "web_fetch_tool",
-                    "fallback_type": "remote_fetch",
-                    "message": "Local fetch exhausted, trying remote reader fallback...",
-                },
-            )
-        except Exception:
-            pass
 
         for provider in providers:
             try:

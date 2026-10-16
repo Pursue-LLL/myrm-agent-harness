@@ -170,18 +170,11 @@ async def test_generate_gateway_failover_to_byok(gateway_config: ToolGatewayConf
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with (
-        patch("myrm_agent_harness.toolkits.llms.tts.generator.create_httpx_client", return_value=mock_client),
-        patch(
-            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
-            new_callable=AsyncMock,
-        ) as dispatch_event,
-    ):
+    with patch("myrm_agent_harness.toolkits.llms.tts.generator.create_httpx_client", return_value=mock_client):
         result = await engine.generate("failover")
 
     assert result.audio_bytes == b"direct-audio"
     assert mock_client.post.await_count == 2
-    dispatch_event.assert_awaited_once()
 
 
 @pytest.mark.asyncio

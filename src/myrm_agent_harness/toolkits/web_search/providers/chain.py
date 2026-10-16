@@ -199,11 +199,6 @@ async def search_provider_chain(
                     num_results=num_results,
                     extra_params_override=extra_params_override,
                 )
-            if index > 0:
-                await _dispatch_chain_hop_event(
-                    from_provider=execution_chain[index - 1].search_service,
-                    to_provider=provider,
-                )
             return results, provider
         except Exception as exc:
             last_error = exc
@@ -230,22 +225,3 @@ async def search_provider_chain(
         # A timeout carries no text; the exception type keeps the failure reason readable downstream.
         message = str(last_error) or type(last_error).__name__
     raise AllQueriesFailedError(message) from last_error
-
-
-async def _dispatch_chain_hop_event(*, from_provider: str, to_provider: str) -> None:
-    try:
-        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-        await dispatch_custom_event(
-            "agent_status",
-            {
-                "event": "tool_fallback",
-                "tool": "web_search_tool",
-                "fallback_type": "chain_failover",
-                "message": f"Search provider switched ({from_provider} → {to_provider})",
-                "from_provider": from_provider,
-                "to_provider": to_provider,
-            },
-        )
-    except Exception:
-        pass

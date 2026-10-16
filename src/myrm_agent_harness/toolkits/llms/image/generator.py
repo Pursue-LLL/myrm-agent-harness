@@ -443,20 +443,6 @@ class ImageGenerator:
                         logger.warning(
                             f"Gateway image {operation} failed ({_safe_truncate(str(exc))}), falling back to direct provider API (BYOK)"
                         )
-                        try:
-                            from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-                            await dispatch_custom_event(
-                                "agent_status",
-                                {
-                                    "event": "tool_fallback",
-                                    "tool": "image_generation",
-                                    "fallback_type": "gateway_failover",
-                                    "message": f"统一网关异常，正在无缝回退至本地直连 ({model})...",
-                                },
-                            )
-                        except Exception:
-                            pass
                         bypass_gateway = True
                         # Immediately retry this attempt with direct connection
                         continue

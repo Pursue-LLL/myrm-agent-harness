@@ -310,21 +310,6 @@ class Navigator:
                 cause=cause,
             ) from cause
 
-        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-        try:
-            await dispatch_custom_event(
-                "agent_status",
-                {
-                    "event": "tool_fallback",
-                    "tool": "browser_navigate_tool",
-                    "fallback_type": "timeout_rescue",
-                    "message": "Page resource load timed out; forcing stop and extracting visible content...",
-                },
-            )
-        except Exception as event_exc:
-            logger.warning("Navigator: failed to publish timeout rescue status: %s", event_exc)
-
     @staticmethod
     def _extract_domain(url: str) -> str:
         """Extract the domain from a URL."""

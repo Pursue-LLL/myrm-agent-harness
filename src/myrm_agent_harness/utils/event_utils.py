@@ -14,7 +14,7 @@ Provides dispatch_custom_event.
 
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.runnables.config import var_child_runnable_config
@@ -39,15 +39,6 @@ def resolve_tool_call_id_from_config(config: RunnableConfig | None) -> str | Non
             if isinstance(value, str) and value.strip():
                 return value.strip()
     return None
-
-
-class FallbackEventData(TypedDict):
-    """Fallback event data structure for UI telemetry."""
-
-    event: str  # Always "tool_fallback"
-    tool: str  # The tool name (e.g., "bash_code_execute_tool")
-    fallback_type: str  # The type of fallback (e.g., "network_timeout", "antibot_bypass")
-    message: str  # Human-readable message for the UI
 
 
 async def dispatch_custom_event(name: str, data: Any, config: RunnableConfig | None = None) -> None:

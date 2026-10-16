@@ -242,41 +242,11 @@ class FetchEngineFetchMixin:
             return doc, result
 
         logger.warning(f"HTTP insufficient, degrading to browser: {url}")
-        try:
-            from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-            await dispatch_custom_event(
-                "agent_status",
-                {
-                    "event": "tool_fallback",
-                    "tool": "web_fetch_tool",
-                    "fallback_type": "antibot_bypass",
-                    "message": "触发反爬防御，正在切换至无头浏览器模拟模式...",
-                },
-            )
-        except Exception:
-            pass
-
         doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.BROWSER, max_chars=max_chars)
         if doc:
             return doc, result
 
         logger.warning(f"Browser failed, degrading to stealth: {url}")
-        try:
-            from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-            await dispatch_custom_event(
-                "agent_status",
-                {
-                    "event": "tool_fallback",
-                    "tool": "web_fetch_tool",
-                    "fallback_type": "stealth_bypass",
-                    "message": "浏览器模式受阻，正在切换至深度隐身模式...",
-                },
-            )
-        except Exception:
-            pass
-
         doc, _, _, _, _, result = await self._try_and_report(url, FetcherType.STEALTH, max_chars=max_chars)
         if doc:
             return doc, result

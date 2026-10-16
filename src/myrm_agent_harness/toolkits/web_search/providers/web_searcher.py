@@ -328,22 +328,6 @@ class WebSearcher:
                             "Gateway search failed (%s), falling back to direct provider API (BYOK)",
                             error_msg,
                         )
-                        try:
-                            from myrm_agent_harness.utils.event_utils import (
-                                dispatch_custom_event,
-                            )
-
-                            await dispatch_custom_event(
-                                "agent_status",
-                                {
-                                    "event": "tool_fallback",
-                                    "tool": "web_search_tool",
-                                    "fallback_type": "gateway_failover",
-                                    "message": f"统一网关异常，正在无缝回退至本地直连 ({provider})...",
-                                },
-                            )
-                        except Exception:
-                            pass
                         bypass_gateway = True
                         continue
 

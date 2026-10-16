@@ -233,20 +233,6 @@ async def _precision_mode_search(
             f"THIS IS A DEGRADED RESPONSE! Please check Reranker service health.",
             exc_info=True,
         )
-        try:
-            from myrm_agent_harness.utils.event_utils import dispatch_custom_event
-
-            await dispatch_custom_event(
-                "agent_status",
-                {
-                    "event": "tool_fallback",
-                    "tool": "web_search_tool",
-                    "fallback_type": "reranker_degraded",
-                    "message": "语义重排服务异常，已自动降级为 BM25 基础检索以保证结果返回...",
-                },
-            )
-        except Exception:
-            pass
         web_search_metrics.record_reranker_degraded()
         reranked_chunks = bm25_filtered[: tools._RERANK_TOP_K]
         degraded = True
