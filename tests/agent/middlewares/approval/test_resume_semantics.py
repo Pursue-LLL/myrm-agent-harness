@@ -3,7 +3,8 @@
 A timer that fires claims its key, then resumes the suspended graph. When that run dies the claim is given back so a
 manual reply is not refused, and what that reply can still do is decided by LangGraph, not by the scheduler. These
 tests pin that behavior against a real compiled graph with a checkpointer (no mocks) so an upgrade that changes it
-fails here instead of in production.
+fails here instead of in production. They also pin how a reply is matched to the interrupt it answers: the scheduler
+arbitrates one slot per chat, so only the graph can tell a reply for a superseded interrupt from one for the current.
 """
 
 from __future__ import annotations
@@ -120,3 +121,63 @@ async def test_resume_on_a_finished_thread_changes_nothing() -> None:
 
     assert late == finished
     assert finished["log"] == ["worked:reject"]
+
+
+class _Answers(TypedDict):
+    answers: Annotated[list[str], operator.add]
+
+
+def _build_two_question_graph() -> CompiledStateGraph[_Answers, None, _Answers, _Answers]:
+    """Two sequential interrupts, like an agent turn that asks for approval twice."""
+
+    async def first(state: _Answers) -> dict[str, list[str]]:
+        return {"answers": [f"first:{interrupt({'question': 'first'})}"]}
+
+    async def second(state: _Answers) -> dict[str, list[str]]:
+        return {"answers": [f"second:{interrupt({'question': 'second'})}"]}
+
+    builder = StateGraph(_Answers)
+    builder.add_node("first", first)
+    builder.add_node("second", second)
+    builder.add_edge(START, "first")
+    builder.add_edge("first", "second")
+    builder.add_edge("second", END)
+    return builder.compile(checkpointer=InMemorySaver())
+
+
+async def _pending_interrupt_id(graph: CompiledStateGraph[_Answers, None, _Answers, _Answers]) -> str:
+    snapshot = await graph.aget_state(_CONFIG)
+    return next(task.interrupts[0].id for task in snapshot.tasks if task.interrupts)
+
+
+@pytest.mark.asyncio
+async def test_a_resume_without_an_interrupt_id_answers_whichever_interrupt_is_pending() -> None:
+    """A reply meant for the first interrupt is applied to the second once the run has moved on."""
+    graph = _build_two_question_graph()
+    await graph.ainvoke({"answers": []}, _CONFIG)
+    await graph.ainvoke(Command(resume="approved"), _CONFIG)
+
+    result = await graph.ainvoke(Command(resume="late reply for the first question"), _CONFIG)
+
+    assert result["answers"] == ["first:approved", "second:late reply for the first question"]
+
+
+@pytest.mark.asyncio
+async def test_a_resume_addressed_to_a_superseded_interrupt_is_ignored() -> None:
+    """Addressed by interrupt id, a reply for the first interrupt cannot answer the second; the right id still does."""
+    graph = _build_two_question_graph()
+    await graph.ainvoke({"answers": []}, _CONFIG)
+    first_id = await _pending_interrupt_id(graph)
+    await graph.ainvoke(Command(resume={first_id: "approved"}), _CONFIG)
+    second_id = await _pending_interrupt_id(graph)
+    assert second_id != first_id
+
+    await graph.ainvoke(Command(resume={first_id: "late reply for the first question"}), _CONFIG)
+
+    snapshot = await graph.aget_state(_CONFIG)
+    assert snapshot.next == ("second",)
+    assert snapshot.values["answers"] == ["first:approved"]
+
+    result = await graph.ainvoke(Command(resume={second_id: "approved too"}), _CONFIG)
+
+    assert result["answers"] == ["first:approved", "second:approved too"]
