@@ -86,6 +86,13 @@ def _coalesce_lock_for(cache_key: str) -> asyncio.Lock:
     return lock
 
 
+def _mark_outcome_retrieved(future: asyncio.Future[list[SearchResult]]) -> None:
+    """Consume the outcome so a leader that fails after every waiter gave up (a provider hop cut off by the chain's
+    allowance) does not log "Future exception was never retrieved"; live waiters still receive the exception."""
+    if not future.cancelled():
+        future.exception()
+
+
 async def _cancel_coalesce_leader(cache_key: str) -> None:
     _pending_searches.pop(cache_key, None)
     leader = _pending_leader_tasks.pop(cache_key, None)
@@ -122,6 +129,7 @@ async def await_coalesced_search(
                 future = pending
             else:
                 future = asyncio.get_running_loop().create_future()
+                future.add_done_callback(_mark_outcome_retrieved)
                 _pending_searches[cache_key] = future
                 leader_task = asyncio.create_task(_run_coalesce_leader(future, fetch, cache_key))
                 _pending_leader_tasks[cache_key] = leader_task

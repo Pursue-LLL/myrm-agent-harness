@@ -12,11 +12,13 @@
 - search_provider_chain: async failover search across priority-ordered provider configs with smart skip
 
 [POS]
-Executes N-provider priority chain with wall-clock budget, self-healing quota auto-skip, and chain_hop telemetry.
+Executes N-provider priority chain with wall-clock budget, per-hop allowance for hung providers, self-healing quota
+auto-skip, and chain_hop telemetry.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
@@ -137,8 +139,9 @@ async def search_provider_chain(
 ) -> tuple[list[SearchResult], str]:
     """Search using a priority-ordered provider chain with intelligent quota auto-skip.
 
-    Any failed hop (quota, rate limit, outage, bad credentials) advances to the next provider until the chain's
-    wall-clock budget is spent; only quota and rate-limit failures also put the provider on a cooldown.
+    Any failed hop (quota, rate limit, outage, bad credentials, no answer in time) advances to the next provider until
+    the chain's wall-clock budget is spent; only quota and rate-limit failures also put the provider on a cooldown.
+    A hop that has not answered after half of the remaining budget is abandoned unless it is the last one.
 
     Returns:
         Tuple of (results, winning provider slug).
@@ -171,8 +174,10 @@ async def search_provider_chain(
             skipped_providers,
         )
 
+    final_index = len(execution_chain) - 1
     for index, hop_config in enumerate(execution_chain):
-        if time.monotonic() >= deadline:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
             break
         provider = hop_config.search_service
         if index > 0:
@@ -183,12 +188,17 @@ async def search_provider_chain(
             if metrics is not None:
                 metrics.record_chain_hop(from_provider=previous_provider, to_provider=provider)
         hop_searcher = WebSearcher(hop_config, metrics=metrics)
+        # A hung hop would otherwise outlast the whole budget (its coalescing wait and retries add up to more than
+        # the chain allows) and no later provider would ever run, so every hop but the last yields after half of what
+        # remains. The last hop has nobody to hand over to; capping it would only add a doomed extra request.
+        allowance = remaining / 2 if index < final_index else None
         try:
-            results = await hop_searcher.search(
-                query=query,
-                num_results=num_results,
-                extra_params_override=extra_params_override,
-            )
+            async with asyncio.timeout(allowance):
+                results = await hop_searcher.search(
+                    query=query,
+                    num_results=num_results,
+                    extra_params_override=extra_params_override,
+                )
             if index > 0:
                 await _dispatch_chain_hop_event(
                     from_provider=execution_chain[index - 1].search_service,
@@ -214,7 +224,11 @@ async def search_provider_chain(
                 )
                 tracker.mark_rate_limited(provider, reason=str(exc))
 
-    message = str(last_error) if last_error is not None else "All search providers in chain failed"
+    if last_error is None:
+        message = "All search providers in chain failed"
+    else:
+        # A timeout carries no text; the exception type keeps the failure reason readable downstream.
+        message = str(last_error) or type(last_error).__name__
     raise AllQueriesFailedError(message) from last_error
 
 
