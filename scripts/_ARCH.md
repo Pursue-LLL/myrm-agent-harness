@@ -31,9 +31,10 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `check_file_line_limit.py` | 辅助 | 单文件行数 baseline 门禁（>500 行须登记且不可增长）；`--incremental` 仅扫描 git 变更文件（pre-commit），无 git 时回退全量 | ✅ |
 | `check_test_source_assertions.py` | 辅助 | 测试源码文本断言门禁：以 `ast` 识别「读 `.py` 源码 + 断言字符串包含」写法，强制改用语法树断言，使断言不受格式化换行影响；`--incremental` 供 pre-commit 使用 | ✅ |
 | `check_module_coverage.py` | 辅助 | 每模块覆盖率下限门禁：读取 `.coverage` 数据，对 `COVERAGE_FLOORS` 登记的模块逐个校验执行率，不嵌套执行 pytest | ✅ |
-| `check_module_reachability.py` | Gate | 模块可达性门禁 CLI：harness 包除公开面 `api/` 外每个顶层目录的直接子项（单元）必须有生产消费者（本包或 server 树的存活代码）；`--server` 以同一引擎审计 server 树自身单元（`--server-root` 指定 `app/` 目录，`channels/`、`startup/` 因按名称加载/由树外 `run.py` 导入而作为根）；无白名单、无 baseline；server 树缺失时显式输出 `NOT EVALUATED`（`--require-server` / `--server` 则失败）；`--incremental` 仅在 harness 源码变更时运行（供 git hook 调用，`.pre-commit-config.yaml` 未登记，不会自动触发） | ✅ |
+| `check_module_reachability.py` | Gate | 模块可达性门禁 CLI：harness 包除公开面 `api/` 外每个顶层目录的直接子项（单元）必须有生产消费者（本包或 server 树的存活代码）；`--server` 以同一引擎审计 server 树自身单元（`--server-root` 指定 `app/` 目录，`channels/`、`startup/` 因按名称加载/由树外 `run.py` 导入而作为根）；无白名单、无 baseline；server 树缺失时显式输出 `NOT EVALUATED`（`--require-server` / `--server` 则失败）；`--incremental` 仅在 harness 源码变更时运行（供 git hook 调用，`.pre-commit-config.yaml` 未登记，不会自动触发）；`--base REV` 为差分模式（详见 `module_reachability_diff.py`），CI（`.github/workflows/module-reachability.yml`）在 PR 上以 `origin/<base_ref>` 为基线运行，退出码 2 含「基线无法确立」 | ✅ |
 | `module_reachability_engine.py` | Gate | 可达性静态引擎：单元分类、hub 再导出解析（含 lazy 表与子树 exporter 回退）与可达闭包；`root_dirs`（默认 `api/`）、包根模块、`__main__.py`、带 `if __name__ == "__main__"` 块的模块（`python -m` 可执行入口，如 skill 以命令行调用的 `code_graph/cli.py`）、`[project.scripts]` 为根；server 树作为 `Consumer` 以同一引擎分析，仅其根与由根可达的单元计为消费者，死 server 单元不会让 harness 单元存活 | ✅ |
 | `module_reachability_facts.py` | Gate | 可达性逐文件证据抽取：以全限定点路径引用建模（导入路径、导入后加载的名字、模块属性链、点路径字符串、`module:attr`）；hub 内 `from .x import Y` 再导出/别名不算使用，hub 内裸 `import a.b.c`（副作用注册）算消费者；`api/` 与包根 `__init__.py` 为公开面 | ✅ |
+| `module_reachability_diff.py` | Gate | 可达性门禁的差分模式（`check_module_reachability.py --base REV`）：以 `git merge-base HEAD REV` 为比较基线，用 `git archive` 在临时目录重建基线树并以同一引擎分析（`pyproject.toml` 入口点也取自基线），只对「当前已死、基线时不死」的单元（新增未接线，或改动使其失去消费者）失败，基线时就已死的存量不计；无 baseline 文件、无白名单；非 git 树、未知或形似选项的 REV、无共同祖先、基线缺包一律抛 `BaseUnavailableError`，由 CLI 以退出码 2 失败（fail-closed，绝不静默通过） | ✅ |
 | `check_import_resolvability.py` | Gate | 导入可解析性门禁 CLI：每条一方 import（含函数内、`try/except` 内、`TYPE_CHECKING` 内）必须指向真实存在的模块，`from M import N` 的 `N` 必须是子模块或 `M` 导入时绑定的名字；无白名单、无 baseline；`--package NAME=DIR` 与 `--scan NAME` 可把 server `app/` 树对照 harness 源码检查；`--incremental` 仅在 harness `.py` 变更时运行（pre-commit）；解析失败的文件与空扫描显式报错而非放行 | ✅ |
 | `import_resolvability_engine.py` | Gate | 导入可解析性静态引擎：一次索引各根包全部模块的导入期符号（定义、赋值、`for`/`with` 目标、import 绑定、`__all__`、`import *` 再导出）；带模块级 `__getattr__` / `globals()` 改写的动态命名空间与无法解析的文件一律放行其名字，只报能证伪的导入；跨根解析、仅对 `scan` 根报告 | ✅ |
 | `file_line_baseline.txt` | 辅助 | legacy 大文件 grandfather 清单：允许 >500 行但不得超过登记行数；拆分至 ≤500 后移除 | — |
@@ -60,6 +61,7 @@ python scripts/check_test_source_assertions.py            # 全量扫描 tests/
 python scripts/check_test_source_assertions.py --incremental  # pre-commit: changed tests only
 python scripts/check_module_coverage.py --data .coverage  # 需先以 --cov 产出覆盖率数据
 python scripts/check_module_reachability.py               # 全量：harness 每个单元须有生产消费者
+python scripts/check_module_reachability.py --base origin/main  # 差分：仅拦截本次改动新留下的无消费者单元（CI；基线取 merge-base，无法确立则失败）
 python scripts/check_module_reachability.py --server      # server 树自身单元（--server-root 指定 app/；手动运行，没有 CI 或 hook 调用）
 python scripts/check_module_reachability.py --incremental  # 仅 harness 源码变更时运行（hook 用，当前未登记）
 python scripts/check_module_reachability.py --json        # 机器可读（死单元 / 仅 server 消费单元）
