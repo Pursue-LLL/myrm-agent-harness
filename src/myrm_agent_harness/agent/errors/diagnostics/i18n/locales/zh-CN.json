@@ -70,9 +70,9 @@
   ],
   "unknown_user_message": "LLM 错误: {error_message}",
   "unknown_resolution_steps": [
-    "查阅 LiteLLM 文档以了解此错误",
-    "验证 LLMConfig 设置（model, api_key, base_url）",
-    "启用调试日志以获取详细的错误跟踪"
+    "请重新发送消息，许多错误是暂时的",
+    "如果问题持续，请切换到其他模型或服务商",
+    "查看错误信息了解详情"
   ],
   "thinking_budget_exhausted_user_message": "模型将所有输出 token 用于推理，未产生实际回复",
   "thinking_budget_exhausted_resolution_steps": [

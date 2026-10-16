@@ -416,6 +416,8 @@ event_log 持久化的 error 事件由 trace_builder 重建为 ExecutionTrace.er
 
 恢复按钮（`recovery_actions`）只给有单击修复的诊断类型，目录见 `diagnostics/recovery_actions.py`：`api_key` → `update_key`，`billing` → `top_up`，`model` / `custom_model_not_found` → `change_model`，三者的 url 均为 `/settings`；其余类型不下发按钮。
 
+`unknown` 兜底诊断的文案约定：`user_message` 带提供方原文前 200 字符，五种语言目录一律使用 `{error_message}` 占位符（引擎只填这一个参数，目录里写成别的名字会让原文被静默替换为空串）；`resolution_steps` 不得指向库内部概念（LiteLLM、LLMConfig、调试日志开关），该约定由 `tests/agent/errors/diagnostics/test_unknown_diagnostic_copy.py` 守护。
+
 #### 3. DiagnosticResult结构
 
 ```python

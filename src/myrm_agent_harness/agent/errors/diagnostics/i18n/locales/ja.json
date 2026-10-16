@@ -67,7 +67,7 @@
     "小さなモデルを使用するか、入力サイズを減らしてください",
     "タイムアウト設定を延長してください"
   ],
-  "unknown_user_message": "予期しないエラーが発生しました: {original_error}",
+  "unknown_user_message": "予期しないエラーが発生しました: {error_message}",
   "unknown_resolution_steps": [
     "もう一度お試しください",
     "問題が解決しない場合は、管理者に連絡してください",

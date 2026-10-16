@@ -70,9 +70,9 @@
   ],
   "unknown_user_message": "LLM error: {error_message}",
   "unknown_resolution_steps": [
-    "Check LiteLLM documentation for this error",
-    "Verify LLMConfig settings (model, api_key, base_url)",
-    "Enable debug logging for detailed error trace"
+    "Send your message again, since many errors are temporary",
+    "If the problem persists, switch to a different model or provider",
+    "Check the error message for details"
   ],
   "thinking_budget_exhausted_user_message": "The model used all output tokens for reasoning and produced no response",
   "thinking_budget_exhausted_resolution_steps": [

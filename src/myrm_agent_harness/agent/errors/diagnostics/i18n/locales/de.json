@@ -67,7 +67,7 @@
     "Verwenden Sie ein kleineres Modell oder reduzieren Sie die Eingabegröße",
     "Erhöhen Sie die Timeout-Einstellung"
   ],
-  "unknown_user_message": "Ein unerwarteter Fehler ist aufgetreten: {original_error}",
+  "unknown_user_message": "Ein unerwarteter Fehler ist aufgetreten: {error_message}",
   "unknown_resolution_steps": [
     "Bitte versuchen Sie es erneut",
     "Wenn das Problem weiterhin besteht, kontaktieren Sie den Administrator",
