@@ -251,20 +251,6 @@ def test_should_not_forget_pinned_or_evolution_locked() -> None:
     assert strategy.should_forget(locked) is None
 
 
-def test_protect_installed_skills_exempt() -> None:
-    config = CuratorConfig(stale_after_days=7, protect_installed_skills=True, grace_period_days=0)
-    strategy = DefaultForgettingStrategy(config)
-    old = datetime.now(UTC) - timedelta(days=100)
-    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old)
-    skill = SkillMetadata(
-        name="hub_skill",
-        description="Installed from hub",
-        trust=SkillTrust.INSTALLED,
-        usage_stats=stats,
-    )
-    assert strategy.should_forget(skill) is None
-
-
 def test_grace_period_exempt() -> None:
     config = CuratorConfig(stale_after_days=7, grace_period_days=30)
     strategy = DefaultForgettingStrategy(config)

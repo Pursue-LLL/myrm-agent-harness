@@ -10,7 +10,6 @@ from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollect
 from myrm_agent_harness.backends.skills.types import (
     SkillLifecycleStatus,
     SkillMetadata,
-    SkillTrust,
     SkillUsageStats,
 )
 
@@ -45,7 +44,6 @@ def create_mock_skill(
     pinned: bool = False,
     days_idle: int = 0,
     days_old: int = 10,
-    trust: SkillTrust = SkillTrust.TRUSTED,
 ) -> SkillMetadata:
     now = datetime.now(UTC)
     last_used = now - timedelta(days=days_idle)
@@ -62,7 +60,6 @@ def create_mock_skill(
     skill = MagicMock(spec=SkillMetadata)
     skill.name = name
     skill.storage_path = f"/tmp/skills/{name}"
-    skill.trust = trust
     skill.usage_stats = stats
     skill.evolution_locked = False
     return skill
@@ -207,3 +204,62 @@ async def test_curator_consolidation_excludes_protected_skills(stats_collector: 
     await curator.run_async([bound, free], protected_names=frozenset({"bound"}))
 
     assert seen == [["free"]]
+
+
+def test_curator_installed_skill_is_exempt_while_protection_is_on(curator: SkillCurator):
+    skill = create_mock_skill("from-store", days_idle=40, days_old=50)
+
+    result = curator.run([skill], installed_names=frozenset({"from-store"}))
+
+    assert result.skipped_protected == 1
+    assert result.total_transitions == 0
+
+
+def test_curator_installed_skill_is_curated_when_protection_is_off(stats_collector: SkillStatsCollector):
+    curator = SkillCurator(stats_collector, CuratorConfig(protect_installed_skills=False))
+    skill = create_mock_skill("from-store", days_idle=40, days_old=50)
+
+    result = curator.run([skill], installed_names=frozenset({"from-store"}))
+
+    assert result.skipped_protected == 0
+    assert [t.skill_name for t in result.transitions] == ["from-store"]
+
+
+def test_curator_installed_skill_leaves_lru_pool(curator: SkillCurator):
+    # max_skills=2: the least recently used skill is installed, so it neither gets evicted
+    # nor counts toward the active cap; the two authored skills fit within it.
+    installed = create_mock_skill("from-store", days_idle=3, days_old=10)
+    s1 = create_mock_skill("s1", days_idle=1, days_old=10)
+    s2 = create_mock_skill("s2", days_idle=2, days_old=10)
+
+    result = curator.run([s1, s2, installed], installed_names=frozenset({"from-store"}))
+
+    assert result.total_transitions == 0
+    assert result.skipped_protected == 1
+
+
+@pytest.mark.parametrize(("protect_installed", "expected"), [(True, [["free"]]), (False, [["from-store", "free"]])])
+@pytest.mark.asyncio
+async def test_curator_consolidation_follows_installed_protection(
+    stats_collector: SkillStatsCollector, protect_installed: bool, expected: list[list[str]]
+):
+    config = CuratorConfig(enabled=True, consolidation_enabled=True, protect_installed_skills=protect_installed)
+    curator = SkillCurator(
+        stats_collector,
+        config,
+        embedding_service=MagicMock(),
+        llm=MagicMock(),
+        write_backend=MagicMock(),
+    )
+    seen: list[list[str]] = []
+
+    async def fake_consolidation(skills: list[SkillMetadata], *, dry_run: bool = True) -> None:
+        seen.append([s.name for s in skills])
+
+    curator._run_consolidation = fake_consolidation  # type: ignore[method-assign]
+    installed = create_mock_skill("from-store")
+    free = create_mock_skill("free")
+
+    await curator.run_async([installed, free], installed_names=frozenset({"from-store"}))
+
+    assert seen == expected

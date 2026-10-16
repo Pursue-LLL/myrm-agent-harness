@@ -109,6 +109,7 @@ class SkillCurator:
         *,
         force: bool = False,
         protected_names: frozenset[str] = frozenset(),
+        installed_names: frozenset[str] = frozenset(),
     ) -> CuratorRunResult:
         """Execute a single curator sweep over the provided skills.
 
@@ -123,6 +124,8 @@ class SkillCurator:
             force: If True, bypass the enabled check (for manual triggers)
             protected_names: Skills the caller depends on (e.g. bound by an automation).
                 They are exempt from every transition and do not count toward ``max_skills``.
+            installed_names: Skills the caller knows were installed rather than authored here.
+                They are exempt in the same way while ``CuratorConfig.protect_installed_skills`` is on.
 
         Returns:
             CuratorRunResult with details of all transitions performed
@@ -130,17 +133,18 @@ class SkillCurator:
         if not force and not self._config.enabled:
             return CuratorRunResult()
 
+        exempt_names = self._exempt_names(protected_names, installed_names)
         result = CuratorRunResult(skills_scanned=len(skills))
         now = datetime.now(UTC)
 
         for skill in skills:
             try:
-                self._evaluate_skill(skill, now, result, protected_names)
+                self._evaluate_skill(skill, now, result, exempt_names)
             except Exception as e:
                 result.errors.append(f"{skill.name}: {e}")
                 logger.warning("Curator error evaluating skill '%s': %s", skill.name, e)
 
-        self._apply_lru_eviction([s for s in skills if s.name not in protected_names], now, result)
+        self._apply_lru_eviction([s for s in skills if s.name not in exempt_names], now, result)
 
         if result.total_transitions > 0:
             logger.info(
@@ -167,6 +171,7 @@ class SkillCurator:
         force: bool = False,
         consolidation_dry_run: bool = True,
         protected_names: frozenset[str] = frozenset(),
+        installed_names: frozenset[str] = frozenset(),
     ) -> tuple[CuratorRunResult, ConsolidationPlan | ConsolidationReport | None]:
         """Execute a full curator sweep including optional consolidation.
 
@@ -176,19 +181,29 @@ class SkillCurator:
             consolidation_dry_run: If True, return consolidation plan without executing.
             protected_names: See ``run``. Protected skills are also kept out of consolidation,
                 which would archive them behind the caller's back.
+            installed_names: See ``run``. Exempt installed skills are kept out of consolidation too.
 
         Returns:
             Tuple of (lifecycle_result, consolidation_result).
             consolidation_result is None if consolidation is disabled/unavailable.
         """
-        lifecycle_result = self.run(skills, force=force, protected_names=protected_names)
+        lifecycle_result = self.run(
+            skills, force=force, protected_names=protected_names, installed_names=installed_names
+        )
 
         consolidation_result: ConsolidationPlan | ConsolidationReport | None = None
         if self.consolidation_available:
-            mergeable = [s for s in skills if s.name not in protected_names]
+            exempt_names = self._exempt_names(protected_names, installed_names)
+            mergeable = [s for s in skills if s.name not in exempt_names]
             consolidation_result = await self._run_consolidation(mergeable, dry_run=consolidation_dry_run)
 
         return lifecycle_result, consolidation_result
+
+    def _exempt_names(self, protected_names: frozenset[str], installed_names: frozenset[str]) -> frozenset[str]:
+        """Skills a sweep must leave alone: those the caller depends on, plus installed ones while protection is on."""
+        if self._config.protect_installed_skills:
+            return protected_names | installed_names
+        return protected_names
 
     async def _run_consolidation(
         self,
@@ -267,13 +282,13 @@ class SkillCurator:
         skill: SkillMetadata,
         now: datetime,
         result: CuratorRunResult,
-        protected_names: frozenset[str],
+        exempt_names: frozenset[str],
     ) -> None:
         """Evaluate a single skill and apply transition if needed."""
         if skill.usage_stats.pinned:
             result.skipped_pinned += 1
             return
-        if skill.name in protected_names:
+        if skill.name in exempt_names:
             result.skipped_protected += 1
             return
 

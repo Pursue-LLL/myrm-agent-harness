@@ -100,8 +100,8 @@ class CuratorConfig:
     """Minimum number of observed run outcomes before evaluating success rate."""
 
     protect_installed_skills: bool = True
-    """When True, skills with ``trust == INSTALLED`` (hub/registry) are
-    exempt from curator transitions."""
+    """When True, the skills the caller reports as installed (hub/registry) via
+    ``SkillCurator.run(installed_names=...)`` are exempt from curator transitions."""
 
     protect_system_skills: bool = True
     """When True, prebuilt/system skills (storage path contains ``/prebuilt/``)

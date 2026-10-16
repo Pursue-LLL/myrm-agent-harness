@@ -9,7 +9,6 @@ that should be transitioned through the lifecycle state machine
 - backends.skills.types::SkillMetadata (POS: Skill system core data types.)
 - backends.skills.types::SkillUsageStats (POS: Skill system core data types.)
 - backends.skills.types::SkillLifecycleStatus (POS: Skill system core data types.)
-- backends.skills.types::SkillTrust (POS: Skill system core data types.)
 
 [OUTPUT]
 - ForgettingReason: Reason and target lifecycle state for a transition.
@@ -33,7 +32,6 @@ from myrm_agent_harness.backends.skills.curator_config import CuratorConfig
 from myrm_agent_harness.backends.skills.types import (
     SkillLifecycleStatus,
     SkillMetadata,
-    SkillTrust,
     SkillUsageStats,
 )
 
@@ -86,7 +84,7 @@ class DefaultForgettingStrategy:
 
     Evaluation order:
     1. Pinned / evolution-locked check — exempt from all automated transitions
-    2. Source check — installed (hub/registry) skills optionally exempt
+    2. Source check — prebuilt/system skills optionally exempt
     3. Grace period — recently discovered skills are exempt (configurable days)
     4. Already archived — skip (terminal state for auto-transitions)
     5. Archive promotion — stale skill past archive threshold
@@ -114,11 +112,7 @@ class DefaultForgettingStrategy:
         if stats.pinned or skill.evolution_locked:
             return None
 
-        # 2. Installed (hub/registry) skills optionally exempt
-        if self._config.protect_installed_skills and skill.trust == SkillTrust.INSTALLED:
-            return None
-
-        # 2b. Prebuilt/system skills optionally exempt
+        # 2. Prebuilt/system skills optionally exempt
         if self._config.protect_system_skills and skill.storage_path:
             normalized = skill.storage_path.replace("\\", "/")
             if "/prebuilt/" in normalized:

@@ -27,7 +27,6 @@ from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollect
 from myrm_agent_harness.backends.skills.types import (
     SkillLifecycleStatus,
     SkillMetadata,
-    SkillTrust,
     SkillUsageStats,
 )
 
@@ -41,7 +40,6 @@ def _make_skill(
     last_used_days_ago: int | None = 5,
     lifecycle_status: str = SkillLifecycleStatus.ACTIVE,
     pinned: bool = False,
-    trust: SkillTrust = SkillTrust.TRUSTED,
     storage_path: str | None = None,
     created_days_ago: int = 30,
 ) -> SkillMetadata:
@@ -53,7 +51,6 @@ def _make_skill(
     return SkillMetadata(
         name=name,
         description=f"Test skill: {name}",
-        trust=trust,
         storage_path=storage_path or f"/tmp/test_skills/{name}",
         usage_stats=SkillUsageStats(
             call_count=call_count,
@@ -192,12 +189,15 @@ class TestExemptions:
         result = curator.run(skills, force=True)
         assert result.total_transitions == 0
 
-    def test_installed_skill_optionally_exempt(self, collector: SkillStatsCollector) -> None:
-        config = CuratorConfig(stale_after_days=7, protect_installed_skills=True)
-        skills = [_make_skill("hub_skill", last_used_days_ago=100, trust=SkillTrust.INSTALLED)]
-        curator = SkillCurator(collector, config)
-        result = curator.run(skills, force=True)
-        assert result.total_transitions == 0
+    def test_installed_skill_exempt_only_when_protection_is_on(self, collector: SkillStatsCollector) -> None:
+        skills = [_make_skill("hub_skill", last_used_days_ago=100)]
+        installed = frozenset({"hub_skill"})
+
+        protected = SkillCurator(collector, CuratorConfig(stale_after_days=7, protect_installed_skills=True))
+        assert protected.run(skills, force=True, installed_names=installed).total_transitions == 0
+
+        unprotected = SkillCurator(collector, CuratorConfig(stale_after_days=7, protect_installed_skills=False))
+        assert unprotected.run(skills, force=True, installed_names=installed).total_transitions == 1
 
 
 # ── LRU eviction ─────────────────────────────────────────────────────────
