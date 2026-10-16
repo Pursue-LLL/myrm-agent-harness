@@ -2,7 +2,7 @@
 
 
 [INPUT]
-- playwright.async_api::Page (POS: Playwright page object)
+- patchright.async_api::Page (POS: Patchright page object, the same type the rest of the browser session uses)
 
 [OUTPUT]
 - PageAnalyzer: page structure analyzer
@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
-    from playwright.async_api import Page
+    from patchright.async_api import Page
 
 logger = logging.getLogger(__name__)
 
