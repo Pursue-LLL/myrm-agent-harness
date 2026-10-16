@@ -1,10 +1,15 @@
-"""
-[POS] src/myrm_agent_harness/core/security/readonly_research_sandbox/facade.py
-[INPUT] threading, typing, .readonly_lease_manager, .types
-[OUTPUT] ReadOnlyResearchSandboxFacade, get_readonly_research_sandbox_facade
+"""Process-wide entry to read-only research leases.
 
-Unified Facade for the Read-Only Autonomous Research Lease: grants, revokes and enforces leases, and counts them.
-Strict typing applied: No `Any` types allowed.
+[INPUT]
+- .readonly_lease_manager::ReadOnlyLeaseManager (POS: Lease lifecycle and default-deny tool check.)
+- .types::LeaseStatusEnum, ReadOnlyLeaseRecord, ReadOnlyResearchMetrics, ResearchModeEnum (POS: Lease data shapes and the default read-only tool set.)
+
+[OUTPUT]
+- ReadOnlyResearchSandboxFacade: grants, reads, revokes and enforces leases, and counts grants, revocations and blocked calls
+- get_readonly_research_sandbox_facade: the process-wide instance
+
+[POS]
+Where hosts grant and release leases and where the approval middleware asks whether a tool may run.
 """
 
 from __future__ import annotations

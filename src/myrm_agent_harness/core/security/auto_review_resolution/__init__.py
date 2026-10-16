@@ -1,9 +1,14 @@
-"""
-[POS] src/myrm_agent_harness/core/security/auto_review_resolution/__init__.py
-[INPUT] .diagnostic_reporter, .types
-[OUTPUT] Public API exports for auto-review denial resolution subsystem
+"""Denial diagnostic package: reason codes, allowed alternatives and the four resolution branches behind a denial message.
 
-Strict typing applied: No `Any` types allowed.
+[INPUT]
+- .diagnostic_reporter::DenialDiagnosticReporter (POS: Builds the diagnostic of one denial.)
+- .types::DenialDiagnosticPayload, DenialReasonCodeEnum, ResolutionBranchEnum (POS: Data shapes of a denial diagnostic.)
+
+[OUTPUT]
+- DenialDiagnosticReporter, DenialDiagnosticPayload, DenialReasonCodeEnum, ResolutionBranchEnum: the package's public API
+
+[POS]
+Entry of the denial diagnostic package; keeps no state.
 """
 
 from __future__ import annotations

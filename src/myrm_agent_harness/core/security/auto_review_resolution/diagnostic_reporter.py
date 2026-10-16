@@ -1,11 +1,13 @@
-"""
-[POS] src/myrm_agent_harness/core/security/auto_review_resolution/diagnostic_reporter.py
-[INPUT] time, uuid, typing, .types (DenialDiagnosticPayload, DenialReasonCodeEnum, ResolutionBranchEnum)
-[OUTPUT] DenialDiagnosticReporter
+"""Builds the diagnostic of one denial.
 
-Synthesizes structured, LLM-reflective Denial Diagnostic Payloads with actionable
-context, allowed security alternatives, and recommended resolution branches.
-Strict typing applied: No `Any` types allowed.
+[INPUT]
+- .types::DenialDiagnosticPayload, DenialReasonCodeEnum, ResolutionBranchEnum (POS: Data shapes of a denial diagnostic.)
+
+[OUTPUT]
+- DenialDiagnosticReporter: derives the allowed alternatives and the suggested resolution branch from a reason code and returns the payload
+
+[POS]
+Stateless: every call returns a fresh payload and nothing is kept.
 """
 
 from __future__ import annotations

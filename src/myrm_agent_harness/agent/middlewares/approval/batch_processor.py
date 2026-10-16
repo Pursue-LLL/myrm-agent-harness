@@ -1,24 +1,21 @@
 """Batch Processor for Agent Security Approvals.
 
-Handles the batch processing of tool calls, including security evaluation,
-allowlist checking, and generation of approval requests.
+Decides, for each tool call of a model turn, whether it runs, is refused or waits for the user.
 
 [INPUT]
-- agent.security.approval_flow::DEFAULT_USER_ID, get_allowlist (POS: Core component for "Always Allow" feature in Human-in-the-Loop approval system.)
-- agent.security.guards.skill_approval_hook::HookAction, SkillApprovalHook, SkillHookVerdict (POS: Integrated into tool_interceptor_middleware between the onion policy engine (L1-L3) and HITL approval. When a skill returns require_approval, the request is forwarded to the existing HITL approval flow.)
-- agent.security.script_operand_verifier::compute_file_content_digest, extract_script_file_operand (POS: TOCTOU Defense script operand extraction and sha256 snapshotting.)
-- agent.security.tool_registry::resolve_permission_type, resolve_safety_metadata (POS: Maps tool names to abstract permission types and provides safety metadata for MCP tools.)
-- agent.security.types::PermissionAction, RecentToolCall, ReviewResult, SecurityConfig (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
+- agent.security::engine, checks, audit, approval_flow, command_allowlist_pattern, managed_policy_gates, path_security, ptc_verifier, script_operand_verifier, tool_registry, types, guards.{skill_approval_hook, taint_tracker, untrusted_ingress_fence}, workspace_trust.{context, gate, types} (POS: The layered security stack this processor orchestrates: permission engine, path and taint checks, allowlist, managed-policy and workspace-trust gates.)
+- core.security::readonly_research_sandbox, device_policy, spend_governance, remote_ops_ledger (POS: Foundation security primitives: read-only lease check, batch risk, spend rules, recovery hints.)
+- toolkits.code_execution.security::ast_parser, risk_classifier, workspace_snapshot; toolkits.computer_use::safety (POS: Shell AST and risk classification, pre-destructive snapshots, desktop control guardrails.)
+- agent.middlewares::_session_context; ._batch_review, ._batch_decisions, ._cron_policy::resolve_cron_ask, .denial_diagnostic_bridge::build_auto_review_denial_message, .helpers (POS: Shared middleware ContextVars, LLM review, interrupt payloads, cron settlement, the refusal text the model reads, denial tracking.)
 
 [OUTPUT]
-- register_security_reviewer: Register or unregister a Transcript Classifier for auto-mode.
-- reset_runtime_domains: Reset runtime-approved domains (call at session start).
-- evaluate_tool_batch: Evaluate all tool calls and classify them into approved/denied/pending.
-- build_interrupt_payload: Build LangChain-standard interrupt payload for batch approval.
-- apply_approval_decisions: Apply user decisions to tool_calls and generate ToolMessages.
+- register_security_reviewer, reset_runtime_domains: reviewer registration and the per-session runtime domain reset
+- evaluate_tool_batch: classify every tool call into approved, denied or pending
+- build_interrupt_payload, apply_approval_decisions: the approval interrupt payload and the user's decisions applied back
+- is_yolo_mode_active, operator_as_key_deny_message: the YOLO state check and the refusal for a desktop vision key action naming a lone printable operator
 
 [POS]
-Batch Processor for Agent Security Approvals.
+Orchestrates allowlist, YOLO and auto mode, path and taint checks, the read-only lease, cron declarations and the LLM security review into one verdict per call. Called by the approval middleware.
 """
 
 from __future__ import annotations
@@ -56,6 +53,7 @@ from myrm_agent_harness.agent.security.tool_registry import (
 from myrm_agent_harness.agent.security.types import (
     PermissionAction,
     RecentToolCall,
+    ReviewDecision,
     SecurityConfig,
 )
 from myrm_agent_harness.core.security.readonly_research_sandbox import get_readonly_research_sandbox_facade
@@ -97,7 +95,6 @@ logger = logging.getLogger(__name__)
 
 _VISION_KEY_TOOL_NAMES = frozenset({"desktop_vision_tool", "desktop_vision"})
 
-# Re-export for backward compatibility
 __all__ = [
     "apply_approval_decisions",
     "build_interrupt_payload",
@@ -337,6 +334,7 @@ async def evaluate_tool_batch(
                     from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import (
                         create_workspace_snapshot,
                     )
+
                     snap_res = create_workspace_snapshot(Path.cwd())
                     destr_ctx: dict[str, object] = {
                         "irreversible_destructive": True,
@@ -604,7 +602,9 @@ async def evaluate_tool_batch(
         is_destr, destr_reason, blast_info = is_destructive_shell_tool_call(tool_name, tool_input)
         if action == PermissionAction.ALLOW and is_destr:
             action = PermissionAction.ASK
-            reason = f"Irreversible destructive operation ({destr_reason or tool_name}) requires explicit human approval"
+            reason = (
+                f"Irreversible destructive operation ({destr_reason or tool_name}) requires explicit human approval"
+            )
             extra_ctx = extra_ctx or {}
             extra_ctx["irreversible_destructive"] = True
             extra_ctx["high_risk"] = True
@@ -613,6 +613,7 @@ async def evaluate_tool_batch(
             from pathlib import Path
 
             from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import create_workspace_snapshot
+
             snap_res = create_workspace_snapshot(Path.cwd())
             if snap_res.snapshot_id:
                 extra_ctx["snapshot_id"] = snap_res.snapshot_id
@@ -700,10 +701,6 @@ async def evaluate_tool_batch(
                         trusted_domains=config.network_allowlist,
                     )
                     if review_result is not None:
-                        from myrm_agent_harness.agent.security.types import (
-                            ReviewDecision,
-                        )
-
                         if review_result.decision == ReviewDecision.ALLOW:
                             logger.info(
                                 "[LLM_REVIEW] Auto-allowed tainted %s: %s",
@@ -762,10 +759,6 @@ async def evaluate_tool_batch(
                         trusted_domains=config.network_allowlist,
                     )
                     if review_result is not None:
-                        from myrm_agent_harness.agent.security.types import (
-                            ReviewDecision,
-                        )
-
                         if review_result.decision == ReviewDecision.DENY:
                             logger.warning(
                                 "[OUTBOUND_CHECK] Denied delegation %s: %s",
@@ -840,10 +833,6 @@ async def evaluate_tool_batch(
                             trusted_domains=config.network_allowlist,
                         )
                         if review_result is not None:
-                            from myrm_agent_harness.agent.security.types import (
-                                ReviewDecision,
-                            )
-
                             if review_result.decision == ReviewDecision.DENY:
                                 logger.warning(
                                     "[SHELL_ESCALATION] Denied %s (ALLOW→DENY): %s",
@@ -1027,8 +1016,6 @@ async def evaluate_tool_batch(
                     trusted_domains=config.network_allowlist,
                 )
                 if review_result is not None:
-                    from myrm_agent_harness.agent.security.types import ReviewDecision
-
                     if review_result.decision == ReviewDecision.ALLOW:
                         logger.info(
                             "[LLM_REVIEW] Auto-allowed %s: %s",
@@ -1128,6 +1115,7 @@ async def evaluate_tool_batch(
             from pathlib import Path
 
             from myrm_agent_harness.toolkits.code_execution.security.workspace_snapshot import create_workspace_snapshot
+
             snap_res = create_workspace_snapshot(Path.cwd())
             if snap_res.snapshot_id:
                 extra_ctx["snapshot_id"] = snap_res.snapshot_id

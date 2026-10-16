@@ -1,14 +1,14 @@
-"""Denial Diagnostic Bridge connecting security auto-review denials to 4-way adaptive resolution.
+"""Denial message the model reads when the approval middleware refuses a tool call.
 
 [INPUT]
-- Tool name, security denial reason, and an optional hint.
+- core.security.auto_review_resolution::DenialDiagnosticReporter, DenialReasonCodeEnum (POS: Derives a denial's allowed alternatives and suggested resolution branch from its reason code.)
 
 [OUTPUT]
-- Structured, LLM-reflective denial diagnostic message embedding reason codes,
-  allowed alternatives, and Dots-style 4-way adaptive resolution guidance.
+- infer_denial_reason_code: classify a denial from its reason text and the tool name
+- build_auto_review_denial_message: render the structured denial text (reason code, allowed alternatives, four resolution branches); retains nothing per denial
 
 [POS]
-- Harness approval middleware in agent/middlewares/approval/denial_diagnostic_bridge.py.
+Gives the model something to act on instead of a bare refusal. Used by batch_processor to word the refusals of the read-only lease, the permission engine, the shell-escalation check and the LLM security review.
 """
 
 from __future__ import annotations

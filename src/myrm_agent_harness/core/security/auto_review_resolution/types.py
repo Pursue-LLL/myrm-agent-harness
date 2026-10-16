@@ -1,10 +1,15 @@
-"""
-[POS] src/myrm_agent_harness/core/security/auto_review_resolution/types.py
-[INPUT] dataclasses, enum, typing
-[OUTPUT] DenialReasonCodeEnum, ResolutionBranchEnum, DenialDiagnosticPayload
+"""Data shapes of a denial diagnostic.
 
-Data structures for the Auto-Review Denial diagnostic and its four adaptive resolution branches.
-Strict typing applied: No `Any` types allowed.
+[INPUT]
+- Standard library only (dataclasses, enum).
+
+[OUTPUT]
+- DenialReasonCodeEnum: normalized reason class of a security denial
+- ResolutionBranchEnum: the four ways the model may resolve a denial
+- DenialDiagnosticPayload: one denial's diagnostic (id, reason code, allowed alternatives, suggested branch)
+
+[POS]
+Shared vocabulary of the diagnostic reporter and the denial message.
 """
 
 from __future__ import annotations

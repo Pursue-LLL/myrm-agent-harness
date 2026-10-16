@@ -1,10 +1,16 @@
-"""
-[POS] src/myrm_agent_harness/core/security/readonly_research_sandbox/types.py
-[INPUT] dataclasses, enum, typing
-[OUTPUT] DEFAULT_READ_ONLY_TOOLS, ResearchModeEnum, LeaseStatusEnum, ReadOnlyLeaseRecord, ReadOnlyResearchMetrics
+"""Data shapes of read-only research leases.
 
-Data structures and specifications for the Read-Only Autonomous Research Lease.
-Strict typing applied: No `Any` types allowed.
+[INPUT]
+- Standard library only (dataclasses, enum).
+
+[OUTPUT]
+- DEFAULT_READ_ONLY_TOOLS: built-in tools a lease permits by default
+- ResearchModeEnum, LeaseStatusEnum: lease mode and lifecycle status
+- ReadOnlyLeaseRecord: one session's lease
+- ReadOnlyResearchMetrics: counters of grants, revocations and blocked calls
+
+[POS]
+Shared vocabulary of the lease manager and its facade.
 """
 
 from __future__ import annotations

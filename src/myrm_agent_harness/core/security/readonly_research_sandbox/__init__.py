@@ -1,9 +1,15 @@
-"""
-[POS] src/myrm_agent_harness/core/security/readonly_research_sandbox/__init__.py
-[INPUT] .facade, .readonly_lease_manager, .types
-[OUTPUT] Public API exports for readonly_research_sandbox subsystem
+"""Read-only research lease package: while a session's lease is active only the lease's tools may run.
 
-Strict typing applied: No `Any` types allowed.
+[INPUT]
+- .facade::ReadOnlyResearchSandboxFacade, get_readonly_research_sandbox_facade (POS: Process-wide entry to read-only research leases.)
+- .readonly_lease_manager::ReadOnlyLeaseManager (POS: Lease lifecycle and default-deny tool check.)
+- .types::DEFAULT_READ_ONLY_TOOLS, LeaseStatusEnum, ReadOnlyLeaseRecord, ReadOnlyResearchMetrics, ResearchModeEnum (POS: Lease data shapes and the default read-only tool set.)
+
+[OUTPUT]
+- ReadOnlyResearchSandboxFacade, get_readonly_research_sandbox_facade, ReadOnlyLeaseManager, ReadOnlyLeaseRecord, ReadOnlyResearchMetrics, LeaseStatusEnum, ResearchModeEnum, DEFAULT_READ_ONLY_TOOLS: the package's public API
+
+[POS]
+Entry of the read-only research lease package.
 """
 
 from __future__ import annotations

@@ -1,13 +1,14 @@
-"""
-[POS] src/myrm_agent_harness/core/security/readonly_research_sandbox/readonly_lease_manager.py
-[INPUT] threading, time, uuid, dataclasses, core.security.tool_registry (resolve_safety_metadata), .types (DEFAULT_READ_ONLY_TOOLS, LeaseStatusEnum, ReadOnlyLeaseRecord, ResearchModeEnum)
-[OUTPUT] ReadOnlyLeaseManager
+"""Lifecycle and default-deny tool check of read-only research leases.
 
-Manages dynamic read-only authority leases for autonomous research sessions,
-physically stripping write/side-effect capabilities and strictly confining tool dispatch.
-Default-deny: a tool runs only if it is in the lease's allow-list (``DEFAULT_READ_ONLY_TOOLS`` unless overridden);
-the denial wording marks registry-destructive tools separately.
-Strict typing applied: No `Any` types allowed.
+[INPUT]
+- core.security.tool_registry::resolve_safety_metadata (POS: Tool safety metadata registry.)
+- .types::DEFAULT_READ_ONLY_TOOLS, LeaseStatusEnum, ReadOnlyLeaseRecord, ResearchModeEnum (POS: Lease data shapes and the default read-only tool set.)
+
+[OUTPUT]
+- ReadOnlyLeaseManager: grants a session a lease, expires it lazily, revokes and forgets it, and decides whether a tool may run under it
+
+[POS]
+Default-deny: while a session's lease is active, a tool runs only if the lease allows it (``DEFAULT_READ_ONLY_TOOLS`` unless the grant overrides them). The denial wording marks tools the registry flags as destructive separately from merely unlisted ones.
 """
 
 from __future__ import annotations
