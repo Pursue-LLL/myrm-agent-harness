@@ -145,8 +145,7 @@ class ChatLiteLLM(
     organization: str | None = None
     custom_llm_provider: str | None = None
     # Seconds to wait for the provider's next bytes, handed to litellm as ``timeout``: a stream that keeps producing
-    # is not cut, a provider that goes silent is. ``first_event_timeout`` and ``inter_chunk_timeout`` guard the
-    # stream after the response has started.
+    # is not cut, a silent provider is. ``first_event_timeout`` and ``inter_chunk_timeout`` guard a started stream.
     request_timeout: float | None = 300.0
     temperature: float | None = None
     model_kwargs: dict[str, Any] = Field(default_factory=dict)
