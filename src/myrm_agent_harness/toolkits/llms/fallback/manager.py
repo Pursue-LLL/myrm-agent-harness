@@ -21,7 +21,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from myrm_agent_harness.infra.tracing import get_meter, get_tracer
 from myrm_agent_harness.toolkits.llms.errors import FailoverReason, classify_failover_reason, get_probe_policy
@@ -30,7 +30,7 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import classify_error
 from .config import ProbeConfig
 from .context import get_active_failover_emitter
 from .events import FailoverCallback, FailoverEvent, RecoveryCallback, RecoveryEvent
-from .health_check import lightweight_health_check
+from .health_check import ProbeTarget, lightweight_health_check
 from .probe_throttle import get_global_probe_throttle
 from .scenario import ModelMetrics, ScenarioType, select_by_scenario
 
@@ -69,7 +69,7 @@ class ModelCandidate[T]:
     name: str
     priority: int
     call_fn: Callable[[], Awaitable[T]]
-    llm_instance: Any | None = field(default=None)
+    llm_instance: ProbeTarget | None = field(default=None)
     cost: float = field(default=0.5)
     latency: float = field(default=0.5)
     quality: float = field(default=0.5)
@@ -279,7 +279,7 @@ class ModelFallbackManager[T]:
         name: str,
         priority: int,
         call_fn: Callable[[], Awaitable[T]],
-        llm_instance: Any | None = None,
+        llm_instance: ProbeTarget | None = None,
         cost: float = 0.5,
         latency: float = 0.5,
         quality: float = 0.5,
@@ -607,26 +607,3 @@ class ModelFallbackManager[T]:
                 raise last_error
 
             raise RuntimeError("No models available")
-
-    def get_candidates_status(self) -> list[dict[str, Any]]:
-        """Get snapshot of all candidates with real-time cooldown and health status."""
-        now_ms = time.time() * 1000
-        results: list[dict[str, Any]] = []
-        for c in self._candidates:
-            is_cooldown = c.is_in_cooldown(now_ms)
-            remaining_ms = max(0, int(c.cooldown_until - now_ms)) if is_cooldown else 0
-            results.append(
-                {
-                    "name": c.name,
-                    "priority": c.priority,
-                    "in_cooldown": is_cooldown,
-                    "remaining_cooldown_ms": remaining_ms,
-                    "consecutive_failures": c.consecutive_failures,
-                    "last_error_reason": c.last_error_reason.value if c.last_error_reason else None,
-                    "probe_count": c.probe_count,
-                    "cost": c.cost,
-                    "latency": c.latency,
-                    "quality": c.quality,
-                }
-            )
-        return results
