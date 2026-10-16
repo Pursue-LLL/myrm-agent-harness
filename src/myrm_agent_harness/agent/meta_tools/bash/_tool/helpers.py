@@ -2,6 +2,7 @@
 
 [INPUT]
 - runtime.context.file_access_tracker::get_file_access_tracker (POS: Context file access audit)
+- runtime.paths.execution_paths::get_persistent_root (POS: persistent root in effect)
 - toolkits.code_execution.platform::detect_platform (POS: Cross-platform runtime detection)
 - toolkits.code_execution.env_probe::get_environment_probe_line (POS: Python toolchain probe)
 
@@ -34,13 +35,15 @@ async def track_context_access_in_command(command: str, session_id: str) -> None
         from myrm_agent_harness.runtime.context.file_access_tracker import (
             get_file_access_tracker,
         )
+        from myrm_agent_harness.runtime.paths.execution_paths import get_persistent_root
 
+        persistent_root = get_persistent_root()
         context_paths: set[str] = set()
 
         for pattern in CONTEXT_PATH_PATTERNS:
             for match in pattern.finditer(command):
                 path = match.group(1)
-                if "/.context/" in path and path.startswith("/persistent"):
+                if "/.context/" in path and path.startswith(persistent_root):
                     context_paths.add(path)
 
         if context_paths:

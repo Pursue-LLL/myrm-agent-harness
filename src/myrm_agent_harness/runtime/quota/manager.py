@@ -8,6 +8,7 @@ Implements StorageQuotaChecker protocol with:
 
 [INPUT]
 - runtime.maintenance.protocols::CapacityDenial, (POS: Maintenance scheduling protocols and data types.)
+- runtime.paths.execution_paths::get_context_root (POS: context root in effect)
 
 [OUTPUT]
 - SimpleStorageQuotaManager: Storage quota manager with session-level tracking.
@@ -27,6 +28,7 @@ from myrm_agent_harness.runtime.maintenance.protocols import (
     MaintenanceScheduler,
     MaintenanceTaskType,
 )
+from myrm_agent_harness.runtime.paths.execution_paths import get_context_root
 
 from .protocols import StorageQuotaChecker
 
@@ -48,12 +50,12 @@ class SimpleStorageQuotaManager(StorageQuotaChecker):
         self,
         per_session_limit: int = 500 * 1024 * 1024,
         auto_cleanup_threshold: float = 0.8,
-        context_root: str = "/persistent/.context",
+        context_root: str | None = None,
         scheduler: MaintenanceScheduler | None = None,
     ) -> None:
         self._per_session_limit = per_session_limit
         self._auto_cleanup_threshold = auto_cleanup_threshold
-        self._context_root = Path(context_root)
+        self._context_root = Path(context_root or get_context_root())
         self._usage_cache: dict[str, int] = {}
         self._lock = asyncio.Lock()
         self._scheduler = scheduler

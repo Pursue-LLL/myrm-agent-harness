@@ -2,6 +2,23 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-16-004 · 本地开发模式下持久化根被重映射后，存储配额管理器、restore-map 路径匹配、bash 上下文访问追踪仍按 `/persistent` 字面量工作
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-16（持久化根改为由 `MYRM_PERSISTENT_ROOT` 在调用时派生之后，逐个核对仍写死 `/persistent` 的运行时代码） |
+| **修复时间** | 2026-10-16 |
+| **症状** | ① `SimpleStorageQuotaManager()` 默认扫描 `/persistent/.context`，本地模式该目录不存在，会话用量恒为 0，配额检查与自动清理从不触发；server 的 `get_quota_manager()` 用的就是这个默认值；② `archive_path_matches` 只认 `/persistent/` 前缀，根被重映射后，restore-map 里带根的路径与根相对路径互不相等，恢复范围被判为无效；③ `track_context_access_in_command` 只收 `/persistent` 开头的路径，重映射后 bash 读取上下文文件不被记录，「近期读过的文件不清理」这条规则对这条通路失效 |
+| **关联产品** | myrm-agent-harness `runtime/quota/manager.py`、`runtime/context/restore_map_contract.py`、`agent/meta_tools/bash/_tool/helpers.py`、`runtime/paths/execution_paths.py`；server `app/platform_utils/__init__.py::get_quota_manager`、`app/platform_utils/persistent_root.py`、`app/services/agent/session_access_service.py` |
+| **根因** | 持久化根改为调用时派生后，这三处仍保留字面量，没有走 `get_persistent_root()` / `get_context_root()`；原有测试都在默认根下运行，看不出差别 |
+| **修复** | 配额管理器的 `context_root` 缺省为 `None`，构造时取 `get_context_root()`；`archive_path_matches` 与上下文访问追踪按 `get_persistent_root()` 取前缀；`DEFAULT_PERSISTENT_ROOT` 改为公开常量，server 两处 `/persistent` 字面量改用它 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | 第一次做「换回旧源码」的变异检查时，路径带了错误的仓库前缀，`git show` 失败而重定向已把三个源文件清空；随即从事先备份还原，并用 `cmp` 确认备份与当时文件逐字节一致后重做 |
+| **回归** | `tests/runtime/test_quota_manager.py` 1 例 · `tests/runtime/context/test_restore_map_archive_paths.py` 3 例 · `tests/agent/meta_tools/bash/test_bash_tool_coverage.py` 1 例。把三个源文件换回修改前的版本，3 个针对重映射根的用例全部失败，换回后通过 |
+| **局限** | `toolkits/code_execution/security/validator.py::_get_allowed_paths` 仍写死 `/persistent/.context`。toolkits 层不允许导入 runtime（`tests/architecture/test_toolkits_agent_boundary.py`），所以没有在这里改。实测：根重映射后 `validate_command("cat <根>/.context/s1/compacted/f.txt")` 返回「Access denied … Only current session workspace is accessible.」，默认根下同一条命令通过。改法应在 agent 层经 `ExecutionContext.additional_readonly_paths` 注入上下文根；该字段目前只有评测代码填充，生产路径没有 |
+| **代码位置** | `runtime/quota/manager.py::SimpleStorageQuotaManager.__init__` · `runtime/context/restore_map_contract.py::archive_path_matches` · `agent/meta_tools/bash/_tool/helpers.py::track_context_access_in_command` · `runtime/paths/execution_paths.py::DEFAULT_PERSISTENT_ROOT` |
+
 ### BUG-HARNESS-2026-10-16-001 · wiki 编译进程被杀后，队列里遗留的「处理中」条目没有任何进程认领：崩溃后 300 秒内重启时，界面一直显示「编译中」并禁用维护与重建索引
 
 | 字段 | 内容 |

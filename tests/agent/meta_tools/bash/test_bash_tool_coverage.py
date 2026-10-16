@@ -21,6 +21,7 @@ from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import (
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     create_bash_code_execute_tool,
 )
+from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT_ENV
 
 
 class _FakeBackgroundInfo:
@@ -112,6 +113,24 @@ async def test_track_context_access_records_persistent_paths() -> None:
             session_id="sess-1",
         )
     tracker.record_access.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_track_context_access_follows_relocated_persistent_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(PERSISTENT_ROOT_ENV, "/var/state/harness")
+    tracker = MagicMock()
+    tracker.record_access = AsyncMock()
+    with patch(
+        "myrm_agent_harness.runtime.context.file_access_tracker.get_file_access_tracker",
+        AsyncMock(return_value=tracker),
+    ):
+        await track_context_access_in_command(
+            "cat /var/state/harness/.context/sess-1/compacted/out.txt /persistent/.context/other/out.txt",
+            session_id="sess-1",
+        )
+    tracker.record_access.assert_awaited_once_with(
+        "/var/state/harness/.context/sess-1/compacted/out.txt", session_id="sess-1"
+    )
 
 
 def test_restore_context_vars_binds_executor_and_workspace() -> None:

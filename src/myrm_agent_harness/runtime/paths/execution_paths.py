@@ -33,6 +33,7 @@ Persistent root:
 
 [OUTPUT]
 - PERSISTENT_ROOT_ENV: Name of the environment variable that relocates the persistent volume root.
+- DEFAULT_PERSISTENT_ROOT: The volume root used when the environment variable is unset.
 - get_persistent_root: The persistent volume root currently in effect.
 - get_workspace_root: The workspace root under the persistent volume.
 - get_context_root: The context root currently in effect.
@@ -64,7 +65,7 @@ from typing import Literal
 # Environment variable the deployment layer sets when the volume is not mounted at /persistent.
 PERSISTENT_ROOT_ENV = "MYRM_PERSISTENT_ROOT"
 
-_DEFAULT_PERSISTENT_ROOT = "/persistent"
+DEFAULT_PERSISTENT_ROOT = "/persistent"
 
 # Alternative workspace path for compatibility
 LEGACY_WORKSPACE_ROOT = "/workspace"
@@ -73,12 +74,13 @@ LEGACY_WORKSPACE_ROOT = "/workspace"
 def get_persistent_root() -> str:
     """Return the persistent volume root currently in effect.
 
-    Read from ``MYRM_PERSISTENT_ROOT`` at call time, falling back to ``/persistent``. Callers that
-    need a root import this function instead of a constant, so they always agree with the paths
-    the writers produce, whenever the deployment layer sets the variable.
+    Read from ``MYRM_PERSISTENT_ROOT`` at call time, falling back to ``DEFAULT_PERSISTENT_ROOT``;
+    a blank value and a bare ``/`` count as unset. Callers that need a root import this function
+    instead of a constant, so they always agree with the paths the writers produce, whenever the
+    deployment layer sets the variable.
     """
     configured = os.environ.get(PERSISTENT_ROOT_ENV, "").strip().rstrip("/")
-    return configured or _DEFAULT_PERSISTENT_ROOT
+    return configured or DEFAULT_PERSISTENT_ROOT
 
 
 def get_workspace_root() -> str:

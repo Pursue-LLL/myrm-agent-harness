@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT_ENV
 from myrm_agent_harness.runtime.quota.manager import SimpleStorageQuotaManager
 
 
@@ -135,3 +136,15 @@ async def test_scratchpad_files_counted(manager: SimpleStorageQuotaManager, cont
 
     usage = await manager._get_session_usage("session_a")
     assert usage == 500
+
+
+@pytest.mark.asyncio
+async def test_default_context_root_follows_the_persistent_root_in_effect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(PERSISTENT_ROOT_ENV, str(tmp_path))
+    _create_session_files(tmp_path / ".context", "session-1", num_files=2, file_size=100)
+
+    default_root_manager = SimpleStorageQuotaManager()
+
+    assert await default_root_manager._get_session_usage("session-1") == 200

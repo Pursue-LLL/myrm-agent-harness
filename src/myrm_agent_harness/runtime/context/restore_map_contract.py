@@ -4,6 +4,7 @@
 - json, re, time (POS: standard parsing and payload generation)
 - pathlib::Path (POS: sidecar file lookup)
 - runtime.paths.archive_paths::get_context_archive_sidecar_path_candidates
+- runtime.paths.execution_paths::get_persistent_root
 
 [OUTPUT]
 - build_restore_map_json: Build a schema-versioned restore-map payload.
@@ -34,6 +35,7 @@ from myrm_agent_harness.runtime.context.restore_map_structures import (
     build_restore_range_hints,
 )
 from myrm_agent_harness.runtime.paths.archive_paths import get_context_archive_sidecar_path_candidates
+from myrm_agent_harness.runtime.paths.execution_paths import get_persistent_root
 
 RESTORE_MAP_SCHEMA_VERSION = 2
 SUPPORTED_RESTORE_MAP_SCHEMA_VERSIONS = frozenset({1, RESTORE_MAP_SCHEMA_VERSION})
@@ -161,12 +163,13 @@ def extract_valid_restore_ranges(
 
 def archive_path_matches(left: str, right: str) -> bool:
     """Return whether two archive path forms refer to the same archive."""
+    root_prefix = f"{get_persistent_root()}/"
     left_forms = {left, left.lstrip("/")}
     right_forms = {right, right.lstrip("/")}
-    if left.startswith("/persistent/"):
-        left_forms.add(left[len("/persistent/") :])
-    if right.startswith("/persistent/"):
-        right_forms.add(right[len("/persistent/") :])
+    if left.startswith(root_prefix):
+        left_forms.add(left[len(root_prefix) :])
+    if right.startswith(root_prefix):
+        right_forms.add(right[len(root_prefix) :])
     return bool(left_forms & right_forms)
 
 
