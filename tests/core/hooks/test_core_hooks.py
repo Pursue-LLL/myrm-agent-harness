@@ -87,7 +87,6 @@ class TestAggregatedHookResult:
         assert r.blocked is False
         assert r.reason == ""
         assert r.updated_input is None
-        assert r.additional_contexts == []
         assert r.all_succeeded is True
 
     def test_with_blocking_result(self) -> None:
@@ -106,15 +105,6 @@ class TestAggregatedHookResult:
         )
         r = AggregatedHookResult(results=results)
         assert r.updated_input == {"second": True}
-
-    def test_additional_contexts(self) -> None:
-        results = (
-            HookResult(hook_type="a", success=True, additional_context="ctx1"),
-            HookResult(hook_type="b", success=True),
-            HookResult(hook_type="c", success=True, additional_context="ctx2"),
-        )
-        r = AggregatedHookResult(results=results)
-        assert r.additional_contexts == ["ctx1", "ctx2"]
 
     def test_all_succeeded_false(self) -> None:
         results = (

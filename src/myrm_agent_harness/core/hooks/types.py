@@ -157,7 +157,6 @@ class HookResult:
     blocked: bool = False
     reason: str = ""
     updated_input: dict[str, object] | None = None
-    additional_context: str | None = None
     metadata: dict[str, object] = field(default_factory=dict)
     elapsed_ms: float = 0.0
 
@@ -186,10 +185,6 @@ class AggregatedHookResult:
             if r.updated_input is not None:
                 return r.updated_input
         return None
-
-    @property
-    def additional_contexts(self) -> list[str]:
-        return [r.additional_context for r in self.results if r.additional_context]
 
     @property
     def all_succeeded(self) -> bool:

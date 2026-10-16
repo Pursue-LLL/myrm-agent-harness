@@ -196,8 +196,7 @@ BaseAgent (基础 Agent)
 │   └─ tracking/ (压缩、归档、恢复 outcome 与读取成本指标)
 │
 ├─ hooks/ (Hook 系统)
-│   ├─ HookMiddleware (生命周期钩子)
-│   └─ HookOutputSpiller (超大输出磁盘溢写)
+│   └─ HookMiddleware (生命周期钩子)
 │
 ├─ file_snapshot/ (文件快照)
 │   ├─ FileSnapshotProtocol (快照协议)

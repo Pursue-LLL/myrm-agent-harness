@@ -158,8 +158,7 @@ class HookExecutor:
             if result.blocked:
                 break
 
-        agg = AggregatedHookResult(results=tuple(results))
-        return await self._spill_oversized_contexts(agg, payload)
+        return AggregatedHookResult(results=tuple(results))
 
     async def _dispatch(self, hook: HookDefinition, event: str, payload: dict[str, object]) -> HookResult:
         if isinstance(hook, CallableHookDefinition):
@@ -384,36 +383,6 @@ class HookExecutor:
             blocked=hook.block_on_failure,
             reason=str(parsed.get("reason", "LLM hook rejected the event")),
         )
-
-    # -- Output spilling --
-
-    async def _spill_oversized_contexts(
-        self, agg: AggregatedHookResult, payload: dict[str, object]
-    ) -> AggregatedHookResult:
-        """Spill oversized additional_context to disk, replacing with preview."""
-        contexts = agg.additional_contexts
-        if not contexts:
-            return agg
-
-        from myrm_agent_harness.agent.hooks.output_spiller import HOOK_OUTPUT_TOKEN_LIMIT, HookOutputSpiller
-        from myrm_agent_harness.utils.text_utils import get_token_count
-
-        # Quick check: skip spilling if all contexts are under limit
-        if all(get_token_count(c) <= HOOK_OUTPUT_TOKEN_LIMIT for c in contexts):
-            return agg
-
-        session_id = str(payload.get("session_id", ""))
-        spiller = HookOutputSpiller()
-
-        new_results: list[HookResult] = []
-        for r in agg.results:
-            if r.additional_context and get_token_count(r.additional_context) > HOOK_OUTPUT_TOKEN_LIMIT:
-                spilled = await spiller.maybe_spill_text(r.additional_context, session_id)
-                new_results.append(replace(r, additional_context=spilled))
-            else:
-                new_results.append(r)
-
-        return AggregatedHookResult(results=tuple(new_results))
 
 
 def _matches_hook(hook: HookDefinition, payload: dict[str, object]) -> bool:

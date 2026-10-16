@@ -21,7 +21,6 @@ from myrm_agent_harness.agent.context_management.infra.session_lock import (
     reset_current_chat_id,
     set_current_chat_id,
 )
-from myrm_agent_harness.agent.hooks.output_spiller import HookOutputSpiller
 from myrm_agent_harness.agent.meta_tools.file_ops.observers.tracker_observer import TrackerObserver
 from myrm_agent_harness.runtime.context.cleanup_ops import (
     cleanup_orphan_context_files_async,
@@ -136,11 +135,3 @@ def test_pins_and_branches_live_inside_the_rebound_context_root(local_root: Path
 
     assert (local_root / "chat_a" / "pinned_context_files.json").is_file()
     assert (local_root / "chat_a" / "branches.json").is_file()
-
-
-def test_the_hook_output_spiller_defaults_to_the_rebound_persistent_root(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(execution_paths, "PERSISTENT_ROOT", str(tmp_path / "harness"))
-
-    assert HookOutputSpiller()._output_dir == tmp_path / "harness" / ".hook_outputs"

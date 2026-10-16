@@ -15,19 +15,16 @@ from types import SimpleNamespace
 import pytest
 
 from myrm_agent_harness.agent.hooks import (
-    CallableHookDefinition,
     CommandHookDefinition,
     HookEvent,
     HookExecutor,
     HookRegistry,
-    HookResult,
     HookSource,
     LLMHookDefinition,
     set_command_hook_approver,
 )
 from myrm_agent_harness.agent.hooks.command_gate import approve_hook_command
 from myrm_agent_harness.agent.hooks.executor import _parse_hook_json
-from myrm_agent_harness.agent.hooks.output_spiller import HookOutputSpiller
 from myrm_agent_harness.agent.hooks.registry import _hook_detail
 from myrm_agent_harness.agent.hooks.types import HttpHookDefinition
 
@@ -211,48 +208,6 @@ class TestDispatchGuardsAndSpilling:
         summary = registry.summary()
         assert "session_start" in summary
         assert "session_end" not in summary
-
-    @staticmethod
-    def _patch_spiller(monkeypatch: pytest.MonkeyPatch, *, token_limit: int) -> None:
-        """Lower the spill threshold and replace disk I/O with a fixed reference."""
-
-        async def _fake_spill(self: HookOutputSpiller, text: str, session_id: str) -> str:
-            return "SPILLED-REF"
-
-        monkeypatch.setattr("myrm_agent_harness.agent.hooks.output_spiller.HOOK_OUTPUT_TOKEN_LIMIT", token_limit)
-        monkeypatch.setattr(HookOutputSpiller, "maybe_spill_text", _fake_spill)
-
-    @staticmethod
-    def _context_hook(context: str) -> CallableHookDefinition:
-        async def _hook(event: str, payload: dict[str, object]) -> HookResult:
-            return HookResult(hook_type="callable", success=True, additional_context=context)
-
-        return CallableHookDefinition(fn=_hook)
-
-    @pytest.mark.asyncio
-    async def test_execute_spills_oversized_additional_context(self, monkeypatch: pytest.MonkeyPatch):
-        self._patch_spiller(monkeypatch, token_limit=0)
-        registry = HookRegistry()
-        registry.register(HookEvent.PRE_TOOL_USE, self._context_hook("x" * 5000))
-        result = await HookExecutor(registry).execute(HookEvent.PRE_TOOL_USE, {"session_id": "cov-spill"})
-        assert result.results[0].additional_context == "SPILLED-REF"
-
-    @pytest.mark.asyncio
-    async def test_execute_leaves_small_additional_context_untouched(self):
-        registry = HookRegistry()
-        registry.register(HookEvent.PRE_TOOL_USE, self._context_hook("short note"))
-        result = await HookExecutor(registry).execute(HookEvent.PRE_TOOL_USE, {})
-        assert result.results[0].additional_context == "short note"
-
-    @pytest.mark.asyncio
-    async def test_execute_spills_only_the_oversized_context(self, monkeypatch: pytest.MonkeyPatch):
-        """Mixed batch: the large context is replaced, the small one is preserved verbatim."""
-        self._patch_spiller(monkeypatch, token_limit=50)
-        registry = HookRegistry()
-        registry.register(HookEvent.PRE_TOOL_USE, self._context_hook("word " * 500))
-        registry.register(HookEvent.PRE_TOOL_USE, self._context_hook("tiny note"))
-        result = await HookExecutor(registry).execute(HookEvent.PRE_TOOL_USE, {})
-        assert [r.additional_context for r in result.results] == ["SPILLED-REF", "tiny note"]
 
 
 class TestHookJsonParsing:
