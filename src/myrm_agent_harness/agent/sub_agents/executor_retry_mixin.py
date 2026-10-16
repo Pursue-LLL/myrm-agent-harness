@@ -171,7 +171,7 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
         isolation_succeeded = False
         pending_sync_back: Callable[[], object] | None = None
 
-        async def fail(status: SubAgentStatus, error: str, partial: str = "") -> SubAgentResult:
+        async def finish_failed(status: SubAgentStatus, error: str, partial: str = "") -> SubAgentResult:
             """Close the run as failed: every failure return goes through here so SUBAGENT_STOP pairs SUBAGENT_START."""
             now = time.time()
             failed = SubAgentResult(
@@ -256,7 +256,7 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         await asyncio.sleep(backoff_seconds)
                         backoff_seconds *= 2
                         continue
-                    return await fail(
+                    return await finish_failed(
                         SubAgentStatus.TIMED_OUT,
                         f"Timeout after {config.timeout_seconds}s" if config.timeout_seconds is not None else "Timeout",
                         read_partial_output(timeout_exc, partial_budget),
@@ -272,13 +272,13 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         await asyncio.sleep(backoff_seconds)
                         backoff_seconds *= 2
                         continue
-                    return await fail(
+                    return await finish_failed(
                         SubAgentStatus.FAILED,
                         _compact_error_message(str(llm_exc), config.max_error_chars),
                         read_partial_output(llm_exc, partial_budget),
                     )
                 except SubagentBudgetExceededError as error:
-                    return await fail(
+                    return await finish_failed(
                         SubAgentStatus.CANCELLED_BY_BUDGET,
                         str(error),
                         read_partial_output(error, partial_budget),
@@ -296,13 +296,13 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         await asyncio.sleep(backoff_seconds)
                         backoff_seconds *= 2
                         continue
-                    return await fail(
+                    return await finish_failed(
                         SubAgentStatus.FAILED,
                         _compact_error_message(f"{type(error).__name__}: {error}", config.max_error_chars),
                         read_partial_output(error, partial_budget),
                     )
 
-            return await fail(SubAgentStatus.FAILED, "Max retries exceeded")
+            return await finish_failed(SubAgentStatus.FAILED, "Max retries exceeded")
 
         except asyncio.CancelledError:
             logger.info("[subagent:%s] Cancelled, executing graceful shutdown", task_id)
