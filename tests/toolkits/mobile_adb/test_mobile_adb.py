@@ -99,8 +99,13 @@ async def test_mobile_session_pair_and_connect_flow() -> None:
     session = MobileSession(default_device="")
     with pytest.MonkeyPatch.context() as mp:
         from unittest.mock import AsyncMock
-        mock_pair = AsyncMock(return_value=MobileActionResult(success=True, action="pair", message="Successfully paired"))
-        mock_connect = AsyncMock(return_value=MobileActionResult(success=True, action="connect", message="connected to 192.168.1.100:5555"))
+
+        mock_pair = AsyncMock(
+            return_value=MobileActionResult(success=True, action="pair", message="Successfully paired")
+        )
+        mock_connect = AsyncMock(
+            return_value=MobileActionResult(success=True, action="connect", message="connected to 192.168.1.100:5555")
+        )
         mp.setattr(session.driver, "pair", mock_pair)
         mp.setattr(session.driver, "connect", mock_connect)
 
@@ -214,7 +219,6 @@ async def test_snapshot_settle_ms_capped_at_two_seconds() -> None:
     import asyncio
     from unittest.mock import AsyncMock, patch
 
-
     session = MobileSession(default_device="t")
     state = MobileDeviceState(
         device_id="t",
@@ -226,6 +230,3 @@ async def test_snapshot_settle_ms_capped_at_two_seconds() -> None:
     with patch.object(asyncio, "sleep", new=AsyncMock()) as nap:
         await session.snapshot(target="t", settle_ms=9000)
         nap.assert_awaited_once_with(2.0)
-
-
-
