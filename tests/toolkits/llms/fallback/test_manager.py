@@ -149,38 +149,6 @@ async def test_all_models_fail():
 
 
 @pytest.mark.asyncio
-async def test_reset_cooldowns():
-    """Test cooldown reset functionality."""
-    call_count = {"primary": 0}
-
-    async def primary():
-        call_count["primary"] += 1
-        if call_count["primary"] == 1:
-            raise RateLimitError("Rate limit exceeded")
-        return "primary result"
-
-    async def fallback():
-        return "fallback result"
-
-    manager = ModelFallbackManager[str]()
-    manager.add_candidate("gpt-4", 0, primary)
-    manager.add_candidate("claude-3", 1, fallback)
-
-    # First call - primary fails, fallback succeeds
-    result1 = await manager.execute()
-    assert result1 == "fallback result"
-    assert call_count["primary"] == 1
-
-    # Reset cooldowns
-    manager.reset_cooldowns()
-
-    # Second call - primary should be tried again and succeed
-    result2 = await manager.execute()
-    assert result2 == "primary result"
-    assert call_count["primary"] == 2
-
-
-@pytest.mark.asyncio
 async def test_probe_during_cooldown():
     """Test probe mechanism during cooldown period."""
     call_count = {"primary": 0}

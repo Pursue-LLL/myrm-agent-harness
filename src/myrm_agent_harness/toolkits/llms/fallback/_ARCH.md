@@ -8,7 +8,6 @@ Enhanced model fallback management. Supports cooldown periods, candidate pools, 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Enhanced model fallback management. Supports cooldown periods, candidate pools, and decision logging | ✅ |
-| circuit_breaker.py | Core | Circuit breaker. Opens after consecutive failures to prevent cascading failures. | ✅ |
 | config.py | Config | Configurable probe and cooldown policies for model fallback management. | ✅ |
 | context.py | Core | Async-context-bound emitter binding via ContextVar. Lets business surfaces (SSE, telemetry) subscribe to failover/recovery events without coupling the manager to any transport. | ✅ |
 | events.py | Core | Defines failover and recovery events that are emitted during model lifecycle. | ✅ |
