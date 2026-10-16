@@ -10,9 +10,10 @@
 [POS]
 Only the worker of the process that owns a vault marks sources ``processing``. A row still marked so when this
 process first opens the database was left by a process that died: nothing is working on it, yet it keeps the
-page on "compiling" and blocks maintenance until a later compile happens to reset it. Later opens of the same
-database in this process (a new archiver after a model switch) must leave the rows alone, they belong to the live
-worker. Assumes one process per vault, as the kanban boot recovery does.
+page on "compiling" and blocks maintenance (the 300 s stale reset only frees rows older than that). Requeued rows
+are compiled again by the background worker the archiver starts, like any other pending row. Later opens of the
+same database in this process (a new archiver after a model switch) must leave the rows alone, they belong to the
+live worker. Assumes one process per vault, as the kanban boot recovery does.
 """
 
 from __future__ import annotations
