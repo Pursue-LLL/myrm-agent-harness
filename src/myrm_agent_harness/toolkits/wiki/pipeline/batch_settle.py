@@ -87,7 +87,7 @@ def settle_extracted(
     A source whose file changed since extraction read it is queued again, whatever else happened: its results
     are about text that no longer exists. Otherwise it is failed when ``blocked`` names a failure that kept an
     article from being written, so the queue shows it and a retry can fix it, and completed when it is not.
-    A file that can no longer be read is settled as it always was: the compile has what it needs from it.
+    A file that can no longer be read counts as unchanged: the compile already has what it needs from it.
     """
     paths = {item["id"]: Path(item["file_path"]) for item in items}
     done: list[int] = []

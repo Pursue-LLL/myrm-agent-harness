@@ -207,56 +207,51 @@ async def generate_article(
     system_msg = SystemMessage(content="You are a technical writer creating wiki articles.")
     human_msg = HumanMessage(content=prompt)
 
-    try:
-        response = await llm.ainvoke([system_msg, human_msg])
-        article_content = extract_answer_text(response)
+    response = await llm.ainvoke([system_msg, human_msg])
+    article_content = extract_answer_text(response)
 
-        if len(article_content) > compile_config.max_article_length:
-            article_content = article_content[: compile_config.max_article_length] + "\n\n(truncated)"
+    if len(article_content) > compile_config.max_article_length:
+        article_content = article_content[: compile_config.max_article_length] + "\n\n(truncated)"
 
-        article_content = apply_compile_gate(
-            article_content,
-            concept.name,
-            concept.source_files,
-        )
+    article_content = apply_compile_gate(
+        article_content,
+        concept.name,
+        concept.source_files,
+    )
 
-        article_content = ensure_compile_claims(
-            article_content,
-            concept.name,
-            list(concept.source_files),
-            structure=structure,
-        )
+    article_content = ensure_compile_claims(
+        article_content,
+        concept.name,
+        list(concept.source_files),
+        structure=structure,
+    )
 
-        restore_base = existing_content
-        if not restore_base and concept.source_files:
-            # First compile of a brand-new concept: raw sources (e.g. auto-archived
-            # turns) carry source_chat provenance that would otherwise be lost.
-            source_provenance = provenance_from_raw_sources(structure, list(concept.source_files))
-            if source_provenance:
-                restore_base = serialize_frontmatter_block(dict[str, object](source_provenance))
+    restore_base = existing_content
+    if not restore_base and concept.source_files:
+        # First compile of a brand-new concept: raw sources (e.g. auto-archived
+        # turns) carry source_chat provenance that would otherwise be lost.
+        source_provenance = provenance_from_raw_sources(structure, list(concept.source_files))
+        if source_provenance:
+            restore_base = serialize_frontmatter_block(dict[str, object](source_provenance))
 
-        article_content = restore_provenance_metadata(restore_base, article_content)
+    article_content = restore_provenance_metadata(restore_base, article_content)
 
-        if compile_config.require_approval:
-            pending_mgr = WikiPendingEditsManager(structure, indexer)
-            await pending_mgr.stage_pending_edit(
-                concept.name,
-                article_content,
-                source_files=concept.source_files,
-                provenance=WikiProvenance.COMPILED,
-            )
-            logger.info(f"Generated pending draft for article: {concept.name}")
-            return _PENDING
-
-        await publish_concept_article(
-            structure,
-            indexer,
+    if compile_config.require_approval:
+        pending_mgr = WikiPendingEditsManager(structure, indexer)
+        await pending_mgr.stage_pending_edit(
             concept.name,
             article_content,
+            source_files=concept.source_files,
+            provenance=WikiProvenance.COMPILED,
         )
-        logger.info(f"Generated and published article: {concept.name}")
-        return _PUBLISHED
+        logger.info(f"Generated pending draft for article: {concept.name}")
+        return _PENDING
 
-    except Exception as e:
-        logger.error(f"Failed to generate article for {concept.name}: {e}")
-        raise
+    await publish_concept_article(
+        structure,
+        indexer,
+        concept.name,
+        article_content,
+    )
+    logger.info(f"Generated and published article: {concept.name}")
+    return _PUBLISHED

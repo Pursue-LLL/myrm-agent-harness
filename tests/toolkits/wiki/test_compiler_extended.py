@@ -6,10 +6,11 @@ prompt guidance, parallel batch ingestion, worker loop, and edge cases."""
 import asyncio
 import json
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
@@ -433,11 +434,7 @@ async def test_purpose_injection(wiki_structure: WikiStructure, mock_llm: AsyncM
 
     mock_llm.ainvoke.return_value = AIMessage(content="## Compiled Truth\nAI article.")
 
-    class DummyConcept:
-        name = "AI"
-        source_files = ("ai.md",)
-
-    await compiler._generate_article(DummyConcept())
+    await compiler._generate_article(ConceptInfo(name="AI", definition="d", source_files=["ai.md"]))
 
     call_args = mock_llm.ainvoke.call_args[0][0]
     human_msg_content = call_args[1].content
@@ -480,7 +477,7 @@ async def test_visual_guidance_reaches_llm(
 
 
 @pytest.mark.asyncio
-async def test_extract_concepts_batch_parallel(wiki_structure: WikiStructure, mock_indexer: AsyncMock):
+async def test_extract_concepts_batch_parallel(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test that _extract_concepts_batch runs in parallel when parallel_compilation=True."""
     llm = AsyncMock()
     llm.ainvoke.return_value = AIMessage(content='[{"name": "Concept1", "definition": "Def1", "related_concepts": []}]')
@@ -502,7 +499,7 @@ async def test_extract_concepts_batch_parallel(wiki_structure: WikiStructure, mo
 
 
 @pytest.mark.asyncio
-async def test_extract_concepts_batch_sequential(wiki_structure: WikiStructure, mock_indexer: AsyncMock):
+async def test_extract_concepts_batch_sequential(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test that _extract_concepts_batch runs sequentially when parallel_compilation=False."""
     llm = AsyncMock()
     llm.ainvoke.return_value = AIMessage(
@@ -525,7 +522,7 @@ async def test_extract_concepts_batch_sequential(wiki_structure: WikiStructure, 
 
 
 @pytest.mark.asyncio
-async def test_generate_articles_batch_parallel(wiki_structure: WikiStructure, mock_indexer: AsyncMock):
+async def test_generate_articles_batch_parallel(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test that _generate_articles_batch processes concepts in parallel."""
     llm = AsyncMock()
     llm.ainvoke.return_value = AIMessage(content="## Compiled Truth\nArticle content.")
@@ -546,7 +543,9 @@ async def test_generate_articles_batch_parallel(wiki_structure: WikiStructure, m
 
 
 @pytest.mark.asyncio
-async def test_extract_concepts_batch_handles_missing_file(wiki_structure: WikiStructure, mock_indexer: AsyncMock):
+async def test_extract_concepts_batch_handles_missing_file(
+    wiki_structure: WikiStructure, mock_indexer: AsyncMock
+) -> None:
     """Test that missing files are handled gracefully in parallel mode."""
     llm = AsyncMock()
     llm.ainvoke.return_value = AIMessage(content='[{"name": "X", "definition": "Y"}]')
@@ -564,11 +563,11 @@ async def test_extract_concepts_batch_handles_missing_file(wiki_structure: WikiS
 
 
 @pytest.mark.asyncio
-async def test_extract_concepts_batch_merges_duplicates(wiki_structure: WikiStructure, mock_indexer: AsyncMock):
+async def test_extract_concepts_batch_merges_duplicates(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test that concepts with the same name are merged after parallel extraction."""
     call_count = 0
 
-    async def mock_ainvoke(messages):
+    async def mock_ainvoke(messages: list[BaseMessage]) -> AIMessage:
         nonlocal call_count
         call_count += 1
         return AIMessage(content='[{"name": "SharedConcept", "definition": "Def", "related_concepts": []}]')
@@ -618,8 +617,8 @@ async def test_start_background_worker_already_running(wiki_structure: WikiStruc
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
     user_key = str(wiki_structure.base_dir)
 
-    fake_task = asyncio.Future()
-    WikiCompiler._active_workers[user_key] = fake_task
+    fake_task: asyncio.Future[None] = asyncio.Future()
+    WikiCompiler._active_workers[user_key] = cast("asyncio.Task[None]", fake_task)
 
     try:
         compiler.start_background_worker()
@@ -743,7 +742,7 @@ async def test_extract_concepts_batch_gather_exception(wiki_structure: WikiStruc
     llm = AsyncMock()
     call_count = 0
 
-    async def failing_ainvoke(messages):
+    async def failing_ainvoke(messages: list[BaseMessage]) -> AIMessage:
         nonlocal call_count
         call_count += 1
         if call_count == 2:
