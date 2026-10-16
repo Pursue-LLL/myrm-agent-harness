@@ -1,4 +1,4 @@
-"""Extended tests for WikiCompiler - covering _filter_changed_files, compile_all,
+"""Extended tests for WikiCompiler - covering compile_all,
 _extract_concepts_from_doc (including index catalog prompt wiring), parse_concepts_response,
 refresh_cognitive_map, generate_backlinks, save_metadata, purpose injection, visual element
 prompt guidance, parallel batch ingestion, worker loop, and edge cases."""
@@ -108,59 +108,6 @@ def test_parse_json_invalid_mentions_falls_back_to_one(wiki_structure: WikiStruc
         concepts = parse_concepts_response(payload, "test.md")
         assert len(concepts) == 1
         assert concepts[0].mentions == 1, payload
-
-
-# --- _filter_changed_files ---
-
-
-@pytest.mark.asyncio
-async def test_filter_changed_files_no_metadata(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
-    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    raw = wiki_structure.raw_dir / "test.md"
-    raw.write_text("content")
-    changed = await compiler._filter_changed_files([raw])
-    assert changed == [raw]
-
-
-@pytest.mark.asyncio
-async def test_filter_changed_files_unchanged(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
-    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    raw = wiki_structure.raw_dir / "test.md"
-    raw.write_text("content")
-
-    import hashlib
-
-    from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
-        LAST_COMPILE_RAW_HASHES_KEY,
-        raw_relative_storage_key,
-    )
-
-    content_hash = hashlib.sha256(raw.read_bytes()).hexdigest()
-    storage_key = raw_relative_storage_key(wiki_structure, raw)
-    metadata_path = wiki_structure.get_wiki_metadata_path()
-    metadata_path.write_text(json.dumps({LAST_COMPILE_RAW_HASHES_KEY: {storage_key: content_hash}}))
-
-    changed = await compiler._filter_changed_files([raw])
-    assert changed == []
-
-
-@pytest.mark.asyncio
-async def test_filter_changed_files_modified(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
-    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    raw = wiki_structure.raw_dir / "test.md"
-    raw.write_text("content")
-
-    from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
-        LAST_COMPILE_RAW_HASHES_KEY,
-        raw_relative_storage_key,
-    )
-
-    metadata_path = wiki_structure.get_wiki_metadata_path()
-    storage_key = raw_relative_storage_key(wiki_structure, raw)
-    metadata_path.write_text(json.dumps({LAST_COMPILE_RAW_HASHES_KEY: {storage_key: "stale_hash"}}))
-
-    changed = await compiler._filter_changed_files([raw])
-    assert changed == [raw]
 
 
 # --- _extract_concepts_from_doc ---
@@ -787,39 +734,6 @@ async def test_worker_loop_stale_recovery(wiki_structure: WikiStructure, mock_in
 
     with patch("asyncio.sleep", side_effect=fast_sleep):
         await compiler._worker_loop()
-
-
-# --- _filter_changed_files edge cases ---
-
-
-@pytest.mark.asyncio
-async def test_filter_changed_files_invalid_metadata_json(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
-    """Test _filter_changed_files with corrupt metadata file (lines 245-247)."""
-    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    raw = wiki_structure.raw_dir / "test.md"
-    raw.write_text("content")
-
-    metadata_path = wiki_structure.get_wiki_metadata_path()
-    metadata_path.write_text("not valid json {{{")
-
-    changed = await compiler._filter_changed_files([raw])
-    assert changed == [raw]
-
-
-@pytest.mark.asyncio
-async def test_filter_changed_files_unreadable_file(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
-    """Test _filter_changed_files with OSError reading file hash (lines 255-256)."""
-    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
-    raw = wiki_structure.raw_dir / "ghost.md"
-    raw.write_text("content")
-
-    metadata_path = wiki_structure.get_wiki_metadata_path()
-    metadata_path.write_text(json.dumps({"last_compile_raw_hashes": {"raw/ghost.md": "oldhash"}}))
-
-    raw.unlink()
-
-    changed = await compiler._filter_changed_files([raw])
-    assert raw in changed
 
 
 # --- _extract_concepts_batch: BaseException from gather ---

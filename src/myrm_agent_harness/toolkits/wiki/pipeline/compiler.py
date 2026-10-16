@@ -9,6 +9,7 @@
 - ..core.parsers::parse_concepts_response (POS: LLM response parser)
 - .postprocess::generate_backlinks, save_metadata (POS: post-compilation steps)
 - .cognitive_map::WikiCognitiveMapService (POS: OKF index/log/hot writers)
+- .compiler_enqueue::enqueue_changed_sources (POS: compile intake, which raw files go onto the queue)
 - .queue::WikiIngestionQueue (POS: persistent ingestion queue)
 - .sidecar::build_directory_sidecars (POS: bottom-up directory sidecar builder)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取)
@@ -27,8 +28,6 @@ processing.
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,6 +50,7 @@ if TYPE_CHECKING:
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptInfo
 
+from . import compiler_enqueue
 from .cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
 from .cognitive_map.schema_writer import read_index_context
 from .compiler_provenance import (
@@ -374,29 +374,14 @@ class WikiCompiler:
             logger.info(f"Wiki background worker stopped for {user_key}")
 
     async def enqueue_changed_sources(self) -> int:
-        """Queue the raw files a compile has to read: the new or changed ones, or all of them for a full strategy.
-
-        Nothing is compiled here; the background worker (``start_background_worker``) drains the queue. A file the
-        worker is compiling right now is left alone: queueing it again would put it back to pending while the worker
-        still holds it, and the queue would report no work in progress.
+        """Queue the raw files a compile has to read; the background worker (``start_background_worker``) drains them.
 
         Returns:
             How many files were queued.
         """
-        from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.eligibility import (
-            CorpusEligibilityFilter,
+        return await compiler_enqueue.enqueue_changed_sources(
+            self._structure, self._queue, incremental=self._config.compile_strategy == "incremental"
         )
-
-        raw_files = CorpusEligibilityFilter(self._structure).filter_raw_paths(self._structure.list_raw_files())
-        incremental = self._config.compile_strategy == "incremental"
-        files = await self._filter_changed_files(raw_files) if incremental else raw_files
-        # Read after the last await, so the worker cannot claim a file between this check and the write below.
-        in_flight = set(self._queue.list_processing_file_paths())
-        files = [path for path in files if str(path) not in in_flight]
-        logger.info(f"{'Incremental' if incremental else 'Full'} compile: adding {len(files)} files to queue")
-        if files:
-            self._queue.add_batch(files)
-        return len(files)
 
     async def compile_all(self, batch_size: int = 10) -> CompileResult:
         """
@@ -532,39 +517,6 @@ class WikiCompiler:
             articles_blocked=batch_stats.blocked,
             synthesis_pending=synthesis_result.synthesis_staged,
         )
-
-    async def _filter_changed_files(self, raw_files: list[Path]) -> list[Path]:
-        """Filter for new or changed files using SHA256 content hashing."""
-        metadata_path = self._structure.get_wiki_metadata_path()
-        if not metadata_path.exists():
-            return raw_files
-
-        try:
-            with open(metadata_path, encoding="utf-8") as meta_f:
-                metadata = json.load(meta_f)
-            from myrm_agent_harness.toolkits.wiki.core.claims_contract import get_last_compile_raw_hashes
-
-            known_hashes = get_last_compile_raw_hashes(metadata)
-        except Exception as e:
-            logger.warning(f"Failed to read metadata: {e}")
-            return raw_files
-
-        # Hashing every raw file takes seconds on a large vault; on a worker thread it does not stall SSE or requests.
-        return await asyncio.to_thread(self._changed_by_hash, raw_files, known_hashes)
-
-    def _changed_by_hash(self, raw_files: list[Path], known_hashes: dict[str, str]) -> list[Path]:
-        from myrm_agent_harness.toolkits.wiki.core.claims_contract import raw_relative_storage_key
-
-        changed: list[Path] = []
-        for f in raw_files:
-            try:
-                content_hash = hashlib.sha256(f.read_bytes()).hexdigest()
-                storage_key = raw_relative_storage_key(self._structure, f)
-                if known_hashes.get(storage_key) != content_hash:
-                    changed.append(f)
-            except OSError:
-                changed.append(f)
-        return changed
 
     async def _extract_concepts_batch(self, queue_items: list[QueueItem]) -> _BatchExtractOutcome:
         """Extract concepts from queue items with configurable parallelism."""
