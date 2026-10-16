@@ -39,7 +39,7 @@ Generic, framework-agnostic toolkit collection. No agent coupling — each toolk
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    # Static mirror of ``_LAZY_IMPORTS`` so type checkers see real types instead of ``object``.
+    # Static mirror of ``_LAZY_IMPORTS``: type checkers resolve each lazy name to its real type.
     from myrm_agent_harness.toolkits.acp.acp_agent_tools import create_invoke_acp_agent_tool
     from myrm_agent_harness.toolkits.browser.tools import create_browser_tools
     from myrm_agent_harness.toolkits.cron.cron_agent_tools import create_cron_tools
