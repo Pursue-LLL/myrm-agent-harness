@@ -6,6 +6,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langgraph.errors import GraphInterrupt
 
 from myrm_agent_harness.agent.sub_agents._orchestrator_verification import run_with_verification
 from myrm_agent_harness.agent.sub_agents.approval_journal import ApprovalJournal
@@ -153,10 +154,16 @@ async def test_an_approval_scope_settles_the_visible_worker_before_any_verifier_
         decisions_given.append(decisions)
         return _result("business", SubAgentStatus.COMPLETED, "finished after approval")
 
+    def ask_nobody(_pending: SubAgentResult) -> object:
+        raise GraphInterrupt  # what ``interrupt()`` raises while the user has not answered
+
     manager = MagicMock()
     manager.spawn_child = spawn
-    scope = ApprovalJournal().scope("business", resume=resume, ask=lambda _pending: "approved")
+    journal = ApprovalJournal()
 
+    with pytest.raises(GraphInterrupt):
+        await _verify(manager, approval_scope=journal.scope("business", resume=resume, ask=ask_nobody))
+    scope = journal.scope("business", resume=resume, ask=lambda _pending: "approved")
     result = await _verify(manager, approval_scope=scope)
 
     assert [step.split("-")[0] for step in order] == ["business", "resume", "verify"]

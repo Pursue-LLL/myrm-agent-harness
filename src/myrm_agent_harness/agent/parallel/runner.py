@@ -1,9 +1,24 @@
-"""Shared parallel subagent execution for batch delegate and swarm fission."""
+"""Shared parallel subagent execution for batch delegate and swarm fission.
+
+[INPUT]
+- parent_agent: BaseAgent that owns the delegations and their workspace
+- delegate_tool: delegate_task tool whose coroutine runs one task
+- tasks: list[TaskRequest] to run concurrently
+
+[OUTPUT]
+- run_parallel_task_requests: dict with the batch summary, per-task results, budget admission and workspace merge outcome
+
+[POS]
+Parallel execution layer shared by batch delegation and swarm fission. Every child runs inside
+``approvals_unanswerable()`` because an approval request raised by one of several concurrent tasks
+cannot be shown to the user; the child is declined with a readable reason instead.
+"""
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
@@ -13,6 +28,7 @@ from myrm_agent_harness.agent.parallel.summary import (
     batch_summary,
     inject_capacity_signal,
 )
+from myrm_agent_harness.agent.sub_agents.approval_journal import approvals_unanswerable
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -107,19 +123,20 @@ async def run_parallel_task_requests(
                 if on_progress:
                     await on_progress(index, "failed", err_res)
                 return err_res
-            res = await coroutine(
-                agent_type=task.agent_type,
-                objective=task.objective,
-                context_files=task.context_files,
-                context=task.context,
-                wait=wait or race,
-                readonly=task.readonly,
-                complexity_tier=task.complexity_tier,
-                role=task.role,
-                verifier_prompt=task.verifier_prompt,
-                verifier_agent_type=task.verifier_agent_type,
-                max_verification_rounds=task.max_verification_rounds,
-            )
+            with approvals_unanswerable():
+                res = await coroutine(
+                    agent_type=task.agent_type,
+                    objective=task.objective,
+                    context_files=task.context_files,
+                    context=task.context,
+                    wait=wait or race,
+                    readonly=task.readonly,
+                    complexity_tier=task.complexity_tier,
+                    role=task.role,
+                    verifier_prompt=task.verifier_prompt,
+                    verifier_agent_type=task.verifier_agent_type,
+                    max_verification_rounds=task.max_verification_rounds,
+                )
             if isinstance(res, dict):
                 res.setdefault("agent_type", task.agent_type)
                 res["task_index"] = index
@@ -209,20 +226,16 @@ async def run_parallel_task_requests(
             )
         finally:
             if parallel_write_batch:
-                try:
+                with suppress(AttributeError):
                     delattr(parent_agent, "_parallel_write_batch_active")
-                except AttributeError:
-                    pass
 
     try:
         coros = [_run_task(task, index) for index, task in enumerate(tasks)]
         gathered = await asyncio.gather(*coros, return_exceptions=True)
     finally:
         if parallel_write_batch:
-            try:
+            with suppress(AttributeError):
                 delattr(parent_agent, "_parallel_write_batch_active")
-            except AttributeError:
-                pass
 
     final_results: list[dict[str, object]] = []
     for index, gathered_result in enumerate(gathered):
@@ -258,7 +271,8 @@ async def run_parallel_task_requests(
             f"{summary_data.get('total_count')} tasks failed."
         )
     elif min_completeness_ratio > 0.0:
-        ratio = float(summary_data.get("completeness_ratio") or 0.0)
+        raw_ratio = summary_data.get("completeness_ratio")
+        ratio = float(raw_ratio) if isinstance(raw_ratio, int | float) else 0.0
         if ratio < min_completeness_ratio:
             gate_passed = False
             gate_error = (

@@ -13,6 +13,7 @@
 - close_subagent_checkpointer: release underlying SQLite connection on shutdown
 - reset_subagent_checkpointer: clear singleton instance (for clean test isolation)
 - delete_subagent_checkpoint: drop a finished subagent thread (memory & disk hygiene)
+- discard_stale_subagent_thread: clear a thread an earlier process left under an id before a new subagent starts on it
 - drop_subagent_checkpoint_if_terminal: SSOT gate dropping thread on non-approval completion
 
 [POS]
@@ -159,9 +160,7 @@ class SubagentSqliteCheckpointer(BaseCheckpointSaver[str]):
         configurable = dict(config.get("configurable") or {})
         if "checkpoint_ns" not in configurable:
             configurable["checkpoint_ns"] = ""
-        norm_config = dict(config)
-        norm_config["configurable"] = configurable
-        return norm_config
+        return {**config, "configurable": configurable}
 
     async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         saver = await self._ensure_saver()
@@ -295,6 +294,23 @@ async def delete_subagent_checkpoint(thread_id: str) -> None:
     except Exception:
         # Deletion is best-effort hygiene; never break the executor for it.
         pass
+
+
+async def discard_stale_subagent_thread(thread_id: str) -> None:
+    """Drop a thread an earlier process left under ``thread_id`` before a new subagent starts on that id.
+
+    A subagent waiting for approval keeps its thread across restarts; a new subagent started on the same id would
+    inherit that conversation. An id without a thread costs one lookup and changes nothing.
+    """
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+    try:
+        if await get_subagent_checkpointer().aget_tuple(config) is None:
+            return
+    except (OSError, sqlite3.Error) as exc:
+        logger.warning("[SubagentCheckpointer] Could not look up thread %s: %s", thread_id, exc)
+        return
+    logger.info("[SubagentCheckpointer] Dropping stale thread %s left by an earlier process", thread_id)
+    await delete_subagent_checkpoint(thread_id)
 
 
 async def drop_subagent_checkpoint_if_terminal(task_id: str, status: SubAgentStatus | str) -> None:

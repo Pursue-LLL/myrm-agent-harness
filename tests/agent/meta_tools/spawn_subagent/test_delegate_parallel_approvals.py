@@ -8,16 +8,18 @@ from __future__ import annotations
 
 import ast
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain.agents import create_agent
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
 from langchain_core.messages import AIMessage
+from langchain_core.tools import BaseTool
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import create_delegate_task_tool
+from myrm_agent_harness.agent.parallel.fission import execute_swarm_fission
 from myrm_agent_harness.agent.sub_agents.approval_journal import ApprovalJournal
 from myrm_agent_harness.agent.sub_agents.manager import CapacitySnapshot
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, SubAgentResult, SubAgentStatus
@@ -73,8 +75,7 @@ class _Subagents:
         return sum(1 for c in self.calls if c["task_description"] == objective and "resume_command" in c)
 
 
-def _agent(subagents: _Subagents, objectives: list[str]) -> object:
-    """An agent whose first model message delegates every objective in parallel."""
+def _parent(subagents: _Subagents) -> MagicMock:
     parent = MagicMock()
     parent._last_context = {"session_id": "s1"}
     parent._subagent_manager = MagicMock(
@@ -84,19 +85,35 @@ def _agent(subagents: _Subagents, objectives: list[str]) -> object:
     )
     parent._subagent_manager.spawn_child = subagents.spawn_child
     parent._spawn_child = subagents.spawn_child
+    return parent
+
+
+def _delegate_tool(parent: MagicMock) -> BaseTool:
     catalog = AsyncMock()
     catalog.resolve = AsyncMock(return_value=SubagentConfig(system_prompt="You are a mock agent", tools=(_BASH,)))
-    tool = create_delegate_task_tool(parent, list, catalog)
-    calls = [
-        {
-            "name": "delegate_task_tool",
-            "args": {"agent_type": "coder", "objective": objective, "wait": True},
-            "id": f"call-{index}",
-        }
-        for index, objective in enumerate(objectives)
-    ]
-    model = _ScriptedModel(responses=[AIMessage(content="", tool_calls=calls), AIMessage(content="all done")])
-    return create_agent(model=model, tools=[tool], checkpointer=InMemorySaver())
+    return create_delegate_task_tool(parent, list, catalog)
+
+
+def _delegation(objective: str, call_id: str) -> dict[str, object]:
+    args = {"agent_type": "coder", "objective": objective, "wait": True}
+    return {"name": "delegate_task_tool", "args": args, "id": call_id}
+
+
+def _batch(objectives: list[str], call_id: str) -> dict[str, object]:
+    tasks = [{"agent_type": "coder", "objective": objective, "readonly": True} for objective in objectives]
+    return {"name": "delegate_task_tool", "args": {"mode": "batch", "tasks": tasks}, "id": call_id}
+
+
+def _agent_with_turns(tool: BaseTool, turns: list[list[dict[str, object]]]) -> object:
+    """An agent whose model messages issue the given tool calls turn by turn, then answers."""
+    messages = [AIMessage(content="", tool_calls=calls) for calls in turns] + [AIMessage(content="all done")]
+    return create_agent(model=_ScriptedModel(responses=messages), tools=[tool], checkpointer=InMemorySaver())
+
+
+def _agent(subagents: _Subagents, objectives: list[str]) -> object:
+    """An agent whose first model message delegates every objective in parallel."""
+    calls = [_delegation(objective, f"call-{index}") for index, objective in enumerate(objectives)]
+    return _agent_with_turns(_delegate_tool(_parent(subagents)), [calls])
 
 
 def _tool_outputs(state: dict[str, object]) -> dict[str, dict[str, object]]:
@@ -166,3 +183,55 @@ async def test_the_same_delegation_twice_in_one_message_is_still_stopped() -> No
     assert sorted(bool(output["success"]) for output in outputs.values()) == [False, True]
     assert "Safety interception" in str(next(o["error"] for o in outputs.values() if not o["success"]))
     assert subagents.fresh_spawns("alpha") == 1
+
+
+_RELEASE = "myrm_agent_harness.agent.sub_agents.approval_journal.delete_subagent_checkpoint"
+
+
+@pytest.mark.asyncio
+async def test_a_batch_task_that_needs_approval_is_declined_with_a_readable_reason() -> None:
+    subagents = _Subagents({"alpha": 0, "beta": 1})
+    agent = _agent_with_turns(_delegate_tool(_parent(subagents)), [[_batch(["alpha", "beta"], "batch-1")]])
+
+    with patch(_RELEASE, new=AsyncMock()) as release:
+        state = await agent.ainvoke({"messages": [("user", "go")]}, _CONFIG)  # type: ignore[attr-defined]
+
+    assert not state.get("__interrupt__")
+    output = _tool_outputs(state)["batch-1"]
+    by_index = {item["task_index"]: item for item in output["results"]}  # type: ignore[attr-defined]
+    assert by_index[0]["success"] is True
+    assert by_index[1]["success"] is False
+    assert "needs your approval" in by_index[1]["error"]
+    assert "Interrupt(" not in str(output)
+    assert subagents.resumes("beta") == 0
+    release.assert_awaited_once_with(next(c["task_id"] for c in subagents.calls if c["task_description"] == "beta"))
+
+
+@pytest.mark.asyncio
+async def test_a_delegation_after_a_batch_still_asks_the_user() -> None:
+    subagents = _Subagents({"alpha": 0, "beta": 1, "gamma": 1})
+    turns = [[_batch(["alpha", "beta"], "batch-1")], [_delegation("gamma", "single-1")]]
+    agent = _agent_with_turns(_delegate_tool(_parent(subagents)), turns)
+
+    with patch(_RELEASE, new=AsyncMock()):
+        state = await agent.ainvoke({"messages": [("user", "go")]}, _CONFIG)  # type: ignore[attr-defined]
+
+    assert [_requested_command(i) for i in state["__interrupt__"]] == ["gamma-0"]
+
+
+@pytest.mark.asyncio
+async def test_a_swarm_fission_task_that_needs_approval_is_declined_outside_any_graph() -> None:
+    subagents = _Subagents({"alpha": 0, "beta": 1})
+    parent = _parent(subagents)
+    parent._cached_tools = [_delegate_tool(parent)]
+    payload = {"tasks": [{"agent_type": "coder", "objective": o, "readonly": True} for o in ("alpha", "beta")]}
+
+    with patch(_RELEASE, new=AsyncMock()) as release:
+        resumed = await execute_swarm_fission(parent, payload)
+
+    by_index = {item["task_index"]: item for item in resumed["results"]}  # type: ignore[attr-defined]
+    assert by_index[0]["success"] is True
+    assert by_index[1]["success"] is False
+    assert "needs your approval" in by_index[1]["error"]
+    assert subagents.resumes("beta") == 0
+    release.assert_awaited_once()

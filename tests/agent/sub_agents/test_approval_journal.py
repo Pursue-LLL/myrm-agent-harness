@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from typing import TypedDict
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
@@ -16,6 +16,7 @@ from myrm_agent_harness.agent.sub_agents.approval_journal import (
     ApprovalJournal,
     ApprovalScope,
     SpawnResult,
+    approvals_unanswerable,
     delegation_task_id,
 )
 from myrm_agent_harness.agent.sub_agents.manager import SubagentManager
@@ -170,6 +171,8 @@ async def test_delegations_do_not_see_each_others_progress() -> None:
 
     with pytest.raises(GraphInterrupt):
         await journal.scope("a", resume=first.resume, ask=_User([]).ask).settle(first.spawn)
+    with pytest.raises(GraphInterrupt):
+        await journal.scope("b", resume=second.resume, ask=_User([]).ask).settle(second.spawn)
     result = await journal.scope("b", resume=second.resume, ask=_User(["go"]).ask).settle(second.spawn)
 
     assert isinstance(result, SubAgentResult) and result.status == SubAgentStatus.COMPLETED
@@ -240,3 +243,81 @@ def test_each_manager_owns_one_journal_that_lives_as_long_as_it_does() -> None:
     assert isinstance(first.approval_journal, ApprovalJournal)
     assert first.approval_journal is first.approval_journal
     assert first.approval_journal is not second.approval_journal
+
+
+@pytest.mark.asyncio
+async def test_answers_that_exist_before_a_subagent_has_asked_are_not_its_answers() -> None:
+    journal, subagent = ApprovalJournal(), _Subagent(approvals=1)
+
+    with pytest.raises(GraphInterrupt):
+        await _execute(journal, subagent, _User(["given-to-a-lost-subagent", "given-last"]))
+    result = await _execute(journal, subagent, _User(["given-to-a-lost-subagent", "given-last", "new"]))
+
+    assert isinstance(result, SubAgentResult) and result.status == SubAgentStatus.COMPLETED
+    assert subagent.spawned == 1
+    assert subagent.resumed_with == ["new"]
+
+
+@pytest.mark.asyncio
+async def test_a_replay_stays_aligned_after_stale_answers_were_discarded() -> None:
+    journal, subagent = ApprovalJournal(), _Subagent(approvals=2)
+    stale = ["old-0", "old-1"]
+
+    with pytest.raises(GraphInterrupt):
+        await _execute(journal, subagent, _User(stale))
+    with pytest.raises(GraphInterrupt):
+        await _execute(journal, subagent, _User([*stale, "first"]))
+    result = await _execute(journal, subagent, _User([*stale, "first", "second"]))
+
+    assert isinstance(result, SubAgentResult) and result.status == SubAgentStatus.COMPLETED
+    assert subagent.resumed_with == ["first", "second"]
+
+
+@pytest.mark.asyncio
+async def test_a_fresh_delegation_starts_on_an_empty_thread_and_its_replays_do_not_clear_it() -> None:
+    cleaner, subagent = AsyncMock(), _Subagent(approvals=1)
+    journal = ApprovalJournal(discard_stale_thread=cleaner)
+
+    with pytest.raises(GraphInterrupt):
+        await _execute(journal, subagent, _User([]))
+    cleaner.assert_awaited_once_with("task")
+    await _execute(journal, subagent, _User(["go"]))
+
+    cleaner.assert_awaited_once_with("task")
+
+
+@pytest.mark.asyncio
+async def test_an_unanswerable_approval_is_declined_and_frees_the_paused_subagent() -> None:
+    journal, subagent = ApprovalJournal(), _Subagent(approvals=1)
+    ask = MagicMock()
+    paused = _result(SubAgentStatus.PENDING_APPROVAL)
+    paused.payload = {"actionRequests": [{"action": "bash_code_execute_tool"}]}
+
+    async def spawn() -> SpawnResult:
+        return paused
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.approval_journal.delete_subagent_checkpoint", new=AsyncMock()
+        ) as free,
+        approvals_unanswerable(),
+    ):
+        result = await journal.scope("task", resume=subagent.resume, ask=ask).settle(spawn)
+
+    assert isinstance(result, SubAgentResult)
+    assert (result.success, result.status, result.payload) == (False, SubAgentStatus.BLOCKED, None)
+    assert "needs your approval" in result.error
+    ask.assert_not_called()
+    free.assert_awaited_once_with("child")
+    assert subagent.resumed_with == []
+    assert not journal.is_replay("task")
+
+
+@pytest.mark.asyncio
+async def test_approvals_are_asked_again_once_the_unanswerable_block_ends() -> None:
+    journal, subagent = ApprovalJournal(), _Subagent(approvals=1)
+    with approvals_unanswerable():
+        pass
+
+    with pytest.raises(GraphInterrupt):
+        await _execute(journal, subagent, _User([]))

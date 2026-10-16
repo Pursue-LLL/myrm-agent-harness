@@ -38,8 +38,9 @@ def _result(status: SubAgentStatus, text: str = "Done", task_id: str = "child") 
 class _Subagent:
     """A subagent that asks for approval ``approvals`` times, one shell command each, then finishes."""
 
-    def __init__(self, approvals: int) -> None:
+    def __init__(self, approvals: int, label: str = "step") -> None:
         self.approvals = approvals
+        self.label = label
         self.calls: list[dict[str, object]] = []
         self.decisions: list[object] = []
 
@@ -50,7 +51,7 @@ class _Subagent:
             self.decisions.append(command.resume)
         task_id = str(kwargs["task_id"])
         if len(self.decisions) < self.approvals:
-            request = {"action": _BASH, "args": {"command": f"step-{len(self.decisions)}"}}
+            request = {"action": _BASH, "args": {"command": f"{self.label}-{len(self.decisions)}"}}
             pending = _result(SubAgentStatus.PENDING_APPROVAL, task_id=task_id)
             pending.payload = {"actionRequests": [request]}
             return pending
@@ -84,13 +85,13 @@ def _catalog() -> AsyncMock:
     return catalog
 
 
-def _graph(parent: MagicMock) -> object:
+def _graph(parent: MagicMock, checkpointer: InMemorySaver | None = None) -> object:
     tool = create_delegate_task_tool(parent, list, _catalog())
     builder = StateGraph(MessagesState)
     builder.add_node("tools", ToolNode([tool]))
     builder.add_edge(START, "tools")
     builder.add_edge("tools", END)
-    return builder.compile(checkpointer=InMemorySaver())
+    return builder.compile(checkpointer=checkpointer or InMemorySaver())
 
 
 def _call(args: dict[str, object], call_id: str) -> dict[str, object]:
@@ -214,3 +215,29 @@ async def test_a_verified_worker_is_verified_after_its_approvals_and_against_its
     assert events == ["verify:{'baseline': (1.0, 0)}"]
     assert len(subagent.fresh_spawns) == 1
     assert subagent.decisions == [{"decisions": [{"type": "approve"}]}]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stale_answers", [1, 2])
+async def test_answers_given_to_a_lost_subagent_are_never_applied_to_its_replacement(stale_answers: int) -> None:
+    """A restart empties the journal while the checkpoint still holds the answers the user gave before it."""
+    saver = InMemorySaver()
+    config = {"configurable": {"thread_id": "chat"}}
+    before = _Subagent(approvals=stale_answers + 1)
+    graph = _graph(_parent(before), saver)
+    state = await graph.ainvoke(_call(_ARGS, "c1"), config)  # type: ignore[attr-defined]
+    for n in range(stale_answers):
+        state = await graph.ainvoke(Command(resume={"decisions": [{"type": "approve", "n": n}]}), config)  # type: ignore[attr-defined]
+    assert _requested_commands(state) == [f"step-{stale_answers}"]
+
+    after = _Subagent(approvals=1, label="other")
+    restarted = _graph(_parent(after), saver)
+    asked = await restarted.ainvoke(Command(resume={"decisions": [{"type": "approve", "n": "last"}]}), config)  # type: ignore[attr-defined]
+
+    assert _requested_commands(asked) == ["other-0"]
+    assert after.decisions == []
+    fresh = {"decisions": [{"type": "approve", "n": "new"}]}
+    done = await restarted.ainvoke(Command(resume=fresh), config)  # type: ignore[attr-defined]
+    assert _tool_output(done)["success"] is True
+    assert after.decisions == [fresh]
+    assert len(after.fresh_spawns) == 1
