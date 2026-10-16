@@ -46,8 +46,8 @@ _KEEP_LATEST = "keep_latest"
 _DELETE = "delete"
 
 # Stored payload one deletion transaction may free, and the row cap for histories of tiny checkpoints. Checkpoint
-# writers queue behind each batch, so batches stay small: a 3.4 GB database pruned under concurrent writers kept its
-# 99th-percentile write latency near 250 ms, where 16 MiB batches reached 500 ms.
+# writers queue behind each batch, so batches stay small: pruning a synthetic 3.4 GB database under concurrent
+# writers kept their 99th-percentile write latency near 250 ms, where 16 MiB batches reached 500 ms.
 _BATCH_BYTES = 4 * 1024 * 1024
 _BATCH_ROWS = 256
 # Pause between batches so a long prune leaves the disk to everything else.
