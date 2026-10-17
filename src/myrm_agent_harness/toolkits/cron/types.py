@@ -382,7 +382,6 @@ class JobResult:
     skipped: bool = False
     skip_reason: str | None = None
     circuit_broken: bool = False
-    circuit_break_reason: str | None = None
 
 
 # ---------------------------------------------------------------------------

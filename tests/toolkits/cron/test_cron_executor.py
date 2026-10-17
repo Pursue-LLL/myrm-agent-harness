@@ -1018,7 +1018,6 @@ class TestRunAndRecordTracing:
                 success=False,
                 error="RUNAWAY_CIRCUIT_BREAKER: 3 identical failures",
                 circuit_broken=True,
-                circuit_break_reason="Runaway loop detected",
             )
         )
 
