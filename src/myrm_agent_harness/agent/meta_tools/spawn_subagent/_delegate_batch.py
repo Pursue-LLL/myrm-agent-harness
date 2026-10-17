@@ -2,7 +2,7 @@
 
 [INPUT]
 - _delegate_budget::_BatchBudgetAdmission, _admit_race_budget, _estimate_batch_cost (POS: Budget admission and cost estimation)
-- core.security.hitl_decision::is_approved (POS: 人工审批答复唯一解读)
+- core.security.hitl_decision::is_approved, rejection_feedback (POS: 人工审批答复唯一解读)
 - sub_agents.types::SubagentCatalog, DelegateRole
 - parallel.runner::run_parallel_task_requests (POS: Parallel task execution engine)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — judge 兼容 think 剥离与 reasoning 模型回退)
@@ -255,7 +255,7 @@ async def execute_batch_delegation(
         ):
             from langgraph.types import interrupt
 
-            from myrm_agent_harness.core.security.hitl_decision import is_approved
+            from myrm_agent_harness.core.security.hitl_decision import is_approved, rejection_feedback
 
             task_summaries = [{"agent_type": t.agent_type, "objective": t.objective[:200]} for t in tasks]
             interrupt_payload = {
@@ -275,12 +275,16 @@ async def execute_batch_delegation(
             decision = interrupt(interrupt_payload)
 
             if not is_approved(decision):
-                return {
+                refusal: dict[str, object] = {
                     "success": False,
                     "status": "user_rejected",
                     "reason": "batch_cost_rejected_by_user",
                     "estimated_cost_usd": cost_estimate.estimated_cost_usd,
                 }
+                feedback = rejection_feedback(decision)
+                if feedback:
+                    refusal["rejection_feedback"] = feedback
+                return refusal
 
     from myrm_agent_harness.agent.parallel.runner import run_parallel_task_requests
 

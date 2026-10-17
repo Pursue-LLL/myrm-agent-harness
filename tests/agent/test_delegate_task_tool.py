@@ -1978,6 +1978,114 @@ class TestBatchCostApproval:
         assert result["estimated_cost_usd"] == 2.00
 
     @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_user_rejection_surfaces_the_reason(self, mock_estimate, mock_interrupt):
+        """A cost refusal carries the words the person typed so the model can adjust instead of retrying blindly."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=2.00,
+        )
+        mock_interrupt.return_value = {"decision": "reject", "feedback": "Split this into two cheaper batches."}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [
+            TaskRequest(agent_type="coder", objective="expensive 1"),
+            TaskRequest(agent_type="coder", objective="expensive 2"),
+        ]
+        result = await tool.coroutine(tasks=tasks, wait=True)
+
+        assert result["status"] == "user_rejected"
+        assert result["reason"] == "batch_cost_rejected_by_user"
+        assert result["rejection_feedback"] == "Split this into two cheaper batches."
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_channel_denial_keeps_the_persons_own_words(self, mock_estimate, mock_interrupt):
+        """The IM ``/deny <reason>`` shape fills ``feedback`` with a generic line and the person's words in ``guidance``."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=2.00,
+        )
+        mock_interrupt.return_value = {
+            "decisions": [
+                {
+                    "type": "reject",
+                    "feedback": "Denied via slack channel command",
+                    "guidance": "Too pricey — cut the batch in half.",
+                }
+            ]
+        }
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [
+            TaskRequest(agent_type="coder", objective="expensive 1"),
+            TaskRequest(agent_type="coder", objective="expensive 2"),
+        ]
+        result = await tool.coroutine(tasks=tasks, wait=True)
+
+        assert result["status"] == "user_rejected"
+        assert result["rejection_feedback"] == "Too pricey — cut the batch in half."
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_rejection_without_a_reason_keeps_the_plain_result(self, mock_estimate, mock_interrupt):
+        """A bare refusal adds no field, so the machine-readable result is unchanged."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=2.00,
+        )
+        mock_interrupt.return_value = {"decision": "reject"}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+        delegate = MagicMock()
+
+        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tasks = [
+            TaskRequest(agent_type="coder", objective="expensive 1"),
+            TaskRequest(agent_type="coder", objective="expensive 2"),
+        ]
+        result = await tool.coroutine(tasks=tasks, wait=True)
+
+        assert result["status"] == "user_rejected"
+        assert "rejection_feedback" not in result
+
+    @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
     @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
     async def test_skips_approval_when_cost_below_threshold(self, mock_estimate, mock_runner):
@@ -2782,6 +2890,80 @@ class TestCognitiveCostApproval:
         assert result["status"] == "user_rejected"
         assert result["reason"] == "cognitive_cost_rejected_by_user"
         assert result["estimated_cost_usd"] == 2.00
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget._estimate_batch_cost")
+    async def test_preflight_rejection_surfaces_the_reason(self, mock_estimate, mock_interrupt):
+        """A cognitive-mode cost refusal carries the person's words so the model can resize instead of retrying."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            _preflight_cost_check,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=2.00,
+        )
+        mock_interrupt.return_value = {"decision": "reject", "feedback": "Use two experts, not five."}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+
+        result = await _preflight_cost_check(
+            parent_agent=parent,
+            catalog=catalog,
+            expert_agent_types=["a", "b"],
+            objective="task",
+            context_files=[],
+            context=None,
+            mode="alternatives",
+            cross_review_rounds=1,
+        )
+
+        assert result is not None
+        assert result["status"] == "user_rejected"
+        assert result["rejection_feedback"] == "Use two experts, not five."
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget._estimate_batch_cost")
+    async def test_preflight_rejection_without_a_reason_keeps_the_plain_result(self, mock_estimate, mock_interrupt):
+        """A bare cognitive-mode refusal adds no field, so the machine-readable result is unchanged."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            _preflight_cost_check,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=2.00,
+        )
+        mock_interrupt.return_value = {"decision": "reject"}
+
+        parent = _make_mock_parent()
+        catalog = AsyncMock()
+
+        result = await _preflight_cost_check(
+            parent_agent=parent,
+            catalog=catalog,
+            expert_agent_types=["a", "b"],
+            objective="task",
+            context_files=[],
+            context=None,
+            mode="alternatives",
+            cross_review_rounds=1,
+        )
+
+        assert result is not None
+        assert result["status"] == "user_rejected"
+        assert "rejection_feedback" not in result
 
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget._estimate_batch_cost")

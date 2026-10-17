@@ -12,7 +12,7 @@
 - delegation_pause_gate::is_delegation_paused (POS: Session delegation pause check)
 - _delegate_budget::_estimate_batch_cost, _BatchBudgetAdmission (POS: Pre-flight cost estimation)
 - _delegate_batch::TaskRequest, _DEFAULT_COST_APPROVAL_THRESHOLD_USD (POS: Cost approval threshold)
-- core.security.hitl_decision::is_approved (POS: 人工审批答复唯一解读)
+- core.security.hitl_decision::is_approved, rejection_feedback (POS: 人工审批答复唯一解读)
 
 [OUTPUT]
 - execute_cognitive_mode: Execute council or alternatives delegation mode
@@ -253,7 +253,7 @@ async def _preflight_cost_check(
 
     from langgraph.types import interrupt
 
-    from myrm_agent_harness.core.security.hitl_decision import is_approved
+    from myrm_agent_harness.core.security.hitl_decision import is_approved, rejection_feedback
 
     interrupt_payload = {
         "action_type": "batch_cost_approval",
@@ -269,12 +269,16 @@ async def _preflight_cost_check(
     decision = interrupt(interrupt_payload)
 
     if not is_approved(decision):
-        return {
+        refusal: dict[str, object] = {
             "success": False,
             "status": "user_rejected",
             "reason": "cognitive_cost_rejected_by_user",
             "estimated_cost_usd": estimate.estimated_cost_usd,
             "mode": mode,
         }
+        feedback = rejection_feedback(decision)
+        if feedback:
+            refusal["rejection_feedback"] = feedback
+        return refusal
 
     return None
