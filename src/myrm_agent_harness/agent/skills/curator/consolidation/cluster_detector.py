@@ -131,7 +131,7 @@ class ClusterDetector:
 
     async def _detect_embedding_clusters(self, skills: list[SkillMetadata]) -> list[SkillCluster]:
         """Cluster skills by embedding similarity using single-linkage."""
-        np = _require_numpy()
+        numpy = _require_numpy()
         corpus = [f"{s.name} {s.description}" for s in skills]
 
         batch_size = 50
@@ -141,7 +141,7 @@ class ClusterDetector:
             batch_vectors = await self._embeddings.embed_batch(batch)
             all_vectors.extend(batch_vectors)
 
-        vectors: npt.NDArray[np.float64] = np.array(all_vectors, dtype=np.float64)
+        vectors: npt.NDArray[np.float64] = numpy.array(all_vectors, dtype=numpy.float64)
         sim_matrix = self._cosine_similarity_matrix(vectors)
 
         clusters = self._single_linkage_cluster(sim_matrix, skills)
@@ -149,11 +149,12 @@ class ClusterDetector:
 
     def _cosine_similarity_matrix(self, vectors: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """Compute pairwise cosine similarity matrix."""
-        np = _require_numpy()
-        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-        norms = np.maximum(norms, 1e-10)
+        numpy = _require_numpy()
+        norms = numpy.linalg.norm(vectors, axis=1, keepdims=True)
+        norms = numpy.maximum(norms, 1e-10)
         normalized = vectors / norms
-        return np.dot(normalized, normalized.T)
+        similarity: npt.NDArray[np.float64] = numpy.dot(normalized, normalized.T)
+        return similarity
 
     def _single_linkage_cluster(
         self,
