@@ -2,6 +2,23 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-17-003 · 整理（consolidation）把 LLM 给出的目标名当作可信输入：新建伞形技能的名字与已有技能相同时，已有技能被只含描述的桩文件静默覆盖且报成功；把窄技能降级到一个不存在的目标时，来源技能被归档到根本没写入的地方；写入辅助文件被拒时来源技能照样归档
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-17（复核「按绑定保护技能」方案时，读 `judge.py` 与 `executor.py`，用真实的 `SkillCreationService` 加真实的 executor 在临时目录里复现；探针脚本放在 /tmp，没有入库） |
+| **修复时间** | 2026-10-17（`e006e0f7b`） |
+| **症状** | ① 用户自写的、含 3 条规则的 `git_operations/SKILL.md`，LLM 为一个簇取了类级名 `git_operations` 来新建伞形技能：该文件被伞形桩替换，结果为 `success True`，没有任何提示；② DEMOTE 的目标是 LLM 编出来的 `ghost_pdf_toolkit`：结果为 `success True`，两个来源技能都被归档、`merged_into` 写成 `ghost_pdf_toolkit`，而该目录不存在，内容没有去处；③ 写入辅助文件被拒时（目标不存在、路径越界等），后端返回 `success=False` 而不是抛异常，executor 不看返回值，照样归档来源 |
+| **关联产品** | myrm-agent-harness `agent/skills/curator/engine.py`、`consolidation/{types,judge,orchestrator,executor}.py` 与两份 `_ARCH.md`；server 的调用不用改（引擎自己从 `protected_names` 与 `installed_names` 推出保留名）；不改 judge 的提示词，整理的 LLM 调用是独立的一次结构化输出、不在 agent 主循环里，提示缓存前缀不受影响 |
+| **根因** | judge 的提示词要求类级命名（`_JUDGE_PROMPT_TEMPLATE`），目标名完全由 LLM 决定、没有任何校验；executor 在改动前直接 `save_skill(name=target)`（`executor.py:129-133`），后端的保存语义是「创建或整体替换」，同名即覆盖；DEMOTE 不像 MERGE 那样检查目标是否在候选集里（改动前 `:186-208`）；两处 `write_resource` 的返回值被忽略（改动前 `:167-172`、`:193-200`）；整理走的是裸 `skill_creation_service`（server `consolidation.py:78`），被覆盖的技能没有版本快照，不可恢复；`archive_merged` 只保护来源，不保护被覆盖者 |
+| **修复** | 一条不变量：LLM 给出的目标名一律不可信。`occupied_names(skills, reserved_names)`（`types.py`）给出新伞形不得占用的名字（本次可改动的全部技能加上宿主保留的技能，按 `casefold` 比较，因为大小写不敏感的文件系统把仅大小写不同的名字映射到同一个目录）；judge 丢弃名字被占用的 CREATE_UMBRELLA，以及目标不是已知候选的 MERGE / DEMOTE，并记 WARNING，被丢弃的簇保持原样（等同 KEEP），预览因此不会承诺 executor 会拒绝的事；executor 在写入边界做同样的检查：伞形名被占用则整个动作失败，DEMOTE 的目标必须在候选集里（与 MERGE 同规则），`_write_resource` 检查返回值，任一写入被拒则动作失败、**不归档任何来源**；引擎把 `exempt_names`（protected 与 installed）作为 `reserved_names` 经 `SkillConsolidator.run` 传给 judge 与 executor。同批把 judge 里 LLM 结果的类型标注改为 `isinstance` 收窄（修一条既有的 mypy 赋值报错） |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 变异验证最初把变异直接写进源文件并放到后台跑，后台进程被终止后 `engine.py` 留下了一个变异（丢掉 `reserved_names` 的传递），是事后用 grep 核对守卫字符串才发现并恢复的；之后改为 pytest 插件在内存里替换、不动源文件；② 一个变异（executor 不做大小写折叠）最初存活：测试里占用者的名字全是小写，折叠与否看不出差别，补了「占用者名字含大写」一例才杀死；③ 引擎测试里两个假的 `_run_consolidation` 签名里没有 `reserved_names`，随改动更新，并加强为同时断言收到的保留名；④ 复现用的 `save_skill` 会自动启用技能，探针把两个临时 ID 写进了沙箱配置 `skills.json`，已按 ID 精确摘除，以后探针要隔离配置目录 |
+| **回归** | `tests/agent/skills/curator/consolidation/test_consolidation_target_safety.py` 20 例：executor 不覆盖占用者（候选、仅大小写不同的目标、仅大小写不同的占用者、保留名四种）并保持来源不归档，空闲名照常创建；DEMOTE 目标未知时一个来源都不归档；MERGE / DEMOTE 写入被拒时来源保持活跃，写入成功时才归档；judge 丢弃撞名（簇内成员、簇外候选、仅大小写不同、保留名）与未知目标，空闲名照常入计划，合并到簇外更宽的技能仍被保留；保留名经 `SkillConsolidator.run` 与 `SkillCurator.run_async` 一路传到 judge。写后端用的是照搬宿主语义的磁盘实现（保存即替换、写入被拒返回失败）。10 个内存变异全部被杀死：引擎丢掉保留名、编排器不把保留名传给 judge、judge 不查撞名、judge 不折叠大小写、judge 不查未知目标、executor 不查撞名、executor 不折叠大小写、DEMOTE 不查目标、executor 忽略写入失败、`occupied_names` 忽略保留名；新增测试先于实现写出，第一次运行在 `ConsolidationExecutor(reserved_names=...)` 处失败。`tests/agent/skills/curator` 与 `test_curator_engine.py`、`test_anti_sycophancy_curator_engine.py` 共 100 例通过（含新增 20 例）；ruff、ruff format 对触及文件无问题；mypy 对 `agent/skills/curator` 还剩 `cluster_detector.py` 的 2 条 numpy 注解报错，是既有的、本次没有触及 |
+| **局限** | ① 真实 LLM 撞名的频率没有观测过：整理默认关闭（`curator_config.py:101`），开发机上从未执行过，所有失败形状都是构造的；② 撞名的簇被丢弃，只有 WARNING 日志，界面没有提示，用户看到的是「这个簇没有被整理」；③ 一个动作里前一个辅助文件已写入、后一个失败时，已写入的不回滚，它们只是目标下的描述文件；④ 整理产物仍然只含描述桩（`_build_umbrella_content` 与 merge / demote 写入的 reference 文件），不是真实内容合并，来源技能的原文留在归档目录里；这是事实限制，不是本条修复的内容；⑤ 整理走裸 `skill_creation_service`、没有版本快照，护栏是「不覆盖」而不是「可恢复」；⑥ 服务端的 `_validate_name` 是否拒绝大写名没有核对，折叠大小写是按「文件系统可能不区分」保守处理；⑦ 改动在本地源码、没有 push、没有发布，OSS 服务端固定 `==0.1.0rc5`（`pyproject.toml:25`），发布 harness 并 `./myrm harness sync-lock` 之后才会到 OSS，本地 venv 立即生效 |
+| **代码位置** | `agent/skills/curator/consolidation/types.py::occupied_names` · `judge.py::ConsolidationJudge._target_problem` · `executor.py::ConsolidationExecutor`（`_execute_create_umbrella`、`_execute_demote`、`_write_resource`）· `engine.py::SkillCurator.run_async` · `tests/agent/skills/curator/consolidation/test_consolidation_target_safety.py` |
+
 ### BUG-HARNESS-2026-10-17-002 · 搜索链上头部供应商接受请求后不回话时，请求合并的等待与重试用光整条链的预算，备用供应商一次都没有运行，整次搜索只能在外层限时（默认 62.5 秒）后以超时结束；整链失败的最后一次异常是超时时，错误文字为空
 
 | 字段 | 内容 |
