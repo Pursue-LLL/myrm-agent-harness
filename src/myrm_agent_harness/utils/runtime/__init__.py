@@ -2,8 +2,8 @@
 
 [POS]
 Agent run() lifecycle control parameters. All based on ContextVar for request-level isolation.
-`reraise_if_cancelled` lives here because both `toolkits` and `agent` need the one cancellation-classification
-rule; hosting it in either consumer would make the other import across the layer.
+`reraise_if_cancelled` belongs here because both `toolkits` and `agent` need the one cancellation-classification rule,
+and a rule shared by two packages cannot be hosted by either.
 """
 
 from importlib import import_module as _import_module
