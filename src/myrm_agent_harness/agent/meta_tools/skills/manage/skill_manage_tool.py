@@ -53,7 +53,7 @@ Each operation uses action: save | patch | delete | write_file | remove_file | l
 
 Use one operation for a single change; use multiple operations in one call when updating SKILL.md and supporting files together (all succeed or none apply).
 
-For small SKILL.md edits use patch (old_content must match exactly once); use save for new skills or full replacement. lock/unlock wraps a multi-step edit on the same skill.
+For small SKILL.md edits use patch (old_content must match exactly once); use save for new skills or full replacement. lock/unlock toggle a skill's protection from auto-evolution; a lock keeps holding between calls (lock before an edit that spans several calls, unlock when done), while within one call lock/unlock run after the file operations.
 
 Confirm with user before create or delete. After complex multi-step tasks (5+ tool calls), consider saving a reusable workflow as a skill.
 If a skill you are following is wrong or outdated mid-task, patch it (or ask the user) before you finish.
@@ -68,7 +68,7 @@ TOOL_DESCRIPTION_ZH = """通过原子批次 operations[] 管理技能。
 
 单改用一个 operation；同时改 SKILL.md 与辅助文件时用同一批 operations（全部成功或全部不生效）。
 
-小范围改 SKILL.md 用 patch（old_content 须唯一精确匹配）；新建或整篇替换用 save。同一技能多步修改前 lock，完成后 unlock。
+小范围改 SKILL.md 用 patch（old_content 须唯一精确匹配）；新建或整篇替换用 save。lock/unlock 开关技能的自动进化保护：锁在多次调用之间持续有效（跨多次调用的修改前先 lock，完成后 unlock），同一次调用内 lock/unlock 在所有文件操作之后才执行。
 
 创建或删除前须向用户确认。复杂多步任务（5+ 次工具调用）后可将可复用流程保存为技能。
 执行中若所用技能错误或过时，完成前须 patch 修正（或先询问用户）。

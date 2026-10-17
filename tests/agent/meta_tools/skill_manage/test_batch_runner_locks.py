@@ -18,6 +18,7 @@ from myrm_agent_harness.agent.meta_tools.skills.manage.batch_runner import (
     SkillManageBatchCommittedHook,
     run_skill_manage_batch,
 )
+from myrm_agent_harness.agent.meta_tools.skills.manage.skill_manage_tool import resolve_skill_manage_tool_description
 from tests.agent.meta_tools.skill_manage.batch_fakes import (
     STORED,
     FailingHook,
@@ -200,3 +201,20 @@ async def test_locking_around_an_edit_ends_with_the_lock_as_the_last_operation_l
     assert evolution_store.locked["demo"] is False
     assert len(hook.calls) == 1
     assert "Undo skill changes" in output
+
+
+@pytest.mark.parametrize(
+    ("locale", "phrases"),
+    [
+        ("en", ("run after the file operations", "not part of that undo")),
+        ("zh-CN", ("之后才执行", "不在撤销范围内")),
+    ],
+)
+def test_the_tool_description_tells_the_model_what_a_batch_does_with_locks(
+    locale: str, phrases: tuple[str, ...]
+) -> None:
+    """The model plans its batches from this text, so it must say when a lock lands and what the undo leaves alone."""
+    description = resolve_skill_manage_tool_description(locale)
+
+    for phrase in phrases:
+        assert phrase in description
