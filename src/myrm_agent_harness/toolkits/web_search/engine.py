@@ -14,7 +14,7 @@
 [OUTPUT]
 - WebSearchTools: web search tools class providing basic/precise two search modes
 - SearchServiceConfig: search service config class (re-export)
-- SearchServiceType: search service type enum (re-export)
+- SearchServiceType: search provider slug alias, a plain str (re-export)
 
 Note: BM25/RRF parameters managed by RetrieverConfig; precise mode internal parameters are constants.
 

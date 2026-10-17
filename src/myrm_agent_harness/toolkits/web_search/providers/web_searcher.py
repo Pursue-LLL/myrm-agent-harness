@@ -13,7 +13,7 @@ web_search.providers.search_service_factory::SearchService, build_search_service
 
 [OUTPUT]
 WebSearcher: Configurable multi-provider web search with LRU cache, single-flight coalescing, limit bucketing, retry, and Document output
-SearchServiceType: Literal type alias enumerating supported search providers
+SearchServiceType: str alias naming a search provider slug (the provider catalog is owned by the host application)
 
 [POS]
 Web search orchestrator. Provides a unified interface for querying multiple search
