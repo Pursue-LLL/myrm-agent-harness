@@ -167,33 +167,27 @@ async def _precision_mode_search(
     # 2. BM25 filter candidate mapping per query (prunes cross-product pairs)
     bm25_start = time.perf_counter()
     query_doc_mapping: dict[str, list[tuple[Document, float]]] | None = None
-    if hasattr(retriever_manager, "bm25_retrieval_with_mapping"):
-        try:
-            mapping_result: object = retriever_manager.bm25_retrieval_with_mapping(
-                queries=questions,
-                documents=all_chunks,
-                top_k_per_query=min(tools._BM25_TOP_K_CHUNKS, 20),
-            )
-            if asyncio.iscoroutine(mapping_result):
-                mapping_result = await mapping_result
-            if isinstance(mapping_result, dict):
-                query_doc_mapping = mapping_result
-        except Exception as e:
-            logger.debug(f"bm25_retrieval_with_mapping failed, falling back: {e}")
-            query_doc_mapping = None
+    try:
+        query_doc_mapping = await retriever_manager.bm25_retrieval_with_mapping(
+            queries=questions,
+            documents=all_chunks,
+            top_k_per_query=min(tools._BM25_TOP_K_CHUNKS, 20),
+        )
+    except Exception:
+        logger.warning(
+            "bm25_retrieval_with_mapping failed, falling back to fused BM25 retrieval",
+            exc_info=True,
+        )
 
     seen_ids: set[int] = set()
     bm25_filtered: list[Document] = []
 
     if query_doc_mapping is not None:
         for pairs in query_doc_mapping.values():
-            if isinstance(pairs, list):
-                for item in pairs:
-                    if isinstance(item, tuple) and len(item) == 2:
-                        doc = item[0]
-                        if id(doc) not in seen_ids:
-                            seen_ids.add(id(doc))
-                            bm25_filtered.append(doc)
+            for doc, _score in pairs:
+                if id(doc) not in seen_ids:
+                    seen_ids.add(id(doc))
+                    bm25_filtered.append(doc)
 
     if query_doc_mapping is None or not bm25_filtered:
         # Fallback to bm25_retrieval_only if mapping unavailable or returned 0 hits

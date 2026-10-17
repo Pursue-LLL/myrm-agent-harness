@@ -207,6 +207,9 @@ class TestPrecisionModePerformance:
 
             # Mock RetrieverManager
             retriever_manager = MagicMock(spec=RetrieverManager)
+            retriever_manager.bm25_retrieval_with_mapping = AsyncMock(
+                return_value={"test query": [(chunk, 1.0) for chunk in mock_chunks[:20]]}
+            )
             retriever_manager.bm25_retrieval_only = AsyncMock(return_value=mock_chunks[:20])
             retriever_manager.rerank_with_mapping = AsyncMock(return_value=mock_chunks[:10])
 
