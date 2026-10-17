@@ -39,9 +39,7 @@ _SYCOPHANCY_PATTERNS: tuple[str, ...] = (
     r"(i completely agree without any doubt)",
 )
 
-_COMPILED_PATTERNS: list[Pattern[str]] = [
-    re.compile(p, re.IGNORECASE) for p in _SYCOPHANCY_PATTERNS
-]
+_COMPILED_PATTERNS: list[Pattern[str]] = [re.compile(p, re.IGNORECASE) for p in _SYCOPHANCY_PATTERNS]
 
 
 class AntiSycophancyAdversarialEngine:
