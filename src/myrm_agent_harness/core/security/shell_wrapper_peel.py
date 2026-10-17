@@ -20,8 +20,8 @@ is that reading. It owns both wrapper tables so they cannot drift apart:
 - shell_script_of: the script text a shell ``-c`` form or ``eval`` runs as its own command line.
 - substitution_bodies: the command text inside each ``$(...)`` and backtick the shell would run.
 - direct_command_readings: the commands one line hands control to in one step — the command at the bottom of
-  the prefix chain, a ``-c`` script or ``eval``, a substitution body. A chain is peeled in a single pass, so
-  its length never hides the command it runs.
+  the prefix chain, a ``-c`` script or ``eval``, a substitution body. The chain is peeled with an index, so
+  its length never hides the command it runs nor costs more than the text to read.
 - deny_readings: every command a whole string hands control to, with prefix chains peeled to their bottom and
   only branching (substitutions, ``-c`` scripts) capped by ``DENY_WRAPPER_DEPTH`` / ``MAX_COMMAND_READINGS``.
 
@@ -430,8 +430,10 @@ def direct_command_readings(command: str) -> tuple[str, ...]:
     shell ``-c`` or ``eval`` parses, and the body of each ``$(...)`` and backtick. The chain is peeled with an
     index into the same word list, so a line built out of any number of ``sudo``/``timeout``/``time`` prefixes
     still reaches the command it runs, in time proportional to the text and without copying its tail at each
-    step. Callers that want the whole chain walk through :func:`deny_readings`; callers building a tree recurse
-    through this one, so the tree is bounded by their own depth rather than by the text.
+    step. A wrapper that runs nothing (``sudo command -v git``, ``sudo time``) leaves the peel at that wrapper,
+    so its own invocation is the reading. Callers that want the whole chain walk through :func:`deny_readings`;
+    callers building a tree recurse through this one, so the tree is bounded by their own depth rather than by
+    the text.
     """
     outer = command.strip()
     found: list[str] = []
@@ -453,7 +455,7 @@ def direct_command_readings(command: str) -> tuple[str, ...]:
             inner = _peel_deny_index(words, index)
             if inner is None:
                 inner = _peel_transparent_index(words, index)
-            if inner is None or inner == index:
+            if inner is None or inner >= len(words):
                 break
             index = inner
             peeled = True

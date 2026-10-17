@@ -58,6 +58,25 @@ class TestLinearChainIsPeeledToTheBottom:
         assert deny_readings(chain) == ("rm -rf /",)
         assert time.monotonic() - started < 10.0
 
+    @pytest.mark.parametrize(
+        ("command", "reading"),
+        [
+            ("sudo command -v git", "command -v git"),
+            ("sudo command -V git", "command -V git"),
+            ("sudo time", "time"),
+            ("env FOO=1 time", "time"),
+            ("sudo timeout 5", "timeout 5"),
+            ("nohup command sudo", "sudo"),
+        ],
+    )
+    def test_a_wrapper_that_runs_nothing_is_still_named(self, command: str, reading: str) -> None:
+        """The command in front of a wrapper that runs no command is what a deny glob has to see.
+
+        Peel stops at the last prefix it could read through, so the wrapper's own invocation is the reading:
+        a rule written for ``command`` or ``timeout`` still fires on ``sudo command -v git``.
+        """
+        assert reading in deny_readings(command)
+
 
 class TestFanoutBound:
     def test_a_substitution_in_every_word_is_capped(self) -> None:
