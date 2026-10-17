@@ -2,6 +2,7 @@
 
 [INPUT]
 - memory._manager.shared::ARCHIVE_RETENTION_DAYS (POS: archive retention window)
+- memory._manager.shared::MemoryError (POS: raised by a deletion that left a previous model's copy behind)
 - memory._manager.shared::logger (POS: module logger)
 
 [OUTPUT]
@@ -13,11 +14,13 @@ Memory lifecycle archiver — reclaims archived memories and rules past their re
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     ARCHIVE_RETENTION_DAYS,
+    MemoryError,
     ProceduralMemory,
     logger,
 )
@@ -34,7 +37,7 @@ _PURGE_RULE_PAGE_SIZE = 1000
 _MAX_PURGE_RULE_PAGES = 10
 
 
-def _retention_elapsed(metadata: dict[str, object], now: datetime, ttl_days: int) -> bool:
+def _retention_elapsed(metadata: Mapping[str, object], now: datetime, ttl_days: int) -> bool:
     """Whether an archived entry has outlived its retention window.
 
     ``archive_expires_at`` is authoritative when present. Entries archived
@@ -133,7 +136,12 @@ class MemoryManagerArchivalMixin:
                 break
             for start in range(0, min(len(expired_ids), remaining_budget), _PURGE_DELETE_BATCH_SIZE):
                 batch = expired_ids[start : start + _PURGE_DELETE_BATCH_SIZE]
-                purged_total += await self.delete_memory(coll, batch)
+                try:
+                    purged_total += await self.delete_memory(coll, batch)
+                except MemoryError as exc:
+                    # A previous model's copy could not be removed: the batch stays archived for the next cycle.
+                    logger.warning("purge_expired_archived_memories: could not purge from %s: %s", coll, exc)
+                    break
 
         if purged_total > 0:
             logger.info("purge_expired_archived_memories: permanently purged %d expired memories", purged_total)

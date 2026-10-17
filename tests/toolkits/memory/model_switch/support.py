@@ -55,6 +55,37 @@ class Embedder:
         return [self.vector_of(t) for t in texts]
 
 
+class GatedEmbedder(Embedder):
+    """Holds every embedding call until released, so a test can act while a page is in flight."""
+
+    def __init__(self, dim: int) -> None:
+        super().__init__(dim)
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        self.entered.set()
+        await self.release.wait()
+        return await super().embed_batch(texts)
+
+
+# Far above what a deletion needs, far below a model call that hangs.
+_ACT_DEADLINE_S = 5
+
+
+async def while_a_page_is_in_flight(
+    manager: MemoryManager, gated: GatedEmbedder, act: Callable[[MemoryManager], Awaitable[object]]
+):
+    """Run ``act`` while the model call of a migration page is pending; it must finish without that call returning."""
+    migration = asyncio.create_task(manager.reindex_from_orphans())
+    await gated.entered.wait()
+    try:
+        await asyncio.wait_for(act(manager), timeout=_ACT_DEADLINE_S)
+    finally:
+        gated.release.set()
+    return await migration
+
+
 def unit(vector: list[float]) -> list[float]:
     """Cosine collections store unit vectors, so compare direction rather than raw values."""
     norm = math.sqrt(sum(x * x for x in vector))
@@ -116,6 +147,11 @@ async def scroll_all(store: VectorStore, collection: str) -> dict[str, VectorDoc
         documents.update({doc.id: doc for doc in page})
         if cursor is None:
             return documents
+
+
+async def held_by(store: VectorStore, collection: str) -> dict[str, VectorDocument]:
+    """What a collection holds; one that was never created (nothing was written to it) holds nothing."""
+    return await scroll_all(store, collection) if await store.collection_exists(collection) else {}
 
 
 async def create_conversation_collection(store: VectorStore, name: str, dim: int) -> None:

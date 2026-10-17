@@ -7,11 +7,13 @@
 - memory.types::{ConversationMemory, MemoryType} (POS: memory data models)
 
 [OUTPUT]
+- embed_conversations: Fill in the raw + summary vectors a conversation does not carry yet
 - store_conversations_batch: Batch store with Qdrant named vectors (raw + summary)
 
 [POS]
 Conversation memory persistence. Handles dual-embedding generation,
 Qdrant named-vector storage, inline compression / external BLOB offloading.
+Embedding is a step of its own so a caller can run the slow model call ahead of the write.
 """
 
 from __future__ import annotations
@@ -31,30 +33,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def store_conversations_batch(
+async def embed_conversations(
     memories: list[ConversationMemory],
-    vector: VectorStoreProtocol,
-    config: MemoryConfig,
     embedding: EmbeddingProtocol,
     cache: EmbeddingCacheProtocol | None,
-) -> list[ConversationMemory]:
-    """Store conversation memories with dual-embeddings (raw + summary).
-
-    Uses Qdrant named vectors to store both raw_embedding and summary_embedding
-    in a single point; the BM25 mirror wrapper is unwrapped first because the
-    conversation collection is not mirrored. Other backends raise
-    ``NotImplementedError``.
-    """
+) -> None:
+    """Embed the raw exchange and the summary of every conversation that does not carry that vector yet."""
     from myrm_agent_harness.toolkits.memory._internal.storage import embed_batch
-    from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
-        _lifecycle_payload as lc_payload,
-    )
-    from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
-        _scope_payload as sc_payload,
-    )
-    from myrm_agent_harness.toolkits.vector.base import VectorStore
 
-    vector = unwrap_sparse_mirror(vector)
     raw_texts = [m.raw_exchange for m in memories if m.raw_embedding is None]
     summary_texts = [m.content for m in memories if m.summary_embedding is None]
 
@@ -75,6 +61,32 @@ async def store_conversations_batch(
         if m.summary_embedding is None:
             m.summary_embedding = summary_vecs[summary_idx]
             summary_idx += 1
+
+
+async def store_conversations_batch(
+    memories: list[ConversationMemory],
+    vector: VectorStoreProtocol,
+    config: MemoryConfig,
+    embedding: EmbeddingProtocol,
+    cache: EmbeddingCacheProtocol | None,
+) -> list[ConversationMemory]:
+    """Store conversation memories with dual-embeddings (raw + summary).
+
+    Uses Qdrant named vectors to store both raw_embedding and summary_embedding
+    in a single point; the BM25 mirror wrapper is unwrapped first because the
+    conversation collection is not mirrored. Other backends raise
+    ``NotImplementedError``. A vector the memory already carries is written as is.
+    """
+    from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
+        _lifecycle_payload as lc_payload,
+    )
+    from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
+        _scope_payload as sc_payload,
+    )
+    from myrm_agent_harness.toolkits.vector.base import VectorStore
+
+    vector = unwrap_sparse_mirror(vector)
+    await embed_conversations(memories, embedding, cache)
 
     if isinstance(vector, VectorStore) and hasattr(vector, "_client"):
         try:

@@ -786,9 +786,8 @@ class TestGraphCascadeDelete:
         mock_cache.evict_batch.assert_called_once_with(["sensitive content to evict"])
 
     @pytest.mark.asyncio
-    async def test_delete_memory_ids_none_does_not_crash(self, mock_vector_store, mock_embedding, memory_config):
-        """delete_memory with ids=None safely delegates to delete_from_vector without iterating None."""
-        mock_vector_store.delete.return_value = 5
+    async def test_delete_memory_without_ids_deletes_nothing(self, mock_vector_store, mock_embedding, memory_config):
+        """An empty id list is a no-op and never reaches the vector store's delete."""
         manager = MemoryManager(
             memory_config,
             user_id="test_user",
@@ -796,9 +795,9 @@ class TestGraphCascadeDelete:
             embedding=mock_embedding,
         )
 
-        count = await manager.delete_memory("test_collection", None)
-        assert count == 5
-        mock_vector_store.delete.assert_called_once_with("test_collection", None)
+        count = await manager.delete_memory("test_collection", [])
+        assert count == 0
+        mock_vector_store.delete.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_delete_memories_by_metadata_cascades_rule_graph_and_cache(

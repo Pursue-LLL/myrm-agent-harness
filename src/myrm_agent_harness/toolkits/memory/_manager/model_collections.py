@@ -11,15 +11,17 @@
 - current_collection / previous_model_collections / memory_collections: which collections hold memories
 - catalog_of: the backend that can list collections
 - retire_if_drained: drop an emptied previous-model collection
-- family_lock: serialises a migration page against bulk deletions of the same collection family
+- drop_from_previous_models: remove deleted memory ids from the previous models' collections
+- family_lock: serialises migration steps against deletions of the same collection family
 
 [POS]
 Collections are named ``{prefix}_{type}_{model}``, so a model switch leaves the previous model's
-memories in collections the current model never reads. The reindex migration and every bulk
-deletion read that naming through this one module: a deletion reaches the memories a switch left
+memories in collections the current model never reads. The reindex migration and every deletion
+read that naming through this one module: a deletion reaches the memories a switch left
 behind, and a sparse ``_bm25`` mirror is never mistaken for a model's collection. A migration page
 is read, re-embedded and written over several awaits, so a deletion landing in between would be
-undone by that page; both sides therefore take the family lock around the stretch they must see whole.
+undone by that page; the page therefore settles under the family lock (never across the embedding
+call) and every deletion takes it.
 """
 
 from __future__ import annotations
@@ -142,13 +144,39 @@ async def retire_if_drained(vector: VectorStoreProtocol | None, collection: str)
         logger.warning("Could not drop the emptied collection %s: %s", collection, e)
 
 
-def family_lock(vector: VectorStoreProtocol | None, config: MemoryConfig) -> asyncio.Lock:
-    """The lock every migration page and bulk deletion of one collection family runs under.
+async def drop_from_previous_models(
+    vector: VectorStoreProtocol | None, config: MemoryConfig, collection: str, ids: list[str]
+) -> list[str]:
+    """Remove ``ids`` from the previous models' collections that hold the same kind of memory as ``collection``.
 
-    Without it a deletion that lands while a page is being re-embedded wipes the previous model's
-    collection, and the page then writes the memories it had already read into the current one:
-    the user deleted them and they are back. The holder of a migration page waits for one
-    embedding round trip at most.
+    ``collection`` is a current model's collection (any other name has no previous copies). Every
+    previous collection is attempted and the ones that could not be cleared are returned; one this
+    emptied is dropped. Call under ``family_lock``.
+    """
+    memory_type = next((t for t in _VECTOR_TYPES if current_collection(config, t) == collection), None)
+    if vector is None or memory_type is None or not ids:
+        return []
+    failed: list[str] = []
+    for name in (await memory_collections(vector, config))[memory_type]:
+        if name == collection:
+            continue
+        try:
+            await vector.delete(name, ids)
+            await retire_if_drained(vector, name)
+        except Exception as e:
+            logger.warning("Could not remove deleted memories from %s: %s", name, e)
+            failed.append(name)
+    return failed
+
+
+def family_lock(vector: VectorStoreProtocol | None, config: MemoryConfig) -> asyncio.Lock:
+    """The lock every migration step and deletion of one collection family runs under.
+
+    A migration page reads the previous model's memories, is embedded, then writes them into the
+    current collection. A deletion that lands in between must not be undone by that write, so the
+    page re-checks what it read under this lock, and every deletion takes it. It is never held
+    across the embedding call: holders do vector-store reads and writes only. ``asyncio.Lock`` is
+    not re-entrant, so code already inside it must call the unlocked internals.
     """
     key = (id(catalog_of(vector) or vector), config.collection_prefix)
     lock = _family_locks.get(key)

@@ -415,6 +415,32 @@ class TestPurgePagesThroughAllArchivedEntries:
         assert purged == _MAX_PURGE_DELETIONS_PER_CYCLE
         assert purged < total
 
+    @pytest.mark.asyncio
+    async def test_a_batch_that_cannot_be_purged_does_not_stop_the_other_collections(self) -> None:
+        """A previous model's copy that cannot be removed leaves that batch archived; the cycle goes on."""
+        from myrm_agent_harness.toolkits.memory.manager import MemoryError as MemoryManagerError
+
+        past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+        config = MemoryConfig(embedding_model="test")
+        manager = self._manager(
+            {
+                config.semantic_collection: [([_archived_doc("s1", {"archive_expires_at": past})], None)],
+                config.episodic_collection: [([_archived_doc("e1", {"archive_expires_at": past})], None)],
+            }
+        )
+
+        async def purge(collection: str, ids: list[str]) -> int:
+            if collection == config.semantic_collection:
+                raise MemoryManagerError("left behind in a previous model's collection")
+            return len(ids)
+
+        manager.delete_memory = AsyncMock(side_effect=purge)  # type: ignore[attr-defined]
+
+        purged = await manager.purge_expired_archived_memories()  # type: ignore[attr-defined]
+
+        assert purged == 1
+        assert manager.delete_memory.await_count == 2  # type: ignore[attr-defined]
+
 
 class TestPurgeScansEveryArchivableCollection:
     """Reclamation must cover every collection that can hold an archived entry."""
