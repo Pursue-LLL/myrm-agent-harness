@@ -4,7 +4,7 @@
 - ..core.claims_contract::sha256_raw_file (POS: the content hash incremental compile compares against)
 - .articles::ConceptFailure (POS: a concept whose article could not be written, with its sources)
 - .queue::QueueItem, WikiIngestionQueue (POS: persistent ingestion queue)
-- .resilience::FailureResolution, is_transient_error_kind, resolve_llm_failure (POS: failure classification shared with extraction)
+- .resilience::FailureResolution, evaluate_batch_pause, is_transient_error_kind, resolve_llm_failure (POS: failure classification shared with extraction)
 - utils.logger_utils::get_agent_logger (POS: agent logger)
 
 [OUTPUT]
@@ -12,12 +12,14 @@
 - blocked_sources: the failure that keeps each source of a batch from being complete, from the articles that failed
 - settle_extracted: complete the sources a batch finished, fail the ones with a missing article, queue again the ones edited while it ran
 - fail_extracted: fail the sources whose batch raised after their concepts were extracted
+- pause_on_failures: pause the compile when a stage wrote nothing and its failures say more would fail too
 
 [POS]
 Batch settlement. A batch's sources stay ``processing`` until everything the compile writes for them is saved;
 this module decides what each of them becomes then. Metadata records the hashes of the files as they are when
 it is saved, and the compile intake skips files that are ``processing``, so a source edited while its batch ran
 would otherwise be marked completed with its new content never compiled.
+The pause rule a failing extraction or article stage shares lives here too, next to the failures it counts.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .articles import ConceptFailure
 from .queue import QueueItem, WikiIngestionQueue
-from .resilience import FailureResolution, is_transient_error_kind, resolve_llm_failure
+from .resilience import FailureResolution, evaluate_batch_pause, is_transient_error_kind, resolve_llm_failure
 
 logger = get_agent_logger(__name__)
 
@@ -113,6 +115,14 @@ def settle_extracted(
     if edited:
         logger.info(f"{len(edited)} source(s) changed while their batch compiled; queued again")
         queue.requeue_processing(edited)
+
+
+def pause_on_failures(queue: WikiIngestionQueue, *, success_count: int, failure_kinds: list[str]) -> None:
+    """Pause the compile when a stage wrote nothing and its failures say more would fail too."""
+    should_pause, reason, primary_kind = evaluate_batch_pause(success_count=success_count, failure_kinds=failure_kinds)
+    if should_pause:
+        queue.pause_compile(reason, primary_kind)
+        logger.warning("Compile worker paused: %s", reason)
 
 
 def fail_extracted(queue: WikiIngestionQueue, item_ids: Sequence[int], error: Exception) -> None:

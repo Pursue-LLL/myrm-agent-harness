@@ -2,19 +2,17 @@
 
 [INPUT]
 - langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
-- langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
 - ..core.config::WikiConfig, WikiCompileConfig (POS: Wiki configuration center)
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 - ..core.types::ConceptInfo, CompileResult (POS: Wiki toolkit type definitions)
-- ..core.parsers::parse_concepts_response (POS: LLM response parser)
 - .postprocess::generate_backlinks, save_metadata (POS: post-compilation steps)
 - .cognitive_map::WikiCognitiveMapService (POS: OKF index/log/hot writers)
 - .articles::ArticleBatchStats, generate_article, generate_articles_batch (POS: the article stage of a compile)
-- .batch_settle::blocked_sources, fail_extracted, settle_extracted, source_hash (POS: settles a batch's queue rows once its results are saved)
+- .batch_settle::blocked_sources, fail_extracted, pause_on_failures, settle_extracted (POS: settles a batch's queue rows once its results are saved, pauses on failing stages)
 - .compiler_enqueue::enqueue_changed_sources (POS: compile intake, which raw files go onto the queue)
+- .compiler_extraction::BatchExtractOutcome, extract_concepts_batch, extract_concepts_from_doc, relative_raw_path (POS: the concept extraction stage of a batch)
 - .queue::WikiIngestionQueue (POS: persistent ingestion queue)
 - .sidecar::build_directory_sidecars (POS: bottom-up directory sidecar builder)
-- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取)
 
 [OUTPUT]
 - WikiCompiler: LLM-Wiki compilation engine
@@ -36,11 +34,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
-from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -51,36 +46,22 @@ from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptIn
 
 from . import compiler_enqueue
 from .articles import ArticleBatchStats, generate_article, generate_articles_batch
-from .batch_settle import blocked_sources, fail_extracted, settle_extracted, source_hash
+from .batch_settle import blocked_sources, fail_extracted, pause_on_failures, settle_extracted
 from .cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
-from .cognitive_map.schema_writer import read_index_context
+from .compiler_extraction import (
+    BatchExtractOutcome,
+    extract_concepts_batch,
+    extract_concepts_from_doc,
+    relative_raw_path,
+)
 from .contradiction_synthesis import run_contradiction_synthesis_pass
 from .postprocess import generate_backlinks, save_metadata
 from .queue import QueueItem, WikiIngestionQueue
-from .resilience import (
-    CompileRunSnapshot,
-    evaluate_batch_pause,
-    resolve_io_failure,
-    resolve_llm_failure,
-)
+from .resilience import CompileRunSnapshot
 from .sidecar import build_directory_sidecars
 from .survey import CompileSessionState, build_compile_survey
 
 logger = get_agent_logger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class _BatchExtractOutcome:
-    concepts: list[ConceptInfo]
-    # Sources whose concepts were extracted, each with its file's hash from before extraction read it. They stay
-    # ``processing`` until the batch has written the rest of their results; only the failures are settled during
-    # extraction.
-    read_hashes: dict[int, str | None]
-    failure_kinds: list[str]
-
-    @property
-    def success_count(self) -> int:
-        return len(self.read_hashes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,9 +105,8 @@ class WikiCompiler:
         self._indexer = indexer
         self._queue = WikiIngestionQueue(structure)
         self._structure.ensure_structure()
-        self._parallel = config.parallel_compilation
         self._semaphore: asyncio.Semaphore | None = (
-            asyncio.Semaphore(config.max_parallel_workers) if self._parallel else None
+            asyncio.Semaphore(config.max_parallel_workers) if config.parallel_compilation else None
         )
 
     def _session_key(self) -> str:
@@ -172,79 +152,6 @@ class WikiCompiler:
             len(pending_paths),
         )
         return session
-
-    def _relative_raw_path(self, doc_path: Path) -> str:
-        try:
-            return doc_path.relative_to(self._structure.base_dir).as_posix()
-        except ValueError:
-            return doc_path.name
-
-    def _sort_queue_items_for_survey(self, queue_items: list[QueueItem]) -> list[QueueItem]:
-        session = self._get_session()
-        if session is None or session.context.skipped:
-            return queue_items
-
-        order_index = {facet_id: index for index, facet_id in enumerate(session.context.processing_order)}
-
-        def _sort_key(item: QueueItem) -> tuple[int, str]:
-            rel = self._relative_raw_path(Path(str(item["file_path"])))
-            facet_id = session.context.path_to_facet.get(rel, "")
-            return (order_index.get(facet_id, len(order_index)), rel)
-
-        return sorted(queue_items, key=_sort_key)
-
-    def _build_extract_survey_context(self, relative_path: str) -> str:
-        session = self._get_session()
-        if session is None or session.context.skipped:
-            return ""
-
-        sections: list[str] = []
-        facet_id = session.context.path_to_facet.get(relative_path)
-        if facet_id is not None:
-            facet = session.context.facets.get(facet_id)
-            if facet is not None:
-                sections.append(f"# Compile Facet: {facet.folder_path}")
-                seed_lines = [
-                    *session.facet_seeds.get(facet_id, []),
-                    *list(facet.suggested_seeds),
-                ]
-                unique_seeds = list(dict.fromkeys(seed for seed in seed_lines if seed))[:12]
-                if unique_seeds:
-                    sections.append(
-                        "# Facet concept seeds (reuse these names when applicable):\n"
-                        + "\n".join(f"- {seed}" for seed in unique_seeds)
-                    )
-
-        chunk_group_id = session.context.path_to_chunk_group.get(relative_path)
-        if chunk_group_id is not None:
-            siblings = session.context.chunk_groups.get(chunk_group_id, ())
-            if len(siblings) > 1:
-                sections.append(
-                    f"# Chunk group ({len(siblings)} parts of one source document)\n"
-                    "Extract concepts once for the whole group; prefer one shared concept path.\n"
-                    + "\n".join(f"- {path}" for path in siblings[:20])
-                )
-
-        if not sections:
-            return ""
-        return "\n\n".join(sections) + "\n\n"
-
-    def _record_facet_seeds(self, queue_items: list[QueueItem], concepts: list[ConceptInfo]) -> None:
-        session = self._get_session()
-        if session is None or session.context.skipped or not concepts:
-            return
-
-        batch_paths = {self._relative_raw_path(Path(str(item["file_path"]))) for item in queue_items}
-        for concept in concepts:
-            for source in concept.source_files:
-                if source not in batch_paths:
-                    continue
-                facet_id = session.context.path_to_facet.get(source)
-                if facet_id is None:
-                    continue
-                seeds = session.facet_seeds.setdefault(facet_id, [])
-                if concept.name not in seeds:
-                    seeds.append(concept.name)
 
     def enqueue_file(self, file_path: Path) -> None:
         """Enqueue a raw file for compilation and ensure the background worker is running.
@@ -413,13 +320,7 @@ class WikiCompiler:
         self._queue.set_compile_phase("semantic_compile")
         with self._queue.keep_alive([item["id"] for item in items]):
             outcome = await self._extract_concepts_batch(items)
-            should_pause, pause_reason, primary_kind = evaluate_batch_pause(
-                success_count=outcome.success_count,
-                failure_kinds=outcome.failure_kinds,
-            )
-            if should_pause:
-                self._queue.pause_compile(pause_reason, primary_kind)
-                logger.warning("Compile worker paused: %s", pause_reason)
+            pause_on_failures(self._queue, success_count=outcome.success_count, failure_kinds=outcome.failure_kinds)
             concepts = outcome.concepts
             logger.info(f"Extracted {len(concepts)} concepts from batch")
             if not concepts and not postprocess_empty:
@@ -432,7 +333,9 @@ class WikiCompiler:
                 logger.error(f"Postprocess failed, marking {len(outcome.read_hashes)} source(s) failed: {e}")
                 fail_extracted(self._queue, list(outcome.read_hashes), e)
                 raise
-            item_ids_by_source = {self._relative_raw_path(Path(item["file_path"])): item["id"] for item in items}
+            item_ids_by_source = {
+                relative_raw_path(self._structure, Path(item["file_path"])): item["id"] for item in items
+            }
             blocked = blocked_sources(item_ids_by_source, report.articles.failures)
             settle_extracted(self._queue, items, outcome.read_hashes, blocked)
 
@@ -481,125 +384,22 @@ class WikiCompiler:
         await self._save_metadata(len(concepts), articles.generated)
         return _BatchReport(len(concepts), articles, synthesis_result.synthesis_staged, backlinks_count)
 
-    async def _extract_concepts_batch(self, queue_items: list[QueueItem]) -> _BatchExtractOutcome:
-        """Extract concepts from queue items with configurable parallelism."""
-        queue_items = self._sort_queue_items_for_survey(queue_items)
-        failure_kinds: list[str] = []
-        read_hashes: dict[int, str | None] = {}
-
-        async def _process_single_item(item: QueueItem) -> list[ConceptInfo]:
-            item_id = item["id"]
-            raw_file = Path(item["file_path"])
-            self._queue.mark_processing(item_id)
-            try:
-                if not raw_file.exists():
-                    resolution = resolve_io_failure("File not found")
-                    self._queue.mark_failed(
-                        item_id,
-                        "File not found",
-                        error_kind=resolution.error_kind,
-                    )
-                    return []
-                # Hashed before the read: an edit after this point is caught when the batch settles.
-                digest = source_hash(raw_file)
-                if self._semaphore:
-                    async with self._semaphore:
-                        concepts = await self._extract_concepts_from_doc(raw_file)
-                else:
-                    concepts = await self._extract_concepts_from_doc(raw_file)
-                if not concepts:
-                    resolution = resolve_llm_failure(RuntimeError("Concept extraction returned no concepts"))
-                    self._queue.mark_failed(
-                        item_id,
-                        "Concept extraction returned no concepts",
-                        error_kind=resolution.error_kind,
-                        retry_after_seconds=resolution.retry_after_seconds,
-                    )
-                    failure_kinds.append(resolution.error_kind)
-                    return []
-                read_hashes[item_id] = digest
-                return concepts
-            except Exception as e:
-                logger.error(f"Failed to extract concepts from {raw_file}: {e}")
-                resolution = resolve_llm_failure(e)
-                self._queue.mark_failed(
-                    item_id,
-                    str(e),
-                    error_kind=resolution.error_kind,
-                    retry_after_seconds=resolution.retry_after_seconds,
-                )
-                failure_kinds.append(resolution.error_kind)
-                return []
-
-        if self._parallel:
-            results = await asyncio.gather(
-                *[_process_single_item(item) for item in queue_items],
-                return_exceptions=True,
-            )
-        else:
-            results = [await _process_single_item(item) for item in queue_items]
-
-        all_concepts: dict[str, ConceptInfo] = {}
-        for result in results:
-            if isinstance(result, BaseException):
-                logger.error(f"Unexpected error in concept extraction: {result}")
-                resolution = resolve_llm_failure(result if isinstance(result, Exception) else RuntimeError(str(result)))
-                failure_kinds.append(resolution.error_kind)
-                continue
-            for concept in result:
-                if concept.name in all_concepts:
-                    existing = all_concepts[concept.name]
-                    all_concepts[concept.name] = ConceptInfo(
-                        name=concept.name,
-                        definition=concept.definition,
-                        mentions=existing.mentions + concept.mentions,
-                        source_files=list(set(existing.source_files + concept.source_files)),
-                        related_concepts=list(set(existing.related_concepts + concept.related_concepts)),
-                    )
-                else:
-                    all_concepts[concept.name] = concept
-
-        self._record_facet_seeds(queue_items, list(all_concepts.values()))
-
-        return _BatchExtractOutcome(
-            concepts=list(all_concepts.values()),
-            read_hashes=read_hashes,
-            failure_kinds=failure_kinds,
+    async def _extract_concepts_batch(self, queue_items: list[QueueItem]) -> BatchExtractOutcome:
+        """Delegate to compiler_extraction.extract_concepts_batch."""
+        return await extract_concepts_batch(
+            queue_items,
+            queue=self._queue,
+            structure=self._structure,
+            get_session=self._get_session,
+            semaphore=self._semaphore,
+            extract_doc=self._extract_concepts_from_doc,
         )
 
     async def _extract_concepts_from_doc(self, doc_path: Path) -> list[ConceptInfo]:
-        """Extract concepts from a single document using LLM, with path as context."""
-        try:
-            content = doc_path.read_text(encoding="utf-8")
-        except Exception as e:
-            logger.error(f"Failed to read {doc_path}: {e}")
-            return []
-
-        # Include relative path as context (e.g. docs/architecture.md vs notes/daily.md)
-        relative_path = self._relative_raw_path(doc_path)
-
-        survey_context = self._build_extract_survey_context(relative_path)
-        index_context = read_index_context(self._structure)
-        index_block = ""
-        if index_context:
-            index_block = f"# Existing wiki catalog (reuse these concept names when applicable):\n{index_context}\n\n"
-        prompt = self._compile_config.extract_concepts_prompt_template
-        system_msg = SystemMessage(content="You are a knowledge extraction expert.")
-        human_msg = HumanMessage(
-            content=(
-                f"{prompt}\n\n{survey_context}{index_block}# Document Path: {relative_path}\n# Document Content:\n\n{content}"
-            )
+        """Delegate to compiler_extraction.extract_concepts_from_doc."""
+        return await extract_concepts_from_doc(
+            self._llm, self._structure, self._compile_config, self._get_session(), doc_path
         )
-
-        try:
-            response = await self._llm.ainvoke([system_msg, human_msg])
-            response_text = extract_answer_text(response).strip()
-            logger.info(f"LLM extraction response for {doc_path}: {response_text}")
-            concepts = parse_concepts_response(response_text, str(relative_path))
-            return concepts
-        except Exception as e:
-            logger.error(f"LLM extraction failed for {doc_path}: {e}")
-            raise
 
     async def _generate_articles_batch(self, concepts: list[ConceptInfo]) -> ArticleBatchStats:
         """Delegate to articles.generate_articles_batch."""
@@ -613,14 +413,6 @@ class WikiCompiler:
     async def _generate_article(self, concept: ConceptInfo) -> str:
         """Delegate to articles.generate_article."""
         return await generate_article(self._llm, self._structure, self._compile_config, self._indexer, concept)
-
-    def _cognitive_map_service(self) -> WikiCognitiveMapService:
-        stats = self._queue.get_stats()
-        pending_queue = stats.get("pending", 0)
-        return WikiCognitiveMapService(
-            self._structure,
-            get_queue_pending=lambda: pending_queue,
-        )
 
     def _refresh_cognitive_map(
         self,
@@ -641,7 +433,8 @@ class WikiCompiler:
             summary=summary,
             details={"concepts_extracted": len(concepts)},
         )
-        self._cognitive_map_service().refresh(event)
+        pending_queue = self._queue.get_stats().get("pending", 0)
+        WikiCognitiveMapService(self._structure, get_queue_pending=lambda: pending_queue).refresh(event)
 
     def _maybe_pause_for_embed_failure(self, stats: ArticleBatchStats) -> None:
         if not stats.embed_pause_kind:
@@ -657,13 +450,11 @@ class WikiCompiler:
         """
         if stats.embed_pause_kind:
             return
-        should_pause, reason, primary_kind = evaluate_batch_pause(
+        pause_on_failures(
+            self._queue,
             success_count=stats.generated,
             failure_kinds=[failure.resolution.error_kind for failure in stats.failures],
         )
-        if should_pause:
-            self._queue.pause_compile(reason, primary_kind)
-            logger.warning("Compile worker paused: %s", reason)
 
     async def _generate_backlinks(self, concepts: list[ConceptInfo]) -> int:
         """Delegate to postprocess.generate_backlinks."""
