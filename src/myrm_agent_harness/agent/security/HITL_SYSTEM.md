@@ -40,7 +40,7 @@
 
 **四级粒度**（`AllowlistEntry`）：permission → tool → exact（args hash）→ **pattern**（shell glob，`command_pattern` 列）。
 
-**Pattern 规则**（`command_allowlist_pattern.py`）：单段命令推导 `{token0} {token1} *`；复合 shell（`&&`/`|`/`;`）永不写入、永不命中；DENY 仍优先于 allowlist。
+**Pattern 规则**（`command_allowlist_pattern.py`）：单段命令推导 `{token0} {token1} *`；复合 shell（`&&`/`|`/`;`/`&`/换行、重定向、命令替换、括号分组）永不写入、永不命中，按 shell 的词法读取，引号和注释里的符号不算，`2>&1`、`>/dev/null` 这类只合并或丢弃输出的重定向除外；DENY 仍优先于 allowlist。
 
 **缓存机制**：
 - Lazy-load（首次访问时从DB加载）

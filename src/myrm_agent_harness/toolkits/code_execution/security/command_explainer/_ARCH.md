@@ -9,12 +9,13 @@ explanations for HITL approval UI.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | types.py | DTO | CommandSpan, SpanRiskLevel, SpanRiskReason | — |
-| extract.py | Core | Spans (quote-aware split, 128KB cap), risk levels + i18n reason codes + plain explanation via humanize; exports build_shell_approval_fields | ✅ |
+| extract.py | Core | One span per command (cut by `shell_command_lexer`, indexed into the command as displayed, never zero-width, 128KB cap), risk levels + i18n reason codes + plain explanation via humanize; exports build_shell_approval_fields | ✅ |
 | humanize.py | Core | Rule-based bilingual (en/zh) command explanation generator; zero-LLM, pure dict lookup | ✅ |
 | __init__.py | Package | Public exports | — |
 
 ## Dependencies
 
+- `core.security.shell_command_lexer` (POS: where each command of the line starts and ends)
 - `security.risk_classifier` (POS: shell command risk classification)
 
 ## Data Flow

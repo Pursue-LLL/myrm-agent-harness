@@ -23,8 +23,8 @@ def _strip_quoted_content(command: str) -> str:
     command substitution (e.g., `echo "$(rm -rf /)"`) so their content MUST remain
     visible to downstream pattern matching.
 
-    The state machine approach (consistent with risk_classifier._split_shell_operators)
-    correctly handles edge cases like `'it'\\''s'` nested quoting that regex cannot.
+    The state machine approach (consistent with shell_command_lexer) correctly handles edge cases like
+    `'it'\\''s'` nested quoting that regex cannot.
     """
     result: list[str] = []
     i = 0

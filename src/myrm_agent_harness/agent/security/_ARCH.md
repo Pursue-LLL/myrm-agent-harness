@@ -16,7 +16,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 |------|------|-------------|-------|
 | `__init__.py` | Package | Agent security subsystem — 6-layer onion defense architecture. | ✅ |
 | approval_flow.py | Core | Persistent allow-always, time-bound scoped allowlist, and in-memory session-scoped grants (permission/tool/exact/pattern matching, opportunistic expiry pruning, session isolation, find_matching_entry discovery, zero DB persistence for session-scoped grants, DB TTL cache). | ✅ |
-| command_allowlist_pattern.py | Core | Shell command glob derivation, compound-operator guard, parity vectors (`DERIVE_PATTERN_PARITY_VECTORS`). | ✅ |
+| command_allowlist_pattern.py | Core | Shell command glob derivation, compound-command guard (read through `core.security.shell_command_lexer`: line breaks, `&`, redirects, substitution and grouping all count), parity vectors (`DERIVE_PATTERN_PARITY_VECTORS`). | ✅ |
 | audit.py | Core | Cross-cutting concern. Called from tool_interceptor_middleware and all | ✅ |
 | channel_presets.py | Core | Decouples channel-specific security policy from the generic Permission Engine; merges user/agent flags. A cron job gets `file_write_tool` / `file_edit_tool` only when its declaration names `file_write`; the path zones then decide each write. | ✅ |
 | checks.py | Core | Built-in security checks — Layer 2 & 2.5. Path policy (unified canonical boundary guard via `is_within_boundary`), URL scheme validation, protected instruction file write gate (`is_protected_instruction_file` -> `PermissionAction.ASK`), shell threat analysis. Pure functions returning (action, reason) tuples. | ✅ |

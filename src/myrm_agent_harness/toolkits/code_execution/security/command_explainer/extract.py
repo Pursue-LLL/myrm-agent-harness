@@ -1,10 +1,10 @@
 """Extract pipeline command spans from shell strings for approval UI.
 
 [INPUT]
-- None (quote-aware string splitter; no optional deps)
+- core.security.shell_command_lexer: where each command of the line starts and ends (same reading as the risk classifier)
 
 [OUTPUT]
-- extract_command_spans: Pipeline/logical segment spans (128KB cap, quote-aware split).
+- extract_command_spans: One span per command, indexed into the command as given (128KB cap).
 - classify_span_risk_levels: Per-segment safe/unknown levels via risk_classifier.
 - classify_span_risk_reasons: Per-segment stable i18n reason codes via risk_classifier.
 - build_shell_approval_fields: Spans, risks, reasons, plain_explanation, and execution_intent from redacted display args.
@@ -17,6 +17,7 @@ Shell command span extractor for HITL approval UI. Does not affect security deci
 
 from __future__ import annotations
 
+from myrm_agent_harness.core.security.shell_command_lexer import split_command_spans
 from myrm_agent_harness.toolkits.code_execution.security.command_explainer.types import (
     CommandSpan,
     SpanRiskLevel,
@@ -41,15 +42,21 @@ def extract_shell_command_text(tool_input: dict[str, object]) -> str:
 
 
 def extract_command_spans(command: str) -> list[CommandSpan]:
-    """Return highlight spans for each pipeline/logical segment in *command*."""
-    stripped = command.strip()
-    if not stripped:
+    """Return one highlight span per command in *command*, indexed into the text as given.
+
+    The approval card highlights the untrimmed command, so indices must not shift with surrounding blanks.
+    Spans are never empty: the card drops zero-width spans, which would misalign its parallel risk lists.
+    """
+    if not command.strip():
         return []
 
-    if len(stripped) > MAX_COMMAND_SPAN_SOURCE_CHARS:
-        return [{"startIndex": 0, "endIndex": len(stripped)}]
+    if len(command) > MAX_COMMAND_SPAN_SOURCE_CHARS:
+        return [{"startIndex": 0, "endIndex": len(command)}]
 
-    return _extract_spans_quote_aware(stripped)
+    spans: list[CommandSpan] = [
+        {"startIndex": start, "endIndex": end} for start, end in split_command_spans(command) if end > start
+    ]
+    return spans or [{"startIndex": 0, "endIndex": len(command)}]
 
 
 def _classify_span_risk_pairs(
@@ -140,62 +147,3 @@ def build_shell_approval_fields(
     ]
 
     return result
-
-
-def _extract_spans_quote_aware(command: str) -> list[CommandSpan]:
-    """Split on |, ;, &&, || outside quotes and return segment spans."""
-    segments: list[tuple[int, int]] = []
-    cursor = 0
-    i = 0
-    in_single = False
-    in_double = False
-    length = len(command)
-
-    def flush_segment(end: int) -> None:
-        nonlocal cursor
-        segment = command[cursor:end].strip()
-        if not segment:
-            cursor = end
-            return
-        start = command.find(segment, cursor, end)
-        if start < 0:
-            start = cursor
-        segments.append((start, start + len(segment)))
-        cursor = end
-
-    while i < length:
-        ch = command[i]
-        if ch == "'" and not in_double:
-            in_single = not in_single
-            i += 1
-            continue
-        if ch == '"' and not in_single:
-            in_double = not in_double
-            i += 1
-            continue
-        if in_single or in_double:
-            i += 1
-            continue
-
-        if command.startswith("||", i) or command.startswith("&&", i):
-            flush_segment(i)
-            i += 2
-            while i < length and command[i].isspace():
-                i += 1
-            cursor = i
-            continue
-        if ch in ("|", ";"):
-            flush_segment(i)
-            i += 1
-            while i < length and command[i].isspace():
-                i += 1
-            cursor = i
-            continue
-        i += 1
-
-    flush_segment(length)
-
-    if not segments:
-        return [{"startIndex": 0, "endIndex": len(command)}]
-
-    return [{"startIndex": start, "endIndex": end} for start, end in segments]

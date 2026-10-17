@@ -1,6 +1,6 @@
-"""Command risk classifier for shell_exec auto-allow decisions.
+"""Command risk classifier for approval auto-allow decisions.
 
-Classifies shell commands into SAFE (read-only / informational, auto-allow)
+Classifies a shell command line into SAFE (read-only / informational, auto-allow)
 or UNKNOWN (requires human confirmation).
 
 Designed as the **final fallback** in ``engine.evaluate_tool_call()``:
@@ -8,24 +8,30 @@ only invoked when all prior security layers (capability fence, threat analysis,
 URL/domain checks, path policy, user ruleset) yield a default ASK.
 
 Safety guarantees:
-1. Shell-operator-aware — splits on ``|``, ``&&``, ``||`` (quote-aware)
-   and checks every segment independently.
-2. Redirect-aware — any I/O redirect (``>``, ``<``, ``>>``) → UNKNOWN.
-3. Conservative inclusion — only pure read-only commands are classified SAFE.
-4. Flag-level validation — commands with subcommand configs (e.g. git) are
-   validated at the flag granularity: unknown flags → UNKNOWN.
+1. Read the way the shell reads it — every command of the line (separated by ``;`` ``|`` ``||`` ``&``
+   ``&&`` or a line break; quotes, escapes and comments respected) is judged on its own, and each must be SAFE.
+2. Judge the command that really runs — ``time``, ``timeout`` and ``command`` are SAFE only when the
+   command they wrap is, and quotes are resolved first so ``rg "--pre"`` is the flag ``--pre``.
+3. Redirect-aware — any I/O redirect (``>``, ``<``, ``>>``) → UNKNOWN.
+4. Conservative inclusion — only pure read-only commands are classified SAFE; arguments that make one run a
+   program or write a file (``rg --pre``, ``sort -o``) → UNKNOWN, and so is a flag list that ``$``, a backtick
+   or brace expansion keeps from being read as text.
+5. Flag-level validation — commands with subcommand configs (e.g. git) are validated at the flag
+   granularity: unknown flags → UNKNOWN.
 
 [INPUT]
-- (none)
+- core.security.shell_command_lexer: Command boundaries, shell words and expansion detection.
+- safe_commands: Allow-list, wrapper unwrapping and argument guards.
+- safe_command_configs: Per-subcommand flag whitelists.
 
 [OUTPUT]
 - CommandRiskLevel: Risk classification for a shell command.
 - SpanRiskReason: Stable i18n reason code for a pipeline segment.
-- classify_command_risk: Classify a shell command's risk level.
-- classify_segment_risk_detail: Per-segment level + reason code.
+- classify_command_risk: Classify a shell command line's risk level.
+- classify_segment_risk_detail: Level + reason code of one command.
 
 [POS]
-Command risk classifier for shell_exec auto-allow decisions.
+Command risk classifier for approval auto-allow decisions.
 """
 
 from __future__ import annotations
@@ -33,6 +39,24 @@ from __future__ import annotations
 import re
 from enum import StrEnum
 from typing import Literal
+
+from myrm_agent_harness.core.security.shell_command_lexer import (
+    has_word_expansion,
+    shell_words,
+    split_command_spans,
+)
+from myrm_agent_harness.toolkits.code_execution.security.safe_command_configs import (
+    SUBCOMMAND_CONFIGS,
+    FlagArgType,
+    SubcommandConfig,
+)
+from myrm_agent_harness.toolkits.code_execution.security.safe_commands import (
+    SAFE_COMMANDS,
+    TRANSPARENT_WRAPPERS,
+    has_unsafe_arguments,
+    is_guarded,
+    unwrap_transparent_wrapper,
+)
 
 SpanRiskReason = Literal[
     "safe",
@@ -43,12 +67,6 @@ SpanRiskReason = Literal[
     "invalid_flags",
 ]
 
-from myrm_agent_harness.toolkits.code_execution.security.safe_command_configs import (  # noqa: E402
-    SUBCOMMAND_CONFIGS,
-    FlagArgType,
-    SubcommandConfig,
-)
-
 
 class CommandRiskLevel(StrEnum):
     """Risk classification for a shell command."""
@@ -57,138 +75,8 @@ class CommandRiskLevel(StrEnum):
     UNKNOWN = "unknown"
 
 
-SAFE_COMMANDS: frozenset[str] = frozenset(
-    {
-        # Filesystem read-only
-        "ls",
-        "dir",
-        "cat",
-        "head",
-        "tail",
-        "less",
-        "more",
-        "file",
-        "wc",
-        "du",
-        "df",
-        "stat",
-        "tree",
-        "realpath",
-        "basename",
-        "dirname",
-        "readlink",
-        "pwd",
-        # Search / filter / text-processing read-only
-        "grep",
-        "rg",
-        "ag",
-        "fd",
-        "fzf",
-        "sort",
-        "uniq",
-        "diff",
-        "comm",
-        "cut",
-        "tr",
-        "fmt",
-        "fold",
-        "nl",
-        "paste",
-        "join",
-        "column",
-        "expand",
-        "unexpand",
-        "rev",
-        "tac",
-        # Simple output
-        "echo",
-        "printf",
-        "true",
-        "false",
-        "yes",
-        # System info read-only
-        "uname",
-        "arch",
-        "id",
-        "whoami",
-        "groups",
-        "uptime",
-        "nproc",
-        "lscpu",
-        "lsb_release",
-        "sw_vers",
-        "which",
-        "where",
-        "type",
-        "command",
-        "locale",
-        # Terminal / misc safe
-        "cd",
-        "clear",
-        "reset",
-        "tput",
-        # Checksum read-only
-        "md5sum",
-        "sha256sum",
-        "sha1sum",
-        "shasum",
-        "cksum",
-        "b2sum",
-        # Binary inspection read-only
-        "od",
-        "hexdump",
-        "strings",
-        # Test runners (workspace-scoped, read-only analysis)
-        "pytest",
-        "jest",
-        "vitest",
-        "mocha",
-        "phpunit",
-        # Linters / type checkers (read-only static analysis)
-        "eslint",
-        "ruff",
-        "mypy",
-        "pyright",
-        "tsc",
-        "biome",
-        "flake8",
-        "pylint",
-        "black",
-        "isort",
-        "prettier",
-        "stylelint",
-        "shellcheck",
-        # Build tools (workspace-scoped compilation)
-        "make",
-        "cmake",
-        "gradle",
-        "mvn",
-        "ant",
-        # Version managers (read-only)
-        "nvm",
-        "rbenv",
-        "pyenv",
-        "fnm",
-        "volta",
-        # Misc development tools (read-only or workspace-safe only)
-        "jq",
-        "yq",
-        "envsubst",
-        "date",
-        "cal",
-        "bc",
-        "expr",
-        "seq",
-        "sleep",
-        "timeout",
-        "time",
-        "touch",
-        "mkdir",
-        "locate",
-        "pbcopy",
-        "pbpaste",
-    }
-)
+type _Verdict = tuple[CommandRiskLevel, SpanRiskReason]
+
 
 _REDIRECT_CHARS: frozenset[str] = frozenset({"<", ">"})
 
@@ -359,133 +247,109 @@ def _validate_flag_value(value: str, arg_type: FlagArgType) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Segment-level classification
+# Command-level classification
 # ---------------------------------------------------------------------------
 
+_ASSIGNMENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\+?=")
+# ``time time time ls`` is valid shell; the bound keeps a long chain from recursing without limit.
+_MAX_WRAPPER_DEPTH = 4
 
-def classify_segment_risk_detail(segment: str) -> tuple[CommandRiskLevel, SpanRiskReason]:
-    """Classify a single pipeline segment with a stable i18n reason code."""
-    stripped = segment.strip()
-    if not stripped:
-        return CommandRiskLevel.UNKNOWN, "empty_segment"
 
-    if _has_redirect(stripped):
-        return CommandRiskLevel.UNKNOWN, "redirect"
+def _classify_command(words: list[str], *, expands: bool, depth: int) -> _Verdict:
+    """Judge the command that *words* run.
 
-    tokens = stripped.split()
-    cmd_idx = 0
-    for t in tokens:
-        if "=" in t and not t.startswith("-"):
-            cmd_idx += 1
-        else:
-            break
-
-    if cmd_idx >= len(tokens):
-        return CommandRiskLevel.UNKNOWN, "unknown_command"
-
-    base = tokens[cmd_idx].rsplit("/", 1)[-1]
+    *expands* tells whether ``$``, a backtick or ``{`` in the source text can rewrite the words at run time,
+    which makes any flag or subcommand check on them meaningless.
+    """
+    base = words[0].rsplit("/", 1)[-1] if words else ""
     if not base:
         return CommandRiskLevel.UNKNOWN, "unknown_command"
 
+    if base in TRANSPARENT_WRAPPERS:
+        inner = unwrap_transparent_wrapper(base, words[1:])
+        if inner is None or depth >= _MAX_WRAPPER_DEPTH:
+            return CommandRiskLevel.UNKNOWN, "unknown_command"
+        if not inner:
+            return CommandRiskLevel.SAFE, "safe"
+        return _classify_command(inner, expands=expands, depth=depth + 1)
+
     subcmd_configs = SUBCOMMAND_CONFIGS.get(base)
     if subcmd_configs is not None:
-        config, args_start = _resolve_subcommand(base, tokens, cmd_idx + 1, subcmd_configs)
+        if expands:
+            return CommandRiskLevel.UNKNOWN, "invalid_flags"
+        config, args_start = _resolve_subcommand(base, words, 1, subcmd_configs)
         if config is None:
             return CommandRiskLevel.UNKNOWN, "unknown_subcommand"
-        if _validate_flags(tokens, args_start, config, base_cmd=base):
+        if _validate_flags(words, args_start, config, base_cmd=base):
             return CommandRiskLevel.SAFE, "safe"
         return CommandRiskLevel.UNKNOWN, "invalid_flags"
 
     if base in SAFE_COMMANDS:
+        if has_unsafe_arguments(base, words[1:]) or (expands and is_guarded(base)):
+            return CommandRiskLevel.UNKNOWN, "invalid_flags"
         return CommandRiskLevel.SAFE, "safe"
 
     return CommandRiskLevel.UNKNOWN, "unknown_command"
 
 
-def _classify_segment(segment: str) -> CommandRiskLevel:
-    """Classify a single pipeline segment."""
-    level, _ = classify_segment_risk_detail(segment)
-    return level
+def _classify_segment(segment: str) -> _Verdict:
+    """Classify one command, as separated by ``split_command_spans``."""
+    text = segment.strip()
+    if not text:
+        return CommandRiskLevel.UNKNOWN, "empty_segment"
+
+    if _has_redirect(text):
+        return CommandRiskLevel.UNKNOWN, "redirect"
+
+    words = shell_words(text)
+    if words is None:
+        return CommandRiskLevel.UNKNOWN, "unknown_command"
+
+    # Leading ``NAME=value`` words only set variables for the command that follows. After a wrapper the same
+    # word would be the program to run, so assignments are skipped here and nowhere else.
+    start = 0
+    while start < len(words) and _ASSIGNMENT_RE.match(words[start]):
+        start += 1
+    return _classify_command(words[start:], expands=has_word_expansion(text), depth=0)
 
 
-def _split_shell_operators(command: str) -> list[str]:
-    """Split a command string on unquoted shell operators (``|``, ``&&``, ``||``).
+def classify_segment_risk_detail(segment: str) -> tuple[CommandRiskLevel, SpanRiskReason]:
+    """Classify a single command with a stable i18n reason code.
 
-    Quote-aware: operators inside single or double quotes are ignored.
-    Backslash escapes inside double quotes are respected.
-
-    Each returned segment is a single command that the shell would execute
-    independently. All three operator types are treated equally for safety
-    classification: every segment must be SAFE for the whole command to be SAFE.
+    Text that holds more than one command is never vouched for: callers split a command line with
+    ``split_command_spans`` first.
     """
-    segments: list[str] = []
-    current: list[str] = []
-    in_single = False
-    in_double = False
-    i = 0
-    n = len(command)
-
-    while i < n:
-        ch = command[i]
-
-        if ch == "'" and not in_double:
-            in_single = not in_single
-            current.append(ch)
-            i += 1
-        elif ch == '"' and not in_single:
-            in_double = not in_double
-            current.append(ch)
-            i += 1
-        elif ch == "\\" and in_double and i + 1 < n:
-            current.append(ch)
-            current.append(command[i + 1])
-            i += 2
-        elif not in_single and not in_double:
-            if (ch == "&" and i + 1 < n and command[i + 1] == "&") or (
-                ch == "|" and i + 1 < n and command[i + 1] == "|"
-            ):
-                segments.append("".join(current))
-                current = []
-                i += 2
-            elif ch in ("|", ";"):
-                segments.append("".join(current))
-                current = []
-                i += 1
-            else:
-                current.append(ch)
-                i += 1
-        else:
-            current.append(ch)
-            i += 1
-
-    segments.append("".join(current))
-    return segments
+    if len(split_command_spans(segment)) > 1:
+        return CommandRiskLevel.UNKNOWN, "unknown_command"
+    return _classify_segment(segment)
 
 
 def classify_command_risk(command: str) -> CommandRiskLevel:
-    """Classify a shell command's risk level.
+    """Classify a shell command line's risk level.
 
-    A command is SAFE only when **every** segment is classified SAFE.
-    Segments are split on shell operators ``|``, ``&&``, ``||`` with
-    quote-awareness (operators inside quotes are not treated as separators).
+    The line is SAFE only when **every** command in it is SAFE. Commands are separated the way the shell
+    separates them: ``;``, ``|``, ``||``, ``|&``, ``&``, ``&&`` and line breaks, outside quotes, escapes
+    and comments. An operator without a command on one side, or text that cannot be parsed (an unclosed
+    quote), is UNKNOWN.
 
-    Per-segment checks:
-    - Simple commands: base command must be in ``SAFE_COMMANDS``.
-    - Subcommand tools (e.g. git): subcommand must have a config entry and
-      all flags must pass the flag-level whitelist validation.
-    - No I/O redirection operators (``>``, ``<``, ``>>``) in any segment.
+    Per-command checks:
+    - Simple commands: the command that runs must be in ``SAFE_COMMANDS``, and none of its arguments may run
+      a program or write a file (``rg --pre``, ``sort -o``).
+    - ``time`` / ``timeout`` / ``command``: the wrapped command is judged instead.
+    - Subcommand tools (e.g. git): the subcommand must have a config entry and all flags must pass the
+      flag-level whitelist; ``$``, a backtick or brace expansion in the line makes the flags unreadable → UNKNOWN.
+    - No I/O redirection operators (``>``, ``<``, ``>>``).
 
-    Commands containing shell metacharacters that survive upstream
-    ``shell_command_analyzer`` checks (e.g. ``$``, `` ` ``, ``;``)
-    are already blocked/escalated before reaching this function.
+    ``$(...)`` / backtick command substitution is additionally blocked or escalated upstream by
+    ``shell_command_analyzer`` before a command reaches this function.
     """
-    if not command or not command.strip():
+    spans = split_command_spans(command)
+    if not spans:
         return CommandRiskLevel.UNKNOWN
 
-    segments = _split_shell_operators(command)
-
-    for segment in segments:
-        if _classify_segment(segment) != CommandRiskLevel.SAFE:
+    for start, end in spans:
+        level, _ = _classify_segment(command[start:end])
+        if level != CommandRiskLevel.SAFE:
             return CommandRiskLevel.UNKNOWN
 
     return CommandRiskLevel.SAFE

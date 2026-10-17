@@ -132,6 +132,44 @@ class TestExtractCommandSpans:
         risks = classify_span_risk_levels(command, spans)
         assert risks == ["unknown"]
 
+    def test_every_line_of_a_script_is_its_own_span(self) -> None:
+        command = "ls -la\n\n# remove the build\nrm -rf ./build\r\npwd"
+        spans = extract_command_spans(command)
+        assert [command[s["startIndex"] : s["endIndex"]] for s in spans] == ["ls -la", "rm -rf ./build", "pwd"]
+        assert classify_span_risk_levels(command, spans) == ["safe", "unknown", "safe"]
+
+    def test_background_ampersand_separates_commands(self) -> None:
+        command = "sleep 1 & rm -rf ./build"
+        spans = extract_command_spans(command)
+        assert [command[s["startIndex"] : s["endIndex"]] for s in spans] == ["sleep 1", "rm -rf ./build"]
+
+    def test_stream_redirect_ampersand_does_not_split(self) -> None:
+        command = "ls 2>&1"
+        assert extract_command_spans(command) == [{"startIndex": 0, "endIndex": len(command)}]
+
+    def test_spans_index_the_command_as_displayed(self) -> None:
+        """The approval card highlights the untrimmed text, so spans must not shift with surrounding blanks."""
+        command = "  \n  ls | rm -rf ./build  \n"
+        fields = build_shell_approval_fields("bash_code_execute_tool", {"command": command})
+        highlighted = [command[s["startIndex"] : s["endIndex"]] for s in fields["command_spans"]]
+        assert highlighted == ["ls", "rm -rf ./build"]
+        assert fields["command_span_risks"] == ["safe", "unknown"]
+
+    def test_operator_without_a_command_adds_no_zero_width_span(self) -> None:
+        """The card drops zero-width spans, which would misalign the parallel risk list."""
+        fields = build_shell_approval_fields("bash_code_execute_tool", {"command": "ls ;"})
+        assert fields["command_spans"] == [{"startIndex": 0, "endIndex": 2}]
+        assert len(fields["command_span_risks"]) == len(fields["command_span_reasons"]) == 1
+
+    def test_comment_only_command_is_one_span(self) -> None:
+        command = "# nothing to run"
+        assert extract_command_spans(command) == [{"startIndex": 0, "endIndex": len(command)}]
+
+    def test_hidden_flag_is_explained_as_invalid_flags(self) -> None:
+        command = 'rg "--pre" ./x.sh foo'
+        spans = extract_command_spans(command)
+        assert classify_span_risk_reasons(command, spans) == ["invalid_flags"]
+
 
 class TestExplainSegment:
     def test_known_command(self) -> None:

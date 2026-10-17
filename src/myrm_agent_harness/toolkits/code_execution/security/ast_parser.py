@@ -5,8 +5,10 @@ security capability boundary (safe readonly/test vs capability escalation vs
 irreversible destructive hard stop line).
 
 [INPUT]
-- command: Shell command string.
+- command: Shell command string, possibly several lines.
 - workspace_path: Optional path to current workspace for boundary checks.
+- core.security.shell_command_lexer: Where commands end and which text is a comment (same reading as the risk classifier).
+- capability_tables: Command tables of the capability gate.
 
 [OUTPUT]
 - CapabilityLevel: Enum representing the security boundary level.
@@ -28,8 +30,26 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from myrm_agent_harness.core.security.shell_command_lexer import (
+    split_command_spans,
+    strip_comments,
+)
+from myrm_agent_harness.toolkits.code_execution.security.capability_tables import (
+    CRITICAL_ESCALATION_COMMANDS,
+    GIT_GLOBAL_OPTS_WITH_ARG,
+    GIT_MUTATION_SUBCOMMANDS,
+    GIT_SAFE_READONLY_SUBCOMMANDS,
+    PROTECTED_STARTUP_FILES,
+    SAFE_READONLY_COMMANDS,
+    SAFE_TEST_COMMANDS,
+    SYSTEM_SENSITIVE_PREFIXES,
+)
 from myrm_agent_harness.toolkits.code_execution.security.destructive_rules import (
     analyze_destructive_action,
+)
+from myrm_agent_harness.toolkits.code_execution.security.safe_commands import (
+    TRANSPARENT_WRAPPERS,
+    unwrap_transparent_wrapper,
 )
 
 # ---------------------------------------------------------------------------
@@ -63,62 +83,17 @@ class AtomicCommandAction:
     base_cmd: str
     args: tuple[str, ...]
     redirections: tuple[Redirection, ...]
-    chain_operator: str | None
     capability_level: CapabilityLevel
     escalation_reason: str | None
     raw_tokens: tuple[str, ...]
 
 
-# ---------------------------------------------------------------------------
-# Whitelists and Blacklists for Capability Classification
-# ---------------------------------------------------------------------------
+_REDIRECT_OPERATORS: frozenset[str] = frozenset({">", ">>", "<", ">&", "<&", "&>", "2>", "2>>", "1>", "1>>"})
 
-SAFE_READONLY_COMMANDS: frozenset[str] = frozenset({
-    "ls", "dir", "cat", "head", "tail", "less", "more", "file", "wc", "du", "df", "stat",
-    "tree", "realpath", "basename", "dirname", "readlink", "pwd", "grep", "rg", "ag", "fd",
-    "find", "fzf", "sort", "uniq", "diff", "comm", "cut", "tr", "echo", "printf", "uname", "arch",
-    "id", "whoami", "groups", "uptime", "which", "where", "type", "command", "date", "cd",
-    "env", "md5sum", "sha256sum", "hexdump", "strings",
-})
 
-SAFE_TEST_COMMANDS: frozenset[str] = frozenset({
-    "pytest", "jest", "vitest", "mocha", "cargo", "go", "bun", "npm", "yarn", "pnpm",
-    "mypy", "pyright", "tsc", "ruff", "eslint", "biome", "flake8", "shellcheck", "black", "isort",
-})
-
-_GIT_SAFE_READONLY_SUBCOMMANDS: frozenset[str] = frozenset({
-    "status", "log", "diff", "show", "branch", "tag", "describe", "rev-parse", "rev-list",
-    "ls-files", "ls-tree", "ls-remote", "remote", "config", "version", "help",
-})
-
-_GIT_MUTATION_SUBCOMMANDS: frozenset[str] = frozenset({
-    "commit", "add", "stash", "restore", "switch", "fetch", "merge",
-})
-
-_GIT_GLOBAL_OPTS_WITH_ARG: frozenset[str] = frozenset({
-    "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--exec-path",
-})
-
-CRITICAL_ESCALATION_COMMANDS: dict[str, str] = {
-    "curl": "network_egress", "wget": "network_egress", "nc": "network_egress",
-    "netcat": "network_egress", "nmap": "network_egress", "ssh": "network_egress",
-    "scp": "network_egress", "rsync": "network_egress", "telnet": "network_egress",
-    "sudo": "privilege_escalation", "su": "privilege_escalation",
-    "chown": "privilege_escalation", "chmod": "permission_alteration",
-    "kill": "process_termination", "pkill": "process_termination",
-    "killall": "process_termination", "reboot": "system_administration",
-    "shutdown": "system_administration", "poweroff": "system_administration",
-    "systemctl": "system_administration", "service": "system_administration",
-    "mount": "system_administration", "umount": "system_administration",
-}
-
-_SYSTEM_SENSITIVE_PREFIXES: tuple[str, ...] = ("/etc", "/usr", "/bin", "/sbin", "/var", "/opt", "/root", "/proc", "/sys", "/dev")
-_PROTECTED_STARTUP_FILES: frozenset[str] = frozenset({".bashrc", ".zshrc", ".profile", ".bash_profile", ".zprofile", "shadow", "passwd", "authorized_keys"})
-
-_CHAIN_OPERATORS: frozenset[str] = frozenset({";", "&&", "||", "|", "&"})
-_REDIRECT_OPERATORS: frozenset[str] = frozenset(
-    {">", ">>", "<", ">&", "<&", "&>", "2>", "2>>", "1>", "1>>"}
-)
+def _is_env_assignment(word: str) -> bool:
+    """``NAME=value`` in front of a command sets a variable for it; the command is the word after the assignments."""
+    return "=" in word and not word.startswith("-")
 
 
 # ---------------------------------------------------------------------------
@@ -135,23 +110,17 @@ class BashASTParser:
         command: str,
         workspace_path: Path | None = None,
     ) -> list[AtomicCommandAction]:
-        """Parse a compound shell command into individual atomic actions with capability classifications."""
+        """Parse a compound shell command into individual atomic actions with capability classifications.
+
+        Commands are cut where the shell cuts them (``split_command_spans``), so every command bash runs is seen
+        and text it ignores (comments) is not.
+        """
         stripped = command.strip()
-        if not stripped:
-            return []
-
-        tokens = cls._tokenize(stripped)
-        if not tokens:
-            return []
-
-        statements = cls._split_into_statements(tokens)
         actions: list[AtomicCommandAction] = []
-
-        for statement_tokens, chain_op in statements:
-            if not statement_tokens:
-                continue
-            actions.append(cls._parse_single_statement(statement_tokens, chain_op, workspace_path))
-
+        for start, end in split_command_spans(stripped):
+            for tokens in cls._tokenize(stripped[start:end]):
+                if tokens:
+                    actions.append(cls._parse_single_statement(tokens, workspace_path))
         return actions
 
     @classmethod
@@ -171,7 +140,8 @@ class BashASTParser:
     def get_escalation_actions(cls, actions: list[AtomicCommandAction]) -> list[AtomicCommandAction]:
         """Filter actions that require explicit human approval (escalation or destructive)."""
         return [
-            a for a in actions
+            a
+            for a in actions
             if a.capability_level in (CapabilityLevel.CAPABILITY_ESCALATION, CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE)
         ]
 
@@ -191,45 +161,28 @@ class BashASTParser:
             )
         return summaries
 
-    @classmethod
-    def _tokenize(cls, command: str) -> list[str]:
-        """Tokenize shell command with quote and operator awareness."""
-        lexer = shlex.shlex(io.StringIO(command), posix=True, punctuation_chars=True)
+    @staticmethod
+    def _tokenize(command: str) -> list[list[str]]:
+        """Split the text of one command into words and redirect tokens: one token list, or one per line.
+
+        Comments are removed by the shell's own rule first: shlex would also end a word at a ``#`` inside it
+        (``echo a#b && rm -rf x``). Text shlex cannot parse is an unclosed quote that swallows the lines after
+        it, such as the apostrophe in a heredoc body or one inside backticks; bash may still run those lines, so
+        each one is named by its own words instead of hiding behind the first.
+        """
+        text = strip_comments(command)
+        lexer = shlex.shlex(io.StringIO(text), posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
-        tokens: list[str] = []
+        lexer.commenters = ""
         try:
-            for tok in lexer:
-                tokens.append(tok)
+            return [list(lexer)]
         except ValueError:
-            return command.split()
-        return tokens
-
-    @classmethod
-    def _split_into_statements(
-        cls,
-        tokens: list[str],
-    ) -> list[tuple[list[str], str | None]]:
-        """Split token stream on chain operators (;, &&, ||, |, &)."""
-        statements: list[tuple[list[str], str | None]] = []
-        current_tokens: list[str] = []
-
-        for tok in tokens:
-            if tok in _CHAIN_OPERATORS:
-                statements.append((current_tokens, tok))
-                current_tokens = []
-            else:
-                current_tokens.append(tok)
-
-        if current_tokens:
-            statements.append((current_tokens, None))
-
-        return statements
+            return [line.split() for line in text.splitlines()]
 
     @classmethod
     def _parse_single_statement(
         cls,
         tokens: list[str],
-        chain_op: str | None,
         workspace_path: Path | None,
     ) -> AtomicCommandAction:
         """Parse words, flags, and redirections from a single statement's tokens."""
@@ -245,14 +198,26 @@ class BashASTParser:
                 redirections.append(Redirection(operator=tok, target=target))
                 i += 2
                 continue
+            if (
+                tok.isascii()
+                and tok.isdigit()
+                and i + 1 < total
+                and tokens[i + 1] in _REDIRECT_OPERATORS
+                and all(map(_is_env_assignment, words))
+            ):
+                # ``2>log rm -rf x``: shlex cuts the file descriptor off its operator, so in front of the command
+                # a bare number belongs to the redirect that follows and is no command word.
+                i += 1
+                continue
             words.append(tok)
             i += 1
 
         cmd_words: list[str] = []
         for w in words:
-            if not cmd_words and "=" in w and not w.startswith("-"):
+            if not cmd_words and _is_env_assignment(w):
                 continue
             cmd_words.append(w)
+        cmd_words = cls._peel_wrappers(cmd_words)
 
         if not cmd_words:
             base_cmd = ""
@@ -273,11 +238,21 @@ class BashASTParser:
             base_cmd=base_cmd,
             args=args,
             redirections=tuple(redirections),
-            chain_operator=chain_op,
             capability_level=cap_level,
             escalation_reason=reason,
             raw_tokens=tuple(tokens),
         )
+
+    @staticmethod
+    def _peel_wrappers(words: list[str]) -> list[str]:
+        """Return the words of the command that really runs: ``time``, ``command`` and ``timeout`` only run what follows."""
+        while words:
+            base = os.path.basename(words[0])
+            inner = unwrap_transparent_wrapper(base, words[1:]) if base in TRANSPARENT_WRAPPERS else None
+            if not inner:  # not a wrapper, a form that is not understood, or a wrapper that runs nothing
+                break
+            words = inner
+        return words
 
     @staticmethod
     def _extract_git_subcommand(args: tuple[str, ...]) -> str | None:
@@ -286,7 +261,7 @@ class BashASTParser:
         n = len(args)
         while i < n:
             arg = args[i]
-            if arg in _GIT_GLOBAL_OPTS_WITH_ARG:
+            if arg in GIT_GLOBAL_OPTS_WITH_ARG:
                 i += 2
                 continue
             if arg.startswith("-"):
@@ -304,7 +279,7 @@ class BashASTParser:
         workspace_path: Path | None,
     ) -> tuple[CapabilityLevel, str | None]:
         """Classify single atomic command against capability boundaries."""
-        if not base_cmd:
+        if not base_cmd and not redirections:
             return CapabilityLevel.SAFE_READONLY, None
 
         # 1. Hard Stop Line: Irreversible Destructive Actions
@@ -329,21 +304,21 @@ class BashASTParser:
             if not target:
                 continue
             target_norm = os.path.normpath(os.path.expanduser(target))
-            for prefix in _SYSTEM_SENSITIVE_PREFIXES:
+            for prefix in SYSTEM_SENSITIVE_PREFIXES:
                 if target_norm == prefix or target_norm.startswith(prefix + "/"):
                     return CapabilityLevel.CAPABILITY_ESCALATION, "system_file_write"
             base_name = os.path.basename(target_norm)
-            if base_name in _PROTECTED_STARTUP_FILES:
+            if base_name in PROTECTED_STARTUP_FILES:
                 return CapabilityLevel.CAPABILITY_ESCALATION, "system_file_write"
 
         # 5. Git fine-grained subcommand boundary
         if base_cmd == "git":
             subcmd = cls._extract_git_subcommand(args)
-            if not subcmd or subcmd in _GIT_SAFE_READONLY_SUBCOMMANDS:
+            if not subcmd or subcmd in GIT_SAFE_READONLY_SUBCOMMANDS:
                 if any(r.operator in (">", ">>", "&>") for r in redirections):
                     return CapabilityLevel.WORKSPACE_MUTATION, None
                 return CapabilityLevel.SAFE_READONLY, None
-            if subcmd in _GIT_MUTATION_SUBCOMMANDS:
+            if subcmd in GIT_MUTATION_SUBCOMMANDS:
                 return CapabilityLevel.WORKSPACE_MUTATION, None
             reason = "git_remote_sync" if subcmd == "push" else (f"git_{subcmd}" if subcmd else "git_action")
             return CapabilityLevel.CAPABILITY_ESCALATION, reason

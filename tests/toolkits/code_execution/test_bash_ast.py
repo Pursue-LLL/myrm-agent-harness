@@ -11,6 +11,7 @@ from myrm_agent_harness.toolkits.code_execution.security.ast_parser import (
     BashASTParser,
     CapabilityLevel,
     classify_command_boundary,
+    is_destructive_shell_tool_call,
 )
 
 
@@ -150,6 +151,125 @@ class TestBashASTParser:
         assert env_only[0].capability_level == CapabilityLevel.SAFE_READONLY
 
 
+class TestCommandBoundariesMatchTheShell:
+    """The destructive-action gate must see every command bash runs and none that bash ignores."""
+
+    def test_line_break_starts_a_new_statement(self) -> None:
+        for command in (
+            "ls\nrm -rf ./build",
+            "ls\r\nrm -rf ./build",
+            "ls\r\n\r\nrm -rf ./build",
+            "ls\n\n# note\nrm -rf ./build",
+            "ls;\nrm -rf ./build",
+            "ls &&\nrm -rf ./build",
+            "ls \\\n&& rm -rf ./build",
+        ):
+            actions = BashASTParser.parse(command)
+            assert [a.base_cmd for a in actions] == ["ls", "rm"], command
+            assert BashASTParser.has_destructive(actions), command
+
+    def test_unclosed_quote_does_not_hide_the_commands_before_it(self) -> None:
+        """Bash runs the complete lines before the syntax error, so ``rm`` has already happened."""
+        actions = BashASTParser.parse("ls\nrm -rf ./build\necho 'oops")
+        assert [a.base_cmd for a in actions] == ["ls", "rm", "echo"]
+        assert BashASTParser.has_destructive(actions)
+
+    def test_apostrophe_in_a_heredoc_body_does_not_hide_the_command_after_it(self) -> None:
+        """The apostrophe opens a quote that swallows the rest of the text; bash still runs ``rm`` after the body."""
+        actions = BashASTParser.parse("cat <<EOF\nit's data\nEOF\nrm -rf ./build")
+        assert "rm" in [a.base_cmd for a in actions]
+        assert BashASTParser.has_destructive(actions)
+
+    def test_wrappers_run_the_command_after_them(self) -> None:
+        for command in (
+            "time rm -rf ./build",
+            "time -p rm -rf ./build",
+            "command rm -rf ./build",
+            "timeout 30 rm -rf ./build",
+            "time timeout -s KILL 5 command rm -rf ./build",
+            "FOO=1 time rm -rf ./build",
+            "time \\\nrm -rf ./build",
+        ):
+            actions = BashASTParser.parse(command)
+            assert [a.base_cmd for a in actions] == ["rm"], command
+            assert BashASTParser.has_destructive(actions), command
+
+    def test_redirect_in_front_of_the_command_does_not_hide_it(self) -> None:
+        """``2>log rm -rf x`` runs ``rm``; the tokenizer cuts the file descriptor off its operator."""
+        for command in (
+            "2>err.log rm -rf ./build",
+            "2>&1 rm -rf ./build",
+            "3> err.log rm -rf ./build",
+            ">out.log rm -rf ./build",
+            "&>all.log rm -rf ./build",
+            "<in.txt rm -rf ./build",
+            "FOO=1 2>err.log rm -rf ./build",
+            "2>err.log time rm -rf ./build",
+            "ls\n2>err.log rm -rf ./build",
+            "2>err.log \\\nrm -rf ./build",
+        ):
+            actions = BashASTParser.parse(command)
+            assert actions[-1].base_cmd == "rm", command
+            assert BashASTParser.has_destructive(actions), command
+
+    def test_statement_made_only_of_a_redirect_still_checks_its_target(self) -> None:
+        for command in ("> /etc/hosts", "2>/etc/hosts", "&>~/.bashrc", "FOO=1 >> ~/.profile"):
+            actions = BashASTParser.parse(command)
+            assert len(actions) == 1, command
+            assert actions[0].base_cmd == "", command
+            assert actions[0].capability_level == CapabilityLevel.CAPABILITY_ESCALATION, command
+            assert actions[0].escalation_reason == "system_file_write", command
+
+        harmless = BashASTParser.parse("> notes.txt")[0]
+        assert harmless.capability_level == CapabilityLevel.WORKSPACE_MUTATION
+
+    def test_number_after_the_command_stays_an_argument(self) -> None:
+        actions = BashASTParser.parse("echo 2 > out.txt")
+        assert actions[0].base_cmd == "echo"
+        assert actions[0].args == ("2",)
+
+    def test_wrapper_that_runs_nothing_stays_harmless(self) -> None:
+        for command in ("command -v rm", "time", "timeout 5"):
+            actions = BashASTParser.parse(command)
+            assert len(actions) == 1, command
+            assert not BashASTParser.has_destructive(actions), command
+
+    def test_ansi_c_quote_cannot_swallow_a_command(self) -> None:
+        actions = BashASTParser.parse("echo $'a\\'b' ; rm -rf ./build ; echo 'c' 'd'")
+        assert "rm" in [a.base_cmd for a in actions]
+        assert BashASTParser.has_destructive(actions)
+
+    def test_hash_inside_a_word_is_not_a_comment(self) -> None:
+        actions = BashASTParser.parse("echo a#b && rm -rf ./build")
+        assert [a.base_cmd for a in actions] == ["echo", "rm"]
+        assert actions[0].args == ("a#b",)
+        assert BashASTParser.has_destructive(actions)
+
+    def test_pipe_with_stderr_starts_a_new_statement(self) -> None:
+        actions = BashASTParser.parse("echo x |& rm -rf ./build")
+        assert [a.base_cmd for a in actions] == ["echo", "rm"]
+        assert BashASTParser.has_destructive(actions)
+
+    def test_comment_text_is_not_executed(self) -> None:
+        assert [a.base_cmd for a in BashASTParser.parse("# rm -rf ./build\nls")] == ["ls"]
+        assert [a.base_cmd for a in BashASTParser.parse("ls # rm -rf ./build")] == ["ls"]
+
+    def test_quoted_line_break_is_text(self) -> None:
+        actions = BashASTParser.parse('echo "a\nrm -rf x"')
+        assert [a.base_cmd for a in actions] == ["echo"]
+        assert not BashASTParser.has_destructive(actions)
+
+    def test_backslash_newline_joins_the_line(self) -> None:
+        actions = BashASTParser.parse("ls \\\n -la")
+        assert len(actions) == 1
+        assert actions[0].args == ("-la",)
+
+    def test_destructive_tool_call_sees_the_second_line(self) -> None:
+        flagged, reason, _ = is_destructive_shell_tool_call("bash_code_execute_tool", {"command": "ls\nrm -rf ./build"})
+        assert flagged is True
+        assert reason
+
+
 class TestCommandRewriterSearchRouting:
     """Unit tests for CommandRewriter transparent grep -> rg routing."""
 
@@ -188,4 +308,3 @@ class TestCommandRewriterSearchRouting:
         cmd = "grep -rn 'hello' ."
         assert rewriter.rewrite_search_commands(cmd, has_rg=False) == cmd
         assert rewriter.rewrite_search_commands(cmd, has_rg=True) == "rg --no-ignore -n 'hello' ."
-

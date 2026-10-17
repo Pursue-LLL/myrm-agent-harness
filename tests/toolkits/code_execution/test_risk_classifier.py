@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
-    SAFE_COMMANDS,
     CommandRiskLevel,
     classify_command_risk,
 )
+from myrm_agent_harness.toolkits.code_execution.security.safe_commands import SAFE_COMMANDS
 
 
 class TestClassifyCommandRisk:
@@ -145,7 +145,7 @@ class TestSafeCommandsCoverage:
 
 
 class TestShellOperatorSplitting:
-    """Tests for _split_shell_operators: &&, ||, |, quote-awareness."""
+    """Tests for command splitting on shell operators: &&, ||, |, quote-awareness."""
 
     def test_and_operator_safe_both(self) -> None:
         assert classify_command_risk("ls && pwd") == CommandRiskLevel.SAFE

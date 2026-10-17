@@ -2,7 +2,9 @@
 
 - env_isolation.py: child process environment variable isolation and security sanitization SSOT
 - shell_command_analyzer.py: shell command threat detection (injection, dangerous patterns)
+- core.security.shell_command_lexer: the one reading of a command line (where commands end, which words they have) shared by the checks below
 - risk_classifier.py: command risk classification (SAFE/UNKNOWN) with flag-level validation
+- safe_commands.py: read-only command allow-list, transparent wrappers and argument guards
 - safe_command_configs.py: subcommand flag whitelist data (git read-only subcommands)
 - blacklist.py: Python module blacklists, env var blacklists, file-modifying commands
 - validator.py: unified validation interface + env var sanitization (ALL/CORE/NONE policies)
@@ -33,22 +35,22 @@ from myrm_agent_harness.toolkits.code_execution.security.blacklist import (
     NON_INHERITABLE_ENV_VARS,
     get_dangerous_modules,
 )
-from myrm_agent_harness.toolkits.code_execution.security.destructive_rules import (
+from myrm_agent_harness.toolkits.code_execution.security.destructive_rules import analyze_destructive_action
+from myrm_agent_harness.toolkits.code_execution.security.destructive_types import (
     BlastRadiusInfo,
     DestructiveAnalysisResult,
-    analyze_destructive_action,
 )
 from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
-    SAFE_COMMANDS,
     CommandRiskLevel,
     classify_command_risk,
 )
 from myrm_agent_harness.toolkits.code_execution.security.safe_command_configs import (
-    GIT_SAFE_SUBCOMMANDS,
     SUBCOMMAND_CONFIGS,
     FlagArgType,
     SubcommandConfig,
 )
+from myrm_agent_harness.toolkits.code_execution.security.safe_command_configs.git import GIT_SAFE_SUBCOMMANDS
+from myrm_agent_harness.toolkits.code_execution.security.safe_commands import SAFE_COMMANDS
 from myrm_agent_harness.toolkits.code_execution.security.script_armor import (
     ScriptArmorConfig,
     build_file_backed_command,

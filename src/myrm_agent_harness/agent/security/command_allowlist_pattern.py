@@ -2,9 +2,10 @@
 
 [INPUT]
 - Raw shell command strings from bash_code_execute_tool
+- core.security.shell_command_lexer: which characters of the command the shell interprets
 
 [OUTPUT]
-- is_compound_shell_command(): detect chained shell operators
+- is_compound_shell_command(): detect anything beyond one plain command (chaining, redirects, substitution, grouping)
 - `derive_command_pattern()` / `matches_command_pattern()` / `DERIVE_PATTERN_PARITY_VECTORS`（与 frontend vitest 对齐）
 
 [POS]
@@ -18,26 +19,26 @@ import re
 import shlex
 from fnmatch import fnmatchcase
 
-_COMPOUND_OPERATOR_RE = re.compile(
-    r"""
-    (?:
-        && |
-        \|\| |
-        \|\s |
-        \|\s*$ |
-        ;(?!\s*$)
-    )
-    """,
-    re.VERBOSE,
-)
+from myrm_agent_harness.core.security.shell_command_lexer import UNTERMINATED, iter_syntax_chars
+
+# A pattern approved for ``npm test`` must not cover ``npm test\nrm -rf x``, ``npm test & rm x``, ``npm test > ~/.bashrc``
+# or ``npm test $(rm x)``: every character below ends, redirects or rewrites the command when the shell interprets it.
+_COMPOUND_CHARS = frozenset(";|&\n\r`()<>" + UNTERMINATED)
+# Redirects that only merge or discard output, as separate words: ``2>&1``, ``>&2``, ``>/dev/null``, ``&>/dev/null``.
+_HARMLESS_REDIRECT_RE = re.compile(r"(?<!\S)(?:[12]?>&[12]|(?:[12]|&)?>>?/dev/null|</dev/null)(?!\S)")
 
 
 def is_compound_shell_command(command: str) -> bool:
-    """Return True when the command chains multiple shell segments."""
-    stripped = command.strip()
-    if not stripped:
-        return False
-    return bool(_COMPOUND_OPERATOR_RE.search(stripped))
+    """Return True when the command is more than one plain command.
+
+    Chaining (``;`` ``&&`` ``|`` ``&`` line break), redirects, command substitution, grouping and text that
+    cannot be parsed all count; quoted text and comments do not.
+    """
+    text = _HARMLESS_REDIRECT_RE.sub(" ", command.strip())
+    return any(
+        char in _COMPOUND_CHARS or (char == "$" and text[index + 1 : index + 2] == "(")
+        for index, char in iter_syntax_chars(text)
+    )
 
 
 def derive_command_pattern(command: str) -> str | None:
