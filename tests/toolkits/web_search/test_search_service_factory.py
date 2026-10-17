@@ -115,19 +115,19 @@ async def test_searcher_caches_the_routed_client_but_not_the_bypass_client() -> 
     assert await searcher._get_search_service() is routed
 
 
-def test_the_credential_digest_is_a_fixed_size_fingerprint_of_its_own() -> None:
-    """The digest names the credential and nothing else: the cache key adds the slug as its own component.
+def test_the_credential_digest_names_the_credential_without_the_provider_slug() -> None:
+    """The caller adds the slug, so one credential keeps one digest across providers.
 
-    A digest that folded in the slug would double it in the cache key and make the cooldown scope drift from
-    the cache identity the moment the two callers disagreed, so the shape is pinned here.
+    Both key builders already prepend the slug, so a digest that folded it in would double it in the cache key and
+    let the cooldown scope drift from the cache identity as soon as the two callers composed their keys differently.
     """
-    first = credential_scope_digest(_config("tavily", api_key="key-a"))
-    same = credential_scope_digest(_config("tavily", api_key="key-a"))
+    keyed_tavily = credential_scope_digest(_config("tavily", api_key="key-a"))
+    keyed_brave = credential_scope_digest(_config("brave", api_key="key-a"))
 
-    assert first == same
-    assert len(first) == 16 and all(char in "0123456789abcdef" for char in first)
-    assert "tavily" not in first
-    assert credential_fingerprint(describe_credential_scope(_config("tavily", api_key="key-a"))) == first
+    assert keyed_tavily == keyed_brave
+    assert credential_scope_digest(_config("tavily", api_key="key-a")) == keyed_tavily
+    assert credential_scope_digest(_config("tavily", api_key="key-b")) != keyed_tavily
+    assert credential_fingerprint(describe_credential_scope(_config("tavily", api_key="key-a"))) == keyed_tavily
 
 
 def test_the_cache_and_the_cooldown_address_one_credential_the_same_way() -> None:
