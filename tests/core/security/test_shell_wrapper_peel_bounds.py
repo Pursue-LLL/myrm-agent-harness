@@ -15,6 +15,7 @@ These tests pin both, so a change that silently truncates a real command fails h
 
 from __future__ import annotations
 
+import time
 from fnmatch import fnmatchcase
 
 import pytest
@@ -44,6 +45,18 @@ class TestLinearChainIsPeeledToTheBottom:
     def test_a_chain_costs_one_reading_regardless_of_its_length(self) -> None:
         """The chain collapses to the command at the bottom, so its length does not fan the walk out."""
         assert len(deny_readings("sudo " * 5000 + "rm -rf /")) == 1
+
+    def test_a_very_long_chain_is_read_in_linear_time(self) -> None:
+        """Peeling must not re-copy the tail per step: a quadratic walk hangs the approval path on a long chain.
+
+        A 100k-prefix chain is read in well under a second when the peel indexes into one word list; the
+        quadratic walk that re-sliced the tail per step took tens of seconds on the same input, so this bound
+        separates the two without being close to either on an idle machine.
+        """
+        chain = "sudo " * 100_000 + "rm -rf /"
+        started = time.monotonic()
+        assert deny_readings(chain) == ("rm -rf /",)
+        assert time.monotonic() - started < 10.0
 
 
 class TestFanoutBound:

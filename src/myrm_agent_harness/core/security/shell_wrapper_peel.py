@@ -44,9 +44,11 @@ from myrm_agent_harness.core.security.shell_command_lexer import (
     split_command_spans,
 )
 
-# A prefix chain deeper than this is not read further: the bound keeps a pathological line from recursing
-# without end while covering every nesting a real command line has. It sits well under Python's recursion
-# limit on purpose, and well above any nesting a payload uses.
+# How many *branching* levels (a substitution or ``-c`` script nested inside one) the walk expands. A linear
+# chain of prefixes does not spend this budget: it is peeled to the command at its bottom in one pass, so no
+# number of ``sudo``/``timeout``/``time`` wrappers can hide the inner command from the deny or destructive
+# direction. The bound stops a line built out of deeply nested substitutions from recursing without end, and
+# sits well above any nesting a real command line has.
 DENY_WRAPPER_DEPTH: Final = 64
 
 # The most commands one line may expand to. A command whose every word is its own substitution is what makes
@@ -67,37 +69,43 @@ _TIMEOUT_PLAIN_FLAGS: Final = frozenset({"-f", "-p", "-v", "--foreground", "--pr
 _TIMEOUT_ATTACHED_FLAGS: Final = ("--signal=", "--kill-after=")
 
 
+def _transparent_inner(words: Sequence[str], start: int, base: str) -> int | None:
+    """Index of the command transparent wrapper *base* runs, ``len(words)`` when it runs nothing.
+
+    None means the form is not understood (an option that is not listed, a missing duration) and the caller
+    must not vouch for it. An index rather than a slice is what keeps a chain of wrappers linear to read.
+    """
+    if base == "timeout":
+        index = start
+        while index < len(words) and words[index].startswith("-"):
+            flag = words[index]
+            if flag in _TIMEOUT_VALUE_FLAGS:
+                index += 2
+            elif flag in _TIMEOUT_PLAIN_FLAGS or flag.startswith(_TIMEOUT_ATTACHED_FLAGS):
+                index += 1
+            else:
+                return None
+        if index >= len(words) or not _DURATION.fullmatch(words[index]):
+            return None
+        return index + 1
+    if base == "command" and words[start : start + 1] in (["-v"], ["-V"]):
+        return len(words)
+    index = start
+    if words[index : index + 1] == ["-p"]:
+        index += 1
+    if words[index : index + 1] == ["--"]:
+        index += 1
+    return None if index < len(words) and words[index].startswith("-") else index
+
+
 def unwrap_transparent_wrapper(base: str, args: Sequence[str]) -> list[str] | None:
     """Return the words of the command the wrapper *base* runs.
 
     ``[]`` means it runs nothing (``command -v git``, a bare ``time``); None means the form is not understood
     (an option that is not listed, a missing duration) and the caller must not vouch for it.
     """
-    if base == "timeout":
-        return _unwrap_timeout(args)
-    rest = list(args)
-    if base == "command" and rest[:1] in (["-v"], ["-V"]):
-        return []
-    if rest[:1] == ["-p"]:
-        rest = rest[1:]
-    if rest[:1] == ["--"]:
-        rest = rest[1:]
-    return None if rest and rest[0].startswith("-") else rest
-
-
-def _unwrap_timeout(args: Sequence[str]) -> list[str] | None:
-    index = 0
-    while index < len(args) and args[index].startswith("-"):
-        flag = args[index]
-        if flag in _TIMEOUT_VALUE_FLAGS:
-            index += 2
-        elif flag in _TIMEOUT_PLAIN_FLAGS or flag.startswith(_TIMEOUT_ATTACHED_FLAGS):
-            index += 1
-        else:
-            return None
-    if index >= len(args) or not _DURATION.fullmatch(args[index]):
-        return None
-    return list(args[index + 1 :])
+    index = _transparent_inner(args, 0, base)
+    return None if index is None else list(args[index:])
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,23 +237,27 @@ _PREFIXES: Final[Mapping[str, _Prefix]] = MappingProxyType(
 )
 
 
-def _strip_assignments(words: Sequence[str]) -> list[str]:
-    """Drop the leading ``NAME=value`` words a prefix leaves in front of its command (``env FOO=1 rm``)."""
-    index = 0
+def _assignment_end(words: Sequence[str], start: int) -> int:
+    """Index after the leading ``NAME=value`` words a prefix leaves in front of its command (``env FOO=1 rm``)."""
+    index = start
     while index < len(words) and _ASSIGNMENT_RE.match(words[index]):
         index += 1
-    return list(words[index:])
+    return index
 
 
-def _after_prefix(args: Sequence[str], prefix: _Prefix) -> list[str] | None:
-    """The words a prefix's own flags leave behind, or None when the prefix runs no command."""
-    index = 0
-    while index < len(args):
-        token = args[index]
+def _prefix_end(words: Sequence[str], start: int, prefix: _Prefix) -> int | None:
+    """Index of the command after *prefix*'s own flags, ``len(words)`` when the prefix runs no command.
+
+    None means the form is not understood. An index rather than the words that follow is what keeps a chain of
+    any length linear to read: peeling the chain never copies its tail at each step.
+    """
+    index = start
+    while index < len(words):
+        token = words[index]
         if token == "--":
-            return list(args[index + 1 :])
+            return index + 1
         if not token.startswith("-") or token == "-":
-            return list(args[index:])
+            return index
         if any(token.startswith(glued) for glued in prefix.stops_glued):
             return None
         if any(len(token) > len(glued) and token.startswith(glued) for glued in prefix.attached):
@@ -257,7 +269,34 @@ def _after_prefix(args: Sequence[str], prefix: _Prefix) -> list[str] | None:
         if token in prefix.stops:
             return None
         index += 1
-    return []
+    return len(words)
+
+
+def _peel_deny_index(words: Sequence[str], start: int) -> int | None:
+    """Index of the command the deny-direction prefix at *start* hands control to, ``len(words)`` when none.
+
+    None means the command is already read as written: no prefix, no leading assignment, or a form that is not
+    understood.
+    """
+    rest = _assignment_end(words, start)
+    if rest >= len(words):
+        return None
+    prefix = _PREFIXES.get(words[rest].rsplit("/", 1)[-1])
+    if prefix is None:
+        return rest if rest != start else None
+    after = _prefix_end(words, rest + 1, prefix)
+    return None if after is None else _assignment_end(words, after)
+
+
+def _peel_transparent_index(words: Sequence[str], start: int) -> int | None:
+    """Index behind ``command`` / ``time`` / ``timeout``, ``len(words)`` when it runs nothing, None when unknown."""
+    rest = _assignment_end(words, start)
+    if rest >= len(words):
+        return None
+    base = words[rest].rsplit("/", 1)[-1]
+    if base not in TRANSPARENT_WRAPPERS:
+        return None
+    return _transparent_inner(words, rest + 1, base)
 
 
 def peel_deny_wrapper(words: Sequence[str]) -> list[str] | None:
@@ -267,14 +306,8 @@ def peel_deny_wrapper(words: Sequence[str]) -> list[str] | None:
     read as written: no prefix, no leading assignment, or a form that is not understood. Leading
     ``NAME=value`` words are read through as well, since ``A=1 rm -rf /`` runs ``rm -rf /``.
     """
-    rest = _strip_assignments(words)
-    if not rest:
-        return None
-    prefix = _PREFIXES.get(rest[0].rsplit("/", 1)[-1])
-    if prefix is None:
-        return rest if len(rest) != len(words) else None
-    after = _after_prefix(rest[1:], prefix)
-    return None if after is None else _strip_assignments(after)
+    index = _peel_deny_index(words, 0)
+    return None if index is None else list(words[index:])
 
 
 def shell_script_of(words: Sequence[str]) -> str | None:
@@ -284,24 +317,33 @@ def shell_script_of(words: Sequence[str]) -> str | None:
     that gets no ``-c`` reads a file or a standard input stream, and ``eval`` joins its arguments, so the
     returned text is what the shell itself would parse next.
     """
-    rest = _strip_assignments(words)
-    if not rest:
+    return _shell_script_index(words, 0)
+
+
+def _shell_script_index(words: Sequence[str], start: int) -> str | None:
+    """The script text the ``-c`` form or ``eval`` at *start* runs, by the same rules as :func:`shell_script_of`."""
+    rest = _assignment_end(words, start)
+    if rest >= len(words):
         return None
-    base = rest[0].rsplit("/", 1)[-1]
-    args = list(rest[1:])
+    base = words[rest].rsplit("/", 1)[-1]
     if base == "eval":
-        while args and args[0] == "--":
-            args = args[1:]
-        return " ".join(args) if args else None
+        index = rest + 1
+        while index < len(words) and words[index] == "--":
+            index += 1
+        return " ".join(words[index:]) if index < len(words) else None
     if base not in _SHELLS:
         return None
-    for index, token in enumerate(args):
+    index = rest + 1
+    while index < len(words):
+        token = words[index]
         if token == "--" or not token.startswith("-") or token == "-":
             return None
         if token.startswith("--"):
+            index += 1
             continue
         if "c" in token[1:]:
-            return args[index + 1] if index + 1 < len(args) else None
+            return words[index + 1] if index + 1 < len(words) else None
+        index += 1
     return None
 
 
@@ -385,10 +427,10 @@ def direct_command_readings(command: str) -> tuple[str, ...]:
     """The commands *command* hands control to in one step, outer command first out.
 
     One step means: the command at the bottom of the wrapper chain in front of the text, the script each
-    shell ``-c`` or ``eval`` parses, and the body of each ``$(...)`` and backtick. The chain is peeled in a
-    single pass rather than level by level, so a line built out of any number of ``sudo``/``timeout``/``time``
-    prefixes still reaches the command it runs, in work proportional to the text and without recursing.
-    Callers that want the whole chain walk through :func:`deny_readings`; callers building a tree recurse
+    shell ``-c`` or ``eval`` parses, and the body of each ``$(...)`` and backtick. The chain is peeled with an
+    index into the same word list, so a line built out of any number of ``sudo``/``timeout``/``time`` prefixes
+    still reaches the command it runs, in time proportional to the text and without copying its tail at each
+    step. Callers that want the whole chain walk through :func:`deny_readings`; callers building a tree recurse
     through this one, so the tree is bounded by their own depth rather than by the text.
     """
     outer = command.strip()
@@ -399,21 +441,24 @@ def direct_command_readings(command: str) -> tuple[str, ...]:
         # the command text a rule matches, so every reading is trimmed before it is judged.
         found.extend(body.strip() for body in substitution_bodies(part))
         words = shell_words(part)
+        if not words:
+            continue
+        index = 0
         peeled = False
-        while words:
-            script = shell_script_of(words)
+        while index < len(words):
+            script = _shell_script_index(words, index)
             if script is not None:
                 found.append(script.strip())
                 break
-            inner = peel_deny_wrapper(words)
+            inner = _peel_deny_index(words, index)
             if inner is None:
-                inner = _peel_transparent_deny(words)
-            if not inner:
+                inner = _peel_transparent_index(words, index)
+            if inner is None or inner == index:
                 break
-            words = inner
+            index = inner
             peeled = True
         if peeled:
-            found.append(" ".join(words))
+            found.append(" ".join(words[index:]))
     return tuple(text for text in dict.fromkeys(found) if text and text != outer)
 
 
@@ -448,15 +493,3 @@ def deny_readings(command: str) -> tuple[str, ...]:
                 break
             pending.append((child, depth + 1))
     return tuple(readings)
-
-
-def _peel_transparent_deny(words: Sequence[str]) -> list[str] | None:
-    """The words behind ``command`` / ``time`` / ``timeout``, or None when the form is not understood."""
-    rest = _strip_assignments(words)
-    if not rest:
-        return None
-    base = rest[0].rsplit("/", 1)[-1]
-    if base not in TRANSPARENT_WRAPPERS:
-        return None
-    inner = unwrap_transparent_wrapper(base, rest[1:])
-    return inner if inner else None
