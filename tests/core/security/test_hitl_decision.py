@@ -110,6 +110,8 @@ def test_every_approve_word_is_a_lowercase_token() -> None:
             {"decision": "reject", "feedback": "User rejected this action.", "guidance": "stop touching prod"},
             "stop touching prod",
         ),
+        ({"decision": "reject", "guidance": "", "feedback": "the real reason"}, "the real reason"),
+        ({"decision": "reject", "guidance": "  "}, "  "),
         ({"decisions": [{"type": "reject"}, {"type": "reject", "feedback": "second reason"}]}, "second reason"),
         ({"decision": "reject"}, ""),
         (IM_APPROVE, ""),
