@@ -176,6 +176,19 @@ def test_the_addressed_command_announces_the_answered_interrupt_one_round_later(
     assert ignored.announce_rounds == pending
 
 
+def test_the_log_of_an_ignored_answer_stays_short_however_long_the_client_id_is(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    hostile = Command[object](resume={"answer": "yes", INTERRUPT_ID_KEY: "x" * 100_000})
+
+    with caplog.at_level("WARNING"):
+        address_resume(hostile, {_PENDING_ID: 0})
+
+    [record] = caplog.records
+    assert "xxxx" in record.getMessage()
+    assert len(record.getMessage()) < 300
+
+
 @pytest.mark.asyncio
 async def test_a_thread_that_cannot_be_read_leaves_the_command_untouched() -> None:
     class _Broken:

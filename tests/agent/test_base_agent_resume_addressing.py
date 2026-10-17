@@ -93,7 +93,7 @@ class _HotReloadedSkills:
     """A skill backend whose catalog changes while the approval card is open."""
 
     def __init__(self) -> None:
-        self.skills = [SkillMetadata(name="legacy_skill", description="legacy", model_invocable=True, available=True)]
+        self.skills = [SkillMetadata(name="initial_skill", description="initial", model_invocable=True, available=True)]
 
     async def list_skills(self) -> list[SkillMetadata]:
         return list(self.skills)

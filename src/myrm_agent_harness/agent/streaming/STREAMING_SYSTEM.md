@@ -55,7 +55,7 @@ dispatcher  handlers      events         recovery*
 
 - 轮次的来源：只在 resume 咽喉、运行开始前读一次（`_internals/resume_addressing.py` 读 `aget_state` 的待决中断与任务、`checkpointer.aget_tuple` 的 `__resume__`），经 `AddressedResume.announce_rounds` 交给分发器：被这次 resume 作答的中断为原轮次 +1，其余待决中断不变，运行中新出现的任务从 0 开始。运行中不读检查点：宣告新挂起的那一刻，它自己的待写入还没落盘，此时读到的是旧轮次（人为拖慢写盘 50 ms 的实测里，并行任务下第 1、2 轮分别被读成 0、1）。
 - 发出：`interrupt_events.interrupt_events` 把一个 `__interrupt__` 分片里的每个中断转换为一个流事件，事件顶层带卡片 id。部分作答后图重新挂起，仍待决的中断会作为新分片再次发出（轮次不变），客户端按卡片 id 去重。resume 未经寻址（线程读不出）时轮次未知，事件不带卡片 id，客户端按无 id 处理。
-- 作答：resume 载荷可携带 `interruptId`；`_internals/resume_addressing.address_resume_to_pending` 在 resume 咽喉只在「该中断待决且其任务已消费的答复数恰为卡片 id 的轮次」时把它改写为 `Command(resume={中断 id: 载荷})`。其余一律（已处理、轮次未到、格式不对、旧格式）改写为一个无人持有的合法中断 id，LangGraph 忽略它：答复不会送给任何人，运行回到真正待决的挂起上重新宣告，而不是把答复当成纯值交给别的挂起。
+- 作答：resume 载荷可携带 `interruptId`；`_internals/resume_addressing.address_resume_to_pending` 在 resume 咽喉只在「该中断待决且其任务已消费的答复数恰为卡片 id 的轮次」时把它改写为 `Command(resume={中断 id: 载荷})`。其余一律（已处理、轮次未到、不是 `<中断 id>.<轮次>` 的形状）改写为一个无人持有的合法中断 id，LangGraph 忽略它：答复不会送给任何人，运行回到真正待决的挂起上重新宣告，而不是把答复当成纯值交给别的挂起。
 - 不带 id 的答复：待决 ≤1 个时原样透传（既有调用方行为不变）；待决 ≥2 个时，只有全局驳回（`{"decision": "reject"}` 且无 `decisions`，超时计时器所用）会广播给全部待决中断，其余答复（含批准）原样交给 LangGraph 拒绝——批准从不广播。
 - 提示缓存：只有流事件与 resume 载荷变化，提示词与工具 schema 不变；`interruptId` 在咽喉处从答复里剥掉，不进入工具收到的值。
 

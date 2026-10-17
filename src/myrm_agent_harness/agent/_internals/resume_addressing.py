@@ -16,10 +16,10 @@ also names only the task, so a task that pauses several times in a row would let
 
 The client echoes the card id it arrived with (``interruptId``, ``<interrupt id>.<round>``). It is honoured only while
 that exact pause is still pending: the interrupt is pending and its task has consumed exactly ``round`` answers. Then
-the command becomes ``Command(resume={interrupt_id: answer})``. Any other id (settled, not reached yet, malformed, in
-an older format) is rewritten to an interrupt id that nothing has, which LangGraph ignores: the answer is delivered to
-nobody and the run pauses again at what is really pending, instead of the answer being mistaken for the reply to
-another pause.
+the command becomes ``Command(resume={interrupt_id: answer})``. Any other id (settled, not reached yet, or not of the
+``<interrupt id>.<round>`` shape) is rewritten to an interrupt id that nothing has, which LangGraph ignores: the answer
+is delivered to nobody and the run pauses again at what is really pending, instead of the answer being mistaken for the
+reply to another pause.
 
 A resume without an id is left untouched while at most one interrupt is pending, so every existing caller (IM
 replies, voice, timers) behaves exactly as before. With several pending, only a global rejection (the timeout timer's
@@ -68,7 +68,7 @@ def address_resume(command: Command[object], pending_rounds: Mapping[str, int]) 
             resume, answered = {card.interrupt_id: content}, (card.interrupt_id,)
         else:
             logger.warning(
-                "Ignoring an answer addressed to %r: that pause is not pending (pending=%s)",
+                "Ignoring an answer addressed to %.80r: that pause is not pending (pending=%s)",
                 answer[INTERRUPT_ID_KEY],
                 dict(pending_rounds),
             )
