@@ -2,6 +2,24 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-17-008 · PDF 每页都写页码标记，抽取器把标记也算作文字：二十来页的空白或纯图片 PDF 被判成「有文字」，扫描件的文本是一串页码而不是空，OCR 被跳过，图片数没有页数上限
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-17（server 看板测试 `test_extract_enabled_empty_pdf_falls_back_to_reference` 一直红，追到 harness；`git log -L` 定位到 2026-09-14 的 `93f9975e8`；用 pypdfium2 生成空白页 PDF、用 PIL 生成纯图片 PDF 复现，探针脚本放在 /tmp，没有入库。第一版后果描述有误，见「反复次数」） |
+| **修复时间** | 2026-10-17（本地提交，未 push） |
+| **严重程度** | P3：只在没有文字层的 PDF 上触发；聊天里的视觉模型靠 hybrid 兜底仍读得到图，受影响的主要是不带视觉的 Agent、看板附件、Wiki 同步与 IM 渠道这些只用文本的路径，以及超长扫描件的图片数量。没有统计触发频次 |
+| **症状** | ① 空白 PDF 抽取后文本是 `[Page 1]` 之类的页码行而不是空：看板附件把它当附件正文注入（`task_runner/stream.py:207-211` 的 `if extracted`，实测注入内容为 `ctx\n\n## Attachment: empty.pdf\n[Page 1]\n`），Agent 读 PDF 时 `pdf_reader.py:233-234` 与 `:267` 的「无可提取内容 / 可能是纯图片」提示到不了，Wiki 同步（`content_convert.py:72-74` 的 `text or None`）把页码行当正文入库。② 闸门 `len(text.strip()) >= min_text_chars` 把页码行也算进去：空白页 5 页走 image、25 页走 text（实测）；真实的纯图片 PDF 5 页走 image，25 页起走 hybrid（实测 25 页 25 张图，策略 hybrid）：不 OCR，不受 `ocr_pages` 渲染窗口限制，图片数只受 `max_pages=500` 约束（`_extract_embedded_images_sync` 无其他上限）；40 页纯图片 PDF 实测 40 张图、base64 共 12.85MB，走设计路径是 30 张、5.47MB |
+| **关联产品** | harness `toolkits/file_parsers/pdf/pdf.py`、`pdf_content_extractor.py`、`pdf/_ARCH.md`；server 与前端不改（前端 `multimodalBuilder.ts:71-77` 已有「已解析 X/Y 页」提示，文案 `chat.pdfParsedPages` 各语言已存在）；不改提示词与工具描述，提示缓存前缀不受影响（改动只影响附件内容的抽取结果，抽取是 PDF 与配置的确定性函数）；产品侧不另记，server 那条红测试随本修复转绿 |
+| **根因** | `93f9975e8`（2026-09-14）把页文本组装改成每页无条件写 `[Page N]`（此前空页不写）。这是有意的：`_merge_text_and_tables` 以列表下标当页码挂表格（`pdf.py` 的 `enumerate(text_parts, start=1)`），跳过空页会让表格挂错页，所以不能回滚解析器。但抽取器的闸门以及各消费者的空文本回退都按「文本是否为空 / 够不够长」判断，没有随之改成「不算页码标记」 |
+| **修复** | ① `pdf.py` 紧挨标记写入处新增 `count_content_chars`：去掉独占一行的 `[Page N]` 后取长度；② `extract_pdf_content` 的文本/扫描闸门改用它（`min_text_chars` 的语义与 API 字段不变）；③ 抽取结束时内容为 0 则 `text` 置为空串，各消费者既有的空文本回退重新可达；④ 图像策略渲染成功后 `parsed_pages = min(parsed_pages, render_limit)`，扫描件超过 OCR/渲染窗口时前端既有的「已解析 X/Y 页」提示生效（40 页扫描件实测 30/40）；⑤ `pdf/_ARCH.md` 两行更新。不改：解析器输出、`min_text_chars` 语义、API 字段、前端、文案、提示词 |
+| **反复次数** | 第 1 次发现；一次误判已纠正：第一版把后果写成「≥20 页扫描件跳过渲染、模型看不到内容」，依据是空白页探针（空白页没有内嵌图，所以得到 text 且无图）；改用真实纯图片 PDF 复测后发现它走 hybrid、视觉模型仍读得到，后果改写为上面的 ①② |
+| **踩坑** | ① 空白页与真实扫描件走不同分支（空白页没有内嵌图），只用空白页探针会得出错误的后果；② 「让解析器跳过空白页的标记」看似最直接，但会破坏 `_merge_text_and_tables` 的下标等于页码的约定，所以修在抽取器边界；③ 评估过让解析器直接给出原始文本字数（能把书签标题与表格胶囊也排除），需要改 `_extract_text_sync` 的返回值以及它的 4 个现有测试和 mock，且没有证据出现过带书签的纯图片扫描件，没有采用 |
+| **回归** | 新增 `tests/toolkits/file_parsers/test_pdf_scan_detection.py` 15 例：内容计数 5 例（只有标记为 0、标记不增加内容、行尾空格与 CRLF、行内页码引用算内容、空串）；解析器真实输出的往返识别 1 例（标记格式漂移就变红）；闸门 6 例（空白 5 页与 25 页都走 image 且文本为空、阈值 0 时标记也不算文本、190 个真实字符加 30 页标记仍判扫描件、200 个真实字符保持 text 且文本原样、空白 PDF 的 OCR 文本保留）；渲染窗口 3 例（6 页纯图片 PDF 在窗口为 3 时只交付 3 页且 `parsed_pages` 为 3、窗口关闭时报告全部页、文本策略的 `parsed_pages` 不变）。先写测试：缺函数时导入失败；只加函数、抽取器未改时 15 例中 6 例失败（空白 5 页与 25 页各 1、空文本 1、阈值 1、窗口 2），其余 9 例是修复前后都应通过的守护例；变异验证（逐个临时撤销，改完立即恢复并核对文件一致）：闸门改回按含标记的长度 4 例失败、去掉空文本归一 3 例、去掉 `parsed_pages` 窗口 1 例、解析器标记格式改掉 6 例、匹配改成不按行首行尾锚定 1 例。回归：`tests/toolkits/file_parsers`、`tests/agent/meta_tools/file_ops`、`tests/api/test_public_surface.py` 共 1130 例通过；server 的 `test_task_runner.py`、`test_document_enrichment.py`、`test_content_convert_sniff.py`、`test_pdf_extract_api.py`、`test_document_extract.py`、`test_content_extraction.py` 共 84 例通过（含原先红的那条）；改后实测空白 5 页、25 页都是 image 且文本为空，40 页纯图片 PDF 为 image、30 张图、5.47MB、`parsed_pages` 30/40；`ruff check`、`ruff format --check`、对触碰的两个源文件 `mypy`、`validate_arch_inventory` 对 `file_parsers/pdf` 目录通过 |
+| **局限** | ① 本机没有 PaddleOCR，OCR 分支只用替身测试，没有真实 OCR 的效果与耗时数据；② 没有用真实用户的扫描文档验证，也没有各模型供应商对单次请求图片数量与体积的限制数据，所以不知道改前一次发 40 到 500 张图在生产里是否会被拒；③ 超过 `ocr_pages`（默认 30）页的扫描件现在只交付前 30 页，聊天里没有翻页手段，只有「已解析 X/Y 页」提示；这是回到 `render_limit` 注释里写明的设计上限，不是新增限制；④ 判定仍按整文档的总字符：带书签的纯图片 PDF，书签标题算内容，仍走 hybrid（与 09-14 之前一致）；少量文字页加大量扫描页的混合文档总字符超阈值时仍按文本处理；这两点没有实测，也没有证据出现过；⑤ 对外导出的 `get_pdf_parser` 返回的原始 `PDFPlumberParser` 仍输出页码标记，仓库内没有调用方；⑥ 没有遥测，不知道超过 20 页的扫描件在真实使用里的占比；⑦ `scripts/check_file_line_limit.py` 与 `validate_arch_inventory.py` 对其他目录有既有告警，不是这次改的，没有处理 |
+| **代码位置** | `toolkits/file_parsers/pdf/pdf.py::count_content_chars` · `toolkits/file_parsers/pdf/pdf_content_extractor.py::extract_pdf_content` · `tests/toolkits/file_parsers/test_pdf_scan_detection.py` |
+
 ### BUG-HARNESS-2026-10-17-007 · 迁移被打断后，在界面上永久删除一条记忆只删当前模型的那份，下次迁移又把它搬回来；迁移的一页把嵌入调用握在锁里，期间的任何删除都要等模型返回；嵌入期间目标集合被动过时，旧副本会覆盖较新的记忆，或把仍需迁移的旧副本删掉
 
 | 字段 | 内容 |

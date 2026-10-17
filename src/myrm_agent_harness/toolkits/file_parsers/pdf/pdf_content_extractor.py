@@ -2,6 +2,7 @@
 [INPUT]
 file_path: str (Path to PDF)
 PDFExtractConfig: Configuration (max_pages, min_text_chars, table_format, ocr_pages, ocr_lang)
+pdf::count_content_chars (POS: Page-text length without the parser's page-marker lines)
 
 [OUTPUT]
 extract_pdf_content: High-level PDF parsing orchestrator (Text + Hybrid Images + Table Capsules + OCR)
@@ -10,10 +11,12 @@ PDFExtractResult: Unified result container
 [POS]
 
 Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page
-render fallback) strategy. Scanned PDFs (sparse text layer) are additionally OCR'd via the
-optional PaddleOCR parser so text-only consumers (RAG ingestion, non-vision models) still
-get readable text. Supports Table Encapsulation to prevent RAG chunking from splitting
-tables, using L0 summaries to ensure retrieval accuracy.
+render fallback) strategy from the real page content (page markers never count). Scanned PDFs
+(sparse text layer) are additionally OCR'd via the optional PaddleOCR parser so text-only
+consumers (RAG ingestion, non-vision models) still get readable text; a PDF without any real
+content yields empty text, and a scan reports the OCR/render window as ``parsed_pages``.
+Supports Table Encapsulation to prevent RAG chunking from splitting tables, using L0
+summaries to ensure retrieval accuracy.
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ from typing import Literal
 
 from myrm_agent_harness.toolkits.file_parsers.base import PDFTable
 from myrm_agent_harness.toolkits.file_parsers.image_filter import ImageAblationFilter
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf import count_content_chars
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +249,7 @@ async def extract_pdf_content(
     raw_images: list[PDFImageContent] = []
     strategy: Literal["text", "image", "hybrid"] = "hybrid"
 
-    if len(text.strip()) >= cfg.min_text_chars:
+    if count_content_chars(text) >= cfg.min_text_chars:
         if cfg.extract_embedded_images:
             raw_images = await asyncio.to_thread(_extract_embedded_images_sync, file_path, cfg.max_pages)
         else:
@@ -258,6 +262,8 @@ async def extract_pdf_content(
         render_limit = min(cfg.max_pages, cfg.ocr_pages) if cfg.ocr_pages > 0 else cfg.max_pages
         try:
             raw_images = await asyncio.to_thread(_render_pages_sync, file_path, render_limit, cfg.max_pixels)
+            # parsed_pages is what reaches the consumer, so a scan longer than the window reads as partial.
+            parsed_pages = min(parsed_pages, render_limit)
         except (ImportError, TypeError):
             logger.warning("pypdfium2 not available, returning sparse text only.")
             strategy = "text"
@@ -268,6 +274,11 @@ async def extract_pdf_content(
             ocr_text = await _ocr_rendered_pages_async(raw_images, cfg.ocr_pages, lang=cfg.ocr_lang)
             if ocr_text.strip():
                 text = ocr_text
+
+    # Page markers alone are no text: expose them as empty so consumers' empty-text
+    # fallbacks (attachment references, image-only hints) apply.
+    if count_content_chars(text) == 0:
+        text = ""
 
     # Phase 3: Ablation Filter (Smart meaning verification)
     filtered_images: list[PDFImageContent] = []

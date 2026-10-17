@@ -20,17 +20,20 @@
 [OUTPUT]
 - PDFPlumberParser: PDF parser with layout text, Markdown tables, cross-page
   stitching and bookmark/numbering/font heading resolution
+- count_content_chars: Length of page text without the parser's ``[Page N]`` marker lines
 
 [POS]
 pdfplumber-based PDF parser orchestrator: page parsing (sequential/parallel),
 heading composition, cross-page stitching and text/table merging, with an
-optional physical ``max_pages`` slice.
+optional physical ``max_pages`` slice. Owns the page-marker format and the
+matching helper that tells real content from markers.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import typing
 from collections import defaultdict
 from pathlib import Path
@@ -68,6 +71,19 @@ if TYPE_CHECKING:
     from pdfplumber.pdf import PDF
 
 logger = logging.getLogger(__name__)
+
+_PAGE_MARKER_LINE = re.compile(r"^\[Page \d+\][ \t\r]*$", re.MULTILINE)
+
+
+def count_content_chars(text: str) -> int:
+    """Length of ``text`` without its standalone ``[Page N]`` marker lines.
+
+    The parser writes one marker per page, blank pages included, because table
+    placement relies on list position. Callers asking whether a PDF carries real
+    text must not count them: a few dozen blank pages already outweigh any
+    sparse-text threshold.
+    """
+    return len(_PAGE_MARKER_LINE.sub("", text).strip())
 
 
 class PDFPlumberParser(FileParser):
