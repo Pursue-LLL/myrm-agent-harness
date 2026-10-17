@@ -1,6 +1,7 @@
 """Compile failure classification and retry/pause policy.
 
 [INPUT]
+- asyncio (POS: the running task whose cancellation request is read)
 - toolkits.llms.errors.classifier::classify_error, ErrorKind (POS: LLM error taxonomy SSOT)
 - .sanitize::sanitize_display_message (POS: user-safe compile error display)
 - .types::FailureResolution (POS: compile failure policy result)
@@ -10,6 +11,7 @@
 - resolve_embed_failure: the embed window pause reason and its error kind
 - resolve_blocked_publish: the classification of an article the publish content scan refused
 - evaluate_batch_pause: batch-level compile circuit pause decision
+- reraise_if_cancelled: raise again a ``CancelledError`` the caller asked for, so a stop still reaches it
 - TRANSIENT_ERROR_KINDS: the error kinds a queued retry can recover from, shared with the queue's retry selection
 - is_transient_error_kind: transient retry eligibility filter
 - EMBED_WINDOW_VIOLATION: embed input window error kind for compile circuit + UI
@@ -19,6 +21,8 @@ Wiki compile failure policy. Classifies LLM failures and embed window violations
 """
 
 from __future__ import annotations
+
+import asyncio
 
 from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind, classify_error
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
@@ -72,6 +76,21 @@ def resolve_llm_failure(exc: Exception) -> FailureResolution:
     error_kind = classify_error(exc).value
     backoff = _TRANSIENT_BACKOFF_SECONDS.get(error_kind, 0)
     return FailureResolution(error_kind=error_kind, retry_after_seconds=backoff)
+
+
+def reraise_if_cancelled(exc: asyncio.CancelledError) -> None:
+    """Raise *exc* again when the running task was really asked to cancel.
+
+    Call inside an ``except asyncio.CancelledError`` block that wants to treat the error as something other than a
+    stop. A ``CancelledError`` can arrive when nobody asked this task to stop: the batch runs its items through
+    ``asyncio.gather(..., return_exceptions=True)``, which hands a cancelled child back as a *value*, and a child's
+    cancellation does not travel through the parent. Swallowing it there is only wrong when the stop was meant for
+    this task, which ``Task.cancelling()`` tells apart; re-raising it otherwise would turn a ``wait_for`` timeout or
+    a ``task.cancel()`` into an absorbed error.
+    """
+    task = asyncio.current_task()
+    if task is not None and task.cancelling() > 0:
+        raise exc
 
 
 def is_transient_error_kind(error_kind: str) -> bool:

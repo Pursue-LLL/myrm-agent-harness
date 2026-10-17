@@ -1,5 +1,9 @@
 """The concept extraction stage of a compile: survey blocks of the prompt, extraction order, missing sources."""
 
+import asyncio
+import os
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -212,3 +216,118 @@ async def test_the_map_the_compile_refreshes_counts_the_sources_still_waiting_in
     compiler._refresh_cognitive_map([], summary="refresh")
 
     assert "Ingestion queue: 2 file(s) pending compilation" in structure.get_hot_file_path().read_text(encoding="utf-8")
+
+
+def test_a_concept_keeps_its_sources_in_the_order_they_were_first_seen_under_any_hash_seed() -> None:
+    # ``set`` order depends on PYTHONHASHSEED, so a merge through it writes the sources of a concept in a
+    # different order in every process: the article's fallback claims and frontmatter differ for identical input.
+    script = """
+import sys
+
+from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
+from myrm_agent_harness.toolkits.wiki.pipeline.compiler_extraction import merge_concept_sources
+
+first = ConceptInfo(
+    name="Pricing",
+    definition="d",
+    mentions=1,
+    source_files=["raw/chats/turn_02.md", "raw/notes/policy-v2.md"],
+)
+second = ConceptInfo(
+    name="Pricing",
+    definition="d",
+    mentions=1,
+    source_files=["raw/chats/turn_01.md", "raw/notes/glossary.md"],
+)
+merged = merge_concept_sources(first, second)
+sys.stdout.write(",".join(merged.source_files))
+"""
+    orders = {
+        subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            check=True,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+        ).stdout
+        for seed in ("1", "2", "3", "4")
+    }
+
+    assert orders == {"raw/chats/turn_02.md,raw/notes/policy-v2.md,raw/chats/turn_01.md,raw/notes/glossary.md"}
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_source_does_not_fail_its_batch_or_leave_its_row_processing(
+    structure: WikiStructure,
+) -> None:
+    for name in ("good", "cut"):
+        (structure.raw_dir / f"{name}.md").write_text(f"{name} text", encoding="utf-8")
+    queue = WikiIngestionQueue(structure)
+    queue.add_batch(sorted(structure.raw_dir.glob("*.md")))
+
+    async def extract_doc(path: Path) -> list[ConceptInfo]:
+        if path.name == "cut.md":
+            raise asyncio.CancelledError
+        return [ConceptInfo(name="Good", definition="d", source_files=["raw/good.md"])]
+
+    outcome = await extract_concepts_batch(
+        queue.get_pending_items(limit=10),
+        queue=queue,
+        structure=structure,
+        get_session=lambda: None,
+        semaphore=asyncio.Semaphore(2),
+        extract_doc=extract_doc,
+    )
+
+    # A cancel is somebody stopping the compile, not a document the model refused: no failure to report, no
+    # pause a batch of cancels could trigger, and no row left ``processing`` for the next open to recover.
+    assert outcome.success_count == 1
+    assert outcome.failure_kinds == []
+    with queue._get_conn() as conn:
+        rows = {
+            Path(str(row["file_path"])).name: row["status"]
+            for row in conn.execute("SELECT file_path, status FROM ingestion_queue")
+        }
+    assert rows == {"good.md": "processing", "cut.md": "pending"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("parallel", [True, False])
+async def test_a_genuine_stop_of_the_compile_still_reaches_the_caller(structure: WikiStructure, parallel: bool) -> None:
+    """A source that raises ``CancelledError`` on its own must be absorbed; a stop aimed at the batch must not.
+
+    ``asyncio.gather(..., return_exceptions=True)`` hands a cancelled child back as a *value*, so the helper has to
+    tell the two apart: with ``parallel_compilation`` off there is no gather, and swallowing the caller's stop would
+    turn a ``wait_for`` timeout or a ``task.cancel()`` into a batch that runs to completion anyway.
+    """
+    (structure.raw_dir / "slow.md").write_text("slow text", encoding="utf-8")
+    queue = WikiIngestionQueue(structure)
+    queue.add_batch(sorted(structure.raw_dir.glob("*.md")))
+
+    async def extract_doc(path: Path) -> list[ConceptInfo]:
+        await asyncio.sleep(30)
+        return [ConceptInfo(name="Good", definition="d", source_files=["raw/slow.md"])]
+
+    async def run_batch() -> list[ConceptInfo]:
+        return await extract_concepts_batch(
+            queue.get_pending_items(limit=10),
+            queue=queue,
+            structure=structure,
+            get_session=lambda: None,
+            semaphore=asyncio.Semaphore(2) if parallel else None,
+            extract_doc=extract_doc,
+        )
+
+    task = asyncio.create_task(run_batch())
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(asyncio.shield(task), timeout=5)
+
+    # The stop reached the caller, and the row it was working on is queued again rather than left ``processing``.
+    with queue._get_conn() as conn:
+        rows = {
+            Path(str(row["file_path"])).name: row["status"]
+            for row in conn.execute("SELECT file_path, status FROM ingestion_queue")
+        }
+    assert rows == {"slow.md": "pending"}

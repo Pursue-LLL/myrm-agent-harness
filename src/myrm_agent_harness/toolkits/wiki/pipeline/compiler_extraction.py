@@ -10,13 +10,14 @@
 - .batch_settle::source_hash (POS: the file hash the batch settles against)
 - .cognitive_map.schema_writer::read_index_context (POS: the wiki catalog a concept name is reused from)
 - .queue::QueueItem, WikiIngestionQueue (POS: persistent ingestion queue)
-- .resilience::IO_MISSING, resolve_llm_failure (POS: failure classification)
+- .resilience::IO_MISSING, reraise_if_cancelled, resolve_llm_failure (POS: failure classification)
 - .survey::CompileSessionState (POS: survey state shared across the batches of one compile)
 - utils.chat_utils::extract_answer_text (POS: LLM answer extraction)
 
 [OUTPUT]
 - BatchExtractOutcome: the concepts of a batch, the sources that were read and the failures that were not
 - relative_raw_path: the vault-relative path the prompts and the queue refer to a source by
+- merge_concept_sources: one concept as several sources of a batch described it, each list in first-seen order
 - build_extract_survey_context: the survey blocks (facet, concept seeds, chunk group) the extraction prompt carries
 - record_facet_seeds: carry the concepts of a batch forward as seeds for the next batches of the same facet
 - extract_concepts_from_doc: ask the model for the concepts of one document
@@ -25,7 +26,8 @@
 [POS]
 The extraction half of a compile batch. A source that fails here is marked failed in the queue at once; a source
 that succeeds stays ``processing`` (with the hash of the file as extraction read it) until the batch has written
-the rest of its results, which ``batch_settle`` decides.
+the rest of its results, which ``batch_settle`` decides. A task that was cancelled is queued again instead: the
+compile was stopped, not the source refused.
 """
 
 from __future__ import annotations
@@ -48,7 +50,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from .batch_settle import source_hash
 from .cognitive_map.schema_writer import read_index_context
 from .queue import QueueItem, WikiIngestionQueue
-from .resilience import IO_MISSING, resolve_llm_failure
+from .resilience import IO_MISSING, reraise_if_cancelled, resolve_llm_failure
 from .survey import CompileSessionState
 
 logger = get_agent_logger(__name__)
@@ -76,6 +78,22 @@ def relative_raw_path(structure: WikiStructure, doc_path: Path) -> str:
         return doc_path.relative_to(structure.base_dir).as_posix()
     except ValueError:
         return doc_path.name
+
+
+def merge_concept_sources(existing: ConceptInfo, concept: ConceptInfo) -> ConceptInfo:
+    """One concept, as a batch extracted it from several sources.
+
+    Sources and related concepts keep the order they were first seen in. Merging them through a ``set`` would
+    order them by ``PYTHONHASHSEED``, so the same vault compiles into different article frontmatter and claims
+    in every process.
+    """
+    return ConceptInfo(
+        name=concept.name,
+        definition=concept.definition,
+        mentions=existing.mentions + concept.mentions,
+        source_files=list(dict.fromkeys([*existing.source_files, *concept.source_files])),
+        related_concepts=list(dict.fromkeys([*existing.related_concepts, *concept.related_concepts])),
+    )
 
 
 def _sort_for_survey(
@@ -206,6 +224,7 @@ async def extract_concepts_batch(
     queue_items = _sort_for_survey(get_session(), structure, queue_items)
     failure_kinds: list[str] = []
     read_hashes: dict[int, str | None] = {}
+    stopped: list[int] = []
 
     async def _process_single_item(item: QueueItem) -> list[ConceptInfo]:
         item_id = item["id"]
@@ -234,6 +253,14 @@ async def extract_concepts_batch(
                 return []
             read_hashes[item_id] = digest
             return concepts
+        except asyncio.CancelledError as exc:
+            # Somebody stopped the compile, the source was not refused: queue it again instead of failing a
+            # document, and do not count it as a failure a compile pause would be reported for. A stop meant for
+            # this task is raised again, so it still reaches whoever asked for it.
+            queue.requeue_processing([item_id])
+            stopped.append(item_id)
+            reraise_if_cancelled(exc)
+            return []
         except Exception as e:
             logger.error(f"Failed to extract concepts from {raw_file}: {e}")
             resolution = resolve_llm_failure(e)
@@ -263,16 +290,12 @@ async def extract_concepts_batch(
             continue
         for concept in result:
             if concept.name in all_concepts:
-                existing = all_concepts[concept.name]
-                all_concepts[concept.name] = ConceptInfo(
-                    name=concept.name,
-                    definition=concept.definition,
-                    mentions=existing.mentions + concept.mentions,
-                    source_files=list(set(existing.source_files + concept.source_files)),
-                    related_concepts=list(set(existing.related_concepts + concept.related_concepts)),
-                )
+                all_concepts[concept.name] = merge_concept_sources(all_concepts[concept.name], concept)
             else:
                 all_concepts[concept.name] = concept
+
+    if stopped:
+        logger.info(f"{len(stopped)} source(s) were stopped mid-extraction; queued again")
 
     record_facet_seeds(get_session(), structure, queue_items, list(all_concepts.values()))
 

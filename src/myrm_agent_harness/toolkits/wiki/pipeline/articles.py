@@ -12,7 +12,7 @@
 - .compiler_provenance::provenance_from_raw_sources, restore_provenance_metadata (POS: provenance preservation)
 - .pending::WikiPendingEditsManager (POS: drafts awaiting approval)
 - .publication::ArticlePublishOutcome, publish_concept_article (POS: validated publish plus search index upsert)
-- .resilience::FailureResolution, resolve_blocked_publish, resolve_embed_failure, resolve_llm_failure (POS: failure classification)
+- .resilience::FailureResolution, reraise_if_cancelled, resolve_blocked_publish, resolve_embed_failure, resolve_llm_failure (POS: failure classification)
 - utils.chat_utils::extract_answer_text (POS: LLM answer extraction)
 
 [OUTPUT]
@@ -25,6 +25,8 @@
 [POS]
 The article stage of a compile. It reports failures per concept, with the sources the concept came from, so the
 compiler can fail exactly the sources whose results are incomplete instead of completing them without an article.
+A cancelled task is not such a failure: somebody stopped the compile, so its concept is left out of the batch's
+failures and the sources behind it are neither failed nor completed.
 """
 
 from __future__ import annotations
@@ -54,7 +56,13 @@ from .article_evidence import build_source_evidence, source_budget_chars
 from .compiler_provenance import provenance_from_raw_sources, restore_provenance_metadata
 from .pending import WikiPendingEditsManager
 from .publication import ArticlePublishOutcome, publish_concept_article
-from .resilience import FailureResolution, resolve_blocked_publish, resolve_embed_failure, resolve_llm_failure
+from .resilience import (
+    FailureResolution,
+    reraise_if_cancelled,
+    resolve_blocked_publish,
+    resolve_embed_failure,
+    resolve_llm_failure,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
@@ -64,6 +72,9 @@ logger = get_agent_logger(__name__)
 _PENDING = "pending"
 _PUBLISHED = "published"
 _EMBED_BLOCKED = "blocked"
+# A concept whose article task was cancelled. The article generator never returns it from a real outcome; it exists
+# so the positional results of a batch stay aligned with its concepts.
+_STOPPED = "stopped"
 
 
 class ArticleBlockedError(Exception):
@@ -121,6 +132,7 @@ async def generate_articles_batch(
     logger.info(f"Generating articles for {len(filtered)} concepts")
 
     embed_pause: list[tuple[str, str]] = []
+    stopped: list[str] = []
 
     async def _gen_one(concept: ConceptInfo) -> str | ConceptFailure:
         try:
@@ -137,6 +149,13 @@ async def generate_articles_batch(
                 exc,
             )
             return _EMBED_BLOCKED
+        except asyncio.CancelledError as exc:
+            # Somebody stopped the compile, the concept was not refused: the indices stay aligned so the sources
+            # behind it are neither failed nor completed, and a cancel is not a failure a pause is reported for.
+            # A stop meant for this task is raised again, so it still reaches whoever asked for it.
+            stopped.append(concept.name)
+            reraise_if_cancelled(exc)
+            return _STOPPED
         except Exception as e:
             logger.error(f"Failed to generate article for {concept.name}: {e}")
             return _failure_of(concept, e)
@@ -155,7 +174,9 @@ async def generate_articles_batch(
     failures: list[ConceptFailure] = []
     for concept, result in zip(filtered, results, strict=True):
         if isinstance(result, BaseException):
-            # Only a cancelled article task gets here: ``_gen_one`` records every ``Exception`` itself.
+            # A non-``Exception`` the generator leaked (``_gen_one`` handles every ``Exception`` and every cancel of
+            # its own); a genuine stop is raised by ``_gen_one`` and travels through ``gather`` instead of landing
+            # here. Classified like any other failure so one leaked ``BaseException`` cannot drop the batch.
             result = _failure_of(concept, RuntimeError(str(result)))
         if isinstance(result, ConceptFailure):
             failures.append(result)
@@ -164,8 +185,11 @@ async def generate_articles_batch(
             pending += 1
         elif result == _PUBLISHED:
             published += 1
-        else:
+        elif result != _STOPPED:
             blocked += 1
+
+    if stopped:
+        logger.info(f"{len(stopped)} article task(s) were stopped mid-batch; their sources stay for the next compile")
 
     return ArticleBatchStats(
         generated=pending + published,

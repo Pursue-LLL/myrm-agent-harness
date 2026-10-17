@@ -110,15 +110,47 @@ async def test_an_embed_window_violation_pauses_the_compile_and_is_not_a_failed_
 
 
 @pytest.mark.asyncio
-async def test_an_article_task_that_was_cancelled_is_a_failed_article_not_a_lost_one() -> None:
+@pytest.mark.parametrize("parallel", [True, False])
+async def test_an_article_task_that_was_cancelled_is_not_a_failed_article(parallel: bool) -> None:
     async def generate(concept: ConceptInfo) -> str:
         if concept.name == "cut":
             raise asyncio.CancelledError
         return "published"
 
     stats = await generate_articles_batch(
-        [_concept("cut", "a.md"), _concept("fine", "b.md")], generate, min_mentions=1, semaphore=_semaphore(True)
+        [_concept("cut", "a.md"), _concept("fine", "b.md")],
+        generate,
+        min_mentions=1,
+        semaphore=_semaphore(parallel),
     )
 
-    assert [(f.name, f.source_files) for f in stats.failures] == [("cut", ("a.md",))]
-    assert (stats.generated, stats.blocked) == (1, 1)
+    # Somebody stopped the compile rather than the model refusing the article: the source behind the cancelled
+    # concept is neither failed nor counted blocked, so it is not failed in the queue with a wrong error kind
+    # and cannot pause the compile as a batch of failures.
+    assert [(f.name, f.source_files) for f in stats.failures] == []
+    assert (stats.generated, stats.blocked) == (1, 0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("parallel", [True, False])
+async def test_a_genuine_stop_of_the_compile_still_reaches_the_caller(parallel: bool) -> None:
+    """A concept whose generator is stopped mid-article must not let the batch finish as if nothing happened.
+
+    With ``parallel_compilation`` off there is no ``gather`` between the stop and the batch, so swallowing it would
+    turn a ``wait_for`` timeout or a ``task.cancel()`` into a batch that completes anyway.
+    """
+
+    async def generate(concept: ConceptInfo) -> str:
+        await asyncio.sleep(30)
+        return "published"
+
+    async def run_batch() -> object:
+        return await generate_articles_batch(
+            [_concept("slow", "a.md")], generate, min_mentions=1, semaphore=_semaphore(parallel)
+        )
+
+    task = asyncio.create_task(run_batch())
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(asyncio.shield(task), timeout=5)
