@@ -8,6 +8,8 @@
 - evaluate_tool_call(): deterministic evaluation (Layers 1–5)
   (capability → shell_command_analyzer → command_denylist → URL scheme check
    → domain HITL → path_policy → target-aware ruleset → risk_classifier fallback).
+  A command-bearing tool is judged command by command (see command_rules.py) when a
+  pattern rule could tell the commands of the line apart.
 - check_tool_path_policy(): path-zone verdict for a file tool's ``path`` (engine and cron policy share it)
 - check_capability(): test (permission, target) against a CapabilitySet
 - merge(): combine multiple rulesets
@@ -26,6 +28,12 @@ from __future__ import annotations
 from fnmatch import fnmatch
 from urllib.parse import urlparse
 
+from myrm_agent_harness.agent.security.command_rules import (
+    COMMAND_BEARING_PERMISSIONS,
+    check_command_denylist,
+    command_text,
+    judge_command,
+)
 from myrm_agent_harness.agent.security.types import (
     DEFAULT_CAPABILITIES,
     CapabilitySet,
@@ -86,7 +94,6 @@ _TARGET_EXTRACTORS: dict[str, str] = {
     "browser_navigate": "url",
     "web_fetch": "url",
     "net_fetch": "url",
-    "shell_exec": "command",
     "file_read": "path",
     "file_write": "path",
 }
@@ -121,37 +128,6 @@ def _extract_url_host(url: str) -> str:
         return parsed.hostname or url
     host = url.split(":")[0].split("/")[0]
     return host or url
-
-
-_COMMAND_BEARING_PERMISSIONS = frozenset({"shell_exec", "code_interpreter"})
-
-
-def _check_command_denylist(
-    permission: str,
-    tool_input: dict[str, object],
-    command_denylist: tuple[str, ...],
-) -> tuple[PermissionAction | None, str]:
-    """Deny shell/code_interpreter calls whose command matches a user-defined glob.
-
-    Layer 2a.5: fires after ShellCommandAnalyzer (hardline), before URL scheme
-    check. Uses case-insensitive fnmatch so ``git push --force*`` matches
-    ``Git Push --Force origin main``.  YOLO cannot bypass this layer because
-    ``batch_processor.evaluate_tool_batch`` calls ``evaluate_tool_call`` and
-    honours DENY even under YOLO mode.
-    """
-    if permission not in _COMMAND_BEARING_PERMISSIONS or not command_denylist:
-        return None, ""
-    command = str(tool_input.get("command", "") or tool_input.get("code", "") or tool_input.get("data", "")).strip()
-    if not command:
-        return None, ""
-    command_lower = command.lower()
-    for pattern in command_denylist:
-        if fnmatch(command_lower, pattern.lower()):
-            return (
-                PermissionAction.DENY,
-                f"Blocked by command denylist rule: {pattern}",
-            )
-    return None, ""
 
 
 def _check_domain_blocklist(
@@ -201,23 +177,65 @@ def _resolve_target(permission: str, tool_input: dict[str, object], *, tool_name
     For ``mcp_invoke``, uses the full tool name (e.g. ``mcp__gmail__send_email``)
     as the target, enabling per-tool rules like
     ``{"mcp_invoke": {"mcp__gmail__send_email": "ask", "*": "allow"}}``.
+    For ``shell_exec`` and ``code_interpreter`` (the bash tool), uses the command text.
     For other permissions, returns the raw field value.
     Returns ``"*"`` when no target extraction is needed.
     """
     if permission == "mcp_invoke" and tool_name:
         return tool_name
+    if permission in COMMAND_BEARING_PERMISSIONS:
+        return command_text(tool_input) or "*"
     key = _TARGET_EXTRACTORS.get(permission)
     if not key:
         return "*"
     value = tool_input.get(key)
-    if not value and permission == "shell_exec":
-        value = tool_input.get("data")
     if not value:
         return "*"
     raw = str(value)
     if permission in _URL_BEARING_PERMISSIONS:
         return _extract_url_host(raw)
     return raw
+
+
+def _governing_rule(permission: str, target: str, ruleset: PermissionRuleset, tool_name: str | None) -> PermissionRule:
+    """The rule that decides *target*: the last matching rule of the tool's own name, else the last for the permission."""
+    if tool_name and tool_name != permission:
+        specific: PermissionRule | None = None
+        for rule in ruleset:
+            if (
+                rule.permission != "*"
+                and _wildcard_match(tool_name, rule.permission)
+                and _wildcard_match(target, rule.pattern)
+            ):
+                specific = rule
+        if specific is not None:
+            return specific
+    return evaluate(permission, target, ruleset)
+
+
+def _has_pattern_rules(ruleset: PermissionRuleset, permission: str, tool_name: str | None) -> bool:
+    """Whether a rule other than a blanket ``*`` could govern this call, so that the target text matters."""
+    names = (permission, tool_name) if tool_name else (permission,)
+    return any(
+        rule.pattern != "*" and any(_wildcard_match(name, rule.permission) for name in names) for rule in ruleset
+    )
+
+
+def _rule_decision(
+    permission: str, target: str, ruleset: PermissionRuleset, tool_name: str | None
+) -> tuple[PermissionAction, bool]:
+    """The ruleset's action for a call, and whether the read-only classifier may still turn an ASK into an ALLOW.
+
+    Shell tools are judged command by command, but only when a pattern rule could tell commands apart: with
+    blanket rules alone the command text cannot change the outcome, so the line is not even split.
+    """
+
+    def resolve(text: str) -> PermissionRule:
+        return _governing_rule(permission, text, ruleset, tool_name)
+
+    if permission in COMMAND_BEARING_PERMISSIONS and _has_pattern_rules(ruleset, permission, tool_name):
+        return judge_command(target, resolve)
+    return resolve(target).action, True
 
 
 def check_tool_path_policy(
@@ -287,7 +305,7 @@ def evaluate_tool_call(
     if threat_action is not None:
         return threat_action, threat_reason
 
-    deny_action, deny_reason = _check_command_denylist(permission, tool_input, config.command_denylist)
+    deny_action, deny_reason = check_command_denylist(permission, tool_input, config.command_denylist)
     if deny_action is not None:
         return deny_action, deny_reason
 
@@ -300,23 +318,10 @@ def evaluate_tool_call(
         return block_action, block_reason
 
     target = _resolve_target(permission, tool_input, tool_name=tool_name)
-    tool_specific_rule: PermissionRule | None = None
-    if tool_name and tool_name != permission:
-        for rule in config.ruleset:
-            if (
-                rule.permission != "*"
-                and _wildcard_match(tool_name, rule.permission)
-                and _wildcard_match(target, rule.pattern)
-            ):
-                tool_specific_rule = rule
-
-    if tool_specific_rule is not None:
-        result = tool_specific_rule
-    else:
-        result = evaluate(permission, target, config.ruleset)
+    result_action, classifier_may_allow = _rule_decision(permission, target, config.ruleset, tool_name)
 
     # Hardline rule: An explicit DENY from user/policy ruleset must never be weakened to ASK
-    if result.action == PermissionAction.DENY:
+    if result_action == PermissionAction.DENY:
         return PermissionAction.DENY, f"Permission '{tool_name or permission}' denied by policy"
 
     if config.domain_hitl_enabled:
@@ -328,16 +333,13 @@ def evaluate_tool_call(
     if path_verdict is not None and path_verdict[0] in (PermissionAction.DENY, PermissionAction.ASK):
         return path_verdict
 
-    if result.action == PermissionAction.ASK and permission in (
-        "shell_exec",
-        "code_interpreter",
-    ):
+    if result_action == PermissionAction.ASK and classifier_may_allow and permission in COMMAND_BEARING_PERMISSIONS:
         from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
             CommandRiskLevel,
             classify_command_risk,
         )
 
-        command = str(tool_input.get("command", "") or tool_input.get("code", "") or tool_input.get("data", "")).strip()
+        command = command_text(tool_input)
         if command and classify_command_risk(command) == CommandRiskLevel.SAFE:
             reason = (
                 "Sandbox-aware safe command auto-allow"
@@ -346,7 +348,7 @@ def evaluate_tool_call(
             )
             return PermissionAction.ALLOW, reason
 
-    return result.action, ""
+    return result_action, ""
 
 
 def merge(*rulesets: PermissionRuleset) -> PermissionRuleset:

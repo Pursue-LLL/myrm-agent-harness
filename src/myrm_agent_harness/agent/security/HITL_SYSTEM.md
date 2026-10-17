@@ -322,7 +322,7 @@ and ask for permission or alternative instructions.]
 |------|---------|
 | 核心中间件 | `myrm_agent_harness/agent/middlewares/approval/` |
 | Allowlist管理 | `myrm_agent_harness/agent/security/approval_flow.py` |
-| 权限评估引擎 | `myrm_agent_harness/agent/security/engine.py` |
+| 权限评估引擎 | `myrm_agent_harness/agent/security/engine.py`（顺序与各层判定）· `myrm_agent_harness/agent/security/command_rules.py`（命令承载权限的目标提取、用户禁止清单、一行命令逐条判定的规则求值） |
 | IM渠道路由 | `app/channels/routing/router.py` |
 | Channel执行器 | `app/core/channel_bridge/agent_executor.py` |
 | Frontend UI | `myrm-agent-frontend/src/components/features/chat-window/approval/AllowAlwaysConfirmDialog.tsx` + `AllowlistSection.tsx` |
@@ -336,6 +336,7 @@ and ask for permission or alternative instructions.]
 |---------|------|---------|
 | Allowlist 单元 | `tests/agent/security/test_approval_flow.py` | permission / pattern glob `check()` |
 | Pattern 推导 | `tests/agent/security/test_command_allowlist_pattern.py` | 复合检测、glob 匹配、parity 向量 |
+| 命令模式规则 | `tests/agent/security/test_permission_engine_command_rules.py` | 规则集按命令逐条判定（链接命令、重定向、包装命令）、denylist、默认行为不变 |
 | Middleware pattern | `tests/agent/middlewares/approval/test_approval_edge_cases.py` | pattern 存入、`evaluate_tool_batch` auto-approve |
 | Allowlist REST | `myrm-agent/.../tests/api/security/test_allowlist_api.py` | list/delete `granularity=pattern` |
 | LIVE Chrome E2E | `myrm-agent/.../tests/e2e/test_allowlist_pattern_live_chrome_e2e.py` | 真实模型 bash → pattern → Settings |
