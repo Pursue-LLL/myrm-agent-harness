@@ -398,3 +398,31 @@ class TestAppendToLedger:
         tt.append_to_ledger({"prompt_tokens": 10}, "gpt-4o", 100.0, 0.001)
         mock_ledger.append.assert_called_once()
         assert tt.get_usage_ledger() is mock_ledger
+
+
+class TestTurnContext:
+    def test_an_untouched_tracker_exports_no_turn_context(self) -> None:
+        assert "turn_context" not in tt.init_token_tracker().to_dict()
+
+    def test_recorded_facts_are_exported_and_the_last_write_per_key_wins(self) -> None:
+        tracker = tt.init_token_tracker()
+
+        tt.record_turn_context({"history_mode": "replace", "history_discarded_messages": 4})
+        tt.record_turn_context({"history_mode": "continue"})
+
+        assert tracker.to_dict()["turn_context"] == {"history_mode": "continue", "history_discarded_messages": 4}
+
+    def test_recording_without_a_tracker_is_a_no_op(self) -> None:
+        tt.record_turn_context({"history_mode": "continue"})
+
+        assert tt.get_token_tracker() is None
+
+    def test_a_child_tracker_merge_leaves_the_parent_turn_context_alone(self) -> None:
+        parent = tt.TokenTracker()
+        child = tt.TokenTracker()
+        parent.turn_context["history_mode"] = "continue"
+        child.turn_context["history_mode"] = "replace"
+
+        parent.merge(child)
+
+        assert parent.turn_context == {"history_mode": "continue"}

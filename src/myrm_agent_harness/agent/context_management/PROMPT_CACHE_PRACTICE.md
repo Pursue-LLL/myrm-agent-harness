@@ -300,6 +300,18 @@ System: `<data_boundary_rules>` …               ← SecurityBoundary，state �
 2. **状态更新走 Append-Only**：任务清单（Todo/Task/Progress）的流转与状态变更，天然应作为工具（如 `todo_write`）的执行结果以 `ToolMessage` 形式自然沉淀在对话流末尾；或通过后续轮次的新消息追加告知，绝不能向已缓存的历史消息“动刀”。
 3. **原样回传（Echo Verbatim）**：发送给 API 的完整 `messages` 数组，历史部分必须保持字符级、字节级完全一致。
 
+#### 2.6.2 对话线程所有权：线程是模型所见的历史，调用方的记录只在线程失效时重建它
+
+LangGraph 线程保存模型实际看到的消息（含工具调用与结果），续接它才能保持前缀不变；调用方（server 的聊天库）保存用户看到的消息。两者同时往同一个线程里喂会让历史翻倍（`add_messages` 给每条喂入的消息新 id，不去重）。调用方经 `context["history_mode"]`（`runtime/context/session/session_continuity.py`）声明谁拥有对话，`agent/_internals/turn_history.py` 在每个新消息回合开始时解析：
+
+| 模式 | 含义 | 喂入的消息 |
+|------|------|-----------|
+| `continue` | 线程仍与调用方记录一致 | 只有新消息；线程为空时自动降为 `replace` |
+| `replace` | 线程失效 | 清空线程（清不掉则回合失败，不在旧线程上叠加），再喂调用方的 `chat_history` |
+| `append`（缺省） | 调用方未接管线程卫生（IM / 定时 / 唤醒 / 一次性调用） | `chat_history` 叠加在线程之上，与既有行为一致 |
+
+Resume 从不解析历史，线程原样续接，遥测记为 `history_mode=resume`。`replace` 会丢掉被丢弃线程里的工具轨迹，数量记入 `turn_context.history_discarded_tool_messages`。何时 `continue` 由调用方决定：server 用「活跃分支 + 压缩摘要」的摘要（`chats.history_sync_token`），只在回合完整结束后写入，撤销、编辑、重新生成、切换兄弟、压缩、服务端追加的通知、失败或取消的回合都会让摘要失配而重建。
+
 ---
 
 ## 3. 显式缓存优化器
@@ -1014,7 +1026,7 @@ Turn 12 (会话结束):
 
 | 内容 | 位置 | Cache 维度 |
 |------|------|------------|
-| Bound 技能 XML（含 MCP `mcp_*_skill`） | 首条 HumanMessage ``<bound_skills hidden_count="N">``（``skill_catalog_delivery.py`` + ``get_metadata_summary()``）；新消息与 **Command resume** 均经 ``apply_bound_skill_catalog_for_stream`` / ``apply_bound_skill_catalog_for_resume`` 刷新；catalog 变化且 ``hidden_skill_count > 0`` 时同步 ``skill_search_tool`` 索引（``agent_runtime._sync_skill_search_index_after_catalog_change``，stream+resume SSOT，不改 tool schema） | messages[] 前缀；bind 变时不触发 ``tool_definitions_changed`` |
+| Bound 技能 XML（含 MCP `mcp_*_skill`） | 首条 HumanMessage ``<bound_skills hash hidden_count>`` 基线（``skill_catalog_delivery.py`` + ``get_metadata_summary()``），只在对话（重）建时写入、之后永不改写；续接线程上 bind 漂移时在**新** HumanMessage 前置 ``<bound_skills_update hash>``（完整当前清单，声明取代此前所有清单，``agent/_internals/skill_catalog_turn.py``）；线程已投递的清单由线程自身消息读出，压缩抹掉区块后下一轮自动重新投递；bound 集指纹变化时同步 ``skill_search_tool`` 索引（stream+resume 同源）| messages[] 尾部；基线前缀字节不变。越过内联阈值会挂载/卸载 ``skill_search_tool``，工具数组随之变化（``turn_context.tools_signature_changes`` 计数） |
 | skill_select_tool 静态规则 | ``skill_select_tool.description``（无 embed XML、无 skill 名；``skill_search_tool`` 提示经 dynamic_hints + weave 条件注入） | tool schema 前缀跨 Profile 稳定（≤20 内联 bind 时不挂载 search） |
 | MCP 函数文档 | skill workspace ``/mcp/.../*.md``；经 ``skill_select_tool`` 返回 ToolMessage | 对话消息，非 system/tool schema |
 | Active todo focus | ``progress_middleware`` 追加到当前轮 HumanMessage（瞬时/尾部） | 保证 system prefix cache；**注意**：后续轮次严禁回溯剥离已缓存轮次，否则触发 ``messages_changed`` |

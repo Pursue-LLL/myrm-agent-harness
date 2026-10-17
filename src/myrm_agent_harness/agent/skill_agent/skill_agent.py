@@ -220,16 +220,26 @@ class SkillAgent(
         self._available_tool_names = available_tool_names
         self._available_tool_groups = available_tool_groups
         self._library_skill_names = library_skill_names
+        # Fingerprint of the bound set the skill_search index was last built from (None: not synced yet).
+        self._synced_skill_fingerprint: str | None = None
 
     async def _get_cached_skills(self) -> list[SkillMetadata]:
         """Load skills from backend (no caching to enable hot reload).
 
-        Applies user trust overrides: skills whose storage_skill_id is in
-        _trusted_skill_ids are elevated to SkillTrust.TRUSTED.
+        A failed load reads as an empty catalog here; callers that must tell
+        "the backend failed" from "the agent has no skills" use ``_load_bound_skills``.
+        """
+        skills = await self._load_bound_skills()
+        return [] if skills is None else skills
 
-        Note: Previously this method cached skills in memory, which broke hot reload.
-        Now it always loads from backend to ensure latest skill versions are used.
-        The backend (e.g., LocalSkillBackend) uses SQLiteSkillSnapshot for fast O(N) reads.
+    async def _load_bound_skills(self) -> list[SkillMetadata] | None:
+        """Load the bound skills from the backend, or ``None`` when the load failed.
+
+        Always hits the backend so hot-reloaded skill versions are seen; the backend
+        (e.g., LocalSkillBackend) serves it from a SQLiteSkillSnapshot in O(N).
+        Applies user trust overrides: skills whose storage_skill_id is in
+        _trusted_skill_ids are elevated to SkillTrust.TRUSTED. A backend-less agent
+        has an empty (not failed) catalog.
         """
         if self.skill_backend is None:
             return []
@@ -277,7 +287,7 @@ class SkillAgent(
                         skill.trust = SkillTrust.TRUSTED
         except Exception as e:
             logger.warning("Failed to load skills from skill_backend: %s", e)
-            skills = []
+            return None
 
         return skills
 

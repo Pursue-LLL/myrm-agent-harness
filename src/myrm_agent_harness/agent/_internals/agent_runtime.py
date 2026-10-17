@@ -26,9 +26,6 @@ and helper functions that ``BaseAgent`` delegates to.
 - utils.token_economics.usage_ledger::UsageLedger (POS: LLM  JSONL)
 
 [OUTPUT]
-- apply_bound_skill_catalog_for_stream: Reinject ``<bound_skills>`` on SkillAgent stream prep; sync skill_search index when bind catalog changes.
-- apply_bound_skill_catalog_for_resume: Refresh checkpoint ``<bound_skills>`` before Command resume (delegates stream helper + Command.update).
-- _sync_skill_search_index_after_catalog_change: Rebuild or remove ``skill_search_tool`` when bind list changes on stream or resume (empty bind removes the tool).
 - build_middlewares: Build the full middleware chain for a BaseAgent.
 - create_registry: Create a fresh ToolRegistry for one build cycle.
 - build_tools: Build the resolved tool list via ToolRegistry.
@@ -43,7 +40,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
@@ -75,6 +72,7 @@ from myrm_agent_harness.agent.streaming.utils import (
     validate_context,
 )
 from myrm_agent_harness.agent.types import AgentRunStatistics
+from myrm_agent_harness.runtime.context.session.session_continuity import HISTORY_MODE_CONTEXT_KEY
 from myrm_agent_harness.toolkits.llms.errors.classifier import classify_error
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.runtime.cancellation import set_cancel_token
@@ -83,7 +81,7 @@ from myrm_agent_harness.utils.runtime.progress_sink import (
     set_tool_progress_sink,
 )
 from myrm_agent_harness.utils.runtime.steering import set_steering_token
-from myrm_agent_harness.utils.token_economics.tracker import init_token_tracker
+from myrm_agent_harness.utils.token_economics.tracker import init_token_tracker, record_turn_context
 
 from ._agent_build import (
     build_middlewares,
@@ -107,6 +105,8 @@ from .run_lifecycle import (
     post_run_events,
     resolve_context_budget_breakdown,
 )
+from .skill_catalog_turn import deliver_bound_skills_catalog, sync_bound_skills_for_resume
+from .turn_history import resolve_turn_history, resumed_turn_facts
 
 if TYPE_CHECKING:
     from langchain.agents.middleware.types import AgentState
@@ -114,7 +114,6 @@ if TYPE_CHECKING:
 
     from myrm_agent_harness.agent.base_agent import BaseAgent
     from myrm_agent_harness.agent.goals.protocols import GoalProvider
-    from myrm_agent_harness.backends.skills.types import SkillMetadata
     from myrm_agent_harness.utils.chat_utils import ChatHistoryReq
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
     from myrm_agent_harness.utils.runtime.steering import SteeringToken
@@ -123,8 +122,6 @@ logger = get_agent_logger(__name__)
 
 # Re-export for backward compatibility
 __all__ = [
-    "apply_bound_skill_catalog_for_resume",
-    "apply_bound_skill_catalog_for_stream",
     "build_middlewares",
     "build_tools",
     "create_registry",
@@ -136,162 +133,6 @@ __all__ = [
     "run_agent_loop",
     "schedule_post_run_idle_tasks",
 ]
-
-
-# ============================================================================
-# Stream message prep
-# ============================================================================
-
-
-async def apply_bound_skill_catalog_for_stream(
-    messages: list[BaseMessage],
-    agent_state: BaseAgent,
-) -> bool:
-    """Reinject bound skill catalog on first HumanMessage for SkillAgent streams.
-
-    Returns True when the first HumanMessage catalog content changed (bind list drift).
-    When True, also rebuilds ``skill_search_tool`` index and active resolved tools.
-    """
-    from myrm_agent_harness.agent.skill_agent import SkillAgent
-
-    if not isinstance(agent_state, SkillAgent) or agent_state.skill_backend is None:
-        return False
-
-    from myrm_agent_harness.agent.skills.runtime.skill_catalog_delivery import (
-        ensure_skill_catalog_in_messages,
-    )
-
-    content_before = _first_human_content(messages)
-    bound_skills = await agent_state._get_cached_skills()
-    ensure_skill_catalog_in_messages(
-        messages,
-        bound_skills,
-        skill_configs=agent_state.skill_configs,
-        available_tool_names=agent_state._available_tool_names,
-        available_tool_groups=agent_state._available_tool_groups,
-    )
-    content_after = _first_human_content(messages)
-    catalog_changed = content_before != content_after
-
-    if catalog_changed:
-        _sync_skill_search_index_after_catalog_change(agent_state, bound_skills)
-        logger.debug(
-            " Bound skill catalog reinjected on first HumanMessage (%d skills); skill_search index synced",
-            len(bound_skills),
-        )
-    else:
-        logger.debug(
-            " Bound skill catalog unchanged on first HumanMessage (%d skills)",
-            len(bound_skills),
-        )
-    return catalog_changed
-
-
-async def apply_bound_skill_catalog_for_resume(
-    agent_state: BaseAgent,
-    command: Command[Any],
-    thread_id: str,
-) -> Command[Any]:
-    """Refresh ``<bound_skills>`` on checkpoint messages before LangGraph resume."""
-    from myrm_agent_harness.agent.skill_agent import SkillAgent
-
-    if not isinstance(agent_state, SkillAgent) or agent_state.skill_backend is None:
-        return command
-
-    agent_graph = agent_state._agent
-    if agent_graph is None:
-        return command
-
-    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
-    try:
-        state_snapshot = await agent_graph.aget_state(config)
-    except (
-        AttributeError,
-        KeyError,
-        LookupError,
-        OSError,
-        RuntimeError,
-        TypeError,
-        ValueError,
-    ) as exc:
-        logger.warning(
-            "Failed to load checkpoint for bound skill catalog refresh (thread=%s): %s",
-            thread_id,
-            exc,
-        )
-        return command
-
-    if not state_snapshot or not state_snapshot.values:
-        return command
-
-    raw_messages = state_snapshot.values.get("messages")
-    if not isinstance(raw_messages, list) or not raw_messages:
-        return command
-
-    messages = list(raw_messages)
-    catalog_changed = await apply_bound_skill_catalog_for_stream(messages, agent_state)
-
-    if not catalog_changed:
-        return command
-
-    logger.debug(
-        " Bound skill catalog refreshed on checkpoint before resume (thread=%s)",
-        thread_id,
-    )
-    return Command(resume=command.resume, update={"messages": messages})
-
-
-def _sync_skill_search_index_after_catalog_change(
-    agent_state: BaseAgent,
-    bound_skills: list[SkillMetadata],
-) -> None:
-    """Rebuild or remove ``skill_search_tool`` when stream or resume refreshed bind catalog."""
-    from myrm_agent_harness.agent.skill_agent import SkillAgent
-
-    if not isinstance(agent_state, SkillAgent):
-        return
-
-    registry = agent_state._tool_registry
-    if registry is None:
-        return
-
-    from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
-        sync_discover_capability_tool,
-    )
-
-    sync_discover_capability_tool(
-        registry,
-        skills=bound_skills,
-        skill_configs=getattr(agent_state, "skill_configs", None),
-        available_tool_names=getattr(agent_state, "_available_tool_names", None),
-        available_tool_groups=getattr(agent_state, "_available_tool_groups", None),
-        embedding_config=getattr(agent_state, "_embedding_config", None),
-        embedding_cache=getattr(agent_state, "_embedding_cache", None),
-    )
-
-    from myrm_agent_harness.agent._internals._agent_build import _weave_dynamic_schemas
-    from myrm_agent_harness.agent.tool_management.tool_layers import (
-        get_tool_layer,
-        get_tool_registry_sort_key,
-    )
-
-    agent_state._cached_tools = _weave_dynamic_schemas(registry.resolve())
-    agent_state._cached_tools.sort(key=lambda tool: get_tool_registry_sort_key(tool.name, get_tool_layer(tool.name)))
-
-    from myrm_agent_harness.agent.middlewares._session_context import (
-        set_active_resolved_tools,
-    )
-
-    set_active_resolved_tools(agent_state._cached_tools)
-
-
-def _first_human_content(messages: Sequence[object]) -> object | None:
-    from langchain_core.messages import HumanMessage
-
-    for message in messages:
-        if isinstance(message, HumanMessage):
-            return message.content
-    return None
 
 
 # ============================================================================
@@ -561,13 +402,15 @@ async def run_agent_loop(
             return
 
         thread_id = session_key or message_id
+        # Consumed here: the declaration concerns this turn's thread only, no middleware needs it.
+        requested_history_mode = merged_context.pop(HISTORY_MODE_CONTEXT_KEY, None)
 
         agent_input: Command[Any] | AgentState[Any]
 
         if isinstance(query, Command):
-            resume_command = await address_resume_to_pending(
-                agent_state._agent, await apply_bound_skill_catalog_for_resume(agent_state, query, thread_id), thread_id
-            )
+            await sync_bound_skills_for_resume(agent_state)
+            record_turn_context(resumed_turn_facts())
+            resume_command = await address_resume_to_pending(agent_state._agent, query, thread_id)
             agent_input = cast("Command[Any] | AgentState[Any]", resume_command)
             logger.info(f" Resume: {resume_command.resume if hasattr(resume_command, 'resume') else resume_command}")
             # Prompt Cache preservation: Mark as Resume
@@ -575,9 +418,12 @@ async def run_agent_loop(
             merged_context = validate_context(merged_context, agent_state.context_schema)
             merged_context = await agent_state._prepare_context(merged_context)
         else:
-            messages = build_messages(query, chat_history)
-            inject_datetime_tags(messages, chat_history, query)
-            await apply_bound_skill_catalog_for_stream(messages, agent_state)
+            history = await resolve_turn_history(agent_state.checkpointer, thread_id, requested_history_mode)
+            fed_history = chat_history if history.feeds_history else None
+            messages = build_messages(query, fed_history)
+            inject_datetime_tags(messages, fed_history, query)
+            catalog_delivery = await deliver_bound_skills_catalog(messages, agent_state, history)
+            record_turn_context({**history.telemetry(), **catalog_delivery.telemetry()})
 
             quote_raw = merged_context.get("quote_attachment")
             if quote_raw is not None and messages:
@@ -672,6 +518,7 @@ async def run_agent_loop(
         goal_provider = cast("GoalProvider | None", stripped_callbacks.get("goal_provider"))
         on_goal_terminal = stripped_callbacks.get("on_goal_terminal")
         on_loop_restart = stripped_callbacks.get("on_loop_restart")
+        on_goal_hold = stripped_callbacks.get("on_goal_hold")
         file_content_reader = stripped_callbacks.get("file_content_reader")
         from myrm_agent_harness.agent.middlewares._session_context import (
             set_goal_provider,
@@ -786,6 +633,7 @@ async def run_agent_loop(
             goal_provider=goal_provider,
             on_goal_terminal=on_goal_terminal,
             on_loop_restart=on_loop_restart,
+            on_goal_hold=on_goal_hold,
             file_content_reader=file_content_reader,
             escalation_target_llm=getattr(agent_state, "escalation_target_llm", None),
             llm=agent_state.llm,

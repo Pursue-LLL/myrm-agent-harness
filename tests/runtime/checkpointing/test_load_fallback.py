@@ -22,7 +22,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from myrm_agent_harness.runtime.checkpointing.factory import create_checkpointer
 from myrm_agent_harness.runtime.checkpointing.load_fallback import _is_undecodable_payload
-from myrm_agent_harness.runtime.context.session.session_continuity import sync_checkpoint_messages
+from myrm_agent_harness.runtime.context.session.session_continuity import clear_checkpoint_threads
 
 
 def _config(thread_id: str) -> RunnableConfig:
@@ -107,14 +107,14 @@ async def test_deleting_a_thread_removes_its_checkpoints(saver: BaseCheckpointSa
 
 
 @pytest.mark.asyncio
-async def test_clearing_a_chat_history_deletes_both_thread_aliases(saver: BaseCheckpointSaver[str]) -> None:
-    """Edit-resend of the first message and rewind to the start leave no messages to write back."""
+async def test_clearing_a_chat_deletes_both_thread_aliases(saver: BaseCheckpointSaver[str]) -> None:
+    """A mutated or deleted chat drops every thread the runtime may have written for it."""
     await _store(saver, "chat-1")
     await _store(saver, "chat_chat-1")
 
-    synced = await sync_checkpoint_messages(saver, "chat-1", [])
+    deleted = await clear_checkpoint_threads(saver, "chat-1")
 
-    assert synced == 2
+    assert deleted == 2
     assert await saver.aget_tuple(_config("chat-1")) is None
     assert await saver.aget_tuple(_config("chat_chat-1")) is None
 

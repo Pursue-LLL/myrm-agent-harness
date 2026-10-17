@@ -12,7 +12,7 @@
 Wraps the SQLite saver the factory builds. A checkpoint written by an older release can reference classes that
 no longer exist; failing the load would block the chat on every turn, so the run starts a fresh session instead.
 Every async method the wrapped saver implements must be forwarded here — a method left out silently falls back to
-the base class and raises NotImplementedError (`adelete_thread` is called by the continuity sync).
+the base class and raises NotImplementedError (`adelete_thread` is called when a chat's threads are cleared and when a `replace` turn rebuilds its thread).
 """
 
 from __future__ import annotations
