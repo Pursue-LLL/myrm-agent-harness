@@ -170,6 +170,24 @@ def test_multimodal_first_human_message_prepends_catalog() -> None:
     assert "describe this image" in text
 
 
+def test_image_only_multimodal_first_message_still_gets_the_catalog() -> None:
+    messages = [
+        HumanMessage(content=[{"type": "image_url", "image_url": {"url": "https://example.com/x.png"}}]),
+    ]
+    ensure_skill_catalog_in_messages(messages, [_skill("alpha_skill")])
+
+    first = messages[0]
+    assert isinstance(first.content, list)
+    assert len(first.content) == 2
+    head = first.content[0]
+    assert isinstance(head, dict)
+    assert head["type"] == "text"
+    text = head.get("text")
+    assert isinstance(text, str)
+    assert text.startswith("<bound_skills")
+    assert "alpha_skill" in text
+
+
 def test_agent_switch_catalog_refresh_replaces_stale_block() -> None:
     stale = (
         '<bound_skills hash="agent-a">\n<skills><skill name="old_skill"/></skills>\n</bound_skills>\n\nfirst question'
