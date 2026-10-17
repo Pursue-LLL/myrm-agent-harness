@@ -115,8 +115,8 @@ class LoopDetectorMixin:
             self._record_detection(tool_name, LoopKind.REPETITION, streak, args_hash)
             if getattr(self, "_unattended_mode", False):
                 raise RunawayCircuitBreakException(
-                    f"RUNAWAY_CIRCUIT_BREAKER: 连续 {streak} 次使用相同参数调用工具 '{tool_name}' 且均报错, "
-                    f"触发无人值守硬熔断, 阻断后续重试以防止算力浪费。",
+                    f"RUNAWAY_CIRCUIT_BREAKER: Tool '{tool_name}' failed {streak} times in a row with identical "
+                    f"arguments; the unattended run was stopped to prevent runaway retries and wasted compute.",
                     loop_kind=LoopKind.REPETITION.value,
                     tool_name=tool_name,
                     consecutive_count=streak,
@@ -362,8 +362,8 @@ class LoopDetectorMixin:
             self._record_detection(last_failed_tool, LoopKind.CONSECUTIVE_FAILURES, failure_streak)
             if getattr(self, "_unattended_mode", False):
                 raise RunawayCircuitBreakException(
-                    f"RUNAWAY_CIRCUIT_BREAKER: 连续 {failure_streak} 次工具调用失败, "
-                    f"触发无人值守硬熔断, 阻断后续重试以防止算力浪费。",
+                    f"RUNAWAY_CIRCUIT_BREAKER: {failure_streak} consecutive tool calls failed; "
+                    f"the unattended run was stopped to prevent runaway retries and wasted compute.",
                     loop_kind=LoopKind.CONSECUTIVE_FAILURES.value,
                     tool_name=last_failed_tool,
                     consecutive_count=failure_streak,
@@ -413,8 +413,8 @@ class LoopDetectorMixin:
 
             self._record_detection(tool_name, LoopKind.ERROR_SIGNATURE, count)
             raise RunawayCircuitBreakException(
-                f"RUNAWAY_CIRCUIT_BREAKER: 相同错误已连续出现 {count} 次 (signature: {sig[:80]}), "
-                f"触发无人值守硬熔断, 阻断后续重试以防止算力浪费。",
+                f"RUNAWAY_CIRCUIT_BREAKER: The same error occurred {count} times in a row (signature: {sig[:80]}); "
+                f"the unattended run was stopped to prevent runaway retries and wasted compute.",
                 loop_kind=LoopKind.ERROR_SIGNATURE.value,
                 tool_name=tool_name,
                 consecutive_count=count,
