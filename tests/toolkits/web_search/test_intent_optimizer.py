@@ -594,4 +594,3 @@ class TestStructuredIdentifierPinning:
         # Single-quoted should not be wrapped again with double quotes
         assert "''" not in pinned_q
         assert '""' not in pinned_q
-

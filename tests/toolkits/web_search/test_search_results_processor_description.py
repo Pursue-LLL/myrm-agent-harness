@@ -234,11 +234,13 @@ class TestRoundRobinInterleaving:
         doc_c0 = Document(page_content="C0")
         doc_c1 = Document(page_content="C1")
 
-        interleaved = interleave_search_results_round_robin([
-            [doc_a0, doc_a1, doc_a2],
-            [doc_b0],
-            [doc_c0, doc_c1],
-        ])
+        interleaved = interleave_search_results_round_robin(
+            [
+                [doc_a0, doc_a1, doc_a2],
+                [doc_b0],
+                [doc_c0, doc_c1],
+            ]
+        )
 
         assert [d.page_content for d in interleaved] == ["A0", "B0", "C0", "A1", "C1", "A2"]
 
@@ -261,10 +263,12 @@ class TestRoundRobinInterleaving:
             Document(page_content="iPhone Sales 2", metadata={"url": "https://b.com/phone2"}),
         ]
 
-        _, unified = combine_search_results_unified([
-            ("Apple revenue", q0_docs, None),
-            ("iPhone sales", q1_docs, None),
-        ])
+        _, unified = combine_search_results_unified(
+            [
+                ("Apple revenue", q0_docs, None),
+                ("iPhone sales", q1_docs, None),
+            ]
+        )
 
         # 验证：Q1 的 top 结果必须在 Rank 1（紧跟 Q0 top 0 之后），而不是被 Q0 的全量文档挤到末尾！
         assert len(unified) == 5
