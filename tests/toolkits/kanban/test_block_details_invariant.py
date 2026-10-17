@@ -1,9 +1,9 @@
 """Block details (reason, kind, wake-up time) exist only while a task is BLOCKED.
 
 Each way the toolkit takes a task out of BLOCKED pinned here must drop the three fields, whichever store persists the
-task: the orchestrator's unblock and cancel tools, a plan revision that removes the task, the store's
-status-transition primitive, and a manual reclaim by the dispatcher. A task that is ready again or archived must not
-keep a reason or a countdown for a block that no longer exists.
+task: the orchestrator's unblock and cancel tools, a worker's completion request, a plan revision that removes the
+task, the store's status-transition primitive, and a manual reclaim by the dispatcher. A task that is ready again or
+archived must not keep a reason or a countdown for a block that no longer exists.
 """
 
 from __future__ import annotations
@@ -52,8 +52,16 @@ async def _save_task(
     )
 
 
-async def _call_tool(store: InMemoryKanbanStore, name: str, **arguments: str) -> dict[str, dict[str, object]]:
-    tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+async def _call_tool(
+    store: InMemoryKanbanStore, name: str, *, worker_task_id: str | None = None, **arguments: str
+) -> dict[str, dict[str, object]]:
+    """Invoke a kanban tool as the orchestrator, or as the worker of ``worker_task_id`` when given."""
+    tools = create_kanban_tools(
+        store,
+        mode="worker" if worker_task_id else "orchestrator",
+        default_board_id="b1",
+        current_task_id=worker_task_id,
+    )
     tool = next(t for t in tools if t.name == name)
     reply: dict[str, dict[str, object]] = json.loads(await tool.ainvoke(arguments))
     return reply
@@ -112,6 +120,17 @@ class TestOrchestratorCancel:
         reply = await _call_tool(store, "kanban_cancel_task", task_id="t1", reason="no longer needed")
 
         assert reply["task"]["status"] == "archived"
+        assert _reply_block_details(reply) == (None, None, None)
+        assert await _stored_block_details(store, "t1") == (None, None, None)
+
+
+class TestWorkerCompletionRequest:
+    async def test_completion_request_on_a_blocked_task_drops_block_details(self, store: InMemoryKanbanStore) -> None:
+        await _save_task(store, "t1", TaskStatus.BLOCKED)
+
+        reply = await _call_tool(store, "kanban_complete", worker_task_id="t1", summary="All done")
+
+        assert reply["task"]["status"] == "running"
         assert _reply_block_details(reply) == (None, None, None)
         assert await _stored_block_details(store, "t1") == (None, None, None)
 

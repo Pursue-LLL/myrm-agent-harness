@@ -120,6 +120,7 @@ def build_worker_tools(
 
         old_status = task.status
         task.status = TaskStatus.RUNNING
+        task.blocked_reason = task.block_kind = task.scheduled_until = None
         task.progress_note = None
         task.result = summary
         merged_metadata: dict[str, object] = {
