@@ -2,6 +2,23 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-17-004 · 搜索链上头部供应商以 HTTP 200 加空结果应答（如 SearXNG 的上游引擎被屏蔽）时，链把它当成功直接结束，备用供应商一次都没有运行；同批删掉只写不读的搜索指标层，并把半配置网关的 AttributeError 改为配置错误
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-17（复核搜索链的转移语义时，读 LiteLLM 的 SearXNG 转换发现空 `results` 不抛错；用桩 HTTP 服务走真实的 LiteLLM 路径复现，探针脚本放在 /tmp，没有入库） |
+| **修复时间** | 2026-10-17（`a54fbcf2d`；同批 `603ad465c`、`06156cd8c`） |
+| **症状** | 优先级链把 SearXNG 排在前面、其后配了其他供应商时，SearXNG 的上游引擎被屏蔽、以 HTTP 200 加 `results: []` 应答：这一跳被当成「成功但没有结果」直接返回，备用供应商不被调用，整次搜索以「returned 0 results」结束 |
+| **关联产品** | myrm-agent-harness `toolkits/web_search/providers/chain.py`；server 与前端未改；不改提示词、消息顺序与工具 schema，提示缓存前缀不受影响（只改变本轮工具返回的内容） |
+| **根因** | `search_provider_chain` 只在一跳抛异常时转移，返回了列表就当成功（空列表也是列表）；LiteLLM 的 SearXNG 转换对空 `results` 不抛错。产品启动时自动拉起本地 SearXNG（`app/startup/local_search_bootstrap.py`），并按 WebUI 里的优先级装配链（`config_parsers.py:1038-1050`） |
+| **修复** | ① 空列表与失败同样转到下一家；所有供应商都为空时返回最后一次的空答复，不抛错（`chain.py:178-180`、`:224-229`），所有供应商都抛错仍抛 `AllQueriesFailedError`，只配一家供应商的链行为不变；② 同批删除没有任何生产读者的 `WebSearchMetrics`（12 个计数器，3 个 fallback 计数从未被写入；同名的 `get_search_metrics()` 属于记忆库（`toolkits/memory/metrics.py:494`），读的不是它）及其导出，链与重试的测试改为断言实际行为（调用了哪些供应商、返回了什么、配额状态）；③ 客户端装配抽成 `providers/search_service_factory.py`（`SearchService` 协议加 `build_search_service`），`WebSearcher._get_search_service` 只剩缓存包装（绕过网关的客户端仍不缓存），`web_searcher.py` 由 528 行降到 427 行、基线条目移除，该文件 mypy 错误 7 个降为 0；④ 网关路由缺 `gateway_url` 或 `auth_token` 时原先在 `None.rstrip` 处抛 AttributeError（或以无鉴权的方式发请求），现抛 `SearchConfigError`（`search_service_factory.py:81-85`）；⑤ 客户端初始化与含用户查询词的「Searching query」日志由 WARNING 降到 DEBUG；删除只有一个成员的原生供应商集合及其不可达的「未实现」分支、无人引用的供应商名常量与空的 `TYPE_CHECKING` 块 |
+| **反复次数** | 第 1 次发现（同族问题 `BUG-HARNESS-2026-10-16-011`、`BUG-HARNESS-2026-10-17-002` 处理的是抛异常与挂起，空结果不在其内） |
+| **踩坑** | ① `try` 之后直接 `if results:` 会读到上一跳遗留的或未绑定的 `results`，改用 `try/except/else`；② 全空时若改成抛错，会比旧行为更差（外层原本就能处理空列表），所以返回最后一次空答复；③ 复现要让真实的 LiteLLM 路径参与，只用桩 HTTP 服务代替上游 |
+| **回归** | `tests/toolkits/web_search/test_chain_empty_handover.py` 6 例；`tests/toolkits/web_search/test_search_service_factory.py` 11 例（供应商装配、必填凭据、网关路由与绕过、半配置网关、缓存行为）。先写测试：空结果转移落地前 4 例失败、2 例回归守卫本就通过；变异验证：空结果转移处两处变异被捕获，工厂里去掉网关校验或忽略绕过标志则 4 例失败；`tests/toolkits/web_search` 整个套件 509 例通过（8 例按项目配置未选中）；产品 `tests/integration/test_fallback_integration.py` 改为断言链返回的供应商名（本机 3 例通过；改成断言链返回供应商名的那一例需要运行中的 SearXNG，本机没有，被跳过，该改动未经执行验证） |
+| **局限** | ① SearXNG 被屏蔽的真实发生频率、配了备用供应商的用户占比没有实测，本机没有运行中的 SearXNG，没有做真实被屏蔽的复现，只用桩 HTTP 服务证明路径；② 一个确实没有结果的查询会多问一家，多出一次请求，备用供应商的结果质量与头部的差异没有测量；③ 全部为空时外层 `multi_query_parallel_search` 仍报「returned 0 results」（`web_searcher.py:419-426`），结果与此前相同、不会更糟；④ 持续故障期内每次调用仍先付一次头部的等待，宕机冷却重审后维持不做（topic_02 #141 ③）；⑤ 网关路径在产品里不生效：控制平面的搜索中继只代理 firecrawl（`http_proxy.py:44`），server 只给首选搜索配置挂网关（`agents.py:95`），链内每一跳新建的 `WebSearcher` 不带网关配置（`chain.py:193`），配置了链时先进入链（`web_searcher.py:157`）；这一点在 `BUG-HARNESS-2026-10-17-002` 局限 ⑦ 中「没有核对」，现已按代码核对，打通归 topic_08 #313 |
+| **代码位置** | `toolkits/web_search/providers/chain.py::search_provider_chain` · `toolkits/web_search/providers/search_service_factory.py::build_search_service` · `tests/toolkits/web_search/test_chain_empty_handover.py` · `tests/toolkits/web_search/test_search_service_factory.py` |
+
 ### BUG-HARNESS-2026-10-17-003 · 整理（consolidation）把 LLM 给出的目标名当作可信输入：新建伞形技能的名字与已有技能相同时，已有技能被只含描述的桩文件静默覆盖且报成功；把窄技能降级到一个不存在的目标时，来源技能被归档到根本没写入的地方；写入辅助文件被拒时来源技能照样归档
 
 | 字段 | 内容 |
