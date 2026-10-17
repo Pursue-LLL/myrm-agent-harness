@@ -412,8 +412,6 @@ class TokenTracker:
             "cost_status": self.cost_status,
             "error_count": self.error_count,
             "latency": {
-        if self.turn_context:
-            result["turn_context"] = dict(self.turn_context)
                 "avg_ms": round(latency.avg_ms, 1),
                 "p95_ms": round(latency.p95_ms, 1),
                 "min_ms": round(latency.min_ms, 1),
@@ -440,6 +438,8 @@ class TokenTracker:
                 }
                 for tool, usage in self.tool_usage.items()
             }
+        if self.turn_context:
+            result["turn_context"] = dict(self.turn_context)
         return result
 
 
@@ -514,13 +514,6 @@ def record_token_usage(
             duration_ms=duration_ms,
             ttft_ms=ttft_ms,
             cost_usd=cost_usd,
-def record_turn_context(facts: Mapping[str, int | str]) -> None:
-    """Record how this turn's context was assembled on the current tracker (last write wins per key)."""
-    tracker = _current_tracker.get()
-    if tracker:
-        tracker.turn_context.update(facts)
-
-
             cost_status=cost_status,
             cache_savings_usd=cache_savings_usd,
         )
@@ -545,6 +538,13 @@ def record_token_error(error_message: str) -> None:
     tracker = _current_tracker.get()
     if tracker:
         tracker.record_error(error_message)
+
+
+def record_turn_context(facts: Mapping[str, int | str]) -> None:
+    """Record how this turn's context was assembled on the current tracker (last write wins per key)."""
+    tracker = _current_tracker.get()
+    if tracker:
+        tracker.turn_context.update(facts)
 
 
 def record_finish_reason(reason: str) -> None:
