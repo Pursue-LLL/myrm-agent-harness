@@ -1,4 +1,4 @@
-"""Tests for MCP error handling utilities (anyio CancelledError safety)."""
+"""reraise_if_cancelled: tell a stop aimed at this task apart from an absorbed cancellation."""
 
 from __future__ import annotations
 
@@ -6,17 +6,16 @@ import asyncio
 
 import pytest
 
-from myrm_agent_harness.toolkits.mcp.errors import reraise_if_genuine_cancel
+from myrm_agent_harness.utils.runtime.cancellation import reraise_if_cancelled
 
 
-class TestReraiseIfGenuineCancel:
-    """reraise_if_genuine_cancel: distinguish SDK leaks from real cancellations."""
+class TestReraiseIfCancelled:
+    """reraise_if_cancelled: distinguish an SDK leak / cancelled child from a stop aimed here."""
 
     @pytest.mark.asyncio
     async def test_sdk_leak_returns_normally(self) -> None:
         """When the task is NOT externally cancelled, the function returns normally."""
-        exc = asyncio.CancelledError()
-        reraise_if_genuine_cancel(exc)
+        reraise_if_cancelled(asyncio.CancelledError())
 
     @pytest.mark.asyncio
     async def test_genuine_cancel_reraises(self) -> None:
@@ -26,7 +25,7 @@ class TestReraiseIfGenuineCancel:
             try:
                 await asyncio.sleep(10)
             except asyncio.CancelledError as e:
-                reraise_if_genuine_cancel(e)
+                reraise_if_cancelled(e)
 
         task = asyncio.create_task(_cancellable())
         await asyncio.sleep(0)
@@ -37,5 +36,4 @@ class TestReraiseIfGenuineCancel:
     @pytest.mark.asyncio
     async def test_no_current_task_returns_normally(self) -> None:
         """Edge case: called outside an asyncio task context."""
-        exc = asyncio.CancelledError()
-        reraise_if_genuine_cancel(exc)
+        reraise_if_cancelled(asyncio.CancelledError())

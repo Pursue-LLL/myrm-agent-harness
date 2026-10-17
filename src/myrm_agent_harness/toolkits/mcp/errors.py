@@ -1,27 +1,18 @@
-"""MCP error handling utilities.
-
-MCP SDK (anyio-based) uses cancel scopes that can leak ``CancelledError``
-on timeout or connection failure.  Since ``CancelledError`` is a
-``BaseException``, it escapes ``except Exception`` handlers and can crash
-the agent loop.
-
-This module provides helpers to distinguish SDK-leaked cancellations from
-genuine task cancellations (e.g. user /stop).
+"""MCP error-handling types.
 
 [INPUT]
 - (none)
 
 [OUTPUT]
-- reraise_if_genuine_cancel: Re-raise *exc* if the current task was genuinely cancelled.
 - MCPRuntimePostureError: Raised when runtime surface scan blocks MCP tool registration.
 
 [POS]
-MCP error handling utilities.
+MCP-specific error types. The task-cancellation rule (`utils.runtime.cancellation.reraise_if_cancelled`) is not one of
+them: both `toolkits` and `agent` consume it, so hosting it in this consumer made `agent.middlewares` import across
+the layer. Only types that are MCP's own belong here.
 """
 
 from __future__ import annotations
-
-import asyncio
 
 
 class MCPRuntimePostureError(RuntimeError):
@@ -30,19 +21,3 @@ class MCPRuntimePostureError(RuntimeError):
     def __init__(self, message: str, *, server_name: str) -> None:
         super().__init__(message)
         self.server_name = server_name
-
-
-def reraise_if_genuine_cancel(exc: asyncio.CancelledError) -> None:
-    """Re-raise *exc* if the current task was genuinely cancelled.
-
-    Call inside an ``except asyncio.CancelledError`` block.  Returns
-    normally when the cancellation originated from an MCP SDK cancel-scope
-    leak (safe to convert into a graceful error).  Re-raises when the
-    task itself was cancelled externally (e.g. user /stop command).
-
-    Uses ``Task.cancelling()`` (Python 3.11+) to detect external
-    cancellation requests.
-    """
-    task = asyncio.current_task()
-    if task is not None and task.cancelling() > 0:
-        raise exc

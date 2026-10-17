@@ -2,7 +2,8 @@
 
 [POS]
 Agent run() lifecycle control parameters. All based on ContextVar for request-level isolation.
-
+`reraise_if_cancelled` lives here because both `toolkits` and `agent` need the one cancellation-classification
+rule; hosting it in either consumer would make the other import across the layer.
 """
 
 from importlib import import_module as _import_module
@@ -16,6 +17,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "set_cancel_token": (".cancellation", "set_cancel_token"),
     "OperationCancelledError": (".cancellation", "OperationCancelledError"),
     "run_until_cancelled": (".cancellation", "run_until_cancelled"),
+    "reraise_if_cancelled": (".cancellation", "reraise_if_cancelled"),
     "create_cancellation_context": (".cancellation", "create_cancellation_context"),
     # progress_sink.py
     "ToolProgressSink": (".progress_sink", "ToolProgressSink"),

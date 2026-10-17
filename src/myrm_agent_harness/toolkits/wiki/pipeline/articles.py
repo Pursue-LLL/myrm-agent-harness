@@ -12,8 +12,9 @@
 - .compiler_provenance::provenance_from_raw_sources, restore_provenance_metadata (POS: provenance preservation)
 - .pending::WikiPendingEditsManager (POS: drafts awaiting approval)
 - .publication::ArticlePublishOutcome, publish_concept_article (POS: validated publish plus search index upsert)
-- .resilience::FailureResolution, reraise_if_cancelled, resolve_blocked_publish, resolve_embed_failure, resolve_llm_failure (POS: failure classification)
+- .resilience::FailureResolution, resolve_blocked_publish, resolve_embed_failure, resolve_llm_failure (POS: failure classification)
 - utils.chat_utils::extract_answer_text (POS: LLM answer extraction)
+- utils.runtime.cancellation::reraise_if_cancelled (POS: keep a stop aimed at this task from being absorbed)
 
 [OUTPUT]
 - ArticleBlockedError: the publish content scan refused an article, so nothing was written
@@ -51,6 +52,7 @@ from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.runtime.cancellation import reraise_if_cancelled
 
 from .article_evidence import build_source_evidence, source_budget_chars
 from .compiler_provenance import provenance_from_raw_sources, restore_provenance_metadata
@@ -58,7 +60,6 @@ from .pending import WikiPendingEditsManager
 from .publication import ArticlePublishOutcome, publish_concept_article
 from .resilience import (
     FailureResolution,
-    reraise_if_cancelled,
     resolve_blocked_publish,
     resolve_embed_failure,
     resolve_llm_failure,

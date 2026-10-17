@@ -10,9 +10,10 @@
 - .batch_settle::source_hash (POS: the file hash the batch settles against)
 - .cognitive_map.schema_writer::read_index_context (POS: the wiki catalog a concept name is reused from)
 - .queue::QueueItem, WikiIngestionQueue (POS: persistent ingestion queue)
-- .resilience::IO_MISSING, reraise_if_cancelled, resolve_llm_failure (POS: failure classification)
+- .resilience::IO_MISSING, resolve_llm_failure (POS: failure classification)
 - .survey::CompileSessionState (POS: survey state shared across the batches of one compile)
 - utils.chat_utils::extract_answer_text (POS: LLM answer extraction)
+- utils.runtime.cancellation::reraise_if_cancelled (POS: keep a stop aimed at this task from being absorbed)
 
 [OUTPUT]
 - BatchExtractOutcome: the concepts of a batch, the sources that were read and the failures that were not
@@ -46,11 +47,12 @@ from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.runtime.cancellation import reraise_if_cancelled
 
 from .batch_settle import source_hash
 from .cognitive_map.schema_writer import read_index_context
 from .queue import QueueItem, WikiIngestionQueue
-from .resilience import IO_MISSING, reraise_if_cancelled, resolve_llm_failure
+from .resilience import IO_MISSING, resolve_llm_failure
 from .survey import CompileSessionState
 
 logger = get_agent_logger(__name__)

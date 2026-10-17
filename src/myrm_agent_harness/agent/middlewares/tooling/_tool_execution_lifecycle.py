@@ -145,9 +145,9 @@ async def handle_cancellation(
     from myrm_agent_harness.agent.hooks.executor import fire_hook
     from myrm_agent_harness.agent.hooks.types import HookEvent
     from myrm_agent_harness.agent.streaming.types import AgentEventType
-    from myrm_agent_harness.toolkits.mcp.errors import reraise_if_genuine_cancel
+    from myrm_agent_harness.utils.runtime.cancellation import reraise_if_cancelled
 
-    reraise_if_genuine_cancel(e)
+    reraise_if_cancelled(e)
 
     error_msg = str(e) if e.args else ""
     if "timeout" in error_msg.lower():

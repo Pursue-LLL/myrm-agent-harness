@@ -29,6 +29,7 @@ Pure result/post-processing logic lives in sibling modules:
 - core.security.tool_registry::MCPAnnotations, SafetyMetadata, register_ptc_safety_metadata (POS: Tool metadata and permission mapping)
 - agent.streaming.types::AgentEventType (POS: Framework-agnostic streaming event types)
 - utils.runtime.progress_sink::get_tool_progress_sink (POS: Runtime tool progress event sink)
+- utils.runtime.cancellation::reraise_if_cancelled (POS: keep a stop aimed at this task from being absorbed as an SDK cancel-scope leak)
 - core.security.detection.content_boundary::wrap_untrusted (POS: 5-layer content boundary defense for MCP tool outputs)
 - core.security.redact::redact_sensitive_text (POS: Regex-based secret redaction for API keys, tokens, passwords in exception messages)
 - runtime.events::get_event_bus (wired via auth_notify at runtime import)
@@ -242,9 +243,9 @@ class MCPAgent:
                     return server_name, tools, None
                 last_error = "not found tools"
             except asyncio.CancelledError as e:
-                from .errors import reraise_if_genuine_cancel
+                from myrm_agent_harness.utils.runtime.cancellation import reraise_if_cancelled
 
-                reraise_if_genuine_cancel(e)
+                reraise_if_cancelled(e)
                 logger.warning("Server %s cancelled by MCP SDK", server_name)
                 return server_name, [], "cancelled by SDK"
             except TimeoutError:

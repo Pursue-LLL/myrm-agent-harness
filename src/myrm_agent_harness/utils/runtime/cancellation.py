@@ -20,10 +20,12 @@
 - create_cancellation_context(): 创建取消上下文（令牌 + 监控器工厂）
 - get_cancel_token() / set_cancel_token(): ContextVar 访问器，供工具层隐式获取/注入取消令牌
 - OperationCancelledError / run_until_cancelled(): 令牌被取消时中止仍阻塞在驱动调用上的操作，让调用方在一个轮询周期内重新拿回控制权
+- reraise_if_cancelled(): 在 ``except asyncio.CancelledError`` 内区分「本任务确被要求停止」与「SDK/子任务漏出的取消」，只在确被要求停止时重新抛出
 
 [POS]
 Cancellation token mechanism. Provides request-level cancellation state management with graceful async cancellation support.
-The token is a pure flag; `run_until_cancelled` is the boundary for operations that cannot observe it by themselves.
+The token is a pure flag; `run_until_cancelled` is the boundary for operations that cannot observe it by themselves, and
+`reraise_if_cancelled` is the boundary for ``except`` blocks that would otherwise absorb a stop meant for their task.
 
 """
 
@@ -326,6 +328,21 @@ _ABORT_GRACE_S = 3.0
 
 class OperationCancelledError(Exception):
     """The request was cancelled while an operation was still running, and the operation was aborted."""
+
+
+def reraise_if_cancelled(exc: asyncio.CancelledError) -> None:
+    """Raise *exc* again when *this* task was really asked to stop, otherwise return.
+
+    Call inside an ``except asyncio.CancelledError`` block that wants to treat the error as something other than a
+    stop. A ``CancelledError`` can also arrive when nobody asked this task to stop: an SDK cancel scope leaks one on
+    timeout, and ``asyncio.gather(..., return_exceptions=True)`` hands a cancelled child back as a *value*, whose
+    cancellation never travels through the parent. Swallowing it is only wrong when the stop was aimed here, which
+    ``Task.cancelling()`` tells apart; absorbing a real ``wait_for`` timeout or ``task.cancel()`` would instead leave
+    the caller waiting on a task that never ends.
+    """
+    task = asyncio.current_task()
+    if task is not None and task.cancelling() > 0:
+        raise exc
 
 
 def _discard_outcome[T](task: asyncio.Future[T]) -> None:

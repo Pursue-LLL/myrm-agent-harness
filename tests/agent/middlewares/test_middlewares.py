@@ -292,7 +292,10 @@ class TestToolInterceptorMiddleware:
         handler = AsyncMock(side_effect=asyncio.CancelledError())
         req = _make_request()
 
-        with patch("myrm_agent_harness.toolkits.mcp.errors.reraise_if_genuine_cancel", return_value=None):
+        with patch(
+            "myrm_agent_harness.utils.runtime.cancellation.reraise_if_cancelled",
+            return_value=None,
+        ):
             result = await self._call_middleware(req, handler)
 
         assert isinstance(result, ToolMessage)
