@@ -2,7 +2,7 @@
 
 ## Overview
 
-Skill selection meta-tool. Bound skill catalog (`get_metadata_summary` XML) is injected into the **first HumanMessage** via `skill_catalog_delivery.py` — not in `skill_select_tool` tool description. MCP skills (e.g. `mcp_12306_mcp_skill`) appear in that catalog; MCP function docs load via tool return / workspace files after selection.
+Skill selection meta-tool. Bound skill catalog (`get_metadata_summary` XML) is injected into the conversation's HumanMessages via `skill_catalog_delivery.py`: the **first** one carries the frozen `<bound_skills>` baseline, a later one the `<bound_skills_update>` tail — not in `skill_select_tool` tool description. MCP skills (e.g. `mcp_12306_mcp_skill`) appear in that catalog; MCP function docs load via tool return / workspace files after selection.
 
 ## Architecture
 
@@ -10,6 +10,7 @@ Skill selection meta-tool. Bound skill catalog (`get_metadata_summary` XML) is i
 Bound skills → resolve_catalog_display_skills() → get_metadata_summary()
                                          ↓
                     ensure_skill_catalog_in_messages() → first HumanMessage <bound_skills>
+                    plan_catalog_update()/prepend_catalog_update() → later HumanMessage <bound_skills_update>
                                          ↓
                               LLM sees catalog via messages[]
                                          ↓

@@ -1,7 +1,7 @@
 # skills/
 
 ## Overview
-Skills runtime — skill execution and management. Bound skill catalog delivery lives in `runtime/skill_catalog_delivery.py` (first HumanMessage ``<bound_skills>`` on stream and resume); see `runtime/_ARCH.md` and `meta_tools/skills/select/_ARCH.md`.
+Skills runtime — skill execution and management. Bound skill catalog delivery lives in `runtime/skill_catalog_delivery.py` (a frozen ``<bound_skills>`` baseline on the first HumanMessage of a rebuilt conversation, a ``<bound_skills_update>`` tail on a later one); see `runtime/_ARCH.md` and `meta_tools/skills/select/_ARCH.md`.
 
 Detailed design: [SKILL_SYSTEM.md](SKILL_SYSTEM.md)
 

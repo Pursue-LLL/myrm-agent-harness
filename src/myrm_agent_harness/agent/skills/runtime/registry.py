@@ -130,8 +130,9 @@ def get_metadata_summary(
 ) -> str:
     """Generate structured XML skill summary for HumanMessage catalog blocks.
 
-    Rendered inside ``<bound_skills>`` on the first HumanMessage (see
-    ``skill_catalog_delivery.py``), **not** in tool schema or SystemMessage.
+    Rendered inside the conversation's catalog blocks — the ``<bound_skills>``
+    baseline on the first HumanMessage, a ``<bound_skills_update>`` on a later one
+    (see ``skill_catalog_delivery.py``) — **not** in tool schema or SystemMessage.
 
     XML format is more parseable by LLMs than Markdown lists, and supports
     structured attributes (availability, trust, routing hints).

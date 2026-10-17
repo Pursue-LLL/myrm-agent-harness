@@ -2,7 +2,7 @@
 
 ## Overview
 
-Skill execution runtime: registry, command path utilities, trust attenuation. **`get_metadata_summary()`** builds XML for HumanMessage `<bound_skills>` blocks (see `skill_catalog_delivery.py` and `meta_tools/skills/select/_ARCH.md`).
+Skill execution runtime: registry, command path utilities, trust attenuation. **`get_metadata_summary()`** builds XML for the HumanMessage catalog blocks — the `<bound_skills>` baseline and the `<bound_skills_update>` tail (see `skill_catalog_delivery.py` and `meta_tools/skills/select/_ARCH.md`).
 
 ## File & Submodule Index
 
