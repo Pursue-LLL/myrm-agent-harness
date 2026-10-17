@@ -607,3 +607,20 @@ class TestWebSearcherIntegration:
         assert results[1][0] == "q2"
         assert len(results[0][1]) >= 1  # docs
         assert len(results[1][1]) >= 1
+
+
+class TestResultCacheCredentialScope:
+    """A cached payload belongs to the credential that produced it."""
+
+    @pytest.mark.asyncio
+    async def test_rotated_api_key_does_not_replay_the_old_payload(self):
+        counted = AsyncMock()
+        counted.search = AsyncMock(return_value=[SearchResult(title="T", link="https://ok.com", snippet="S")])
+
+        with patch.object(WebSearcher, "_get_search_service", AsyncMock(return_value=counted)):
+            await WebSearcher(SearchServiceConfig(search_service="tavily", api_key="old-key")).search("same query", 5)
+            await WebSearcher(SearchServiceConfig(search_service="tavily", api_key="new-key")).search("same query", 5)
+            # Same credential keeps hitting the cache: the key change is the only variable.
+            await WebSearcher(SearchServiceConfig(search_service="tavily", api_key="new-key")).search("same query", 5)
+
+        assert counted.search.await_count == 2

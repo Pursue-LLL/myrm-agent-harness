@@ -6,6 +6,7 @@ web_search.core.common::SearchResult (POS: Unified search result dataclass)
 
 [OUTPUT]
 bucket_search_limit, normalize_search_query: cache-key normalization helpers
+credential_fingerprint: non-reversible credential digest used as a cache-key component
 has_cacheable_search_results: TTL eligibility guard for non-empty usable URLs
 await_coalesced_search: single-flight wrapper with timeout retry and leader cancellation
 reset_search_coalescing_state_for_tests: test-only module state reset
@@ -20,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import logging
 import re
 from collections.abc import Awaitable, Callable
@@ -60,13 +62,26 @@ def slice_search_results(results: list[SearchResult], limit: int) -> list[Search
     return results[:limit]
 
 
+def credential_fingerprint(api_key: str | None, api_base: str | None) -> str:
+    """Short digest of the credentials a search is billed and answered under.
+
+    Only the digest enters a cache key, never the secret itself: a cached payload must be
+    reused solely where the same credential produced it, and a key rotation, a different
+    account or a self-hosted endpoint change must miss instead of replaying the previous
+    account's answer.
+    """
+    material = f"{api_key or ''}\x00{api_base or ''}"
+    return hashlib.blake2b(material.encode("utf-8"), digest_size=8).hexdigest()
+
+
 def build_search_cache_key(
     search_service: str,
     query: str,
     bucketed_limit: int,
     extra_suffix: str,
+    credential: str,
 ) -> str:
-    return f"{search_service}:{normalize_search_query(query)}:{bucketed_limit}:{extra_suffix}"
+    return f"{search_service}:{credential}:{normalize_search_query(query)}:{bucketed_limit}:{extra_suffix}"
 
 
 def has_cacheable_search_results(results: list[SearchResult]) -> bool:

@@ -7,6 +7,8 @@ import pytest
 from myrm_agent_harness.toolkits.web_search.coalescing import search_coalescing as sc
 from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import (
     await_coalesced_search,
+    build_search_cache_key,
+    credential_fingerprint,
     has_cacheable_search_results,
     reset_search_coalescing_state_for_tests,
     slice_search_results,
@@ -24,15 +26,11 @@ def _clear_coalescing_state():
 def test_has_cacheable_search_results_requires_usable_link() -> None:
     assert not has_cacheable_search_results([])
     assert not slice_search_results([SearchResult(link="https://x.com", title="T", snippet="S")], 0)
-    assert not has_cacheable_search_results(
-        [SearchResult(link="", title="Empty", snippet="S")]
-    )
+    assert not has_cacheable_search_results([SearchResult(link="", title="Empty", snippet="S")])
     assert not has_cacheable_search_results(
         [SearchResult(link="https://err.com", title="Err", snippet="S", is_error=True)]
     )
-    assert has_cacheable_search_results(
-        [SearchResult(link="https://ok.com", title="OK", snippet="S")]
-    )
+    assert has_cacheable_search_results([SearchResult(link="https://ok.com", title="OK", snippet="S")])
 
 
 @pytest.mark.asyncio
@@ -46,12 +44,8 @@ async def test_empty_search_results_are_not_ttl_cached() -> None:
 
     cache_key = "test:empty-not-cached:10:"
 
-    first = await await_coalesced_search(
-        cache_key, 10, 5, fetch, log_label="empty-first"
-    )
-    second = await await_coalesced_search(
-        cache_key, 10, 5, fetch, log_label="empty-second"
-    )
+    first = await await_coalesced_search(cache_key, 10, 5, fetch, log_label="empty-first")
+    second = await await_coalesced_search(cache_key, 10, 5, fetch, log_label="empty-second")
 
     assert first == []
     assert second == []
@@ -72,13 +66,9 @@ async def test_empty_search_results_still_coalesce_in_flight() -> None:
 
     cache_key = "test:empty-coalesce:10:"
 
-    first_task = asyncio.create_task(
-        await_coalesced_search(cache_key, 10, 5, fetch, log_label="empty-a")
-    )
+    first_task = asyncio.create_task(await_coalesced_search(cache_key, 10, 5, fetch, log_label="empty-a"))
     await asyncio.sleep(0.01)
-    second_task = asyncio.create_task(
-        await_coalesced_search(cache_key, 10, 5, fetch, log_label="empty-b")
-    )
+    second_task = asyncio.create_task(await_coalesced_search(cache_key, 10, 5, fetch, log_label="empty-b"))
     release.set()
 
     first, second = await asyncio.gather(first_task, second_task)
@@ -101,9 +91,7 @@ async def test_usable_search_results_remain_ttl_cached() -> None:
     cache_key = "test:usable-cached:10:"
 
     await await_coalesced_search(cache_key, 10, 5, fetch, log_label="usable-first")
-    results = await await_coalesced_search(
-        cache_key, 10, 5, fetch, log_label="usable-second"
-    )
+    results = await await_coalesced_search(cache_key, 10, 5, fetch, log_label="usable-second")
 
     assert call_count == 1
     assert len(results) == 1
@@ -129,15 +117,37 @@ async def test_error_only_search_results_are_not_ttl_cached() -> None:
 
     cache_key = "test:error-not-cached:10:"
 
-    first = await await_coalesced_search(
-        cache_key, 10, 5, fetch, log_label="error-first"
-    )
-    second = await await_coalesced_search(
-        cache_key, 10, 5, fetch, log_label="error-second"
-    )
+    first = await await_coalesced_search(cache_key, 10, 5, fetch, log_label="error-first")
+    second = await await_coalesced_search(cache_key, 10, 5, fetch, log_label="error-second")
 
     assert len(first) == 1
     assert first[0].is_error is True
     assert len(second) == 1
     assert call_count == 2
     assert sc._search_cache.get(cache_key) is None
+
+
+def test_cache_key_separates_credentials() -> None:
+    """A rotated key, or a second account, must not be served the first account's answer."""
+    good = build_search_cache_key("tavily", "forbidden city", 10, "", credential_fingerprint("good-key", None))
+    good_again = build_search_cache_key("tavily", "forbidden city", 10, "", credential_fingerprint("good-key", None))
+    rotated = build_search_cache_key("tavily", "forbidden city", 10, "", credential_fingerprint("bad-key", None))
+    other_base = build_search_cache_key(
+        "searxng", "forbidden city", 10, "", credential_fingerprint(None, "http://localhost:8081")
+    )
+    moved_base = build_search_cache_key(
+        "searxng", "forbidden city", 10, "", credential_fingerprint(None, "http://localhost:9999")
+    )
+
+    assert good == good_again
+    assert good != rotated
+    assert other_base != moved_base
+
+
+def test_credential_fingerprint_never_carries_the_secret() -> None:
+    secret = "tvly-dev-super-secret-value"
+    fingerprint = credential_fingerprint(secret, None)
+
+    assert secret not in fingerprint
+    assert len(fingerprint) == 16
+    assert credential_fingerprint(None, None) == credential_fingerprint("", "")

@@ -7,7 +7,7 @@ result caching, single-flight coalescing, and conversion to LangChain Documents.
 web_search.core.common::SearchResult (POS: Unified search result dataclass)
 web_search.core.error_handling::build_search_error_context, is_retryable_search_error (POS: Search error classification)
 web_search.core.exceptions::AllQueriesFailedError, ErrorContext, SearchAPIError (POS: Search exception types)
-web_search.coalescing.search_coalescing::await_coalesced_search, bucket_search_limit, build_search_cache_key (POS: Search cache coalescing)
+web_search.coalescing.search_coalescing::await_coalesced_search, bucket_search_limit, build_search_cache_key, credential_fingerprint (POS: Search cache coalescing)
 web_search.processing.search_results_processor::search_results_to_documents (POS: Search-result to Document converter)
 web_search.providers.search_service_factory::SearchService, build_search_service (POS: Provider client factory)
 
@@ -34,6 +34,7 @@ from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import 
     await_coalesced_search,
     bucket_search_limit,
     build_search_cache_key,
+    credential_fingerprint,
 )
 from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.core.error_handling import (
@@ -124,6 +125,17 @@ class WebSearcher:
             self._search_service = service
         return service
 
+    def _credential_fingerprint(self) -> str:
+        """Identity of the account a result is fetched and billed under.
+
+        Gateway routing authenticates with the gateway token against a gateway URL rather than
+        the provider's own key, so the routed identity is what the cache must separate.
+        """
+        gateway = self.config.gateway_config
+        if gateway is not None and gateway.use_gateway:
+            return credential_fingerprint(gateway.auth_token, gateway.gateway_url)
+        return credential_fingerprint(self.config.api_key, self.config.api_base)
+
     def _compute_search_total_timeout_seconds(self) -> float:
         if self.config.total_timeout_seconds is not None:
             return float(self.config.total_timeout_seconds)
@@ -186,6 +198,7 @@ class WebSearcher:
             query,
             bucketed_limit,
             extra_suffix,
+            self._credential_fingerprint(),
         )
 
         async def fetch() -> list[SearchResult]:

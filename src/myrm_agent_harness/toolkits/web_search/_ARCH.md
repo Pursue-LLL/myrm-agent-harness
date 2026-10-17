@@ -11,7 +11,7 @@ and the intent-aware search parameter optimizer.
 | [core/](core/_ARCH.md) | Core | Shared types, exceptions, error handling |
 | [providers/](providers/_ARCH.md) | Core | Provider adapters, WebSearcher orchestrator, failover chain |
 | [processing/](processing/_ARCH.md) | Core | Result dedup/sort, intent optimizer, citation resolver, explicit params |
-| [coalescing/](coalescing/_ARCH.md) | Core | Single-flight search API deduplication and LRU cache keys |
+| [coalescing/](coalescing/_ARCH.md) | Core | Single-flight search API deduplication and LRU cache keys scoped to the credential that produced the payload |
 | [probe/](probe/_ARCH.md) | Core | SearXNG local discovery probes and region presets |
 
 ## Package Root Files

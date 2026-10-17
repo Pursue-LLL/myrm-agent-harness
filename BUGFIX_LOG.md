@@ -2,6 +2,24 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-17-009 · 搜索结果缓存键不含凭据：换了密钥、换了账号或换了自托管地址，同一供应商同一查询在 15 分钟内照样返回上一个账号缓存的结果；就绪探测因此把刚换上的错误密钥判成「可用」，IM/语音/定时/看板/评测放行一个注定失败的搜索
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-17（对 `BUG-AGENT-2026-10-17-013` 的局限 ④ 回复「真的不会发生吗」：用真实 server 就绪判定与替身供应商复现，脚本放在 /tmp，没有入库） |
+| **修复时间** | 2026-10-17（本地提交，未 push） |
+| **严重程度** | P2：不丢数据，但「换了密钥就重探」是设置页与闸门共同的前提，缓存把它变成「最多 15 分钟内仍按旧凭据的结果作答」；用户把密钥换成错的、或换到另一个计费账号时，既看不到真实报错，还会继续按旧账号的结果作答 |
+| **症状** | ① 就绪探测：先以正确密钥探一次（`True`），立刻把密钥换成错的再探，仍判 `True`；把缓存清掉后同一错误密钥单独探才判 `False`（对照探针三个读数：`good=True`、`bad after good=True`、`bad alone=False`）。② 真实搜索：用户换密钥或换账号后，同一查询在 900 秒缓存窗口内返回的是上一个凭据抓到的结果，按新凭据计费一次都没发生。③ 自托管地址改变（SearXNG 换实例、换端口）同理复用旧实例的答案 |
+| **关联产品** | harness `toolkits/web_search/coalescing/search_coalescing.py`、`toolkits/web_search/providers/web_searcher.py`；server 就绪判定 `app/services/integrations/search_verify.py` 不再复用它跨凭据的判定，但本次改的是 harness 缓存本身，server 不改代码；`myrm-agent/BUGFIX_LOG.md` 的 `BUG-AGENT-2026-10-17-013` 局限 ④ 随之关闭 |
+| **根因** | `build_search_cache_key` 只用 `search_service:规范化的查询:结果档位:额外参数`（本条的 `coalescing/search_coalescing.py:63-69`），凭据不在键里；缓存是进程级、TTL 900 秒，于是「同一个供应商 + 同一个查询」在窗口内无论用哪把密钥、哪个账号、哪个自托管地址都命中同一条载荷。缓存用同一把密钥时是对的（这正是它的目的），跨凭据时就不成立：provider、账号与端点都可能对同一查询给出不同结果，而按量计费的调用也不该被另一凭据吃掉 |
+| **修复** | ① `search_coalescing.py` 新增 `credential_fingerprint(api_key, api_base)`：对 `api_key\0api_base` 取 `blake2b(digest_size=8)` 的十六进制摘要（16 字符），只把摘要进键，密钥原文不落键、不进日志；② `build_search_cache_key` 增加 `credential` 参数并置于供应商名之后；③ `WebSearcher._credential_fingerprint()` 提供该值：走网关时用网关令牌与网关地址（缓存必须按真正取回结果的身份分桶），否则用 `api_key` 与 `api_base`；④ `web_search/{_ARCH,providers/_ARCH,coalescing/_ARCH}.md` 三处描述跟上 |
+| **反复次数** | 第 1 次发现（同族：`BUG-HARNESS-2026-10-16-010` 让「密钥/端点更新不会立即复位供应商状态」，本条让「密钥/端点更新不会立即失效已缓存结果」，两处都已修） |
+| **踩坑** | ① 只加判定缓存（60 秒）的键是不够的：判定缓存早已按整链凭据分桶，是它下面那层 900 秒的结果缓存无视凭据，短缓存把长缓存的错误读数原样传了上来——查缓存类问题时要把每一层缓存的键都过一遍；② 不能把密钥原文写进键：键会出现在 INFO 级日志里（`Search cache hit: %s` 打的是查询词不是键，但键仍可能被其它路径序列化）；用摘要既保持分桶又不用换日志口径；③ 也不用把整个 `SearchServiceConfig.model_dump()` 进键：`from myrm_agent_harness.toolkits...coalescing.search_coalescing import SearchServiceConfig` 会形成回环（`web_searcher` 导入本模块），只传两个字段由调用方决定身份，避免为洁癖付结构性代价 |
+| **回归** | 先写红灯：`tests/toolkits/web_search/test_web_searcher.py::TestResultCacheCredentialScope::test_rotated_api_key_does_not_replay_the_old_payload`（换密钥必须重新取数、同密钥仍命中缓存）；`tests/toolkits/web_search/test_search_coalescing_cache.py` 新增 `test_cache_key_separates_credentials`（换密钥、换自托管地址各自换键，同凭据同键）与 `test_credential_fingerprint_never_carries_the_secret`（摘要不含密钥原文、空值与 `None` 等价）；server `tests/services/integrations/test_search_verify.py` 新增 `test_wrong_key_is_unavailable_even_right_after_a_good_key_was_probed` 与 `test_swapped_key_on_the_same_provider_is_probed_again`（都是真实就绪判定 + 替身供应商）。变异检查（临时把身份摘要换成常量，改完立即恢复并复核文件）：harness 用例 1 例变红、server 用例 2 例变红，其余全绿。修复后对照探针：`good=True`、`bad after good=False`、`bad alone=False`。回归：`tests/toolkits/web_search` 515 通过、8 未选；server `test_search_verify.py` 21 通过，连同 `test_config_parsers.py`、`test_config_loader.py`、`test_execute_preamble_early_exit.py` 共 97 通过；ruff check / format 对触碰的 4 个文件干净；本项两个源文件 mypy 干净；`scripts/check_file_line_limit.py` 对本目录无告警（`search_coalescing.py` 205 行、`web_searcher.py` 440 行） |
+| **局限** | ① 没有用真实供应商与真实换钥流程验证频率，所有读数来自替身供应商；② 换钥后旧载荷仍留在缓存里直到 TTL 到期（只是不再被命中），没有做主动清理；③ 摘要用 8 字节，理论上存在碰撞（同一进程 200 条缓存的规模下不可能实际发生），没有换成更长摘要；④ 只覆盖 `WebSearcher` 这一条缓存路径：同一进程里其它用 `search_service` 做键的缓存没有排查；⑤ 网关身份用的是 `auth_token` 与网关地址：真实网关按 VirtualKey 分租户，但没有在真实网关上验证过两个不同令牌会拿到不同结果 |
+| **代码位置** | `toolkits/web_search/coalescing/search_coalescing.py::credential_fingerprint`（`:65`）、`::build_search_cache_key`（`:77`）· `toolkits/web_search/providers/web_searcher.py::WebSearcher._credential_fingerprint`（`:128`）、`::search`（`:196-202`）· `tests/toolkits/web_search/test_search_coalescing_cache.py` · `tests/toolkits/web_search/test_web_searcher.py::TestResultCacheCredentialScope` |
+
 ### BUG-HARNESS-2026-10-17-008 · PDF 每页都写页码标记，抽取器把标记也算作文字：二十来页的空白或纯图片 PDF 被判成「有文字」，扫描件的文本是一串页码而不是空，OCR 被跳过，图片数没有页数上限
 
 | 字段 | 内容 |
