@@ -60,6 +60,12 @@ Protocol-first architecture with strict framework-business separation.
    `kanban_block` tool accepts an `until` param (ISO-8601 or duration shorthand like `30m`, `2h`)
    to create scheduled blocks. Frontend renders distinct icons per block kind and a live
    countdown for scheduled blocks.
+   `blocked_reason`, `block_kind` and `scheduled_until` describe one block, so they exist only
+   while `status == BLOCKED`: `kanban_unblock`, `kanban_cancel_task`, the in-memory store's
+   plan removal and its `transition_task_status` clear all three when a task leaves BLOCKED.
+   A `KanbanStore` implementation applies the same rule on every path that changes status
+   without saving a cleaned task object (`transition_task_status`, `revise_plan` removal),
+   or enforces it once where it writes rows (the server does this in its row mapping).
 
 5. **Chat session linkage**: When an orchestrator creates tasks from a chat session,
    `metadata.source_chat_id` is injected server-side (not exposed in LLM tool schema).

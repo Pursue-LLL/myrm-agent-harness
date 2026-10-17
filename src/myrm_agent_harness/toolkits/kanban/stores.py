@@ -131,14 +131,7 @@ class InMemoryKanbanStore(KanbanStore):
         *,
         status: TaskStatus | None = None,
     ) -> int:
-        count = 0
-        for t in self._tasks.values():
-            if t.board_id != board_id:
-                continue
-            if status is not None and t.status != status:
-                continue
-            count += 1
-        return count
+        return sum(1 for t in self._tasks.values() if t.board_id == board_id and (status is None or t.status == status))
 
     async def count_tasks_grouped(self, board_id: str) -> dict[str, int]:
         counts: dict[str, int] = {}
@@ -327,6 +320,7 @@ class InMemoryKanbanStore(KanbanStore):
                 t = self._tasks.get(item.task_id)
                 if t:
                     t.status = TaskStatus.ARCHIVED
+                    t.blocked_reason = t.block_kind = t.scheduled_until = None
                     t.completed_at = datetime.now(UTC)
                     t.updated_at = datetime.now(UTC)
                     removed_tids.append(t.task_id)
@@ -383,6 +377,8 @@ class InMemoryKanbanStore(KanbanStore):
         if task is None or task.status != expected_status:
             return None
         task.status = new_status
+        if new_status != TaskStatus.BLOCKED:
+            task.blocked_reason = task.block_kind = task.scheduled_until = None
         task.updated_at = datetime.now(UTC)
         return copy.deepcopy(task)
 

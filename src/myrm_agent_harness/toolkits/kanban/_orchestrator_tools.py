@@ -286,9 +286,7 @@ def build_orchestrator_tools(
         old_status = task.status
         if task.block_cycle_count >= block_limit:
             task.status = TaskStatus.TRIAGE
-            task.blocked_reason = None
-            task.block_kind = None
-            task.scheduled_until = None
+            task.blocked_reason = task.block_kind = task.scheduled_until = None
             task.consecutive_failures = 0
             task.error = f"Escalated to triage after {task.block_cycle_count} block cycles (limit {block_limit})"
             saved = await store.save_task(task)
@@ -316,9 +314,7 @@ def build_orchestrator_tools(
             )
 
         task.status = TaskStatus.READY
-        task.blocked_reason = None
-        task.block_kind = None
-        task.scheduled_until = None
+        task.blocked_reason = task.block_kind = task.scheduled_until = None
         task.consecutive_failures = 0
         task.error = ""
         if not await store.are_dependencies_met(task_id):
@@ -382,6 +378,7 @@ def build_orchestrator_tools(
 
         old_status = task.status
         task.status = TaskStatus.ARCHIVED
+        task.blocked_reason = task.block_kind = task.scheduled_until = None
         task.completed_at = datetime.now(UTC)
         saved = await store.save_task(task)
 

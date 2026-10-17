@@ -75,10 +75,9 @@ myrm_agent_harness/toolkits/cron/cron_agent_tools.py	870
 myrm_agent_harness/toolkits/cron/engine/executor.py	783
 myrm_agent_harness/toolkits/cron/manager.py	689
 myrm_agent_harness/toolkits/cron/types.py	506
-myrm_agent_harness/toolkits/kanban/_orchestrator_tools.py	578
+myrm_agent_harness/toolkits/kanban/_orchestrator_tools.py	575
 myrm_agent_harness/toolkits/kanban/dispatcher.py	687
 myrm_agent_harness/toolkits/kanban/protocols.py	539
-myrm_agent_harness/toolkits/kanban/stores.py	504
 myrm_agent_harness/toolkits/kanban/types.py	595
 myrm_agent_harness/toolkits/llms/adapters/chat_model/async_mixin.py	553
 myrm_agent_harness/toolkits/llms/adapters/chat_model/model.py	514
