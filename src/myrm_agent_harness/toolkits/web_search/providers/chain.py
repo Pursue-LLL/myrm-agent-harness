@@ -2,13 +2,15 @@
 
 [INPUT]
 - myrm_agent_harness.toolkits.web_search.providers.web_searcher::WebSearcher (POS: Web search orchestrator)
+- myrm_agent_harness.toolkits.web_search.providers.search_service_factory::describe_credential_scope (POS: Provider wiring for WebSearcher)
+- myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing::credential_fingerprint (POS: In-flight search request coalescing and cache-key helpers)
 - myrm_agent_harness.toolkits.web_search.core.error_handling::is_quota_or_rate_limit_error, is_persistent_quota_depleted_error
 
 [OUTPUT]
 - ProviderQuotaStatus: Enum of provider health states
-- ProviderQuotaState: Dataclass tracking individual provider status and cooldowns
+- ProviderQuotaState: Dataclass tracking the cooldown of one addressed scope (provider slug plus credential)
 - quota_tracker_key: Cooldown scope of a hop (provider slug + billed credential fingerprint)
-- ProviderQuotaTracker: Thread-safe in-memory tracker whose depleted and rate-limited states both expire after a cooldown
+- ProviderQuotaTracker: Thread-safe in-memory tracker of per-scope cooldowns whose depleted and rate-limited states both expire
 - default_quota_tracker: Default singleton instance of ProviderQuotaTracker
 - search_provider_chain: async failover search across priority-ordered provider configs with smart skip
 
@@ -65,40 +67,40 @@ class ProviderQuotaStatus(StrEnum):
 
 @dataclass
 class ProviderQuotaState:
-    """State snapshot for a specific provider."""
+    """Cooldown snapshot of one addressed scope: a provider slug together with its credential."""
 
     status: ProviderQuotaStatus = ProviderQuotaStatus.HEALTHY
-    unavailable_until: float = 0.0  # time.monotonic() deadline after which the provider is probed again
+    unavailable_until: float = 0.0  # time.monotonic() deadline after which the scope is probed again
     reason: str = ""
 
 
 class ProviderQuotaTracker:
-    """Thread-safe state machine tracking search provider quota depletion and transient throttling."""
+    """Thread-safe state machine tracking search quota depletion and transient throttling per cooldown scope."""
 
     def __init__(self) -> None:
         self._states: dict[str, ProviderQuotaState] = {}
         self._lock = threading.Lock()
 
-    def get_status(self, provider: str) -> tuple[ProviderQuotaStatus, str]:
-        """Check provider status; an elapsed cooldown drops the state so the provider is probed again."""
+    def get_status(self, scope: str) -> tuple[ProviderQuotaStatus, str]:
+        """Check the cooldown scope; an elapsed cooldown drops the state so the hop is probed again."""
         with self._lock:
-            state = self._states.get(provider)
+            state = self._states.get(scope)
             if state is None:
                 return ProviderQuotaStatus.HEALTHY, ""
             if time.monotonic() < state.unavailable_until:
                 return state.status, state.reason
-            del self._states[provider]
+            del self._states[scope]
             return ProviderQuotaStatus.HEALTHY, ""
 
     def mark_rate_limited(
         self,
-        provider: str,
+        scope: str,
         cooldown_seconds: float = _DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS,
         reason: str = "",
     ) -> None:
-        """Mark provider as transiently throttled with auto-recovery cooldown."""
+        """Mark a cooldown scope as transiently throttled with auto-recovery cooldown."""
         with self._lock:
-            self._states[provider] = ProviderQuotaState(
+            self._states[scope] = ProviderQuotaState(
                 status=ProviderQuotaStatus.RATE_LIMITED,
                 unavailable_until=time.monotonic() + cooldown_seconds,
                 reason=reason,
@@ -106,25 +108,25 @@ class ProviderQuotaTracker:
 
     def mark_depleted(
         self,
-        provider: str,
+        scope: str,
         reason: str = "",
         cooldown_seconds: float = _DEFAULT_DEPLETED_COOLDOWN_SECONDS,
     ) -> None:
-        """Mark provider as quota-exhausted until the cooldown elapses."""
+        """Mark a cooldown scope as quota-exhausted until the cooldown elapses."""
         with self._lock:
-            self._states[provider] = ProviderQuotaState(
+            self._states[scope] = ProviderQuotaState(
                 status=ProviderQuotaStatus.DEPLETED,
                 unavailable_until=time.monotonic() + cooldown_seconds,
                 reason=reason,
             )
 
-    def reset_provider(self, provider: str) -> None:
-        """Clear quota state for a specific provider."""
+    def reset_provider(self, scope: str) -> None:
+        """Clear the quota state of one cooldown scope."""
         with self._lock:
-            self._states.pop(provider, None)
+            self._states.pop(scope, None)
 
     def reset_all(self) -> None:
-        """Reset all tracked provider quota states."""
+        """Reset every tracked cooldown scope."""
         with self._lock:
             self._states.clear()
 
@@ -134,6 +136,9 @@ default_quota_tracker = ProviderQuotaTracker()
 
 def quota_tracker_key(config: SearchServiceConfig) -> str:
     """Cooldown scope of a hop: the provider slug plus the credential it is billed under.
+
+    Every cooldown recorded by :class:`ProviderQuotaTracker` is addressed by this key, so an already
+    benched credential keeps its state while a sibling key on the same slug stays eligible.
 
     A slug alone names a provider family, not an account. Several entries of one chain — a second
     paid key, or the replacement an operator installs right after a rejection — answer under the

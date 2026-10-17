@@ -1,7 +1,7 @@
 """Search provider adapters and orchestration.
 
 [INPUT]
-- providers.chain::search_provider_chain (POS: Priority-ordered provider chain runner)
+- providers.chain::search_provider_chain (POS: Executes N-provider priority chain with wall-clock budget, per-hop allowance for hung providers, hand-over on empty answers, and self-healing quota auto-skip; cooldowns are scoped per credential, never per provider slug)
 - providers.litellm_search::LiteLLMSearch (POS: LiteLLM unified search client, loaded on first access)
 - providers.web_searcher::WebSearcher, SearchServiceConfig, SearchServiceType (POS: Web search orchestrator)
 

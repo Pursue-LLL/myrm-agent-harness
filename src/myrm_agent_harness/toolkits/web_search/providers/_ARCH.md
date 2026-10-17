@@ -14,9 +14,11 @@ Search provider adapters, orchestration, and priority-ordered failover chain.
 | volcengine_doubao_search.py | Core | Volcengine Search Infinity native adapter | ✅ |
 | bilibili_search.py | Core | Bilibili search fast-path via public API | ✅ |
 | github_code_search.py | Core | GitHub code search fast-path via public REST API with rate-limit circuit breaker | ✅ |
-| chain.py | Core | Priority-ordered provider chain runner: any failed hop or empty result list advances to the next provider within a wall-clock budget (all providers empty ends as an empty answer, not an error), and every hop but the last yields after half of the remaining budget so a hung provider cannot starve the rest; quota and rate-limit failures also cool the hop down in a ProviderQuotaTracker whose depleted and rate-limited states both expire, scoped by provider slug plus the credential fingerprint the hop is billed under so one exhausted account never benches a sibling key or a replacement key on the same slug | ✅ |
+| chain.py | Core | Priority-ordered provider chain runner: any failed hop or empty result list advances to the next provider within a wall-clock budget (all providers empty ends as an empty answer, not an error), and every hop but the last yields after half of the remaining budget so a hung provider cannot starve the rest; quota and rate-limit failures cool the hop down under `quota_tracker_key` (provider slug plus credential fingerprint) whose depleted and rate-limited states both expire, so one exhausted account never benches a sibling key or a replacement key on the same slug | ✅ |
 
 ## Dependencies
 
 - `web_search.core.common`, `web_search.core.error_handling`, `web_search.core.exceptions`
-- `web_search.coalescing`, `web_search.processing`
+- `web_search.providers.search_service_factory` (credential scope of a hop)
+- `web_search.coalescing` (credential fingerprint of that scope)
+- `web_search.processing`
