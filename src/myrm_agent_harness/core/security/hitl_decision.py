@@ -70,16 +70,22 @@ def is_approved(user_response: object) -> bool:
 def rejection_feedback(user_response: object) -> str:
     """The human's own reason for a denial, when they gave one.
 
-    The IM ``/deny <reason>`` sender always fills ``feedback`` with its own generic line
-    (``Denied via <channel> channel command``) and puts the person's words in ``guidance``,
-    so ``guidance`` is read first; ``feedback`` is the fallback for every other client,
-    which sends no ``guidance``.
+    Reads the two shapes the product's clients produce: one decision for the whole pause
+    (``{"decision": "reject", "feedback" | "guidance": "<words>"}``) and one decision per
+    requested item (``{"decisions": [{"type": "reject", ...}, ...]}``, first entry with words).
+
+    ``guidance`` is read first — the IM ``/deny <reason>`` sender always fills ``feedback``
+    with its own generic line (``Denied via <channel> channel command``) and puts the
+    person's words in ``guidance`` — and ``feedback`` is the fallback for every other client,
+    which sends no ``guidance``. Blank and whitespace-only values are not a reason: they never
+    reach the model, and a ``guidance`` of only spaces falls through to the real ``feedback``.
     """
     if not isinstance(user_response, Mapping):
         return ""
     for key in ("guidance", "feedback"):
-        text = user_response.get(key)
-        if isinstance(text, str) and text:
+        value = user_response.get(key)
+        text = value.strip() if isinstance(value, str) else ""
+        if text:
             return text
     for entry in _batch_entries(user_response) or ():
         text = rejection_feedback(entry)

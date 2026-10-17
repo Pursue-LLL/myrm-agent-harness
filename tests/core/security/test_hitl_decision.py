@@ -111,7 +111,7 @@ def test_every_approve_word_is_a_lowercase_token() -> None:
             "stop touching prod",
         ),
         ({"decision": "reject", "guidance": "", "feedback": "the real reason"}, "the real reason"),
-        ({"decision": "reject", "guidance": "  "}, "  "),
+        ({"decision": "reject", "guidance": "  "}, ""),
         ({"decisions": [{"type": "reject"}, {"type": "reject", "feedback": "second reason"}]}, "second reason"),
         ({"decision": "reject"}, ""),
         (IM_APPROVE, ""),
@@ -120,4 +120,27 @@ def test_every_approve_word_is_a_lowercase_token() -> None:
     ],
 )
 def test_rejection_feedback_reads_the_human_words(answer: object, expected: str) -> None:
+    assert rejection_feedback(answer) == expected
+
+
+@pytest.mark.parametrize(
+    ("answer", "expected"),
+    [
+        # Whitespace is not a reason: a blank ``guidance`` falls through to the real ``feedback``.
+        ({"decision": "reject", "guidance": "  ", "feedback": "the real reason"}, "the real reason"),
+        # Both blank: nothing to pass on, so the key is left out of the refusal entirely.
+        ({"decision": "reject", "guidance": "  ", "feedback": "\t\n "}, ""),
+        ({"decision": "reject", "feedback": "\n"}, ""),
+        # A batch entry with no words falls through to the next entry that has some.
+        (
+            {"decisions": [{"type": "reject", "feedback": "   "}, {"type": "reject", "feedback": "second reason"}]},
+            "second reason",
+        ),
+        # Surrounding whitespace never reaches the model.
+        ({"decision": "reject", "feedback": "  split it in two  "}, "split it in two"),
+        ({"decision": "reject", "guidance": "\tuse the REST API\n"}, "use the REST API"),
+    ],
+)
+def test_whitespace_only_feedback_is_not_a_reason(answer: object, expected: str) -> None:
+    """A gate writes the field only when there is a reason; a blank string is not one."""
     assert rejection_feedback(answer) == expected
