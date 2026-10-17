@@ -6,9 +6,9 @@ is that reading. It owns both wrapper tables so they cannot drift apart:
 
 - ``TRANSPARENT_WRAPPERS`` (``command``, ``time``, ``timeout``) and ``unwrap_transparent_wrapper`` are read in
   *both* directions, since they run the command after them and nothing else;
-- ``peel_deny_wrapper`` reads the prefixes that only the deny, ask and destructive directions may look
-  through. Letting those widen an allow rule is precisely how a deny rule gets lifted: ``timeout 30 *`` would
-  vouch for ``timeout 30 rm -rf /``, and ``sudo *`` for ``sudo rm -rf /``.
+- the remaining prefixes (``sudo``, ``nohup``, ``env``, ``setsid``, ``xargs``, ...) are read through by the
+  deny, ask and destructive directions only. Letting them widen an allow rule is precisely how a deny rule
+  gets lifted: ``timeout 30 *`` would vouch for ``timeout 30 rm -rf /``, and ``sudo *`` for ``sudo rm -rf /``.
 
 [INPUT]
 - The resolved words of one command (``core.security.shell_command_lexer.shell_words``), or its raw text.
@@ -16,8 +16,6 @@ is that reading. It owns both wrapper tables so they cannot drift apart:
 [OUTPUT]
 - TRANSPARENT_WRAPPERS / unwrap_transparent_wrapper: the allow-direction reading of ``command``, ``time``,
   ``timeout``.
-- peel_deny_wrapper: the words the deny-direction prefix in front of a command hands control to.
-- shell_script_of: the script text a shell ``-c`` form or ``eval`` runs as its own command line.
 - substitution_bodies: the command text inside each ``$(...)`` and backtick the shell would run.
 - direct_command_readings: the commands one line hands control to in one step — the command at the bottom of
   the prefix chain, a ``-c`` script or ``eval``, a substitution body. The chain is peeled with an index, so
@@ -299,29 +297,13 @@ def _peel_transparent_index(words: Sequence[str], start: int) -> int | None:
     return _transparent_inner(words, rest + 1, base)
 
 
-def peel_deny_wrapper(words: Sequence[str]) -> list[str] | None:
-    """The words the deny-direction prefix in *words* hands control to.
+def _shell_script_index(words: Sequence[str], start: int) -> str | None:
+    """The script text the shell ``-c`` form or ``eval`` at *start* runs as its own command line.
 
-    ``[]`` means the prefix runs no command (``env -0``, a bare ``sudo``). None means the command is already
-    read as written: no prefix, no leading assignment, or a form that is not understood. Leading
-    ``NAME=value`` words are read through as well, since ``A=1 rm -rf /`` runs ``rm -rf /``.
-    """
-    index = _peel_deny_index(words, 0)
-    return None if index is None else list(words[index:])
-
-
-def shell_script_of(words: Sequence[str]) -> str | None:
-    """The script text a shell ``-c`` form or ``eval`` runs as its own command line.
-
-    None means *words* is not such a form, or names a script file whose text this layer cannot read. A shell
+    None means the form is not such a one, or names a script file whose text this layer cannot read. A shell
     that gets no ``-c`` reads a file or a standard input stream, and ``eval`` joins its arguments, so the
     returned text is what the shell itself would parse next.
     """
-    return _shell_script_index(words, 0)
-
-
-def _shell_script_index(words: Sequence[str], start: int) -> str | None:
-    """The script text the ``-c`` form or ``eval`` at *start* runs, by the same rules as :func:`shell_script_of`."""
     rest = _assignment_end(words, start)
     if rest >= len(words):
         return None
