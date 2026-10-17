@@ -7,7 +7,7 @@
 
 [POS]
 Guards which client a config yields, which credentials are mandatory, and that a half-configured gateway is
-rejected as a config error instead of surfacing as an AttributeError or an unauthenticated request.
+rejected as a config error.
 """
 
 import pytest

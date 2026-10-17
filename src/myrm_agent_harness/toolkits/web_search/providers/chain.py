@@ -140,8 +140,8 @@ async def search_provider_chain(
     Any hop that gives no answer (quota, rate limit, outage, bad credentials, no reply in time, or an empty result
     list) advances to the next provider until the chain's wall-clock budget is spent; only quota and rate-limit
     failures also put the provider on a cooldown. A hop that has not answered after half of the remaining budget is
-    abandoned unless it is the last one. When no provider produces results but one answered with an empty list, that
-    empty answer is returned instead of an error.
+    abandoned unless it is the last one. When no provider produces results but one answered with an empty list, the
+    chain returns that empty answer and raises only when every provider failed.
 
     Returns:
         Tuple of (results, provider slug that produced them).
