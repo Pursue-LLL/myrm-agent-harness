@@ -399,6 +399,7 @@ class TestProviderChain:
         from myrm_agent_harness.toolkits.web_search.providers.chain import (
             ProviderQuotaStatus,
             default_quota_tracker,
+            quota_tracker_key,
         )
 
         cfg = self._chain_config(
@@ -429,10 +430,11 @@ class TestProviderChain:
 
         assert len(results) == 1
         assert results[0].title == "Fallback"
-        # A quota failure is not retried within the hop, and it parks the provider for later searches.
+        # A quota failure is not retried within the hop, and it parks the credential for later searches.
         primary_service.search.assert_awaited_once()
         fallback_service.search.assert_awaited_once()
-        assert default_quota_tracker.get_status("tavily")[0] == ProviderQuotaStatus.DEPLETED
+        scoped_key = quota_tracker_key(SearchServiceConfig(search_service="tavily", api_key="tvly-key"))
+        assert default_quota_tracker.get_status(scoped_key)[0] == ProviderQuotaStatus.DEPLETED
 
     @pytest.mark.asyncio
     async def test_primary_invalid_key_chain_succeeds(self):
@@ -512,6 +514,7 @@ class TestProviderChain:
         from myrm_agent_harness.toolkits.web_search.providers.chain import (
             ProviderQuotaStatus,
             default_quota_tracker,
+            quota_tracker_key,
         )
 
         cfg = self._chain_config(
@@ -539,7 +542,8 @@ class TestProviderChain:
         assert primary_service.search.await_count == 3  # the provider's own retries run before the chain hops
         fallback_service.search.assert_awaited_once()
         # An outage, even for a query that mentions quotas or 429, is not a quota event.
-        assert default_quota_tracker.get_status("tavily")[0] == ProviderQuotaStatus.HEALTHY
+        healthy_key = quota_tracker_key(SearchServiceConfig(search_service="tavily", api_key="tvly-key"))
+        assert default_quota_tracker.get_status(healthy_key)[0] == ProviderQuotaStatus.HEALTHY
 
     @pytest.mark.asyncio
     async def test_chain_tries_hops_in_order(self):

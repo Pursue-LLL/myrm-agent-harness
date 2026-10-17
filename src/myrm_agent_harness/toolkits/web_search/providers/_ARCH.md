@@ -14,7 +14,7 @@ Search provider adapters, orchestration, and priority-ordered failover chain.
 | volcengine_doubao_search.py | Core | Volcengine Search Infinity native adapter | ✅ |
 | bilibili_search.py | Core | Bilibili search fast-path via public API | ✅ |
 | github_code_search.py | Core | GitHub code search fast-path via public REST API with rate-limit circuit breaker | ✅ |
-| chain.py | Core | Priority-ordered provider chain runner: any failed hop or empty result list advances to the next provider within a wall-clock budget (all providers empty ends as an empty answer, not an error), and every hop but the last yields after half of the remaining budget so a hung provider cannot starve the rest; quota and rate-limit failures also cool the provider down in a ProviderQuotaTracker whose depleted and rate-limited states both expire | ✅ |
+| chain.py | Core | Priority-ordered provider chain runner: any failed hop or empty result list advances to the next provider within a wall-clock budget (all providers empty ends as an empty answer, not an error), and every hop but the last yields after half of the remaining budget so a hung provider cannot starve the rest; quota and rate-limit failures also cool the hop down in a ProviderQuotaTracker whose depleted and rate-limited states both expire, scoped by provider slug plus the credential fingerprint the hop is billed under so one exhausted account never benches a sibling key or a replacement key on the same slug | ✅ |
 
 ## Dependencies
 

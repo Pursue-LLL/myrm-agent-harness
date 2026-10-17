@@ -20,6 +20,7 @@ from myrm_agent_harness.toolkits.web_search.providers.chain import (
     _DEFAULT_DEPLETED_COOLDOWN_SECONDS,
     ProviderQuotaStatus,
     ProviderQuotaTracker,
+    quota_tracker_key,
     search_provider_chain,
 )
 from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
@@ -33,6 +34,11 @@ def _two_provider_chain() -> list[SearchServiceConfig]:
         SearchServiceConfig(search_service="tavily", api_key="tvly-key"),
         SearchServiceConfig(search_service="perplexity", api_key="pplx-key"),
     ]
+
+
+def _key(slug: str, api_key: str) -> str:
+    """Cooldown scope of the ``slug`` hop configured with ``api_key`` in :func:`_two_provider_chain`."""
+    return quota_tracker_key(SearchServiceConfig(search_service=slug, api_key=api_key))
 
 
 def _install_search(monkeypatch: pytest.MonkeyPatch, failures: dict[str, Exception]) -> list[str]:
@@ -192,16 +198,16 @@ def fake_clock(monkeypatch: pytest.MonkeyPatch) -> _FakeClock:
 
 def test_depleted_provider_recovers_after_cooldown(fake_clock: _FakeClock) -> None:
     tracker = ProviderQuotaTracker()
-    tracker.mark_depleted("tavily", reason="plan limit exceeded")
+    tracker.mark_depleted(_key("tavily", "tvly-key"), reason="plan limit exceeded")
 
     fake_clock.advance(_DEFAULT_DEPLETED_COOLDOWN_SECONDS - 1)
-    assert tracker.get_status("tavily") == (ProviderQuotaStatus.DEPLETED, "plan limit exceeded")
+    assert tracker.get_status(_key("tavily", "tvly-key")) == (ProviderQuotaStatus.DEPLETED, "plan limit exceeded")
 
     fake_clock.advance(1)
-    assert tracker.get_status("tavily") == (ProviderQuotaStatus.HEALTHY, "")
+    assert tracker.get_status(_key("tavily", "tvly-key")) == (ProviderQuotaStatus.HEALTHY, "")
 
-    tracker.mark_depleted("tavily", reason="still exhausted")
-    assert tracker.get_status("tavily") == (ProviderQuotaStatus.DEPLETED, "still exhausted")
+    tracker.mark_depleted(_key("tavily", "tvly-key"), reason="still exhausted")
+    assert tracker.get_status(_key("tavily", "tvly-key")) == (ProviderQuotaStatus.DEPLETED, "still exhausted")
 
 
 def test_rate_limited_provider_recovers_after_cooldown(fake_clock: _FakeClock) -> None:
@@ -221,7 +227,7 @@ async def test_chain_probes_depleted_primary_again_after_cooldown(
 ) -> None:
     chain = _two_provider_chain()
     tracker = ProviderQuotaTracker()
-    tracker.mark_depleted("tavily", reason="plan limit exceeded")
+    tracker.mark_depleted(_key("tavily", "tvly-key"), reason="plan limit exceeded")
     _install_search(monkeypatch, {})
 
     _, winner = await search_provider_chain(chain, "q", 5, quota_tracker=tracker)
@@ -284,7 +290,7 @@ async def test_chain_hops_past_a_provider_outage(monkeypatch: pytest.MonkeyPatch
     assert winner == "perplexity"
     assert calls == ["tavily", "perplexity"]
     # An outage is not a quota event: the provider stays eligible for the very next call.
-    assert tracker.get_status("tavily") == (ProviderQuotaStatus.HEALTHY, "")
+    assert tracker.get_status(_key("tavily", "tvly-key")) == (ProviderQuotaStatus.HEALTHY, "")
 
 
 @pytest.mark.asyncio
@@ -351,7 +357,7 @@ async def test_outage_on_a_keyword_query_does_not_blacklist_the_provider(
     tracker = ProviderQuotaTracker()
 
     await search_provider_chain(_two_provider_chain(), query, 5, quota_tracker=tracker)
-    assert tracker.get_status("tavily") == (ProviderQuotaStatus.HEALTHY, "")
+    assert tracker.get_status(_key("tavily", "tvly-key")) == (ProviderQuotaStatus.HEALTHY, "")
 
     failures.clear()  # the outage ends; an unrelated query must reach the primary again
     _, winner = await search_provider_chain(_two_provider_chain(), "weather", 5, quota_tracker=tracker)
@@ -372,4 +378,4 @@ async def test_quota_failure_still_puts_the_provider_on_cooldown(monkeypatch: py
     _, winner = await search_provider_chain(_two_provider_chain(), "weather", 5, quota_tracker=tracker)
 
     assert winner == "perplexity"
-    assert tracker.get_status("tavily")[0] == ProviderQuotaStatus.DEPLETED
+    assert tracker.get_status(_key("tavily", "tvly-key"))[0] == ProviderQuotaStatus.DEPLETED

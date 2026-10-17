@@ -16,6 +16,7 @@ from myrm_agent_harness.toolkits.web_search.providers import chain as chain_modu
 from myrm_agent_harness.toolkits.web_search.providers.chain import (
     ProviderQuotaStatus,
     ProviderQuotaTracker,
+    quota_tracker_key,
     search_provider_chain,
 )
 from myrm_agent_harness.toolkits.web_search.providers.web_searcher import SearchServiceConfig, WebSearcher
@@ -23,6 +24,11 @@ from myrm_agent_harness.toolkits.web_search.providers.web_searcher import Search
 
 def _chain(*providers: str) -> list[SearchServiceConfig]:
     return [SearchServiceConfig(search_service=slug, api_key="key") for slug in providers]
+
+
+def _key(slug: str) -> str:
+    """Cooldown scope of a :func:`_chain` hop, which configures ``slug`` with the shared key ``"key"``."""
+    return quota_tracker_key(SearchServiceConfig(search_service=slug, api_key="key"))
 
 
 def _answer(provider: str, query: str) -> list[SearchResult]:
@@ -61,7 +67,7 @@ async def test_empty_head_hands_over_to_the_next_provider(monkeypatch: pytest.Mo
     assert winner == "brave" and results
     assert calls == ["searxng", "brave"]
     # No results is a property of the query as much as of the provider, so it never puts the provider on cooldown.
-    assert tracker.get_status("searxng") == (ProviderQuotaStatus.HEALTHY, "")
+    assert tracker.get_status(_key("searxng")) == (ProviderQuotaStatus.HEALTHY, "")
 
 
 @pytest.mark.asyncio

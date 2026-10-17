@@ -7,13 +7,14 @@
 [OUTPUT]
 - ProviderQuotaStatus: Enum of provider health states
 - ProviderQuotaState: Dataclass tracking individual provider status and cooldowns
+- quota_tracker_key: Cooldown scope of a hop (provider slug + billed credential fingerprint)
 - ProviderQuotaTracker: Thread-safe in-memory tracker whose depleted and rate-limited states both expire after a cooldown
 - default_quota_tracker: Default singleton instance of ProviderQuotaTracker
 - search_provider_chain: async failover search across priority-ordered provider configs with smart skip
 
 [POS]
 Executes N-provider priority chain with wall-clock budget, per-hop allowance for hung providers, hand-over on empty
-answers, and self-healing quota auto-skip.
+answers, and self-healing quota auto-skip. Cooldowns are scoped per credential, never per provider slug.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import credential_fingerprint
 from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     is_persistent_quota_depleted_error,
     is_quota_or_rate_limit_error,
@@ -33,6 +35,9 @@ from myrm_agent_harness.toolkits.web_search.core.error_handling import (
 from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     AllQueriesFailedError,
     SearchAPIError,
+)
+from myrm_agent_harness.toolkits.web_search.providers.search_service_factory import (
+    describe_credential_scope,
 )
 
 if TYPE_CHECKING:
@@ -127,6 +132,17 @@ class ProviderQuotaTracker:
 default_quota_tracker = ProviderQuotaTracker()
 
 
+def quota_tracker_key(config: SearchServiceConfig) -> str:
+    """Cooldown scope of a hop: the provider slug plus the credential it is billed under.
+
+    A slug alone names a provider family, not an account. Several entries of one chain — a second
+    paid key, or the replacement an operator installs right after a rejection — answer under the
+    same slug, so benching the slug would bench credentials that never failed and push traffic to
+    lower-priority providers. The fingerprint keeps the scope stable and does not carry the secret.
+    """
+    return f"{config.search_service}:{credential_fingerprint(describe_credential_scope(config))}"
+
+
 async def search_provider_chain(
     chain: list[SearchServiceConfig],
     query: str,
@@ -139,9 +155,9 @@ async def search_provider_chain(
 
     Any hop that gives no answer (quota, rate limit, outage, bad credentials, no reply in time, or an empty result
     list) advances to the next provider until the chain's wall-clock budget is spent; only quota and rate-limit
-    failures also put the provider on a cooldown. A hop that has not answered after half of the remaining budget is
-    abandoned unless it is the last one. When no provider produces results but one answered with an empty list, the
-    chain returns that empty answer and raises only when every provider failed.
+    failures also put that hop's credential on a cooldown. A hop that has not answered after half of the remaining
+    budget is abandoned unless it is the last one. When no provider produces results but one answered with an empty
+    list, the chain returns that empty answer and raises only when every provider failed.
 
     Returns:
         Tuple of (results, provider slug that produced them).
@@ -160,7 +176,7 @@ async def search_provider_chain(
     skipped_providers: list[tuple[str, str]] = []
 
     for config in chain:
-        status, reason = tracker.get_status(config.search_service)
+        status, reason = tracker.get_status(quota_tracker_key(config))
         if status in (ProviderQuotaStatus.DEPLETED, ProviderQuotaStatus.RATE_LIMITED):
             skipped_providers.append((config.search_service, f"{status.value}: {reason}"))
         else:
@@ -191,6 +207,7 @@ async def search_provider_chain(
                 "Search chain hop '%s' gave no answer, trying next provider: %s", previous_provider, provider
             )
         hop_searcher = WebSearcher(hop_config)
+        tracker_key = quota_tracker_key(hop_config)
         # A hung hop would otherwise outlast the whole budget (its coalescing wait and retries add up to more than
         # the chain allows) and no later provider would ever run, so every hop but the last yields after half of what
         # remains. The last hop has nobody to hand over to; capping it would only add a doomed extra request.
@@ -212,14 +229,14 @@ async def search_provider_chain(
                     provider,
                     exc,
                 )
-                tracker.mark_depleted(provider, reason=str(exc))
+                tracker.mark_depleted(tracker_key, reason=str(exc))
             elif is_quota_or_rate_limit_error(exc):
                 logger.warning(
                     "Search provider '%s' transient rate limit hit, cooling down: %s",
                     provider,
                     exc,
                 )
-                tracker.mark_rate_limited(provider, reason=str(exc))
+                tracker.mark_rate_limited(tracker_key, reason=str(exc))
         else:
             if results:
                 return results, provider
