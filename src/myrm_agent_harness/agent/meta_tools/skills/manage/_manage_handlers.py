@@ -269,6 +269,26 @@ async def _handle_evolution_lock(name: str, *, locked: bool) -> str:
         return f"Error: Failed to {action_word} skill '{name}': {e}"
 
 
+def _evolution_lock_state(name: str) -> bool | None:
+    """Whether the skill is evolution-locked right now; None when the evolution store is off or does not know it.
+
+    A batch reads this before it changes a lock, so that a failed batch can put the lock back as it found it.
+    """
+    try:
+        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
+            get_global_evolution_integration,
+        )
+
+        evolution = get_global_evolution_integration()
+        if not evolution or not evolution.store:
+            return None
+        skill = evolution.store.get_skill(name)
+    except Exception:
+        logger.warning("Could not read the evolution lock of skill '%s'.", name, exc_info=True)
+        return None
+    return None if skill is None else skill.evolution_locked
+
+
 # ---------------------------------------------------------------------------
 # Validation helpers
 # ---------------------------------------------------------------------------
