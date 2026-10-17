@@ -61,8 +61,9 @@ Protocol-first architecture with strict framework-business separation.
    to create scheduled blocks. Frontend renders distinct icons per block kind and a live
    countdown for scheduled blocks.
    `blocked_reason`, `block_kind` and `scheduled_until` describe one block, so they exist only
-   while `status == BLOCKED`: `kanban_unblock`, `kanban_cancel_task`, the in-memory store's
-   plan removal and its `transition_task_status` clear all three when a task leaves BLOCKED.
+   while `status == BLOCKED`: `kanban_unblock`, `kanban_cancel_task`, the scheduled wake-up,
+   the dispatcher's manual `reclaim_task`, the in-memory store's plan removal and its
+   `transition_task_status` clear all three when a task leaves BLOCKED.
    A `KanbanStore` implementation applies the same rule on every path that changes status
    without saving a cleaned task object (`transition_task_status`, `revise_plan` removal),
    or enforces it once where it writes rows (the server does this in its row mapping).

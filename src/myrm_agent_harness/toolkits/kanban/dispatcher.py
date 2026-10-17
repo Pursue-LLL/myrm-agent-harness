@@ -227,8 +227,8 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
         task.status = TaskStatus.READY
         task.consecutive_failures = 0
         task.error = ""
-        task.last_heartbeat_at = None
-        task.progress_note = None
+        task.last_heartbeat_at = task.progress_note = None
+        task.blocked_reason = task.block_kind = task.scheduled_until = None
         await self._store.save_task(task)
         await self._store.append_event(
             task_id,

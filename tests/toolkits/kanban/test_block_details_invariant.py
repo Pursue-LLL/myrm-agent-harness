@@ -1,18 +1,20 @@
 """Block details (reason, kind, wake-up time) exist only while a task is BLOCKED.
 
-Every way the toolkit takes a task out of BLOCKED must drop the three fields, whichever store persists the task: the
-orchestrator's unblock and cancel tools, a plan revision that removes the task, and the store's status-transition
-primitive. A task that is ready again or archived must not keep a reason or a countdown for a block that no longer
-exists.
+Each way the toolkit takes a task out of BLOCKED pinned here must drop the three fields, whichever store persists the
+task: the orchestrator's unblock and cancel tools, a plan revision that removes the task, the store's
+status-transition primitive, and a manual reclaim by the dispatcher. A task that is ready again or archived must not
+keep a reason or a countdown for a block that no longer exists.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from myrm_agent_harness.toolkits.kanban.dispatcher import KanbanDispatcher
 from myrm_agent_harness.toolkits.kanban.kanban_agent_tools import create_kanban_tools
 from myrm_agent_harness.toolkits.kanban.protocols import PlanRevisionSpec, TaskRevisionItem
 from myrm_agent_harness.toolkits.kanban.stores import InMemoryKanbanStore
@@ -149,3 +151,32 @@ class TestInMemoryStoreExits:
         assert moved.status is TaskStatus.BLOCKED
         assert (moved.blocked_reason, moved.block_kind) == (_REASON, BlockKind.SCHEDULED)
         assert moved.scheduled_until is not None
+
+
+class TestDispatcherManualReclaim:
+    async def test_reclaiming_a_task_that_blocked_itself_mid_run_drops_block_details(
+        self, store: InMemoryKanbanStore
+    ) -> None:
+        started = asyncio.Event()
+
+        class _BlockingRunner:
+            async def run(self, task: KanbanTask) -> tuple[bool, str]:
+                started.set()
+                await asyncio.sleep(60)
+                return True, "done"
+
+        board = await store.get_board("b1")
+        assert board is not None
+        await store.save_task(KanbanTask(task_id="t1", board_id="b1", title="Task t1", status=TaskStatus.READY))
+        dispatcher = KanbanDispatcher(store, _BlockingRunner(), board)
+        await dispatcher.start()
+        try:
+            await started.wait()
+            # The worker's kanban_block call blocks the task while its run is still executing.
+            await _save_task(store, "t1", TaskStatus.BLOCKED)
+
+            assert await dispatcher.reclaim_task("t1") is True
+
+            assert await _stored_block_details(store, "t1") == (None, None, None)
+        finally:
+            await dispatcher.stop()
