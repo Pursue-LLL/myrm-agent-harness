@@ -38,7 +38,7 @@ from .helpers import add_to_allowlist_if_needed, record_approval, record_denial
 logger = logging.getLogger(__name__)
 
 
-def _integration_mutation_blocks_allow_always(tool_call: dict[str, object]) -> bool:
+def _integration_mutation_blocks_allow_always(tool_call: ToolCall | dict[str, object]) -> bool:
     raw_args = tool_call.get("args", {})
     if not isinstance(raw_args, dict):
         return False
@@ -53,7 +53,7 @@ def _integration_mutation_blocks_allow_always(tool_call: dict[str, object]) -> b
 
 
 def _should_block_allow_always(
-    tool_call: dict[str, object],
+    tool_call: ToolCall | dict[str, object],
     extra_ctx: dict[str, Any] | None,
 ) -> bool:
     """Unified guard: returns True when allowAlways must be blocked."""
@@ -97,7 +97,7 @@ def _should_block_allow_always(
 
 
 async def _try_add_to_allowlist(
-    tool_call: dict[str, object],
+    tool_call: ToolCall | dict[str, object],
     extra_ctx: dict[str, Any] | None,
     allow_always: bool | dict[str, bool],
     permission_type: str,
@@ -316,7 +316,7 @@ def build_interrupt_payload(
     expires_at = time.time() + effective_timeout
     request_id = str(uuid.uuid4())
 
-    payload = {
+    payload: dict[str, Any] = {
         "actionRequests": action_requests,
         "reviewConfigs": review_configs,
         "extensions": {
