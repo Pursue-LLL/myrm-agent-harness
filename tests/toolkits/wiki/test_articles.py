@@ -89,9 +89,8 @@ async def test_an_article_the_publish_scan_refused_is_a_permanent_safety_block(p
     )
 
     assert [
-        (f.name, f.source_files, f.resolution.error_kind, f.resolution.retryable, f.resolution.counts_toward_pause)
-        for f in stats.failures
-    ] == [("leaky", ("a.md", "b.md"), ErrorKind.SAFETY_BLOCK.value, False, False)]
+        (f.name, f.source_files, f.resolution.error_kind, f.resolution.retry_after_seconds) for f in stats.failures
+    ] == [("leaky", ("a.md", "b.md"), ErrorKind.SAFETY_BLOCK.value, 0)]
     assert (stats.generated, stats.blocked) == (0, 1)
 
 

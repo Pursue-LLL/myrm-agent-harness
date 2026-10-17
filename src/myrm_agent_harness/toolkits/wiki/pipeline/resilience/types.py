@@ -5,7 +5,7 @@
 
 [OUTPUT]
 - CompileRunSnapshot: vault-scoped compile worker circuit snapshot
-- FailureResolution: per-item retry/pause policy result
+- FailureResolution: the error kind a queue row is failed with and the backoff the worker waits before retrying it
 
 [POS]
 Wiki compile resilience types. DTOs shared by queue, compiler, and server API mapping.
@@ -35,9 +35,7 @@ class CompileRunSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class FailureResolution:
-    """Resolved failure policy for a single queue item."""
+    """The error kind a queue row is failed with and the backoff the worker waits before retrying it."""
 
     error_kind: str
-    retryable: bool
-    counts_toward_pause: bool
     retry_after_seconds: int = 0

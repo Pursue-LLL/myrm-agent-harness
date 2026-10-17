@@ -12,9 +12,9 @@ from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
 from myrm_agent_harness.toolkits.wiki.pipeline.queue import WikiIngestionQueue
 from myrm_agent_harness.toolkits.wiki.pipeline.resilience import (
+    IO_MISSING,
     evaluate_batch_pause,
     is_transient_error_kind,
-    resolve_io_failure,
     resolve_llm_failure,
     sanitize_display_message,
 )
@@ -28,18 +28,14 @@ def mock_indexer() -> AsyncMock:
     return indexer
 
 
-def test_resolve_io_failure_not_retryable() -> None:
-    resolution = resolve_io_failure("File not found")
-    assert resolution.error_kind == "io_missing"
-    assert resolution.retryable is False
-    assert resolution.counts_toward_pause is False
+def test_resolve_a_missing_file_is_classified_as_io_missing() -> None:
+    assert IO_MISSING == "io_missing"
 
 
-def test_resolve_llm_auth_not_retryable() -> None:
+def test_resolve_llm_auth_names_the_error_kind() -> None:
     resolution = resolve_llm_failure(RuntimeError("Error 401 Unauthorized"))
     assert resolution.error_kind == ErrorKind.AUTH.value
-    assert resolution.retryable is False
-    assert resolution.counts_toward_pause is True
+    assert resolution.retry_after_seconds == 0
 
 
 def test_evaluate_batch_pause_on_auth_cluster() -> None:

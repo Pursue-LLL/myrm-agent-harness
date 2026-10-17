@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextlib
 import json
 import sqlite3
+from collections.abc import Iterator
 from datetime import UTC, datetime
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -56,7 +57,7 @@ class CorpusDedupStore:
         self._init_db()
 
     @contextlib.contextmanager
-    def _conn(self):
+    def _conn(self) -> Iterator[sqlite3.Connection]:
         from myrm_agent_harness.utils.db.sqlite import DEFAULT, harden_connection_sync
 
         conn = sqlite3.connect(self.db_path)

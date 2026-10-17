@@ -2,12 +2,16 @@
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
 from myrm_agent_harness.toolkits.wiki.pipeline.article_evidence import build_source_evidence, source_budget_chars
+
+if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
 
 
 @pytest.fixture
@@ -42,7 +46,7 @@ def _filler(count: int, start: int = 1) -> list[str]:
 def test_the_budget_is_the_configured_cap_unless_the_model_window_is_smaller(window: int | None, expected: int) -> None:
     llm = SimpleNamespace() if window is None else SimpleNamespace(n_ctx=window)
 
-    assert source_budget_chars(llm, 12_000) == expected  # type: ignore[arg-type]
+    assert source_budget_chars(cast("BaseChatModel", llm), 12_000) == expected
 
 
 def test_a_source_that_fits_is_sent_whole_with_its_line_numbers(structure: WikiStructure) -> None:

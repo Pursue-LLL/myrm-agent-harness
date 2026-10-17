@@ -5,6 +5,7 @@ for a document it was only told the path of.
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -15,6 +16,9 @@ from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
 from myrm_agent_harness.toolkits.wiki.pipeline.articles import generate_article
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
+
+if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
 
 _FILLER = "第 {i} 项例行事项：核对设备台账、更新排班表并归档上月的巡检记录，与定价无关。"
 _FACTS = (
@@ -60,7 +64,7 @@ async def _write_article(
     indexer.upsert = AsyncMock()
     indexer.extract_and_upsert_edges = MagicMock()
     await generate_article(
-        llm,  # type: ignore[arg-type]
+        cast("BaseChatModel", llm),
         structure,
         WikiCompileConfig(require_approval=require_approval),
         indexer,

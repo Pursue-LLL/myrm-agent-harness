@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.events import (
@@ -33,6 +34,10 @@ from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.security_hook import (
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.types import RawGateCaller
 
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
+    from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
+
 
 @dataclass(frozen=True, slots=True)
 class ForgetEvidenceResult:
@@ -49,8 +54,8 @@ async def forget_evidence(
     *,
     reason: str,
     caller: RawGateCaller,
-    compiler: object | None = None,
-    indexer: object | None = None,
+    compiler: WikiCompiler | None = None,
+    indexer: WikiIndexer | None = None,
 ) -> ForgetEvidenceResult:
     """Delete a raw file and rescan/republish concepts that referenced it."""
     result = await remove_raw_evidence(

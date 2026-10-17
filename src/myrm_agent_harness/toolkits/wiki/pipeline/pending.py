@@ -19,6 +19,7 @@ Evolution synthesis pages from CCSP share the same queue under Comparisons/* pat
 
 import contextlib
 import sqlite3
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import assert_valid_wiki_frontmatter
@@ -48,7 +49,7 @@ class WikiPendingEditsManager:
         self._init_db()
 
     @contextlib.contextmanager
-    def _get_conn(self):
+    def _get_conn(self) -> Iterator[sqlite3.Connection]:
         from myrm_agent_harness.utils.db.sqlite import DEFAULT, harden_connection_sync
 
         conn = sqlite3.connect(self.db_path)
@@ -126,9 +127,7 @@ class WikiPendingEditsManager:
             # The type ignore is needed because sqlite3.Row isn't exactly matching TypedDict
             return [dict(row) for row in cursor.fetchall()]  # type: ignore
 
-    def get_edits_created_since(
-        self, since: str, *, limit: int = 500, offset: int = 0
-    ) -> list[PendingWikiEdit]:
+    def get_edits_created_since(self, since: str, *, limit: int = 500, offset: int = 0) -> list[PendingWikiEdit]:
         """Get one page of drafts created at-or-after ``since`` regardless of current status.
 
         ``since`` is a SQLite-comparable UTC timestamp (``YYYY-MM-DD HH:MM:SS``
@@ -203,7 +202,7 @@ class WikiPendingEditsManager:
             cursor = conn.execute(
                 "UPDATE pending_edits SET status = 'rejected' WHERE id = ? AND status = 'pending'", (edit_id,)
             )
-            return cursor.rowcount > 0
+            return int(cursor.rowcount) > 0
 
     def count_synthesis_pending(self) -> int:
         """Count pending evolution synthesis drafts (Comparisons/.../Evolution)."""

@@ -10,7 +10,7 @@
 - .batch_settle::source_hash (POS: the file hash the batch settles against)
 - .cognitive_map.schema_writer::read_index_context (POS: the wiki catalog a concept name is reused from)
 - .queue::QueueItem, WikiIngestionQueue (POS: persistent ingestion queue)
-- .resilience::resolve_io_failure, resolve_llm_failure (POS: failure classification)
+- .resilience::IO_MISSING, resolve_llm_failure (POS: failure classification)
 - .survey::CompileSessionState (POS: survey state shared across the batches of one compile)
 - utils.chat_utils::extract_answer_text (POS: LLM answer extraction)
 
@@ -48,7 +48,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from .batch_settle import source_hash
 from .cognitive_map.schema_writer import read_index_context
 from .queue import QueueItem, WikiIngestionQueue
-from .resilience import resolve_io_failure, resolve_llm_failure
+from .resilience import IO_MISSING, resolve_llm_failure
 from .survey import CompileSessionState
 
 logger = get_agent_logger(__name__)
@@ -213,12 +213,7 @@ async def extract_concepts_batch(
         queue.mark_processing(item_id)
         try:
             if not raw_file.exists():
-                resolution = resolve_io_failure("File not found")
-                queue.mark_failed(
-                    item_id,
-                    "File not found",
-                    error_kind=resolution.error_kind,
-                )
+                queue.mark_failed(item_id, "File not found", error_kind=IO_MISSING)
                 return []
             # Hashed before the read: an edit after this point is caught when the batch settles.
             digest = source_hash(raw_file)

@@ -6,14 +6,16 @@
 - .types::FailureResolution (POS: compile failure policy result)
 
 [OUTPUT]
-- resolve_io_failure, resolve_llm_failure, resolve_embed_failure, resolve_blocked_publish: map failures to queue retry/pause policy
+- resolve_llm_failure: the error kind of an LLM failure and the backoff a queued retry waits
+- resolve_embed_failure: the embed window pause reason and its error kind
+- resolve_blocked_publish: the classification of an article the publish content scan refused
 - evaluate_batch_pause: batch-level compile circuit pause decision
 - TRANSIENT_ERROR_KINDS: the error kinds a queued retry can recover from, shared with the queue's retry selection
 - is_transient_error_kind: transient retry eligibility filter
 - EMBED_WINDOW_VIOLATION: embed input window error kind for compile circuit + UI
 
 [POS]
-Wiki compile failure policy. Classifies IO/LLM failures and decides retry backoff vs circuit pause.
+Wiki compile failure policy. Classifies LLM failures and embed window violations, and decides retry backoff vs circuit pause.
 """
 
 from __future__ import annotations
@@ -41,35 +43,12 @@ _PAUSE_KINDS: frozenset[str] = frozenset(
         EMBED_WINDOW_VIOLATION,
     }
 )
-_NON_RETRY_KINDS: frozenset[str] = frozenset(
-    {
-        ErrorKind.AUTH.value,
-        ErrorKind.BILLING.value,
-        ErrorKind.SAFETY_BLOCK.value,
-        ErrorKind.CONTEXT_OVERFLOW.value,
-        ErrorKind.FORMAT_ERROR.value,
-        ErrorKind.RESPONSE_FORMAT_ERROR.value,
-        ErrorKind.MODEL_NOT_FOUND.value,
-        IO_MISSING,
-        EMBED_WINDOW_VIOLATION,
-    }
-)
 
 _TRANSIENT_BACKOFF_SECONDS: dict[str, int] = {
     ErrorKind.RATE_LIMIT.value: 120,
     ErrorKind.OVERLOADED.value: 60,
     ErrorKind.TIMEOUT.value: 30,
 }
-
-
-def resolve_io_failure(message: str) -> FailureResolution:
-    """Classify non-LLM IO failures (missing file, read error)."""
-    _ = message
-    return FailureResolution(
-        error_kind=IO_MISSING,
-        retryable=False,
-        counts_toward_pause=False,
-    )
 
 
 def resolve_embed_failure(exc: EmbedInputTooLargeError) -> tuple[str, str]:
@@ -85,25 +64,14 @@ def resolve_embed_failure(exc: EmbedInputTooLargeError) -> tuple[str, str]:
 
 def resolve_blocked_publish() -> FailureResolution:
     """Classify an article the publish content scan refused: the same text is refused again until its sources change."""
-    return FailureResolution(
-        error_kind=ErrorKind.SAFETY_BLOCK.value,
-        retryable=False,
-        counts_toward_pause=False,
-    )
+    return FailureResolution(error_kind=ErrorKind.SAFETY_BLOCK.value)
 
 
 def resolve_llm_failure(exc: Exception) -> FailureResolution:
-    """Map an LLM exception to queue retry and circuit pause policy."""
+    """Map an LLM exception to the error kind its queue row is failed with and the backoff a retry waits."""
     error_kind = classify_error(exc).value
-    retryable = error_kind not in _NON_RETRY_KINDS
-    backoff = _TRANSIENT_BACKOFF_SECONDS.get(error_kind, 0) if retryable else 0
-    counts_toward_pause = error_kind in TRANSIENT_ERROR_KINDS or error_kind in _PAUSE_KINDS
-    return FailureResolution(
-        error_kind=error_kind,
-        retryable=retryable,
-        counts_toward_pause=counts_toward_pause,
-        retry_after_seconds=backoff,
-    )
+    backoff = _TRANSIENT_BACKOFF_SECONDS.get(error_kind, 0)
+    return FailureResolution(error_kind=error_kind, retry_after_seconds=backoff)
 
 
 def is_transient_error_kind(error_kind: str) -> bool:

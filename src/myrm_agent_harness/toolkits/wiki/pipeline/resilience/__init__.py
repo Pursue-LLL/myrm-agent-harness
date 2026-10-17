@@ -2,7 +2,7 @@
 
 [INPUT]
 - .circuit::CompileCircuitStore (POS: SQLite compile circuit store)
-- .failure_policy::TRANSIENT_ERROR_KINDS, evaluate_batch_pause, is_transient_error_kind, resolve_blocked_publish, resolve_embed_failure, resolve_io_failure, resolve_llm_failure (POS: error resolution rules)
+- .failure_policy::IO_MISSING, TRANSIENT_ERROR_KINDS, evaluate_batch_pause, is_transient_error_kind, resolve_blocked_publish, resolve_embed_failure, resolve_llm_failure (POS: error resolution rules)
 - .sanitize::sanitize_display_message (POS: display message sanitizer)
 - .types::CompilePhase, CompileRunSnapshot, FailureResolution (POS: resilience state types)
 
@@ -22,7 +22,6 @@ from .failure_policy import (
     is_transient_error_kind,
     resolve_blocked_publish,
     resolve_embed_failure,
-    resolve_io_failure,
     resolve_llm_failure,
 )
 from .sanitize import sanitize_display_message
@@ -40,7 +39,6 @@ __all__ = [
     "is_transient_error_kind",
     "resolve_blocked_publish",
     "resolve_embed_failure",
-    "resolve_io_failure",
     "resolve_llm_failure",
     "sanitize_display_message",
 ]

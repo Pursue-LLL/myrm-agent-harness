@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextlib
 import sqlite3
+from collections.abc import Iterator
 from pathlib import Path
 
 from .types import CompileCircuitState, CompilePhase, CompileRunSnapshot
@@ -28,7 +29,7 @@ class CompileCircuitStore:
         self._ensure_table()
 
     @contextlib.contextmanager
-    def _conn(self):
+    def _conn(self) -> Iterator[sqlite3.Connection]:
         from myrm_agent_harness.utils.db.sqlite import DEFAULT, harden_connection_sync
 
         conn = sqlite3.connect(self._db_path)

@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.core.security.persistence.content_scan import PersistScanVerdict
 from myrm_agent_harness.toolkits.wiki.core.canonical_registry import (
@@ -39,6 +40,10 @@ from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.security_hook import (
     scan_publish_article_content,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.types import RawGateCaller
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
+    from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,8 +103,8 @@ async def remove_raw_evidence(
     reason: str,
     caller: RawGateCaller,
     delete_file: bool = True,
-    compiler: object | None = None,
-    indexer: object | None = None,
+    compiler: WikiCompiler | None = None,
+    indexer: WikiIndexer | None = None,
 ) -> RawEvidenceRemovalResult:
     """Remove or detach a raw file and re-anchor dependent compiled pages."""
     if caller != "settings":
@@ -159,22 +164,20 @@ async def remove_raw_evidence(
                 if outcome == ArticlePublishOutcome.PUBLISHED:
                     republished.append(concept_name)
             else:
-                await indexer.upsert(concept_name, body)  # type: ignore[attr-defined]
+                await indexer.upsert(concept_name, body)
 
     if compiler is not None and affected:
-        enqueue = getattr(compiler, "enqueue_file", None)
-        if callable(enqueue):
-            for concept_name in affected:
-                concept_path = structure.get_concept_file_path(concept_name)
-                if not concept_path.exists():
+        for concept_name in affected:
+            concept_path = structure.get_concept_file_path(concept_name)
+            if not concept_path.exists():
+                continue
+            metadata, _ = load_frontmatter_metadata(concept_path.read_text(encoding="utf-8"))
+            for source in _coerce_sources(metadata):
+                if source == rel_path:
                     continue
-                metadata, _ = load_frontmatter_metadata(concept_path.read_text(encoding="utf-8"))
-                for source in _coerce_sources(metadata):
-                    if source == rel_path:
-                        continue
-                    source_path = structure.get_raw_file_path(source)
-                    if source_path.exists():
-                        enqueue(source_path)
+                source_path = structure.get_raw_file_path(source)
+                if source_path.exists():
+                    compiler.enqueue_file(source_path)
 
     return RawEvidenceRemovalResult(
         relative_path=rel_path,

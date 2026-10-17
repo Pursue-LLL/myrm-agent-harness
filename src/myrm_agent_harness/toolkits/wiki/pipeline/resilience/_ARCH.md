@@ -10,8 +10,8 @@ Consumed by `queue.py` and `compiler.py`; exposed to product UI via server `comp
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public exports | ✅ |
-| `types.py` | Core | `CompileRunSnapshot` (incl. compile phase + survey stats), `FailureResolution` | ✅ |
-| `failure_policy.py` | Core | ErrorKind SSOT mapping, batch pause rules, embed window violation, transient detection, `resolve_blocked_publish` (an article the publish content scan refused is a permanent `safety_block`) | ✅ |
+| `types.py` | Core | `CompileRunSnapshot` (incl. compile phase + survey stats), `FailureResolution` (the error kind a queue row is failed with and the retry backoff) | ✅ |
+| `failure_policy.py` | Core | ErrorKind SSOT mapping, the transient set the queue's retry selection shares, batch pause rules, embed window violation, `resolve_blocked_publish` (an article the publish content scan refused is a permanent `safety_block`) | ✅ |
 | `circuit.py` | Core | SQLite `compile_circuit` store (running/paused, compile phase + survey stats) | ✅ |
 | `sanitize.py` | Core | Redact API keys from queue error messages | ✅ |
 

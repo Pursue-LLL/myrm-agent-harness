@@ -10,6 +10,7 @@ import logging
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.wiki.core.claims_contract import sha256_raw_file
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -40,6 +41,10 @@ from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.evidence_removal import 
     remove_raw_evidence,
 )
 
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
+    from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,8 +70,8 @@ class CorpusDedupGovernor:
         action: DispositionAction,
         *,
         reason: str,
-        compiler: object | None = None,
-        indexer: object | None = None,
+        compiler: WikiCompiler | None = None,
+        indexer: WikiIndexer | None = None,
     ) -> DispositionResult:
         group = self._store.get_group(group_id)
         if group is None:
@@ -124,8 +129,8 @@ class CorpusDedupGovernor:
         relative_path: str,
         *,
         reason: str,
-        compiler: object | None,
-        indexer: object | None,
+        compiler: WikiCompiler | None,
+        indexer: WikiIndexer | None,
     ) -> bool:
         normalized = normalize_raw_relative_path(relative_path)
         raw_path = self._structure.get_raw_file_path(normalized)

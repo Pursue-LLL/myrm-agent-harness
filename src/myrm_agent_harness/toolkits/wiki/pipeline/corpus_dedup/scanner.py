@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -181,7 +182,7 @@ class CorpusDedupScanner:
         self,
         fingerprints: list[RawFileFingerprint],
         *,
-        key,
+        key: Callable[[RawFileFingerprint], str],
         tier: DedupTier,
         deferred_member_sets: set[frozenset[str]],
     ) -> tuple[int, set[str]]:
