@@ -8,7 +8,8 @@ SAFE is decided by the command that really runs, not by its first word: ``timeou
 
 [OUTPUT]
 - SAFE_COMMANDS: Names of commands that need no approval unless a guarded argument is present.
-- TRANSPARENT_WRAPPERS: Commands that only run another command (``command``, ``time``, ``timeout``).
+- TRANSPARENT_WRAPPERS: Commands that only run another command (``command``, ``time``, ``timeout``); re-exported
+  from ``core.security.shell_wrapper_peel``, their one home.
 - unwrap_transparent_wrapper: The words of the command a wrapper runs, ``[]`` when it runs nothing, None when the form is not understood.
 - is_guarded: Whether a SAFE command has arguments that can run a program or write a file.
 - has_unsafe_arguments: Whether such an argument is present.
@@ -19,11 +20,17 @@ Allow-list data and argument guards of the shell risk classifier. Pure data and 
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Final
+
+from myrm_agent_harness.core.security.shell_wrapper_peel import (
+    TRANSPARENT_WRAPPERS as _TRANSPARENT_WRAPPERS,
+)
+from myrm_agent_harness.core.security.shell_wrapper_peel import (
+    unwrap_transparent_wrapper as _unwrap_transparent_wrapper,
+)
 
 SAFE_COMMANDS: Final[frozenset[str]] = frozenset(
     {
@@ -156,12 +163,9 @@ SAFE_COMMANDS: Final[frozenset[str]] = frozenset(
 )
 
 # Commands whose only job is to run the command they are given; they are SAFE only if that command is.
-TRANSPARENT_WRAPPERS: Final[frozenset[str]] = frozenset({"command", "time", "timeout"})
-
-_DURATION: Final = re.compile(r"\d+(?:\.\d+)?[smhd]?")
-_TIMEOUT_VALUE_FLAGS: Final = frozenset({"-k", "-s"})
-_TIMEOUT_PLAIN_FLAGS: Final = frozenset({"-f", "-p", "-v", "--foreground", "--preserve-status", "--verbose"})
-_TIMEOUT_ATTACHED_FLAGS: Final = ("--signal=", "--kill-after=")
+# The table and its unwrapping live in ``core.security.shell_wrapper_peel``, their one home, together with the
+# deny-direction reading, so the two directions cannot drift apart.
+TRANSPARENT_WRAPPERS: Final[frozenset[str]] = _TRANSPARENT_WRAPPERS
 
 
 def unwrap_transparent_wrapper(base: str, args: Sequence[str]) -> list[str] | None:
@@ -170,31 +174,7 @@ def unwrap_transparent_wrapper(base: str, args: Sequence[str]) -> list[str] | No
     ``[]`` means it runs nothing (``command -v git``, a bare ``time``); None means the form is not understood
     (an option that is not listed, a missing duration) and the caller must not vouch for it.
     """
-    if base == "timeout":
-        return _unwrap_timeout(args)
-    rest = list(args)
-    if base == "command" and rest[:1] in (["-v"], ["-V"]):
-        return []
-    if rest[:1] == ["-p"]:
-        rest = rest[1:]
-    if rest[:1] == ["--"]:
-        rest = rest[1:]
-    return None if rest and rest[0].startswith("-") else rest
-
-
-def _unwrap_timeout(args: Sequence[str]) -> list[str] | None:
-    index = 0
-    while index < len(args) and args[index].startswith("-"):
-        flag = args[index]
-        if flag in _TIMEOUT_VALUE_FLAGS:
-            index += 2
-        elif flag in _TIMEOUT_PLAIN_FLAGS or flag.startswith(_TIMEOUT_ATTACHED_FLAGS):
-            index += 1
-        else:
-            return None
-    if index >= len(args) or not _DURATION.fullmatch(args[index]):
-        return None
-    return list(args[index + 1 :])
+    return _unwrap_transparent_wrapper(base, args)
 
 
 @dataclass(frozen=True, slots=True)

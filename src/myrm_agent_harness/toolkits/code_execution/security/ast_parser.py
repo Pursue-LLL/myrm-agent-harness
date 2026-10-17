@@ -26,6 +26,7 @@ import io
 import os
 import re
 import shlex
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -33,6 +34,11 @@ from pathlib import Path
 from myrm_agent_harness.core.security.shell_command_lexer import (
     split_command_spans,
     strip_comments,
+)
+from myrm_agent_harness.core.security.shell_wrapper_peel import (
+    TRANSPARENT_WRAPPERS,
+    deny_readings,
+    unwrap_transparent_wrapper,
 )
 from myrm_agent_harness.toolkits.code_execution.security.capability_tables import (
     CRITICAL_ESCALATION_COMMANDS,
@@ -46,10 +52,6 @@ from myrm_agent_harness.toolkits.code_execution.security.capability_tables impor
 )
 from myrm_agent_harness.toolkits.code_execution.security.destructive_rules import (
     analyze_destructive_action,
-)
-from myrm_agent_harness.toolkits.code_execution.security.safe_commands import (
-    TRANSPARENT_WRAPPERS,
-    unwrap_transparent_wrapper,
 )
 
 # ---------------------------------------------------------------------------
@@ -86,6 +88,10 @@ class AtomicCommandAction:
     capability_level: CapabilityLevel
     escalation_reason: str | None
     raw_tokens: tuple[str, ...]
+    # The command line a deny-direction prefix, a shell ``-c`` script or a substitution handed control to,
+    # already classified. Kept apart from the outer action so an approval card shows one row per command it
+    # really runs, while escalation summaries and ``has_escalation`` still read the whole tree.
+    nested_actions: tuple[AtomicCommandAction, ...] = ()
 
 
 _REDIRECT_OPERATORS: frozenset[str] = frozenset({">", ">>", "<", ">&", "<&", "&>", "2>", "2>>", "1>", "1>>"})
@@ -94,6 +100,23 @@ _REDIRECT_OPERATORS: frozenset[str] = frozenset({">", ">>", "<", ">&", "<&", "&>
 def _is_env_assignment(word: str) -> bool:
     """``NAME=value`` in front of a command sets a variable for it; the command is the word after the assignments."""
     return "=" in word and not word.startswith("-")
+
+
+_ESCALATING: frozenset[CapabilityLevel] = frozenset(
+    {CapabilityLevel.CAPABILITY_ESCALATION, CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE}
+)
+
+
+def iter_actions(actions: Sequence[AtomicCommandAction]) -> Iterator[AtomicCommandAction]:
+    """Every action in *actions*, each outer command before the commands it hands control to."""
+    for action in actions:
+        yield action
+        yield from iter_actions(action.nested_actions)
+
+
+def _is_escalating(action: AtomicCommandAction) -> bool:
+    """Whether an action, or anything it hands control to, needs a human or is destructive."""
+    return action.capability_level in _ESCALATING or any(map(_is_escalating, action.nested_actions))
 
 
 # ---------------------------------------------------------------------------
@@ -113,37 +136,31 @@ class BashASTParser:
         """Parse a compound shell command into individual atomic actions with capability classifications.
 
         Commands are cut where the shell cuts them (``split_command_spans``), so every command bash runs is seen
-        and text it ignores (comments) is not.
+        and text it ignores (comments) is not. Each action also carries the commands a deny-direction prefix,
+        a shell ``-c`` script or a substitution hands control to, so a wrapper cannot hide the command it runs.
         """
         stripped = command.strip()
         actions: list[AtomicCommandAction] = []
         for start, end in split_command_spans(stripped):
-            for tokens in cls._tokenize(stripped[start:end]):
+            for statement, tokens in cls._tokenize(stripped[start:end]):
                 if tokens:
-                    actions.append(cls._parse_single_statement(tokens, workspace_path))
+                    actions.append(cls._parse_single_statement(tokens, statement, workspace_path))
         return actions
 
     @classmethod
     def has_escalation(cls, actions: list[AtomicCommandAction]) -> bool:
-        """Check if any atomic action requires capability escalation or destructive confirmation."""
-        return any(
-            a.capability_level in (CapabilityLevel.CAPABILITY_ESCALATION, CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE)
-            for a in actions
-        )
+        """Check if any atomic action, or anything it runs, requires escalation or destructive confirmation."""
+        return any(map(_is_escalating, actions))
 
     @classmethod
     def has_destructive(cls, actions: list[AtomicCommandAction]) -> bool:
-        """Check if any atomic action constitutes an irreversible destructive operation."""
-        return any(a.capability_level == CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE for a in actions)
+        """Check if any atomic action, or anything it runs, is an irreversible destructive operation."""
+        return any(a.capability_level == CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE for a in iter_actions(actions))
 
     @classmethod
     def get_escalation_actions(cls, actions: list[AtomicCommandAction]) -> list[AtomicCommandAction]:
-        """Filter actions that require explicit human approval (escalation or destructive)."""
-        return [
-            a
-            for a in actions
-            if a.capability_level in (CapabilityLevel.CAPABILITY_ESCALATION, CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE)
-        ]
+        """Filter the actions that require explicit human approval (escalation or destructive), outer first."""
+        return [a for a in iter_actions(actions) if a.capability_level in _ESCALATING]
 
     @classmethod
     def summarize_escalations(cls, actions: list[AtomicCommandAction]) -> list[dict[str, str]]:
@@ -162,27 +179,29 @@ class BashASTParser:
         return summaries
 
     @staticmethod
-    def _tokenize(command: str) -> list[list[str]]:
-        """Split the text of one command into words and redirect tokens: one token list, or one per line.
+    def _tokenize(command: str) -> list[tuple[str, list[str]]]:
+        """Split the text of one command into ``(statement text, words)`` pairs: one pair, or one per line.
 
         Comments are removed by the shell's own rule first: shlex would also end a word at a ``#`` inside it
         (``echo a#b && rm -rf x``). Text shlex cannot parse is an unclosed quote that swallows the lines after
         it, such as the apostrophe in a heredoc body or one inside backticks; bash may still run those lines, so
-        each one is named by its own words instead of hiding behind the first.
+        each one is named by its own words instead of hiding behind the first. The statement text is what the
+        shell would read there, which is what the deny-direction reading scans for substitutions.
         """
         text = strip_comments(command)
         lexer = shlex.shlex(io.StringIO(text), posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
         lexer.commenters = ""
         try:
-            return [list(lexer)]
+            return [(text, list(lexer))]
         except ValueError:
-            return [line.split() for line in text.splitlines()]
+            return [(line, line.split()) for line in text.splitlines()]
 
     @classmethod
     def _parse_single_statement(
         cls,
         tokens: list[str],
+        statement: str,
         workspace_path: Path | None,
     ) -> AtomicCommandAction:
         """Parse words, flags, and redirections from a single statement's tokens."""
@@ -241,7 +260,39 @@ class BashASTParser:
             capability_level=cap_level,
             escalation_reason=reason,
             raw_tokens=tuple(tokens),
+            nested_actions=cls._parse_nested_actions(cls._deny_readings(cmd_words, statement), workspace_path),
         )
+
+    @staticmethod
+    def _deny_readings(cmd_words: Sequence[str], statement: str) -> list[str]:
+        """The command lines a statement hands control to, as the deny direction reads them.
+
+        A wrapper in front of the command (``sudo rm``), a shell ``-c`` script or ``eval``, and each ``$(...)``
+        and backtick are commands the shell runs, so a statement is read through all of them. The statement
+        itself is never repeated, so it adds no row of its own.
+        """
+        outer = " ".join(cmd_words)
+        return [text for text in deny_readings(statement) if text != outer]
+
+    @classmethod
+    def _parse_nested_actions(
+        cls,
+        readings: Sequence[str],
+        workspace_path: Path | None,
+    ) -> tuple[AtomicCommandAction, ...]:
+        """Classify the commands *readings* hand control to, keeping one action per command text."""
+        actions: list[AtomicCommandAction] = []
+        seen: set[str] = set()
+        for reading in readings:
+            for text, tokens in cls._tokenize(reading):
+                if not tokens:
+                    continue
+                action = cls._parse_single_statement(tokens, text, workspace_path)
+                if action.command_text in seen:
+                    continue
+                seen.add(action.command_text)
+                actions.append(action)
+        return tuple(actions)
 
     @staticmethod
     def _peel_wrappers(words: list[str]) -> list[str]:
@@ -359,16 +410,20 @@ def is_destructive_shell_tool_call(
         if cmd:
             wpath = Path(workspace_path) if workspace_path else None
             actions = BashASTParser.parse(cmd, wpath)
-            if BashASTParser.has_destructive(actions):
-                destr_actions = [a for a in actions if a.capability_level == CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE]
-                first = destr_actions[0] if destr_actions else actions[0]
+            destructive = [
+                a
+                for a in BashASTParser.get_escalation_actions(actions)
+                if a.capability_level == CapabilityLevel.IRREVERSIBLE_DESTRUCTIVE
+            ]
+            if destructive:
+                first = destructive[0]
                 return (
                     True,
                     first.escalation_reason,
                     {
                         "command": cmd,
                         "reason": first.escalation_reason,
-                        "destructiveCount": len(destr_actions),
+                        "destructiveCount": len(destructive),
                     },
                 )
     return False, None, None

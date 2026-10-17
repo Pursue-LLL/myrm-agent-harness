@@ -13,6 +13,13 @@
 
 [POS]
 Policy data of the capability gate. Pure data without logic.
+
+``SAFE_READONLY_COMMANDS`` is not the approval layer's allow list
+(``safe_commands.SAFE_COMMANDS``), and the two must not be merged: this table names commands that *only
+read*, so the capability level of a read is named truthfully, while that one lists commands that *may run
+without approval*, which includes workspace-scoped mutation (``touch``, ``mkdir``) and test runners. A
+command may sit in one and not the other without either being wrong, and neither table can widen an approval:
+a level of ``SAFE_READONLY`` never auto-approves, it only keeps a command out of the escalation summary.
 """
 
 from __future__ import annotations
@@ -60,10 +67,8 @@ SAFE_READONLY_COMMANDS: frozenset[str] = frozenset(
         "which",
         "where",
         "type",
-        "command",
         "date",
         "cd",
-        "env",
         "md5sum",
         "sha256sum",
         "hexdump",

@@ -31,6 +31,7 @@ from myrm_agent_harness.core.security.shell_command_lexer import (
     split_command_spans,
     strip_comments,
 )
+from myrm_agent_harness.core.security.shell_wrapper_peel import deny_readings
 
 COMMAND_BEARING_PERMISSIONS = frozenset({"shell_exec", "code_interpreter"})
 
@@ -58,20 +59,36 @@ def check_command_denylist(
     ``Git Push --Force origin main``.  YOLO cannot bypass this layer because
     ``batch_processor.evaluate_tool_batch`` calls ``evaluate_tool_call`` and
     honours DENY even under YOLO mode.
+
+    A prefix does not lift the rule: ``timeout 30 kubectl delete ns prod``,
+    ``sudo kubectl delete ns prod`` and ``cd repo && kubectl delete ns prod`` are
+    judged on the command they run, so a deny glob cannot be walked around by
+    wrapping the command or chaining it behind another.
     """
     if permission not in COMMAND_BEARING_PERMISSIONS or not command_denylist:
         return None, ""
     command = command_text(tool_input)
     if not command:
         return None, ""
-    command_lower = command.lower()
     for pattern in command_denylist:
-        if fnmatch(command_lower, pattern.lower()):
-            return (
-                PermissionAction.DENY,
-                f"Blocked by command denylist rule: {pattern}",
-            )
+        glob = pattern.lower()
+        for reading in _deny_direction_readings(command):
+            if fnmatch(reading.lower(), glob):
+                return (
+                    PermissionAction.DENY,
+                    f"Blocked by command denylist rule: {pattern}",
+                )
     return None, ""
+
+
+def _deny_direction_readings(command: str) -> tuple[str, ...]:
+    """The command lines to judge: each command of the line, and the command each of them runs.
+
+    ``cd repo && kubectl delete ns prod`` is two commands, so a deny glob has to see the second one, and
+    ``sudo kubectl delete ns prod`` is one command behind a prefix, so the glob has to see what it runs.
+    """
+    parts = command_parts(command)
+    return tuple(dict.fromkeys((command, *(r for part in parts for r in (part, *deny_readings(part))))))
 
 
 def command_parts(command: str) -> tuple[str, ...]:
@@ -119,4 +136,16 @@ def judge_command(command: str, resolve: Callable[[str], PermissionRule]) -> Com
                 classifier_may_allow = False
         if _SEVERITY[part_action] > _SEVERITY[action]:
             action = part_action
+        # A wrapper in front of the command (``sudo rm *``) or a script handed to a shell (``bash -c 'rm *'``)
+        # runs the command a rule was written for, so the rule is matched on what it runs as well. Only a
+        # stricter verdict is kept: a match inside a wrapped command can add a DENY or an ASK, never widen an
+        # ALLOW, so looking through a wrapper cannot lift the rule that governs the line as written.
+        for reading in deny_readings(part):
+            inner_rule = resolve(reading)
+            if inner_rule.pattern == "*":
+                continue
+            if inner_rule.action is PermissionAction.ASK:
+                classifier_may_allow = False
+            if _SEVERITY[inner_rule.action] > _SEVERITY[action]:
+                action = inner_rule.action
     return CommandVerdict(action, classifier_may_allow)

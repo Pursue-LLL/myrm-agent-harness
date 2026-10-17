@@ -156,6 +156,15 @@ def check_navigate_scheme(permission: str, tool_input: dict[str, object]) -> tup
 # ---------------------------------------------------------------------------
 
 _SHELL_EXEC_PERMISSION = "shell_exec"
+# Every permission whose tool input is a command line the shell will run. ``shell_exec`` feeds a running
+# process, ``code_interpreter`` runs the line the bash tool was given; the analyzer must see both.
+_COMMAND_LINE_PERMISSIONS = frozenset({_SHELL_EXEC_PERMISSION, "code_interpreter"})
+# Categories whose evidence is unambiguous: bytes and quoting a command line never legitimately carries, and
+# a form that exists only to hide what runs. They are BLOCK-level and hold for every command-line permission,
+# which closes the gap where the primary shell tool ran with no analyzer at all. The remaining categories
+# stay scoped to ``shell_exec`` because their patterns also match ordinary agent work (``python -c``,
+# ``node -e``, ``sudo``, ``;`` chaining, shell loops), which the approval layer must not refuse outright.
+_UNCONDITIONAL_BLOCK_CATEGORIES = frozenset({"binary_injection", "obfuscation"})
 
 
 def check_shell_threats(permission: str, tool_input: dict[str, object]) -> tuple[PermissionAction | None, str]:
@@ -163,8 +172,12 @@ def check_shell_threats(permission: str, tool_input: dict[str, object]) -> tuple
 
     Returns (action, reason) if a threat is detected, or (None, "") if clean.
     BLOCK threats → DENY. ESCALATE threats → ASK.
+
+    ``shell_exec`` sees every category. A command-line permission that is not ``shell_exec``
+    (``code_interpreter``, the bash tool) sees only the unconditional block categories, so an ordinary
+    ``python -c`` or ``node -e`` keeps reaching the ruleset and the read-only classifier.
     """
-    if permission != _SHELL_EXEC_PERMISSION:
+    if permission not in _COMMAND_LINE_PERMISSIONS:
         return None, ""
 
     from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
@@ -176,7 +189,11 @@ def check_shell_threats(permission: str, tool_input: dict[str, object]) -> tuple
     if not command:
         return None, ""
 
-    threats = analyze_command(command)
+    threats = [
+        threat
+        for threat in analyze_command(command)
+        if permission == _SHELL_EXEC_PERMISSION or threat.category in _UNCONDITIONAL_BLOCK_CATEGORIES
+    ]
     if not threats:
         return None, ""
 
