@@ -12,6 +12,7 @@ from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
     emit_tool_heartbeat,
+    handle_cancellation,
     handle_execution_error,
     resolve_dynamic_tool,
 )
@@ -268,3 +269,33 @@ class TestEmitToolHeartbeat:
             pytest.raises(asyncio.CancelledError),
         ):
             await emit_tool_heartbeat("test_tool", "c1", 0.0)
+
+
+class TestHandleCancellation:
+    """A stop aimed at the running task must survive the tool-cancel handler."""
+
+    @pytest.mark.asyncio
+    async def test_a_genuine_stop_reraises_instead_of_becoming_a_tool_message(self) -> None:
+        """``handle_cancellation`` must not absorb a stop aimed at its own task.
+
+        The handler converts an SDK cancel-scope leak into an error ToolMessage; if it also swallowed a real
+        ``task.cancel()``, the caller would keep running a task that was told to stop.
+        """
+        reached = False
+
+        async def cancelled_tool_call() -> ToolMessage:
+            nonlocal reached
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError as e:
+                return await handle_cancellation(e, "test_tool", "c1", {}, 0.0)
+            reached = True
+            msg = "the sleep returned instead of being cancelled"
+            raise AssertionError(msg)
+
+        task = asyncio.create_task(cancelled_tool_call())
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(asyncio.shield(task), timeout=5)
+        assert not reached

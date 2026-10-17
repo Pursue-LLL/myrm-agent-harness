@@ -2,6 +2,24 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-17-015 · 每一轮都把调用方的完整历史叠到线程已经持有的历史上：线程里的历史逐轮翻倍（`add_messages` 给每条喂入的消息新 id，不去重），且技能目录每轮被重写进首条用户消息，绑定的技能一变就改写全对话的前缀，提供商的前缀缓存整段失效；重新生成还会把被重发的那条用户消息喂给模型两次
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-17（roadmap #351 实施：按「一回合的历史只有一个权威」逐条追问每个调用方如何喂历史，用真实检查点复现） |
+| **修复时间** | 2026-10-17（本地提交，未 push） |
+| **严重程度** | P2：不丢数据，但长会话每轮重复付费（历史翻倍 → 提示词膨胀），且技能目录一变就击穿 Messages 整段前缀缓存；重新生成多一条重复用户消息会让模型误判「用户问了两遍」 |
+| **关联产品** | harness `runtime/context/session/session_continuity.py`、`agent/_internals/turn_history.py`、`agent/_internals/skill_catalog_turn.py`、`agent/skills/runtime/skill_catalog_delivery.py`、`utils/token_economics/tracker.py`；server 侧字段与提交条件见 `BUG-AGENT-2026-10-17-012`（`history_sync_token`、`turn_history_sync`、重新生成去重都在那里） |
+| **根因** | 对话历史有两个权威（LangGraph 检查点线程、调用方的历史记录），系统行为是「两份都喂」：`build_messages(query, chat_history)` 每轮把完整历史重建成消息并叠加在线程已持有的历史上（`add_messages` 分配新 id，不复用原 id，因此不去重），线程里的历史随轮次线性翻倍；`ensure_skill_catalog_in_messages` 则每轮先剥离全部 `<bound_skills>` 再把完整目录写回第一条 HumanMessage，绑定列表一漂移就改写对话第 0 条消息的字节 |
+| **修复** | ① 单一权威：新增 `context["history_mode"]`（`HISTORY_MODE_CONTEXT_KEY`）三态——`append`（缺省，未接入的调用方行为不变）、`continue`（线程即历史，只送本轮新消息；线程为空自动降为 `replace`）、`replace`（清空线程后由调用方历史重建，清不掉则回合失败，不在可能过期的线程上叠加）；解析在 `agent/_internals/turn_history.py::resolve_turn_history`，`run_agent_loop` 只喂 `history.feeds_history` 为真时的 `chat_history`；② 目录冻结基线 + 尾部更新：`<bound_skills>` 只在重建的会话里写入一次且不再改写，`continue` 轮目录漂移时把完整当前清单作为 `<bound_skills_update>` 前置到新用户消息，从线程自身消息读回「上次已告知了什么」，压缩丢掉目录块后下一轮重新告知；③ resume 不再改写检查点（只同步 `skill_search` 索引与绑定回执）；④ 遥测：`record_turn_context` 把 `history_mode`、丢弃数、目录投递结果写进现有 `tokenEconomics` |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 「谁在写这个字段」时被截断的 grep 输出骗过：`chat_disposal` 也在清检查点线程，只看前几行会得出「只有一个调用方」；改名前必须看完整结果。② 同一批文件在实施期间被别人改过（类型标注、去重），每次编辑前重读、提交前复核差异，否则会把别人的改动一并提交或覆盖。③ 提交时`git diff` 的 hunk 是迁移动态的，重新按内容锚点取 hunk 时把新增代码插进了别的函数体，提交后的文件语法错误（已即时修复并补丁提交）——保护性提交前必须对提交内容做一次 `compile()` 校验，不能只看 `git diff --stat` |
+| **回归** | harness 相关套件通过：`test_turn_history.py`、`test_skill_catalog_turn.py`、`test_skill_catalog_updates.py`、`test_resume_bound_skill_catalog.py`、`test_session_continuity.py`、`test_load_fallback.py`、`test_token_tracker.py` 共 124 例；提交后按 `git worktree` 取出提交内容（非工作区）复跑 `tests/runtime`、`tests/agent/skills`、`tests/agent/_internals`、`tests/agent/meta_tools`、`tests/integration` 共 5051 通过、12 跳过（15 例失败全部是网络超时的审批/抓取用例，在改前的基线上同样失败，与本次改动无关）|
+| **实测** | 摘要开销（SQLite 文件库，30 次取中位数）：100 条消息约 12.6ms、1000 条约 11.6ms、10000 条约 41.6ms |
+| **局限** | ① 没有实测缓存命中率或延迟提升，不声称提升；② 撤销/编辑/重新生成/切换兄弟后的第一轮是冷重建，线程里的工具轨迹丢失（与实施前撤销/重试/截断/回退行为一致）；升级前的旧聊天首轮必冷重建；IM、定时、唤醒、目标重触发尚未接入（仍为 `append`）；③ 「按 Human 消息 id 截断线程尾部」未做，需要 Human 消息 id 与库存 id 一致 |
+| **代码位置** | `agent/_internals/turn_history.py`（`resolve_turn_history`）· `agent/_internals/skill_catalog_turn.py`（`deliver_bound_skills_catalog`、`sync_bound_skills_for_resume`）· `agent/skills/runtime/skill_catalog_delivery.py`（`build_bound_skills_update_block`、`plan_catalog_update`、`prepend_catalog_update`）· `runtime/context/session/session_continuity.py`（`HistoryMode`、`HISTORY_MODE_CONTEXT_KEY`、`clear_checkpoint_threads`）· `utils/token_economics/tracker.py`（`record_turn_context`）|
+
 ### BUG-HARNESS-2026-10-17-014 · 大型 PDF 的 RAG 入库按「页数猜」而不是按「实际交付了几页」触发：21 到 500 页的文档只把前二十页当全文入库并从此不再补读，超过 2000 页的文档根本没入库却仍被告知「已入库，请用 wiki_query」，纯图片扫描件还会把「没有正文」灌进知识库；同时内嵌图版没有数量上限，图多的文档可把上百张页图塞进一次提示；截断标记挂在模块全局变量上，两个并发抽取会互相抹掉
 
 | 字段 | 内容 |
