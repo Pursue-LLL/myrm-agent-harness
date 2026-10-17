@@ -53,7 +53,7 @@ if __debug__:
         raise RuntimeError(f"web_search: lazy symbols not in __all__: {_extra}")
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     """Lazy load LiteLLMSearch, SearchServiceConfig, and WebSearchTools on first access."""
     if name in _LAZY_SYMBOLS:
         if name == "LiteLLMSearch":

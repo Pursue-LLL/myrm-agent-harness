@@ -169,15 +169,15 @@ async def _precision_mode_search(
     query_doc_mapping: dict[str, list[tuple[Document, float]]] | None = None
     if hasattr(retriever_manager, "bm25_retrieval_with_mapping"):
         try:
-            res = retriever_manager.bm25_retrieval_with_mapping(
+            mapping_result: object = retriever_manager.bm25_retrieval_with_mapping(
                 queries=questions,
                 documents=all_chunks,
                 top_k_per_query=min(tools._BM25_TOP_K_CHUNKS, 20),
             )
-            if asyncio.iscoroutine(res):
-                res = await res
-            if isinstance(res, dict):
-                query_doc_mapping = res
+            if asyncio.iscoroutine(mapping_result):
+                mapping_result = await mapping_result
+            if isinstance(mapping_result, dict):
+                query_doc_mapping = mapping_result
         except Exception as e:
             logger.debug(f"bm25_retrieval_with_mapping failed, falling back: {e}")
             query_doc_mapping = None
@@ -195,7 +195,7 @@ async def _precision_mode_search(
                             seen_ids.add(id(doc))
                             bm25_filtered.append(doc)
 
-    if not bm25_filtered:
+    if query_doc_mapping is None or not bm25_filtered:
         # Fallback to bm25_retrieval_only if mapping unavailable or returned 0 hits
         bm25_filtered = await retriever_manager.bm25_retrieval_only(
             queries=questions, documents=all_chunks, top_k=tools._BM25_TOP_K_CHUNKS
