@@ -88,12 +88,15 @@ class SkillConsolidator:
         skills: list[SkillMetadata],
         *,
         dry_run: bool = True,
+        reserved_names: frozenset[str] = frozenset(),
     ) -> ConsolidationPlan | ConsolidationReport:
         """Run the consolidation pipeline.
 
         Args:
             skills: All skills from the skill backend.
             dry_run: If True, return plan without execution. If False, execute.
+            reserved_names: Skills the host keeps out of this run and so leaves out of ``skills``. No umbrella
+                may take their names.
 
         Returns:
             ConsolidationPlan (dry_run=True) or ConsolidationReport (dry_run=False).
@@ -113,7 +116,7 @@ class SkillConsolidator:
             logger.info("Consolidation: no clusters detected")
             return ConsolidationPlan() if dry_run else ConsolidationReport()
 
-        plan = await self._judge.judge_clusters(clusters, skills)
+        plan = await self._judge.judge_clusters(clusters, skills, reserved_names=reserved_names)
 
         if plan.is_empty:
             logger.info("Consolidation: judge determined no actions needed")
@@ -133,6 +136,7 @@ class SkillConsolidator:
             self._write_backend,
             self._stats_collector,
             skills,
+            reserved_names=reserved_names,
         )
         report = await executor.execute(plan.actions)
         return report

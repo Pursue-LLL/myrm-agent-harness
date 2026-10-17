@@ -172,10 +172,12 @@ async def test_curator_consolidation_excludes_protected_skills(stats_collector: 
         llm=MagicMock(),
         write_backend=MagicMock(),
     )
-    seen: list[list[str]] = []
+    seen: list[tuple[list[str], frozenset[str]]] = []
 
-    async def fake_consolidation(skills: list[SkillMetadata], *, dry_run: bool = True) -> None:
-        seen.append([s.name for s in skills])
+    async def fake_consolidation(
+        skills: list[SkillMetadata], *, dry_run: bool = True, reserved_names: frozenset[str] = frozenset()
+    ) -> None:
+        seen.append(([s.name for s in skills], reserved_names))
 
     curator._run_consolidation = fake_consolidation  # type: ignore[method-assign]
     bound = create_mock_skill("bound")
@@ -183,7 +185,7 @@ async def test_curator_consolidation_excludes_protected_skills(stats_collector: 
 
     await curator.run_async([bound, free], protected_names=frozenset({"bound"}))
 
-    assert seen == [["free"]]
+    assert seen == [(["free"], frozenset({"bound"}))]
 
 
 def test_curator_installed_skill_is_exempt_while_protection_is_on(curator: SkillCurator):
@@ -205,10 +207,16 @@ def test_curator_installed_skill_is_curated_when_protection_is_off(stats_collect
     assert [t.skill_name for t in result.transitions] == ["from-store"]
 
 
-@pytest.mark.parametrize(("protect_installed", "expected"), [(True, [["free"]]), (False, [["from-store", "free"]])])
+@pytest.mark.parametrize(
+    ("protect_installed", "expected"),
+    [
+        (True, [(["free"], frozenset({"from-store"}))]),
+        (False, [(["from-store", "free"], frozenset[str]())]),
+    ],
+)
 @pytest.mark.asyncio
 async def test_curator_consolidation_follows_installed_protection(
-    stats_collector: SkillStatsCollector, protect_installed: bool, expected: list[list[str]]
+    stats_collector: SkillStatsCollector, protect_installed: bool, expected: list[tuple[list[str], frozenset[str]]]
 ):
     config = CuratorConfig(enabled=True, consolidation_enabled=True, protect_installed_skills=protect_installed)
     curator = SkillCurator(
@@ -218,10 +226,12 @@ async def test_curator_consolidation_follows_installed_protection(
         llm=MagicMock(),
         write_backend=MagicMock(),
     )
-    seen: list[list[str]] = []
+    seen: list[tuple[list[str], frozenset[str]]] = []
 
-    async def fake_consolidation(skills: list[SkillMetadata], *, dry_run: bool = True) -> None:
-        seen.append([s.name for s in skills])
+    async def fake_consolidation(
+        skills: list[SkillMetadata], *, dry_run: bool = True, reserved_names: frozenset[str] = frozenset()
+    ) -> None:
+        seen.append(([s.name for s in skills], reserved_names))
 
     curator._run_consolidation = fake_consolidation  # type: ignore[method-assign]
     installed = create_mock_skill("from-store")

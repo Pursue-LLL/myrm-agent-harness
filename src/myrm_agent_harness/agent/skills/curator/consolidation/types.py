@@ -4,7 +4,7 @@ Defines structured outputs for the cluster detection, LLM judgment,
 and execution phases of skill consolidation.
 
 [INPUT]
-- (none)
+- backends.skills.types::SkillMetadata (POS: Skill types.)
 
 [OUTPUT]
 - ConsolidationActionType: Enum for consolidation actions (MERGE/CREATE_UMBRELLA/DEMOTE/KEEP).
@@ -12,6 +12,7 @@ and execution phases of skill consolidation.
 - ConsolidationAction: A single consolidation action within a plan.
 - ConsolidationPlan: Complete plan output from the ConsolidationJudge.
 - ConsolidationReport: Post-execution report of what was actually done.
+- occupied_names: The skill names a new umbrella must not take.
 
 [POS]
 Data types for the skill consolidation (umbrella merge) system.
@@ -19,9 +20,14 @@ Data types for the skill consolidation (umbrella merge) system.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 
 class ConsolidationActionType(StrEnum):
@@ -200,3 +206,13 @@ class ConsolidationReport:
         if self.failure_count > 0:
             lines.append(f"⚠ {self.failure_count} action(s) failed.")
         return "\n".join(lines)
+
+
+def occupied_names(skills: Iterable[SkillMetadata], reserved_names: Iterable[str] = ()) -> frozenset[str]:
+    """Case-folded names a new umbrella must not take.
+
+    ``reserved_names`` are skills the host keeps out of the run (protected, installed), so they never appear in
+    ``skills``. Case is folded because a case-insensitive file system maps names that differ only in case to
+    one skill directory.
+    """
+    return frozenset(name.casefold() for name in (*(skill.name for skill in skills), *reserved_names))

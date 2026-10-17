@@ -5,14 +5,16 @@ consolidation actions (MERGE / CREATE_UMBRELLA / DEMOTE / KEEP).
 
 [INPUT]
 - langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
-- .types::SkillCluster, ConsolidationAction, ConsolidationPlan (POS: consolidation types)
+- .types::SkillCluster, ConsolidationAction, ConsolidationPlan, occupied_names (POS: consolidation types)
 - backends.skills.types::SkillMetadata (POS: Skill system core data types.)
 
 [OUTPUT]
 - ConsolidationJudge: LLM-driven judge that produces a ConsolidationPlan.
 
 [POS]
-LLM judge layer for skill consolidation. Determines merge strategy per cluster.
+LLM judge layer for skill consolidation. Determines merge strategy per cluster. The target name is the
+LLM's to propose and never trusted: an action aimed at a taken umbrella name or an unknown skill is dropped,
+so the preview never promises what the executor would refuse.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from .types import (
     ConsolidationActionType,
     ConsolidationPlan,
     SkillCluster,
+    occupied_names,
 )
 
 if TYPE_CHECKING:
@@ -126,20 +129,25 @@ class ConsolidationJudge:
         self,
         clusters: list[SkillCluster],
         all_skills: list[SkillMetadata],
+        *,
+        reserved_names: frozenset[str] = frozenset(),
     ) -> ConsolidationPlan:
         """Evaluate all clusters and produce a consolidation plan.
 
         Args:
             clusters: Detected skill clusters to evaluate.
             all_skills: Complete skill list (for identifying broader merge targets).
+            reserved_names: Skills the host keeps out of this run. They are absent from ``all_skills``, but a
+                new umbrella must not take their names.
 
         Returns:
             ConsolidationPlan with actions for each cluster that needs consolidation.
         """
         plan = ConsolidationPlan()
+        occupied = occupied_names(all_skills, reserved_names)
 
         for cluster in clusters:
-            action = await self._judge_single_cluster(cluster, all_skills)
+            action = await self._judge_single_cluster(cluster, all_skills, occupied)
             if action is not None:
                 plan.actions.append(action)
                 plan.total_skills_affected += len(action.source_skills)
@@ -153,6 +161,7 @@ class ConsolidationJudge:
         self,
         cluster: SkillCluster,
         all_skills: list[SkillMetadata],
+        occupied: frozenset[str],
     ) -> ConsolidationAction | None:
         """Judge a single cluster using LLM structured output."""
         cluster_skill_set = set(cluster.skill_names)
@@ -178,11 +187,11 @@ class ConsolidationJudge:
 
         try:
             structured_llm = self._llm.with_structured_output(_ClusterJudgment)
-            judgment: _ClusterJudgment | None = await structured_llm.ainvoke(prompt)
+            judgment = await structured_llm.ainvoke(prompt)
 
-            if judgment is None:
+            if not isinstance(judgment, _ClusterJudgment):
                 logger.warning(
-                    "ConsolidationJudge: LLM returned None for cluster '%s'",
+                    "ConsolidationJudge: LLM returned no usable judgment for cluster '%s'",
                     cluster.cluster_id,
                 )
                 return None
@@ -194,6 +203,16 @@ class ConsolidationJudge:
                     "ConsolidationJudge: KEEP cluster '%s' — %s",
                     cluster.cluster_id,
                     judgment.reasoning,
+                )
+                return None
+
+            problem = self._target_problem(action_type, judgment.target_skill_name, all_skills, occupied)
+            if problem is not None:
+                logger.warning(
+                    "ConsolidationJudge: dropped %s for cluster '%s': %s",
+                    action_type.value,
+                    cluster.cluster_id,
+                    problem,
                 )
                 return None
 
@@ -216,6 +235,22 @@ class ConsolidationJudge:
                 e,
             )
             return None
+
+    @staticmethod
+    def _target_problem(
+        action_type: ConsolidationActionType,
+        target: str,
+        all_skills: list[SkillMetadata],
+        occupied: frozenset[str],
+    ) -> str | None:
+        """Why the name the LLM proposed cannot be acted on, or None when it can.
+
+        An umbrella is written to disk, so its name must be free; a merge or demote writes into an
+        existing skill, so the target must be one of the skills this run may modify.
+        """
+        if action_type is ConsolidationActionType.CREATE_UMBRELLA:
+            return f"umbrella name '{target}' is already taken by a skill" if target.casefold() in occupied else None
+        return None if any(skill.name == target for skill in all_skills) else f"target '{target}' is not a known skill"
 
     @staticmethod
     def _build_preview_summary(plan: ConsolidationPlan) -> str:

@@ -178,8 +178,9 @@ class SkillCurator:
             force: If True, bypass the enabled check.
             consolidation_dry_run: If True, return consolidation plan without executing.
             protected_names: See ``run``. Protected skills are also kept out of consolidation,
-                which would archive them behind the caller's back.
-            installed_names: See ``run``. Exempt installed skills are kept out of consolidation too.
+                which would archive them behind the caller's back, and no umbrella may take their names.
+            installed_names: See ``run``. Exempt installed skills are kept out of consolidation too,
+                and their names are reserved the same way.
 
         Returns:
             Tuple of (lifecycle_result, consolidation_result).
@@ -193,7 +194,9 @@ class SkillCurator:
         if self.consolidation_available:
             exempt_names = self._exempt_names(protected_names, installed_names)
             mergeable = [s for s in skills if s.name not in exempt_names]
-            consolidation_result = await self._run_consolidation(mergeable, dry_run=consolidation_dry_run)
+            consolidation_result = await self._run_consolidation(
+                mergeable, dry_run=consolidation_dry_run, reserved_names=exempt_names
+            )
 
         return lifecycle_result, consolidation_result
 
@@ -208,8 +211,12 @@ class SkillCurator:
         skills: list[SkillMetadata],
         *,
         dry_run: bool = True,
+        reserved_names: frozenset[str] = frozenset(),
     ) -> ConsolidationPlan | ConsolidationReport | None:
-        """Run consolidation pass if dependencies are available."""
+        """Run consolidation pass if dependencies are available.
+
+        ``reserved_names`` are the skills left out of ``skills``; no umbrella may take their names.
+        """
         if not self.consolidation_available:
             return None
 
@@ -230,7 +237,7 @@ class SkillCurator:
         )
 
         try:
-            return await consolidator.run(skills, dry_run=dry_run)
+            return await consolidator.run(skills, dry_run=dry_run, reserved_names=reserved_names)
         except Exception as e:
             logger.error("Consolidation pass failed: %s", e)
             return None

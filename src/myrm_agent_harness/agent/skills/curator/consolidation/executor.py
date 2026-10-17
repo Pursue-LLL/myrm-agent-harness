@@ -7,13 +7,14 @@ content, demoting to support files, and inheriting usage statistics.
 - backends.skills.creation_protocols::SkillWriteBackend (POS: Skill write-backend protocol.)
 - backends.skills.stats_collector::SkillStatsCollector (POS: Skill usage statistics collector.)
 - backends.skills.types::SkillMetadata, SkillUsageStats, SkillLifecycleStatus (POS: Skill types.)
-- .types::ConsolidationAction, ConsolidationResult, ConsolidationReport (POS: consolidation types.)
+- .types::ConsolidationAction, ConsolidationResult, ConsolidationReport, occupied_names (POS: consolidation types.)
 
 [OUTPUT]
 - ConsolidationExecutor: Executes approved consolidation actions.
 
 [POS]
-Execution layer for skill consolidation. Performs MERGE/CREATE_UMBRELLA/DEMOTE operations.
+Execution layer for skill consolidation. Performs MERGE/CREATE_UMBRELLA/DEMOTE operations. The side-effect
+boundary: it refuses a target the plan should not have named, and archives sources only after their content landed.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from .types import (
     ConsolidationActionType,
     ConsolidationReport,
     ConsolidationResult,
+    occupied_names,
 )
 
 if TYPE_CHECKING:
@@ -48,6 +50,11 @@ class ConsolidationExecutor:
     - DEMOTE: Move source skill content to support files of target.
     - Inherit aggregated usage stats into the umbrella skill.
     - Archive source skills with `merged_into` tracking.
+
+    The plan names the targets, so nothing in it is taken on trust: an umbrella never takes the name of an
+    existing skill (``all_skills`` are the skills this run may modify, ``reserved_names`` the ones the host
+    keeps out of it), a merge or demote only writes into a skill this run may modify, and sources are
+    archived only once their content has landed.
     """
 
     def __init__(
@@ -55,10 +62,13 @@ class ConsolidationExecutor:
         write_backend: SkillWriteBackend,
         stats_collector: SkillStatsCollector,
         all_skills: list[SkillMetadata],
+        *,
+        reserved_names: frozenset[str] = frozenset(),
     ) -> None:
         self._write_backend = write_backend
         self._stats = stats_collector
         self._skill_map: dict[str, SkillMetadata] = {s.name: s for s in all_skills}
+        self._occupied = occupied_names(all_skills, reserved_names)
 
     async def execute(self, actions: list[ConsolidationAction]) -> ConsolidationReport:
         """Execute a list of approved consolidation actions.
@@ -124,6 +134,13 @@ class ConsolidationExecutor:
         if not source_skills:
             return ConsolidationResult(action=action, success=False, error="No source skills found")
 
+        if action.target_skill.casefold() in self._occupied:
+            return ConsolidationResult(
+                action=action,
+                success=False,
+                error=f"Umbrella name '{action.target_skill}' is already taken by a skill",
+            )
+
         umbrella_content = self._build_umbrella_content(action, source_skills)
 
         save_result = await self._write_backend.save_skill(
@@ -153,11 +170,7 @@ class ConsolidationExecutor:
         """Merge source skills into existing target (expand it)."""
         target_skill = self._skill_map.get(action.target_skill)
         if target_skill is None:
-            return ConsolidationResult(
-                action=action,
-                success=False,
-                error=f"Target skill '{action.target_skill}' not found",
-            )
+            return self._target_not_found(action)
 
         source_skills = [self._skill_map[n] for n in action.source_skills if n in self._skill_map]
         if not source_skills:
@@ -165,11 +178,13 @@ class ConsolidationExecutor:
 
         for source in source_skills:
             if source.storage_path:
-                await self._write_backend.write_resource(
-                    skill_name=action.target_skill,
-                    resource_path=f"references/{source.name}.md",
-                    content=f"# Merged from: {source.name}\n\n{source.description}\n",
+                error = await self._write_resource(
+                    action.target_skill,
+                    f"references/{source.name}.md",
+                    f"# Merged from: {source.name}\n\n{source.description}\n",
                 )
+                if error:
+                    return ConsolidationResult(action=action, success=False, error=error)
 
         archived = await self._archive_sources(action.source_skills, action.target_skill)
 
@@ -186,18 +201,21 @@ class ConsolidationExecutor:
 
     async def _execute_demote(self, action: ConsolidationAction) -> ConsolidationResult:
         """Move source skills to support file directory of target."""
+        if action.target_skill not in self._skill_map:
+            return self._target_not_found(action)
+
         source_skills = [self._skill_map[n] for n in action.source_skills if n in self._skill_map]
         if not source_skills:
             return ConsolidationResult(action=action, success=False, error="No source skills found")
 
         for source in source_skills:
-            resource_path = f"{action.demote_target_dir}/{source.name}.md"
-            content = f"# {source.name}\n\n{source.description}\n"
-            await self._write_backend.write_resource(
-                skill_name=action.target_skill,
-                resource_path=resource_path,
-                content=content,
+            error = await self._write_resource(
+                action.target_skill,
+                f"{action.demote_target_dir}/{source.name}.md",
+                f"# {source.name}\n\n{source.description}\n",
             )
+            if error:
+                return ConsolidationResult(action=action, success=False, error=error)
 
         archived = await self._archive_sources(action.source_skills, action.target_skill)
 
@@ -207,6 +225,29 @@ class ConsolidationExecutor:
             umbrella_skill_path="",
             archived_skills=archived,
         )
+
+    @staticmethod
+    def _target_not_found(action: ConsolidationAction) -> ConsolidationResult:
+        return ConsolidationResult(
+            action=action,
+            success=False,
+            error=f"Target skill '{action.target_skill}' not found",
+        )
+
+    async def _write_resource(self, skill_name: str, resource_path: str, content: str) -> str | None:
+        """Write a support file into a skill. Returns the error text when the backend refused it, else None.
+
+        The backend reports a refused write by returning a failure, so the caller must look at the result
+        before it archives anything.
+        """
+        result = await self._write_backend.write_resource(
+            skill_name=skill_name,
+            resource_path=resource_path,
+            content=content,
+        )
+        if result.success:
+            return None
+        return f"Failed to write '{resource_path}' into '{skill_name}': {result.error}"
 
     async def _archive_sources(
         self,
