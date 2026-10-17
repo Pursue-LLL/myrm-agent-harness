@@ -565,8 +565,8 @@ async def run_agent_loop(
         agent_input: Command[Any] | AgentState[Any]
 
         if isinstance(query, Command):
-            resume_command = await apply_bound_skill_catalog_for_resume(
-                agent_state, await address_resume_to_pending(agent_state._agent, query, thread_id), thread_id
+            resume_command = await address_resume_to_pending(
+                agent_state._agent, await apply_bound_skill_catalog_for_resume(agent_state, query, thread_id), thread_id
             )
             agent_input = cast("Command[Any] | AgentState[Any]", resume_command)
             logger.info(f" Resume: {resume_command.resume if hasattr(resume_command, 'resume') else resume_command}")

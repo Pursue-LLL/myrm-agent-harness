@@ -4,7 +4,8 @@
 - agent.streaming.event_handlers::process_messages_chunk, process_updates_chunk (POS: 事件处理器)
 - agent.streaming.artifact_events::collect_inline_artifacts, process_realtime_content_events (POS: Artifact 事件处理器)
 - agent.streaming.escalation_scrubber::EscalationScrubber (POS: 流式层升级标记检测)
-- agent.streaming.interrupt_events::interrupt_events (POS: 中断 → 带 id 的流事件)
+- agent.streaming.interrupt_events::interrupt_events (POS: 中断 → 带卡片 id 的流事件)
+- agent.streaming.interrupt_identity::announced_rounds (POS: 本次运行各中断所处的轮次)
 
 [OUTPUT]
 - StreamDispatcherMixin: dispatches events and forwards structured agent_status fields.
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
 from .artifact_events import collect_inline_artifacts, process_realtime_content_events
 from .event_handlers import process_messages_chunk, process_updates_chunk
 from .interrupt_events import interrupt_events
+from .interrupt_identity import announced_rounds
 
 if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
@@ -98,7 +100,7 @@ class StreamDispatcherMixin:
         if isinstance(data_dict, dict) and "__interrupt__" in data_dict:
             interrupts = data_dict["__interrupt__"]
             if interrupts and isinstance(interrupts, tuple):
-                for event in interrupt_events(interrupts, ctx.message_id):
+                for event in interrupt_events(interrupts, ctx.message_id, announced_rounds(ctx.agent_input)):
                     await self._emit_event(event, ctx)
             return
 

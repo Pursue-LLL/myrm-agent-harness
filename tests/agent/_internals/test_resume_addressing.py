@@ -18,6 +18,9 @@ from langgraph.types import Command, interrupt
 
 from myrm_agent_harness.agent._internals.resume_addressing import address_resume, address_resume_to_pending
 from myrm_agent_harness.agent.streaming.interrupt_events import INTERRUPT_ID_KEY
+from myrm_agent_harness.agent.streaming.interrupt_identity import AddressedResume, encode_interrupt_id
+
+_PENDING_ID = "a" * 32
 
 _THREAD = "chat"
 _CONFIG = {"configurable": {"thread_id": _THREAD}}
@@ -59,7 +62,8 @@ async def _answer(agent: object, command: Command[object]) -> dict[str, object]:
 
 
 def _addressed(interrupt_id: str, answer: str) -> Command[object]:
-    return Command(resume={"answer": answer, INTERRUPT_ID_KEY: interrupt_id})
+    """An answer carrying the card id of the first (and, here, only) pause of ``interrupt_id``'s task."""
+    return Command(resume={"answer": answer, INTERRUPT_ID_KEY: encode_interrupt_id(interrupt_id, 0)})
 
 
 def _tool_outputs(state: dict[str, object]) -> dict[str, str]:
@@ -109,7 +113,7 @@ async def test_an_unaddressed_approval_is_still_refused_while_several_interrupts
     agent = await _start()
     approval = Command[object](resume={"answer": "yes"})
 
-    assert await address_resume_to_pending(agent, approval, _THREAD) is approval
+    assert (await address_resume_to_pending(agent, approval, _THREAD)).resume == approval.resume
     with pytest.raises(RuntimeError, match="multiple pending interrupts"):
         await agent.ainvoke(approval, _CONFIG)  # type: ignore[attr-defined]
     assert set(await _pending(agent)) == {"alpha", "beta"}
@@ -124,8 +128,8 @@ async def test_an_unaddressed_answer_is_untouched_while_one_interrupt_is_pending
 
     rejection = Command[object](resume={"decision": "reject", "feedback": "timed out"})
 
-    assert await address_resume_to_pending(agent, plain, _THREAD) is plain
-    assert await address_resume_to_pending(agent, rejection, _THREAD) is rejection
+    assert (await address_resume_to_pending(agent, plain, _THREAD)).resume == plain.resume
+    assert (await address_resume_to_pending(agent, rejection, _THREAD)).resume == rejection.resume
     done = await agent.ainvoke(plain, _CONFIG)  # type: ignore[attr-defined]
     assert _tool_outputs(done)["call-beta"] == "beta:yes-b"
 
@@ -142,16 +146,34 @@ async def test_an_addressed_answer_on_a_finished_thread_changes_nothing() -> Non
     assert _tool_outputs(again) == _tool_outputs(finished)
 
 
-def test_the_id_is_removed_from_the_answer_the_interrupt_receives() -> None:
-    addressed = address_resume(_addressed("abc", "yes"), ["abc"])
+def test_the_card_id_is_removed_from_the_answer_the_interrupt_receives() -> None:
+    addressed = address_resume(_addressed(_PENDING_ID, "yes"), {_PENDING_ID: 0})
 
-    assert addressed.resume == {"abc": {"answer": "yes"}}
+    assert addressed.resume == {_PENDING_ID: {"answer": "yes"}}
 
 
 def test_a_command_keeps_its_other_fields_when_addressed() -> None:
-    command = Command[object](resume={"answer": "yes", INTERRUPT_ID_KEY: "abc"}, update={"messages": []})
+    command = Command[object](
+        resume={"answer": "yes", INTERRUPT_ID_KEY: encode_interrupt_id(_PENDING_ID, 0)}, update={"messages": []}
+    )
 
-    assert address_resume(command, ["abc"]).update == {"messages": []}
+    assert address_resume(command, {_PENDING_ID: 0}).update == {"messages": []}
+
+
+def test_the_addressed_command_announces_the_answered_interrupt_one_round_later() -> None:
+    pending = {_PENDING_ID: 2, "b" * 32: 1}
+
+    answer = Command[object](resume={"answer": "yes", INTERRUPT_ID_KEY: encode_interrupt_id(_PENDING_ID, 2)})
+    answered = address_resume(answer, pending)
+    rejected = address_resume(Command(resume={"decision": "reject"}), pending)
+    untouched = address_resume(Command(resume={"answer": "yes"}), {"b" * 32: 1})
+    ignored = address_resume(_addressed("c" * 32, "yes"), pending)
+
+    assert isinstance(answered, AddressedResume)
+    assert answered.announce_rounds == {_PENDING_ID: 3, "b" * 32: 1}
+    assert rejected.announce_rounds == {_PENDING_ID: 3, "b" * 32: 2}
+    assert untouched.announce_rounds == {"b" * 32: 2}
+    assert ignored.announce_rounds == pending
 
 
 @pytest.mark.asyncio
