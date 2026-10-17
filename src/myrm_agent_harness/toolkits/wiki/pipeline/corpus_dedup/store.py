@@ -13,9 +13,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
-from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.path_utils import (
-    normalize_raw_relative_path,
-)
+from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.path_utils import normalize_raw_relative_path
 from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.types import (
     DedupStats,
     DedupTier,
