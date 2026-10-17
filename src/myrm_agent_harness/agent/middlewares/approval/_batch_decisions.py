@@ -666,7 +666,7 @@ async def apply_approval_decisions(
                     )
 
             else:
-                feedback = decision.get("feedback", "User rejected this action.")
+                feedback = str(decision.get("feedback") or "").strip() or "User rejected this action."
                 logger.warning("[SECURITY] Tool %s REJECTED by user: %s", tool_name, feedback)
                 record_decision(tool_name, "USER_REJECTED", feedback)
                 hint = record_denial(tool_name, session_key)

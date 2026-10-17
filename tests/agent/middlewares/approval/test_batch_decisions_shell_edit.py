@@ -76,6 +76,34 @@ class TestApplyApprovalDecisionsShellEdit:
         assert not guidance
 
 
+class TestRejectionFeedbackReads:
+    """A whitespace-only feedback is not a reason: the refusal text must never carry blank words."""
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_feedback_falls_back_to_default(self) -> None:
+        tc = {"name": "bash_code_execute_tool", "args": {"command": "rm -rf /"}, "id": "tc1", "type": "tool_call"}
+        ai_msg = AIMessage(content="", tool_calls=[tc])
+        pending = [(0, tc, "shell_exec", "dangerous", None)]
+        decisions = [{"type": "reject", "feedback": "   "}]
+
+        _, messages, _ = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
+        assert len(messages) == 1
+        content = messages[0].content
+        assert "Action rejected by user: User rejected this action." in content
+        assert "Action rejected by user:   " not in content
+
+    @pytest.mark.asyncio
+    async def test_feedback_is_stripped_before_reaching_the_model(self) -> None:
+        tc = {"name": "bash_code_execute_tool", "args": {"command": "rm -rf /"}, "id": "tc1", "type": "tool_call"}
+        ai_msg = AIMessage(content="", tool_calls=[tc])
+        pending = [(0, tc, "shell_exec", "dangerous", None)]
+        decisions = [{"type": "reject", "feedback": "  too expensive  "}]
+
+        _, messages, _ = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
+        assert len(messages) == 1
+        assert "Action rejected by user: too expensive" in messages[0].content
+
+
 class TestApprovalGuidanceInjection:
     """Tests for the guidance injection feature during HITL approval."""
 
