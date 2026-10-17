@@ -47,8 +47,8 @@ Foundational security primitives used across all layers. Zero dependency on agen
 ## Consumers
 
 - `toolkits/browser/session/interactor.py`, `toolkits/browser/tools/interact.py` — fill_credential
-- `toolkits/browser/tools/semantic_dom_hitl.py`, `toolkits/computer_use/semantic_gate.py`, `toolkits/browser/tools/execute_script.py` — read a high-risk action / privileged script answer
-- `agent/meta_tools/spawn_subagent/_delegate_batch.py`, `_delegate_cognitive.py` — read the batch cost answer
+- `toolkits/browser/tools/semantic_dom_hitl.py`, `toolkits/computer_use/semantic_gate.py`, `toolkits/browser/tools/execute_script.py` — read a high-risk action / privileged script answer, and surface the person's refusal words when they gave any
+- `agent/meta_tools/spawn_subagent/_delegate_batch.py`, `_delegate_cognitive.py` — read the batch cost answer, and surface the person's refusal words in `rejection_feedback` when they gave any
 - `toolkits/computer_use/` — desktop fill_credential backends
 - `myrm-agent-server/app/services/security/vault_credential_service.py` — sync decrypted credentials into global vault
 - `agent/meta_tools/file_ops/validators/invariant_validator.py` — pre-write Goal protection
