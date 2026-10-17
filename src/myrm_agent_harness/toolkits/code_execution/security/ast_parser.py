@@ -36,8 +36,10 @@ from myrm_agent_harness.core.security.shell_command_lexer import (
     strip_comments,
 )
 from myrm_agent_harness.core.security.shell_wrapper_peel import (
+    DENY_WRAPPER_DEPTH,
+    MAX_COMMAND_READINGS,
     TRANSPARENT_WRAPPERS,
-    deny_readings,
+    direct_command_readings,
     unwrap_transparent_wrapper,
 )
 from myrm_agent_harness.toolkits.code_execution.security.capability_tables import (
@@ -203,6 +205,7 @@ class BashASTParser:
         tokens: list[str],
         statement: str,
         workspace_path: Path | None,
+        depth: int = 0,
     ) -> AtomicCommandAction:
         """Parse words, flags, and redirections from a single statement's tokens."""
         words: list[str] = []
@@ -260,38 +263,48 @@ class BashASTParser:
             capability_level=cap_level,
             escalation_reason=reason,
             raw_tokens=tuple(tokens),
-            nested_actions=cls._parse_nested_actions(cls._deny_readings(cmd_words, statement), workspace_path),
+            nested_actions=cls._parse_nested_actions(cls._direct_readings(cmd_words, statement), workspace_path, depth),
         )
 
     @staticmethod
-    def _deny_readings(cmd_words: Sequence[str], statement: str) -> list[str]:
-        """The command lines a statement hands control to, as the deny direction reads them.
+    def _direct_readings(cmd_words: Sequence[str], statement: str) -> list[str]:
+        """The command lines one step below a statement, as the deny direction reads them.
 
         A wrapper in front of the command (``sudo rm``), a shell ``-c`` script or ``eval``, and each ``$(...)``
-        and backtick are commands the shell runs, so a statement is read through all of them. The statement
-        itself is never repeated, so it adds no row of its own.
+        and backtick are commands the shell runs, so a statement is read through all of them one level at a
+        time; the caller recurses to the bound. The statement itself is never repeated, so it adds no row.
         """
         outer = " ".join(cmd_words)
-        return [text for text in deny_readings(statement) if text != outer]
+        return [text for text in direct_command_readings(statement) if text != outer]
 
     @classmethod
     def _parse_nested_actions(
         cls,
         readings: Sequence[str],
         workspace_path: Path | None,
+        depth: int,
     ) -> tuple[AtomicCommandAction, ...]:
-        """Classify the commands *readings* hand control to, keeping one action per command text."""
+        """Classify the commands *readings* hand control to, keeping one action per command text.
+
+        The tree stops at ``DENY_WRAPPER_DEPTH`` levels and holds at most ``MAX_COMMAND_READINGS`` commands,
+        so a line built out of hundreds of nested wrappers cannot make the parse run forever; no command a
+        person writes comes near either bound.
+        """
+        if depth >= DENY_WRAPPER_DEPTH:
+            return ()
         actions: list[AtomicCommandAction] = []
         seen: set[str] = set()
         for reading in readings:
             for text, tokens in cls._tokenize(reading):
                 if not tokens:
                     continue
-                action = cls._parse_single_statement(tokens, text, workspace_path)
+                action = cls._parse_single_statement(tokens, text, workspace_path, depth + 1)
                 if action.command_text in seen:
                     continue
                 seen.add(action.command_text)
                 actions.append(action)
+                if len(actions) >= MAX_COMMAND_READINGS:
+                    return tuple(actions)
         return tuple(actions)
 
     @staticmethod

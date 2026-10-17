@@ -14,13 +14,16 @@ is that reading. It owns both wrapper tables so they cannot drift apart:
 - The resolved words of one command (``core.security.shell_command_lexer.shell_words``), or its raw text.
 
 [OUTPUT]
-- TRANSPARENT_WRAPPERS / unwrap_transparent_wrapper: the allow-direction reading of ``command``, ``time``, ``timeout``.
+- TRANSPARENT_WRAPPERS / unwrap_transparent_wrapper: the allow-direction reading of ``command``, ``time``,
+  ``timeout``.
 - peel_deny_wrapper: the words the deny-direction prefix in front of a command hands control to.
 - shell_script_of: the script text a shell ``-c`` form or ``eval`` runs as its own command line.
 - substitution_bodies: the command text inside each ``$(...)`` and backtick the shell would run.
-- nested_command_readings: every command a prefix, a ``-c`` script or a substitution hands control to.
-- deny_readings: the same, for a whole string, with transparant wrappers read through as well.
-- DENY_WRAPPER_DEPTH: recursion bound for callers that re-enter on a nested script.
+- direct_command_readings: the commands one line hands control to in one step — the command at the bottom of
+  the prefix chain, a ``-c`` script or ``eval``, a substitution body. A chain is peeled in a single pass, so
+  its length never hides the command it runs.
+- deny_readings: every command a whole string hands control to, with prefix chains peeled to their bottom and
+  only branching (substitutions, ``-c`` scripts) capped by ``DENY_WRAPPER_DEPTH`` / ``MAX_COMMAND_READINGS``.
 
 [POS]
 Shared reading of shell prefixes, the single home of the transparent-wrapper table. Pure functions over
@@ -31,7 +34,7 @@ other.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Final
@@ -42,8 +45,15 @@ from myrm_agent_harness.core.security.shell_command_lexer import (
 )
 
 # A prefix chain deeper than this is not read further: the bound keeps a pathological line from recursing
-# without end while covering every nesting a real command line has.
-DENY_WRAPPER_DEPTH: Final = 8
+# without end while covering every nesting a real command line has. It sits well under Python's recursion
+# limit on purpose, and well above any nesting a payload uses.
+DENY_WRAPPER_DEPTH: Final = 64
+
+# The most commands one line may expand to. A command whose every word is its own substitution is what makes
+# this necessary: the readings branch at each level, so depth alone would still let a short line ask for a
+# huge tree. The cap is far above any line a person or an agent writes, and past it the extra commands are
+# simply not read (the command itself is still judged).
+MAX_COMMAND_READINGS: Final = 256
 
 _ASSIGNMENT_RE: Final = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 _SHELLS: Final = frozenset({"sh", "bash", "zsh", "dash", "ksh", "ash", "mksh"})
@@ -218,10 +228,6 @@ _PREFIXES: Final[Mapping[str, _Prefix]] = MappingProxyType(
     }
 )
 
-# Every word that can stand in front of the command that really runs, for callers that want a cheap check
-# before doing the full reading.
-PRECEDING_WORDS: Final[frozenset[str]] = frozenset(_PREFIXES) | _SHELLS | {"eval"}
-
 
 def _strip_assignments(words: Sequence[str]) -> list[str]:
     """Drop the leading ``NAME=value`` words a prefix leaves in front of its command (``env FOO=1 rm``)."""
@@ -375,46 +381,73 @@ def _next_backtick(text: str, start: int) -> int:
     return -1
 
 
-def nested_command_readings(command: str) -> Iterator[str]:
-    """Yield the text of every command *command* hands control to, at any depth.
+def direct_command_readings(command: str) -> tuple[str, ...]:
+    """The commands *command* hands control to in one step, outer command first out.
 
-    The outer command is not yielded: it is the caller's own reading. What is yielded is the command behind a
-    prefix (``sudo ls`` → ``ls``), the script a shell ``-c`` or ``eval`` parses next, and the body of every
-    ``$(...)`` and backtick. Each is a command line in its own right and is expanded in turn, so a prefix
-    inside a substitution is read the same way.
+    One step means: the command at the bottom of the wrapper chain in front of the text, the script each
+    shell ``-c`` or ``eval`` parses, and the body of each ``$(...)`` and backtick. The chain is peeled in a
+    single pass rather than level by level, so a line built out of any number of ``sudo``/``timeout``/``time``
+    prefixes still reaches the command it runs, in work proportional to the text and without recursing.
+    Callers that want the whole chain walk through :func:`deny_readings`; callers building a tree recurse
+    through this one, so the tree is bounded by their own depth rather than by the text.
     """
-    for text in _children(command):
-        yield text
-        yield from nested_command_readings(text)
+    outer = command.strip()
+    found: list[str] = []
+    for start, end in split_command_spans(command):
+        part = command[start:end]
+        # A substitution body keeps the spaces around the command it runs (``$( id )``); they are not part of
+        # the command text a rule matches, so every reading is trimmed before it is judged.
+        found.extend(body.strip() for body in substitution_bodies(part))
+        words = shell_words(part)
+        peeled = False
+        while words:
+            script = shell_script_of(words)
+            if script is not None:
+                found.append(script.strip())
+                break
+            inner = peel_deny_wrapper(words)
+            if inner is None:
+                inner = _peel_transparent_deny(words)
+            if not inner:
+                break
+            words = inner
+            peeled = True
+        if peeled:
+            found.append(" ".join(words))
+    return tuple(text for text in dict.fromkeys(found) if text and text != outer)
 
 
 def deny_readings(command: str) -> tuple[str, ...]:
-    """The command lines to judge alongside *command* itself, one reading deep and no deeper.
+    """The command lines to judge alongside *command* itself, bounded, deduplicated and capped.
 
     A line such as ``sudo kubectl delete ns prod`` is read as ``kubectl delete ns prod`` (and, for a wrapped
     read, whatever that command runs), which is what a deny list or a ruleset pattern has to see. The command
     itself is not repeated, so callers can judge it first and still match on any of these.
+
+    Only *branching* consumes the ``DENY_WRAPPER_DEPTH`` budget: a chain of prefixes is peeled to the command
+    at its bottom in one step by :func:`direct_command_readings`, so no number of ``sudo``/``timeout``/``time``
+    wrappers can push the inner command past the bound. What the bound does cap is how many substitutions and
+    ``-c`` scripts deep the walk expands, and ``MAX_COMMAND_READINGS`` caps how many commands it ever returns,
+    so a line whose every word is a substitution cannot make a caller do unbounded work. The command itself is
+    always the caller's own reading and is never dropped.
     """
     outer = command.strip()
-    return tuple(text for text in dict.fromkeys(nested_command_readings(outer)) if text and text != outer)
-
-
-def _children(command: str) -> Iterator[str]:
-    """The commands one step below *command*: a peeled prefix, a shell script, and each substitution body."""
-    for start, end in split_command_spans(command):
-        part = command[start:end]
-        yield from substitution_bodies(part)
-        words = shell_words(part)
-        if not words:
+    readings: list[str] = []
+    seen = {outer}
+    pending: list[tuple[str, int]] = [(outer, 0)]
+    while pending and len(readings) < MAX_COMMAND_READINGS:
+        text, depth = pending.pop()
+        if depth >= DENY_WRAPPER_DEPTH:
             continue
-        script = shell_script_of(words)
-        if script is not None:
-            yield script
-        peeled = peel_deny_wrapper(words)
-        if peeled is None:
-            peeled = _peel_transparent_deny(words)
-        if peeled:
-            yield " ".join(peeled)
+        for child in direct_command_readings(text):
+            if child in seen:
+                continue
+            seen.add(child)
+            readings.append(child)
+            if len(readings) >= MAX_COMMAND_READINGS:
+                break
+            pending.append((child, depth + 1))
+    return tuple(readings)
 
 
 def _peel_transparent_deny(words: Sequence[str]) -> list[str] | None:

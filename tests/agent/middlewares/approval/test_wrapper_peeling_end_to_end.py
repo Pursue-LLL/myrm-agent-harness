@@ -70,3 +70,34 @@ class TestUserDenyListHoldsThroughPrefixes:
         config = replace(build_channel_security_config("web", local_mode=True), command_denylist=("kubectl delete*",))
         verdict = await _batch_verdict(config, f"{prefix}kubectl delete ns prod", is_cron=True)
         assert verdict == "denied", f"'{prefix}kubectl delete ns prod' escaped the deny list ({verdict})"
+
+
+# Reading a wrapper chain must not stop at some nesting level: a rule is evaded by depth exactly as it is by
+# a single prefix if the inner command is never named. These pin the depth that a real bypass was found at.
+class TestDeepNestingCannotEvadeTheGates:
+    @pytest.mark.parametrize("depth", [1, 8, 64, 65, 100, 300])
+    async def test_deny_listed_command_is_denied_at_any_nesting_depth(self, depth: int) -> None:
+        """A user's "permanently blocked" rule holds however many prefixes stand in front of the command."""
+        config = replace(build_channel_security_config("web", local_mode=True), command_denylist=("kubectl delete*",))
+        verdict = await _batch_verdict(config, "sudo " * depth + "kubectl delete ns prod", is_cron=True)
+        assert verdict == "denied", f"{depth} prefixes escaped the deny list ({verdict})"
+
+    @pytest.mark.parametrize("depth", [1, 8, 64, 65, 100, 300])
+    async def test_wrapped_destruction_is_not_auto_approved_at_any_nesting_depth(self, depth: int) -> None:
+        """YOLO must not auto-approve an irreversible deletion however the command is wrapped."""
+        verdict = await _batch_verdict(_yolo_config(), "sudo " * depth + "rm -rf ./build", is_cron=False)
+        assert verdict != "approved", f"YOLO auto-approved a deletion behind {depth} prefixes"
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "echo $(kubectl delete ns prod)",
+            "echo $( kubectl delete ns prod )",
+            "echo $(  kubectl delete ns prod  )",
+        ],
+    )
+    async def test_spacing_inside_a_substitution_does_not_evade_the_deny_list(self, command: str) -> None:
+        """A rule names a command, not the spaces around it: padding a substitution must not lift it."""
+        config = replace(build_channel_security_config("web", local_mode=True), command_denylist=("kubectl delete*",))
+        verdict = await _batch_verdict(config, command, is_cron=True)
+        assert verdict == "denied", f"'{command}' escaped the deny list ({verdict})"
