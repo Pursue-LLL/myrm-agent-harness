@@ -9,6 +9,7 @@ Search provider adapters, orchestration, and priority-ordered failover chain.
 |------|------|-------------|-------|
 | __init__.py | Package | Re-exports WebSearcher, SearchServiceConfig, LiteLLMSearch, search_provider_chain | ✅ |
 | web_searcher.py | Core | Multi-provider search orchestrator with cache, coalescing, retry, and Document output | ✅ |
+| search_service_factory.py | Core | Builds the concrete search client (native or LiteLLM, direct or gateway-routed) from a provider config and rejects missing credentials up front | ✅ |
 | litellm_search.py | Core | LiteLLM search adapter for provider-agnostic API calls | ✅ |
 | volcengine_doubao_search.py | Core | Volcengine Search Infinity native adapter | ✅ |
 | bilibili_search.py | Core | Bilibili search fast-path via public API | ✅ |
