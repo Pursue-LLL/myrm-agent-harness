@@ -2,6 +2,23 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-17-002 · 搜索链上头部供应商接受请求后不回话时，请求合并的等待与重试用光整条链的预算，备用供应商一次都没有运行，整次搜索只能在外层限时（默认 62.5 秒）后以超时结束；整链失败的最后一次异常是超时时，错误文字为空
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-17（复核 topic_02 #141 ② 当时「评估后不做」的结论：把网络边界换成永不应答，经真实的请求合并、单跳重试循环与外层 `wait_for` 复现） |
+| **修复时间** | 2026-10-17（`ba6a36e3a`） |
+| **症状** | ① 配置了多家搜索供应商、头部接受连接后不回话：备用供应商不被尝试，整次搜索直到外层限时才以超时结束；② 整链失败而最后一次异常是超时（`str()` 为空）时，`AllQueriesFailedError` 的文字为空，`WebSearcher._extract_key_error` 取不到原因，失败说明里没有内容 |
+| **关联产品** | myrm-agent-harness `toolkits/web_search/providers/chain.py`、`toolkits/web_search/coalescing/search_coalescing.py`；server 与前端未改；不改提示词、消息顺序与工具 schema，提示缓存前缀不受影响 |
+| **根因** | ① 链预算（`chain.py:47`，45 秒）只在两跳之间检查，单跳时长由该供应商自己的超时与重试决定：单次尝试 20 秒（`web_searcher.py:96`）、合并等待 30 秒（`search_coalescing.py:32`）两次、再加重试，合起来超过 45 秒，头部一旦挂起，就没有时间留给下一跳；② 最终错误文字取自 `str(last_error)`，超时异常没有文字 |
+| **修复** | 除最后一跳外，每一跳的时限是链剩余预算的一半（`chain.py:194-196`），超时后转到下一家；最后一跳不另设上限，保有全部剩余预算；整链失败而最后一次异常没有文字时，错误文字回落为异常类型名（`chain.py:222-227`），`_extract_key_error` 把它读成 `Search request timeout`；被时限放弃的那一跳留下的合并请求领头者，其结果在创建时就登记取回回调（`search_coalescing.py:89-94`、`:132`），晚失败不再留下「Future exception was never retrieved」。同批（`3e315f31f`、`d97921446`）删除了链内转移事件及其余 8 处没有消费者的 `tool_fallback` 状态事件，以及从未接入任何搜索路径的分级 TTL 治理器（净减约 700 行） |
+| **反复次数** | 第 1 次发现（同族问题记在 `BUG-HARNESS-2026-10-16-011` 的局限 ②，当时判为「评估后不做」，本条推翻） |
+| **踩坑** | ① 最先想的是给最后一跳也封顶：只会让只配一家供应商的用户多发一次必然失败的请求，而且网关回退到自有密钥发生在单跳的重试循环里，不能靠把重试次数设为 0 替代，所以最后一跳不封顶；② 限时放弃等待方后，领头者晚失败会在日志里留下「Future exception was never retrieved」，是写测试时发现的，随修复一并处理；③ 复现要让真实的请求合并与重试循环参与、只替换网络调用，三个时钟按生产的 20、30、45 秒同比缩小 |
+| **回归** | `tests/toolkits/web_search/test_chain_hang_failover.py` 4 例：头部挂起时备用接手、最后一跳保有全部剩余预算、只配一家供应商挂起时报 `Search request timeout`、被放弃的领头者晚失败不留「未取回」日志。三个时钟缩小 100 倍（单次尝试 0.2 秒、合并等待 0.3 秒、链预算 0.45 秒），外层限时放宽到 5 秒、不干扰判定。修复前 4 例全部失败（用 pytest 插件在内存里换入 `ba6a36e3a^` 的 `chain.py` 复跑，不动工作区）；变异验证两处：把最后一跳也封顶则「最后一跳保有剩余预算」一例失败，去掉领头者结果的消费则「未取回」一例失败；该文件连续运行 5 次稳定；`tests/toolkits/web_search` 整个套件 498 例通过（8 例按项目配置未选中） |
+| **局限** | ① 挂起在真实供应商上的发生频率与计费没有实测，所有失败形状都是构造的；② 「剩余的一半」是按预算推导的（默认链预算下约 22.5 秒），不是按真实延迟分布调出来的；③ 缩时复现只证明路径，没有在真实供应商上做断网对照；④ 只配置一家供应商的用户没有更快失败，只得到有文字的错误；⑤ 删除的 `tool_fallback` 事件在仓内没有消费者，仓外的第三方消费者没有核对 |
+| **代码位置** | `toolkits/web_search/providers/chain.py::search_provider_chain` · `toolkits/web_search/coalescing/search_coalescing.py::_mark_outcome_retrieved` · `tests/toolkits/web_search/test_chain_hang_failover.py` |
+
 ### BUG-HARNESS-2026-10-17-001 · 存储占用台账只认 server 的五个固定目录名和两个数据库文件：备份目录、其余目录与文件、数据库的 `-shm`、被部署搬到别处的记忆与日志都不在账上，各类占用之和对不上状态目录；框架里写死了业务层的目录名，查看占用还会顺手创建不存在的数据目录；同批删掉没有兑现承诺的压缩器、按固定阈值给出的建议与无人读取的逐表行数
 
 | 字段 | 内容 |
@@ -63,12 +80,11 @@
 | **症状** | ① 头部供应商超时、HTTP 500/502/503/504/408、连不上、DNS 失败时，链记「failed with retryable error, not advancing chain」后结束，备用供应商一次都不调用，整次搜索失败；而 400/401/403/404 与配额类失败反而会转移；② `SearchAPIError.__str__` 在文字里附带用户的查询词，分类函数对整段文字做子串匹配，查询「how to raise aws service quota」「http 429 meaning」遇到一次超时就被判为额度耗尽或限流，头部被跳过 1 小时或 5 秒；③ 同一处还有两处指标重复计数：一次切换在失败分支和成功分支各记一次 `chain_hop_count`，一次配额失败在重试循环（`web_searcher.py:350-356`）和链里各记一次 `provider_attempts` 与 `provider_quota_exceeded` |
 | **关联产品** | myrm-agent-harness `toolkits/web_search/providers/chain.py`、`toolkits/web_search/core/exceptions.py`；server 与前端未改；不改提示词、消息顺序与工具 schema（`format_for_llm` 的诊断照旧给模型看查询词），提示缓存前缀不受影响 |
 | **根因** | ① `_should_stop_chain` 把「可重试」当作停链条件，而可重试的恰恰是供应商自身的故障（超时、连接、5xx）；② 分类函数的输入是 `str(exc)`，`SearchAPIError.__str__` 追加了 `query=<用户查询>`；③ 切换成功后与切换前的失败各记一次跳数，供应商指标在重试循环与链内各记一次 |
-| **修复** | 删除 `_should_stop_chain` 与停链分支：任何一跳失败都在链的 45 秒预算内转移到下一家，只有配额与限流失败额外进冷却（`chain.py:129` 起的 `search_provider_chain`）；`SearchAPIError.__str__` 不再包含查询词，状态码与错误码仍在（`exceptions.py:53`）；删除成功分支的重复跳数记录与链内重复的 `record_provider_search`；转移改在循环入口、真正尝试下一家时记一次（`chain.py:178-184`），某一跳的失败耗尽整链预算、没有下一家可试时不记转移 |
+| **修复** | 删除 `_should_stop_chain` 与停链分支：任何一跳失败都在链的 45 秒预算内转移到下一家，只有配额与限流失败额外进冷却（`chain.py:131` 起的 `search_provider_chain`）；`SearchAPIError.__str__` 不再包含查询词，状态码与错误码仍在（`exceptions.py:53`）；删除成功分支的重复跳数记录与链内重复的 `record_provider_search`；转移改在循环入口、真正尝试下一家时记一次（`chain.py:183-189`），某一跳的失败耗尽整链预算、没有下一家可试时不记转移 |
 | **反复次数** | 第 1 次发现 |
 | **踩坑** | ① 最初的设计是给三个分类函数各加一层「只读消息」的辅助函数，读码后发现根因就是 `__str__` 本身，把查询词从那里拿掉改动更小，还覆盖了 volcengine 适配器直接抛 `SearchAPIError`、被重试循环当作内部异常再分类的那条路径；② 旧用例把 `chain_hop_count` 写成 `>= 1`，正好遮住了重复计数，新用例改成精确断言；③ `default_quota_tracker` 是进程级单例，同类用例会互相影响，`test_fallback.py` 的链用例类补了复位；④ 整目录回归里 `test_chunking_concurrency_benchmark.py` 与 `test_concurrent_safety.py::test_stress_test_1000_concurrent` 的耗时断言失败（0.86x、615 毫秒对 500 毫秒），当时机器负载约 38，它们不经过搜索链，与本条无关 |
 | **回归** | `tests/toolkits/web_search` 下 `test_chain_quota_hop.py`、`test_fallback.py`、`test_web_search_error_handling.py`、`test_volcengine_doubao_search.py` 共 97 例通过（含事后补充的矩阵与预算用例）。新增或改写：查询词不被当作配额信号 6 例、供应商回复里的耗尽与限流仍被识别 1 例、十种宕机形状（500、502、503、504、408、请求超时、连不上、裸超时、裸连接被拒、DNS 失败）各自转移且头部保持健康 10 例、八种请求或账号类形状（400、401、402、403、404、429、LiteLLM 包装的套餐上限、普通 RuntimeError）各自转移且只计一次转移 8 例、整链预算在某一跳内耗尽时不记转移 1 例、全员宕机时每家各试一次后失败 1 例、含 quota 与 429 字样的查询在宕机后不拉黑头部且下一次搜索仍先走头部 3 例、配额失败仍进冷却 1 例，以及经真实重试循环的转移（含头部自身 3 次重试）3 例与链用例 2 例；`test_primary_quota_exceeded_chain_succeeds` 改为精确断言一次切换、一次尝试、一次配额事件。变异验证：把 `chain.py` 与 `exceptions.py` 换回修复前的版本，这四个文件 97 例里 34 例失败、63 例仍通过，换回后 97 例全过 |
-| **局限** | ① 没有用真实供应商验证，所有失败形状都是构造的；② 头部供应商挂起时仍会耗尽 45 秒链预算、备用来不及试：链只在两跳之间检查预算，单跳时长由该供应商自己的超时与重试决定（按路线图 #141 分析时的算式默认约 62.5 秒），所以一跳可以越过 45 秒，此时调用以超时错误结束；③ 供应商自己的回复里含 quota、rate limit 等词时仍按全文匹配判为配额或限流，至多让该供应商被跳过 1 小时 |
-| **局限** | ① 没有在真实供应商上验证；② 头部「接受连接后不回话」会用掉链的 45 秒预算（默认 3 次各 20 秒），之后没有时间转移，链级预算没有做；③ 宕机期间每次搜索都要先付头部的重试时间（默认 2 次重试，退避约 1.5 秒，加上调用本身的耗时），没有宕机冷却；④ 查询词若出现在供应商自己的错误回显里（例如 400 invalid query）仍可能命中标记，没有逐家验证供应商是否回显；⑤ 只配置一家搜索服务的用户不受影响，多家用户的占比没有数据 |
+| **局限** | ① 没有用真实供应商验证，所有失败形状都是构造的；② 头部供应商挂起时，本条落地时仍会耗尽 45 秒链预算、备用来不及试，已由 `BUG-HARNESS-2026-10-17-002` 修复；③ 宕机期间每次搜索都要先付头部的重试时间（默认 2 次重试，退避约 1.5 秒，加上调用本身的耗时），没有宕机冷却；④ 供应商自己的回复里含 quota、rate limit 等词时仍按全文匹配判为配额或限流，至多让该供应商被跳过 1 小时；查询词若出现在供应商自己的错误回显里（例如 400 invalid query）仍可能命中标记，没有逐家验证供应商是否回显；⑤ 只配置一家搜索服务的用户不受影响，多家用户的占比没有数据 |
 | **代码位置** | `toolkits/web_search/providers/chain.py::search_provider_chain`（`:129`）· `toolkits/web_search/core/exceptions.py::SearchAPIError.__str__`（`:53`）· `tests/toolkits/web_search/test_chain_quota_hop.py`、`test_fallback.py`、`test_web_search_error_handling.py` |
 
 ### BUG-HARNESS-2026-10-16-010 · 搜索供应商链里被标为「额度耗尽」的供应商在进程重启前一直被跳过：到期时间只在限流状态里生效，耗尽状态没有到期也没有任何复位入口；一次回显了查询词的错误就能让健康的头部供应商整个进程生命周期不再被调用
