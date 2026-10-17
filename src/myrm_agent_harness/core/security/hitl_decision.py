@@ -68,10 +68,15 @@ def is_approved(user_response: object) -> bool:
 
 
 def rejection_feedback(user_response: object) -> str:
-    """The human's reason for a denial: ``feedback`` from product clients, ``guidance`` from ``/deny <reason>``."""
+    """The human's own reason for a denial, when they gave one.
+
+    ``guidance`` carries the words a person typed (chat approval card, IM ``/deny <reason>``);
+    ``feedback`` is the fallback, because the IM sender fills ``feedback`` with its own generic
+    line while the person's words ride ``guidance``.
+    """
     if not isinstance(user_response, Mapping):
         return ""
-    for key in ("feedback", "guidance"):
+    for key in ("guidance", "feedback"):
         text = user_response.get(key)
         if isinstance(text, str) and text:
             return text

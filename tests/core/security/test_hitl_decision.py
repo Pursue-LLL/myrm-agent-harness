@@ -16,7 +16,16 @@ DRAWER_REJECT = {"decision": "reject", "feedback": "too expensive"}
 IM_APPROVE = {"decisions": [{"type": "approve"}]}
 """IM channel buttons: the same batch shape the chat tool-approval card sends (``router_commands_approval.py``)."""
 IM_REJECT = {"decisions": [{"type": "reject", "feedback": "Denied via feishu channel command"}]}
-IM_DENY_WITH_REASON = {"decisions": [{"type": "reject", "guidance": "use the REST API instead"}]}
+IM_DENY_WITH_REASON = {
+    "decisions": [
+        {
+            "type": "reject",
+            "feedback": "Denied via feishu channel command",
+            "guidance": "use the REST API instead",
+        }
+    ]
+}
+"""IM ``/deny <reason>``: the sender always adds its own generic ``feedback``, the human's words ride ``guidance``."""
 CHAT_TOOL_APPROVE = {"decisions": [{"type": "approve", "extensions": {"allowAlways": False}}]}
 EDIT_APPROVE = {"decisions": [{"type": "edit", "args": {"command": "ls"}}]}
 
@@ -97,6 +106,10 @@ def test_every_approve_word_is_a_lowercase_token() -> None:
         (IM_REJECT, "Denied via feishu channel command"),
         (IM_DENY_WITH_REASON, "use the REST API instead"),
         ({"decision": "reject", "guidance": "/deny slides the reason here"}, "/deny slides the reason here"),
+        (
+            {"decision": "reject", "feedback": "User rejected this action.", "guidance": "stop touching prod"},
+            "stop touching prod",
+        ),
         ({"decisions": [{"type": "reject"}, {"type": "reject", "feedback": "second reason"}]}, "second reason"),
         ({"decision": "reject"}, ""),
         (IM_APPROVE, ""),
