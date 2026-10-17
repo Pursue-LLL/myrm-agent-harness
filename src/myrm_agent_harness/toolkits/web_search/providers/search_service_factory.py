@@ -72,9 +72,9 @@ def describe_credential_scope(config: SearchServiceConfig) -> str:
 def credential_scope_digest(config: SearchServiceConfig) -> str:
     """Digest of the credential scope, the one identity both the search cache and the quota cooldown address.
 
-    The two layers once derived this separately and drifted: a rotated key missed the cache but stayed benched
-    under the previous account's cooldown. Every caller that partitions stored state by credential takes its
-    identity from here, so a new flavour of state cannot silently pick a different scope.
+    Every caller that partitions stored state by credential takes its identity from here, so a rotated key
+    enters and leaves the cache and the cooldown in the same step; an identity each layer derived on its own
+    would let the two disagree about which account a request belongs to.
     """
     return credential_fingerprint(describe_credential_scope(config))
 
