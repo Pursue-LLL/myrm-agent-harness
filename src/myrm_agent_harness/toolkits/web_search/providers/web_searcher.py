@@ -7,7 +7,6 @@ result caching, single-flight coalescing, and conversion to LangChain Documents.
 web_search.core.common::SearchResult (POS: Unified search result dataclass)
 web_search.core.error_handling::build_search_error_context, is_retryable_search_error (POS: Search error classification)
 web_search.core.exceptions::AllQueriesFailedError, ErrorContext, SearchAPIError, SearchConfigError (POS: Search exception types)
-web_search.core.metrics::WebSearchMetrics, web_search_metrics (POS: Search telemetry)
 web_search.coalescing.search_coalescing::await_coalesced_search, bucket_search_limit, build_search_cache_key (POS: Search cache coalescing)
 web_search.processing.search_results_processor::search_results_to_documents (POS: Search-result to Document converter)
 web_search.providers.litellm_search::LiteLLMSearch (POS: LiteLLM unified search client)
@@ -40,7 +39,6 @@ from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import 
 from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     build_search_error_context,
-    is_quota_or_rate_limit_error,
     is_retryable_search_error,
 )
 from myrm_agent_harness.toolkits.web_search.core.exceptions import (
@@ -48,10 +46,6 @@ from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     ErrorContext,
     SearchAPIError,
     SearchConfigError,
-)
-from myrm_agent_harness.toolkits.web_search.core.metrics import (
-    WebSearchMetrics,
-    web_search_metrics,
 )
 from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
     search_results_to_documents,
@@ -126,16 +120,14 @@ SearchServiceConfig.model_rebuild()
 class WebSearcher:
     """Web search core implementation class, only responsible for basic search functionality"""
 
-    def __init__(self, config: SearchServiceConfig, metrics: WebSearchMetrics | None = None):
+    def __init__(self, config: SearchServiceConfig):
         """Initialize search tool
 
         Args:
             config: Search service configuration
-            metrics: Optional metrics sink (defaults to process-wide ``web_search_metrics``)
         """
         self.config = config
         self._search_service = None
-        self._metrics = metrics if metrics is not None else web_search_metrics
 
     async def _get_search_service(self, bypass_gateway: bool = False) -> object:
         """Get search service instance (native or LiteLLM-backed).
@@ -253,7 +245,6 @@ class WebSearcher:
                 self.config.provider_chain,
                 query,
                 num_results,
-                metrics=self._metrics,
                 extra_params_override=extra_params_override,
             )
             return results
@@ -301,7 +292,6 @@ class WebSearcher:
         bypass_gateway = False
 
         for attempt in range(max_attempts):
-            self._metrics.record_attempt()
             try:
                 search_service = await self._get_search_service(bypass_gateway=bypass_gateway)
                 if extra_params:
@@ -332,12 +322,6 @@ class WebSearcher:
                         continue
 
                 if not is_retryable_search_error(exc) or attempt >= max_attempts - 1:
-                    self._metrics.record_terminal_failure()
-                    self._metrics.record_provider_search(
-                        provider,
-                        success=False,
-                        quota_exceeded=is_quota_or_rate_limit_error(exc),
-                    )
                     ctx = build_search_error_context(
                         exc,
                         query=query,
@@ -348,7 +332,6 @@ class WebSearcher:
                         f"Search request failed: {self._extract_key_error(exc)}",
                         context=ctx,
                     ) from exc
-                self._metrics.record_retry_scheduled()
                 delay = min(
                     self.config.retry_backoff_base_seconds * (2**attempt),
                     self.config.retry_backoff_max_seconds,
@@ -356,8 +339,6 @@ class WebSearcher:
                 await asyncio.sleep(delay)
                 continue
 
-            self._metrics.record_success()
-            self._metrics.record_provider_search(provider, success=True, quota_exceeded=False)
             return results
 
         msg = f"Search request failed after {max_attempts} attempts"

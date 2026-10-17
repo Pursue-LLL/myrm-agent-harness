@@ -15,7 +15,6 @@ from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     ErrorContext,
     SearchAPIError,
 )
-from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
 from myrm_agent_harness.toolkits.web_search.providers import chain as chain_module
 from myrm_agent_harness.toolkits.web_search.providers.chain import (
     _DEFAULT_DEPLETED_COOLDOWN_SECONDS,
@@ -279,13 +278,11 @@ _REJECTION_FAILURES = {
 async def test_chain_hops_past_a_provider_outage(monkeypatch: pytest.MonkeyPatch, failure: Exception) -> None:
     calls = _install_search(monkeypatch, {"tavily": failure})
     tracker = ProviderQuotaTracker()
-    metrics = WebSearchMetrics()
 
-    _, winner = await search_provider_chain(_two_provider_chain(), "weather", 5, metrics=metrics, quota_tracker=tracker)
+    _, winner = await search_provider_chain(_two_provider_chain(), "weather", 5, quota_tracker=tracker)
 
     assert winner == "perplexity"
     assert calls == ["tavily", "perplexity"]
-    assert metrics.chain_hop_count == 1
     # An outage is not a quota event: the provider stays eligible for the very next call.
     assert tracker.get_status("tavily") == (ProviderQuotaStatus.HEALTHY, "")
 
@@ -294,15 +291,11 @@ async def test_chain_hops_past_a_provider_outage(monkeypatch: pytest.MonkeyPatch
 @pytest.mark.parametrize("failure", _REJECTION_FAILURES.values(), ids=_REJECTION_FAILURES.keys())
 async def test_chain_hops_past_a_provider_rejection(monkeypatch: pytest.MonkeyPatch, failure: Exception) -> None:
     calls = _install_search(monkeypatch, {"tavily": failure})
-    metrics = WebSearchMetrics()
 
-    _, winner = await search_provider_chain(
-        _two_provider_chain(), "weather", 5, metrics=metrics, quota_tracker=ProviderQuotaTracker()
-    )
+    _, winner = await search_provider_chain(_two_provider_chain(), "weather", 5, quota_tracker=ProviderQuotaTracker())
 
     assert winner == "perplexity"
     assert calls == ["tavily", "perplexity"]
-    assert metrics.chain_hop_count == 1
 
 
 @pytest.mark.asyncio
@@ -311,15 +304,11 @@ async def test_chain_fails_after_trying_every_provider_during_a_full_outage(monk
         monkeypatch,
         {"tavily": TimeoutError("Request timed out"), "perplexity": ConnectionError("Connection refused")},
     )
-    metrics = WebSearchMetrics()
 
     with pytest.raises(AllQueriesFailedError):
-        await search_provider_chain(
-            _two_provider_chain(), "weather", 5, metrics=metrics, quota_tracker=ProviderQuotaTracker()
-        )
+        await search_provider_chain(_two_provider_chain(), "weather", 5, quota_tracker=ProviderQuotaTracker())
 
     assert calls == ["tavily", "perplexity"]
-    assert metrics.chain_hop_count == 1
 
 
 @pytest.mark.asyncio
@@ -339,15 +328,11 @@ async def test_chain_ends_without_a_hop_when_the_budget_is_spent_inside_a_provid
         raise TimeoutError("Request timed out")
 
     monkeypatch.setattr(WebSearcher, "search", slow_failure)
-    metrics = WebSearchMetrics()
 
     with pytest.raises(AllQueriesFailedError):
-        await search_provider_chain(
-            _two_provider_chain(), "weather", 5, metrics=metrics, quota_tracker=ProviderQuotaTracker()
-        )
+        await search_provider_chain(_two_provider_chain(), "weather", 5, quota_tracker=ProviderQuotaTracker())
 
     assert calls == ["tavily"]
-    assert metrics.chain_hop_count == 0
 
 
 @pytest.mark.asyncio

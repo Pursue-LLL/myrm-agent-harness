@@ -17,5 +17,5 @@ Search provider adapters, orchestration, and priority-ordered failover chain.
 
 ## Dependencies
 
-- `web_search.core.common`, `web_search.core.error_handling`, `web_search.core.exceptions`, `web_search.core.metrics`
+- `web_search.core.common`, `web_search.core.error_handling`, `web_search.core.exceptions`
 - `web_search.coalescing`, `web_search.processing`

@@ -28,7 +28,6 @@ from typing import TYPE_CHECKING
 from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.retriever.splitter.splitter import TextChunker
-from myrm_agent_harness.toolkits.web_search.core.metrics import web_search_metrics
 from myrm_agent_harness.utils.text_utils import get_token_count
 
 if TYPE_CHECKING:
@@ -233,7 +232,6 @@ async def _precision_mode_search(
             f"THIS IS A DEGRADED RESPONSE! Please check Reranker service health.",
             exc_info=True,
         )
-        web_search_metrics.record_reranker_degraded()
         reranked_chunks = bm25_filtered[: tools._RERANK_TOP_K]
         degraded = True
 

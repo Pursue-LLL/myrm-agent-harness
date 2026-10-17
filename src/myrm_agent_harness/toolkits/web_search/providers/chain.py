@@ -13,7 +13,7 @@
 
 [POS]
 Executes N-provider priority chain with wall-clock budget, per-hop allowance for hung providers, hand-over on empty
-answers, self-healing quota auto-skip, and chain_hop telemetry.
+answers, and self-healing quota auto-skip.
 """
 
 from __future__ import annotations
@@ -37,7 +37,6 @@ from myrm_agent_harness.toolkits.web_search.core.exceptions import (
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
-    from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
     from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
         SearchServiceConfig,
     )
@@ -133,7 +132,6 @@ async def search_provider_chain(
     query: str,
     num_results: int,
     *,
-    metrics: WebSearchMetrics | None = None,
     extra_params_override: dict[str, str | int | bool] | None = None,
     quota_tracker: ProviderQuotaTracker | None = None,
 ) -> tuple[list[SearchResult], str]:
@@ -186,15 +184,13 @@ async def search_provider_chain(
             break
         provider = hop_config.search_service
         if index > 0:
-            # A hop is counted when the next provider is attempted, not when the previous one fails: if that failure
-            # spent the chain budget, the deadline check above ends the chain and no hop happened.
+            # Logged when the next provider is attempted, not when the previous one fails: if that failure spent the
+            # chain budget, the deadline check above ends the chain and no hop happens.
             previous_provider = execution_chain[index - 1].search_service
             logger.warning(
                 "Search chain hop '%s' gave no answer, trying next provider: %s", previous_provider, provider
             )
-            if metrics is not None:
-                metrics.record_chain_hop(from_provider=previous_provider, to_provider=provider)
-        hop_searcher = WebSearcher(hop_config, metrics=metrics)
+        hop_searcher = WebSearcher(hop_config)
         # A hung hop would otherwise outlast the whole budget (its coalescing wait and retries add up to more than
         # the chain allows) and no later provider would ever run, so every hop but the last yields after half of what
         # remains. The last hop has nobody to hand over to; capping it would only add a doomed extra request.

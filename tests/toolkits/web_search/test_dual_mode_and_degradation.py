@@ -4,7 +4,6 @@
 1. 基础模式和精准模式的自动切换
 2. reranker_config 参数支持和自动服务创建
 3. Reranker 失败时的优雅降级
-4. metrics 的 reranker_degraded_count 计数
 """
 
 from unittest.mock import AsyncMock, Mock, patch
@@ -13,7 +12,6 @@ import pytest
 from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.retriever.reranker import RerankerConfig
-from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
 from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
 from myrm_agent_harness.toolkits.web_search.providers.web_searcher import SearchServiceConfig
 
@@ -124,9 +122,6 @@ class TestGracefulDegradation:
         """Reranker失败时自动降级到BM25"""
         config = SearchServiceConfig(search_service="perplexity", api_key="test-key")
 
-        # 创建独立的metrics实例用于测试
-        test_metrics = WebSearchMetrics()
-
         tools = WebSearchTools(config=config, reranker_config=mock_reranker_config)
 
         # 模拟长文档（触发分块）
@@ -180,10 +175,6 @@ class TestGracefulDegradation:
                     new_callable=AsyncMock,
                     side_effect=Exception("Reranker service unavailable"),
                 ),
-                patch(
-                    "myrm_agent_harness.toolkits.web_search.precision_search.web_search_metrics",
-                    test_metrics,
-                ),
                 patch("myrm_agent_harness.toolkits.web_search.precision_search.logger") as mock_logger,
             ):
                 sources, context = await tools.fast_search_with_questions(questions=["q1", "q2"], top_k=5)
@@ -201,9 +192,6 @@ class TestGracefulDegradation:
                     call for call in mock_logger.warning.call_args_list if "Reranker degraded" in str(call)
                 ]
                 assert len(warning_calls) >= 1
-
-                # 验证metrics计数
-                assert test_metrics.reranker_degraded_count >= 1
 
     async def test_degraded_metadata_tag(self, patch_get_reranker_service, mock_reranker_config):
         """验证降级事件的元数据标记"""
@@ -246,7 +234,6 @@ class TestGracefulDegradation:
                     side_effect=Exception("Reranker timeout"),
                 ),
                 patch("myrm_agent_harness.toolkits.web_search.precision_search.logger"),
-                patch("myrm_agent_harness.toolkits.web_search.precision_search.web_search_metrics"),
             ):
                 # 降级后的文档应该带有 _degraded_mode 标记
                 # 这个标记在 _precision_mode_search 内部设置
@@ -291,50 +278,6 @@ class TestPrecisionModeConfig:
         assert WebSearchTools._RERANK_SCORE_THRESHOLD == 0.6
         assert WebSearchTools._FUSION_WEIGHTS == (0.6, 0.1, 0.2, 0.1)
         assert WebSearchTools._FUSION_SCORE_THRESHOLD == 0.6
-
-
-@pytest.mark.asyncio
-class TestMetricsDegradationCount:
-    """测试 metrics 的降级计数"""
-
-    async def test_metrics_reranker_degraded_count(self):
-        """验证 metrics 记录 Reranker 降级事件"""
-        test_metrics = WebSearchMetrics()
-
-        # 初始值应该为0
-        assert test_metrics.reranker_degraded_count == 0
-
-        # 记录降级事件
-        test_metrics.record_reranker_degraded()
-        assert test_metrics.reranker_degraded_count == 1
-
-        # 多次降级
-        test_metrics.record_reranker_degraded()
-        test_metrics.record_reranker_degraded()
-        assert test_metrics.reranker_degraded_count == 3
-
-        # 验证 snapshot 包含降级计数
-        snapshot = test_metrics.snapshot()
-        assert snapshot["reranker_degraded_count"] == 3
-
-    async def test_metrics_thread_safety(self):
-        """验证 metrics 线程安全"""
-        import threading
-
-        test_metrics = WebSearchMetrics()
-
-        def record_multiple():
-            for _ in range(100):
-                test_metrics.record_reranker_degraded()
-
-        threads = [threading.Thread(target=record_multiple) for _ in range(10)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        # 应该记录1000次
-        assert test_metrics.reranker_degraded_count == 1000
 
 
 @pytest.mark.asyncio

@@ -1,16 +1,15 @@
-"""Shared types, errors, and metrics for web search.
+"""Shared types and errors for web search.
 
 [INPUT]
 - core.common (POS: Search result and citation data models)
 - core.exceptions (POS: Web search exception hierarchy)
 - core.error_handling (POS: Search failure classification)
-- core.metrics (POS: In-process search operation counters)
 
 [OUTPUT]
-- Re-exports: SearchResult, Citation, exception types, WebSearchMetrics, error helpers
+- Re-exports: SearchResult, Citation, exception types, error helpers
 
 [POS]
-Subpackage entry for shared web search types, errors, and metrics.
+Subpackage entry for shared web search types and errors.
 """
 
 from myrm_agent_harness.toolkits.web_search.core.common import Citation, SearchResult
@@ -26,7 +25,6 @@ from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     SearchConfigError,
     WebSearchError,
 )
-from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics, web_search_metrics
 
 __all__ = [
     "AllQueriesFailedError",
@@ -36,9 +34,7 @@ __all__ = [
     "SearchConfigError",
     "SearchResult",
     "WebSearchError",
-    "WebSearchMetrics",
     "build_search_error_context",
     "is_quota_or_rate_limit_error",
     "is_retryable_search_error",
-    "web_search_metrics",
 ]

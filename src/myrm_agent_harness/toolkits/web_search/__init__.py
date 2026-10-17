@@ -4,25 +4,22 @@
 [INPUT]
 - core.common::SearchResult, Citation (POS: search result and citation data models)
 - core.exceptions::AllQueriesFailedError, SearchAPIError, etc. (POS: web search error hierarchy)
-- core.metrics::WebSearchMetrics, web_search_metrics (POS: search performance metrics)
 - processing.search_results_processor::combine_search_results_unified, search_results_to_documents (POS: result processing utilities)
 
 [OUTPUT]
 - SearchResult, Citation, WebSearchTools, LiteLLMSearch, SearchServiceConfig: core search types and tools
-- WebSearchMetrics, web_search_metrics: metrics collection
 - Error types: AllQueriesFailedError, SearchAPIError, SearchConfigError, WebSearchError, ErrorContext
 - combine_search_results_unified, search_results_to_documents: result processors
 
 [POS]
 Web search toolkit entry point. Aggregates and re-exports search tools, result types,
-metrics, and error hierarchy for unified import.
+and error hierarchy for unified import.
 """
 
 from typing import TYPE_CHECKING
 
 from .core.common import Citation, SearchResult
 from .core.exceptions import AllQueriesFailedError, ErrorContext, SearchAPIError, SearchConfigError, WebSearchError
-from .core.metrics import WebSearchMetrics, web_search_metrics
 from .processing.search_results_processor import (
     combine_search_results_unified,
     search_results_to_documents,
@@ -43,11 +40,9 @@ __all__ = [
     "SearchResult",
     "SearchServiceConfig",
     "WebSearchError",
-    "WebSearchMetrics",
     "WebSearchTools",
     "combine_search_results_unified",
     "search_results_to_documents",
-    "web_search_metrics",
 ]
 
 _LAZY_SYMBOLS = {"LiteLLMSearch", "SearchServiceConfig", "WebSearchTools"}
