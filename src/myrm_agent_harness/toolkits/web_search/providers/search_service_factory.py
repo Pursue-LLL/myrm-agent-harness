@@ -35,13 +35,33 @@ class SearchService(Protocol):
     async def search(self, query: str, num_results: int = 5, **kwargs: object) -> list[SearchResult]: ...
 
 
-def _require_api_key(config: SearchServiceConfig) -> str:
+def require_api_key(config: SearchServiceConfig) -> str:
     if not config.api_key:
         raise SearchConfigError(
             f"{config.search_service} search requires API key configuration",
             config_key="api_key",
         )
     return config.api_key
+
+
+def describe_credential_scope(config: SearchServiceConfig) -> str:
+    """Identity a search for ``config`` is billed and answered under, as a cache-key component.
+
+    Every credential a request may actually be answered with belongs here, because a cached
+    payload must never be replayed for another one:
+
+    - A gateway-routed provider authenticates per request, so the gateway endpoint and token
+      identify that hop. SearxNG is excluded: it is always reached at its own endpoint.
+    - The provider's own key and base URL travel too. A routed request falls back to them when
+      the gateway answers a retryable failure, and that fallback is billed to them, so they
+      are part of the effective identity whether or not the gateway is used.
+    """
+    gateway = config.gateway_config
+    scopes: list[str] = []
+    if gateway is not None and gateway.use_gateway and config.search_service != "searxng":
+        scopes.append(f"gateway:{gateway.gateway_url or ''}:{gateway.auth_token or ''}")
+    scopes.append(f"direct:{config.api_key or ''}@{config.api_base or ''}")
+    return "|".join(scopes)
 
 
 def build_search_service(config: SearchServiceConfig, *, bypass_gateway: bool = False) -> SearchService:
@@ -61,7 +81,7 @@ def build_search_service(config: SearchServiceConfig, *, bypass_gateway: bool = 
         from myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search import VolcengineDoubaoSearch
 
         return VolcengineDoubaoSearch(
-            api_key=_require_api_key(config),
+            api_key=require_api_key(config),
             timeout_seconds=config.timeout_seconds,
             api_base=config.api_base,
         )
@@ -85,7 +105,7 @@ def build_search_service(config: SearchServiceConfig, *, bypass_gateway: bool = 
             )
         api_key, api_base = gateway.auth_token, f"{gateway.gateway_url.rstrip('/')}/{provider}"
     else:
-        api_key, api_base = _require_api_key(config), config.api_base
+        api_key, api_base = require_api_key(config), config.api_base
 
     logger.debug("Search service %s ready", provider)
     return LiteLLMSearch(

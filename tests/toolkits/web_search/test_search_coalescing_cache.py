@@ -129,14 +129,14 @@ async def test_error_only_search_results_are_not_ttl_cached() -> None:
 
 def test_cache_key_separates_credentials() -> None:
     """A rotated key, or a second account, must not be served the first account's answer."""
-    good = build_search_cache_key("tavily", "forbidden city", 10, "", credential_fingerprint("good-key", None))
-    good_again = build_search_cache_key("tavily", "forbidden city", 10, "", credential_fingerprint("good-key", None))
-    rotated = build_search_cache_key("tavily", "forbidden city", 10, "", credential_fingerprint("bad-key", None))
+    good = build_search_cache_key("tavily", "forbidden city", 10, "", credential_fingerprint("good-key"))
+    good_again = build_search_cache_key("tavily", "forbidden city", 10, "", credential_fingerprint("good-key"))
+    rotated = build_search_cache_key("tavily", "forbidden city", 10, "", credential_fingerprint("bad-key"))
     other_base = build_search_cache_key(
-        "searxng", "forbidden city", 10, "", credential_fingerprint(None, "http://localhost:8081")
+        "searxng", "forbidden city", 10, "", credential_fingerprint("http://localhost:8081")
     )
     moved_base = build_search_cache_key(
-        "searxng", "forbidden city", 10, "", credential_fingerprint(None, "http://localhost:9999")
+        "searxng", "forbidden city", 10, "", credential_fingerprint("http://localhost:9999")
     )
 
     assert good == good_again
@@ -146,8 +146,9 @@ def test_cache_key_separates_credentials() -> None:
 
 def test_credential_fingerprint_never_carries_the_secret() -> None:
     secret = "tvly-dev-super-secret-value"
-    fingerprint = credential_fingerprint(secret, None)
+    fingerprint = credential_fingerprint(f"direct:{secret}@")
 
     assert secret not in fingerprint
     assert len(fingerprint) == 16
-    assert credential_fingerprint(None, None) == credential_fingerprint("", "")
+    assert fingerprint == credential_fingerprint(f"direct:{secret}@")
+    assert fingerprint != credential_fingerprint("direct:other-key@")

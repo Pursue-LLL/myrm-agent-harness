@@ -624,3 +624,41 @@ class TestResultCacheCredentialScope:
             await WebSearcher(SearchServiceConfig(search_service="tavily", api_key="new-key")).search("same query", 5)
 
         assert counted.search.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_searxng_ignores_gateway_routing_when_scoping_the_cache(self):
+        """SearxNG is always reached directly, so its own endpoint is its identity, not the gateway's."""
+        counted = AsyncMock()
+        counted.search = AsyncMock(return_value=[SearchResult(title="T", link="https://ok.com", snippet="S")])
+        gateway = ToolGatewayConfig(
+            use_gateway=True, gateway_url="https://gw.example/tool-relay", auth_token="vk-shared"
+        )
+
+        with patch.object(WebSearcher, "_get_search_service", AsyncMock(return_value=counted)):
+            await WebSearcher(
+                SearchServiceConfig(search_service="searxng", api_base="http://localhost:8081", gateway_config=gateway)
+            ).search("same query", 5)
+            await WebSearcher(
+                SearchServiceConfig(search_service="searxng", api_base="http://localhost:9999", gateway_config=gateway)
+            ).search("same query", 5)
+
+        assert counted.search.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_gateway_byok_fallback_scopes_the_cache_to_the_direct_key(self):
+        """A routed config that keeps its own provider key can fall back to it mid-request, so that key scopes too."""
+        counted = AsyncMock()
+        counted.search = AsyncMock(return_value=[SearchResult(title="T", link="https://ok.com", snippet="S")])
+        gateway = ToolGatewayConfig(
+            use_gateway=True, gateway_url="https://gw.example/tool-relay", auth_token="vk-shared"
+        )
+
+        with patch.object(WebSearcher, "_get_search_service", AsyncMock(return_value=counted)):
+            await WebSearcher(
+                SearchServiceConfig(search_service="tavily", api_key="account-a", gateway_config=gateway)
+            ).search("same query", 5)
+            await WebSearcher(
+                SearchServiceConfig(search_service="tavily", api_key="account-b", gateway_config=gateway)
+            ).search("same query", 5)
+
+        assert counted.search.await_count == 2

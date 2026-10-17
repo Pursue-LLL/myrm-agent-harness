@@ -52,6 +52,7 @@ from myrm_agent_harness.toolkits.web_search.processing.search_results_processor 
 from myrm_agent_harness.toolkits.web_search.providers.search_service_factory import (
     SearchService,
     build_search_service,
+    describe_credential_scope,
 )
 
 SearchServiceType = str
@@ -125,17 +126,6 @@ class WebSearcher:
             self._search_service = service
         return service
 
-    def _credential_fingerprint(self) -> str:
-        """Identity of the account a result is fetched and billed under.
-
-        Gateway routing authenticates with the gateway token against a gateway URL rather than
-        the provider's own key, so the routed identity is what the cache must separate.
-        """
-        gateway = self.config.gateway_config
-        if gateway is not None and gateway.use_gateway:
-            return credential_fingerprint(gateway.auth_token, gateway.gateway_url)
-        return credential_fingerprint(self.config.api_key, self.config.api_base)
-
     def _compute_search_total_timeout_seconds(self) -> float:
         if self.config.total_timeout_seconds is not None:
             return float(self.config.total_timeout_seconds)
@@ -198,7 +188,7 @@ class WebSearcher:
             query,
             bucketed_limit,
             extra_suffix,
-            self._credential_fingerprint(),
+            credential_fingerprint(describe_credential_scope(self.config)),
         )
 
         async def fetch() -> list[SearchResult]:
