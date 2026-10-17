@@ -11,7 +11,7 @@ and the intent-aware search parameter optimizer.
 | [core/](core/_ARCH.md) | Core | Shared types, exceptions, error handling |
 | [providers/](providers/_ARCH.md) | Core | Provider adapters, WebSearcher orchestrator, failover chain |
 | [processing/](processing/_ARCH.md) | Core | Result dedup/sort, intent optimizer, citation resolver, explicit params |
-| [coalescing/](coalescing/_ARCH.md) | Core | Single-flight search API deduplication and LRU cache keys scoped to the identity that produced the payload |
+| [coalescing/](coalescing/_ARCH.md) | Core | Single-flight search API deduplication and LRU cache keys scoped to the credential identity the factory owns |
 | [probe/](probe/_ARCH.md) | Core | SearXNG local discovery probes and region presets |
 
 ## Package Root Files
@@ -52,7 +52,8 @@ User query → LLM Query Rewriting → questions: list[str]
     → ELSE:
          providers.WebSearcher.search(query, extra_params_override=fused_override)
          (when provider_chain set → providers.chain search_provider_chain failover)
-         coalescing.await_coalesced_search deduplicates concurrent identical API keys
+         coalescing.await_coalesced_search deduplicates concurrent identical searches
+         (same provider, credential, query, limit and params)
          (TTL cache skipped when the provider payload has no usable URL results)
     → processing.combine_search_results_unified()
     → processing.apply_domain_diversity_sort()
