@@ -12,8 +12,8 @@
 - search_provider_chain: async failover search across priority-ordered provider configs with smart skip
 
 [POS]
-Executes N-provider priority chain with wall-clock budget, per-hop allowance for hung providers, self-healing quota
-auto-skip, and chain_hop telemetry.
+Executes N-provider priority chain with wall-clock budget, per-hop allowance for hung providers, hand-over on empty
+answers, self-healing quota auto-skip, and chain_hop telemetry.
 """
 
 from __future__ import annotations
@@ -139,12 +139,14 @@ async def search_provider_chain(
 ) -> tuple[list[SearchResult], str]:
     """Search using a priority-ordered provider chain with intelligent quota auto-skip.
 
-    Any failed hop (quota, rate limit, outage, bad credentials, no answer in time) advances to the next provider until
-    the chain's wall-clock budget is spent; only quota and rate-limit failures also put the provider on a cooldown.
-    A hop that has not answered after half of the remaining budget is abandoned unless it is the last one.
+    Any hop that gives no answer (quota, rate limit, outage, bad credentials, no reply in time, or an empty result
+    list) advances to the next provider until the chain's wall-clock budget is spent; only quota and rate-limit
+    failures also put the provider on a cooldown. A hop that has not answered after half of the remaining budget is
+    abandoned unless it is the last one. When no provider produces results but one answered with an empty list, that
+    empty answer is returned instead of an error.
 
     Returns:
-        Tuple of (results, winning provider slug).
+        Tuple of (results, provider slug that produced them).
     """
     from myrm_agent_harness.toolkits.web_search.providers.web_searcher import WebSearcher
 
@@ -175,6 +177,9 @@ async def search_provider_chain(
         )
 
     final_index = len(execution_chain) - 1
+    # A provider can answer HTTP 200 with no results while its upstream is blocked, which looks exactly like a
+    # successful search to everything above the chain, so an empty list passes the baton like a failure does.
+    empty_provider: str | None = None
     for index, hop_config in enumerate(execution_chain):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -184,7 +189,9 @@ async def search_provider_chain(
             # A hop is counted when the next provider is attempted, not when the previous one fails: if that failure
             # spent the chain budget, the deadline check above ends the chain and no hop happened.
             previous_provider = execution_chain[index - 1].search_service
-            logger.warning("Search chain hop '%s' failed, trying next provider: %s", previous_provider, provider)
+            logger.warning(
+                "Search chain hop '%s' gave no answer, trying next provider: %s", previous_provider, provider
+            )
             if metrics is not None:
                 metrics.record_chain_hop(from_provider=previous_provider, to_provider=provider)
         hop_searcher = WebSearcher(hop_config, metrics=metrics)
@@ -199,7 +206,6 @@ async def search_provider_chain(
                     num_results=num_results,
                     extra_params_override=extra_params_override,
                 )
-            return results, provider
         except Exception as exc:
             last_error = exc
 
@@ -218,6 +224,13 @@ async def search_provider_chain(
                     exc,
                 )
                 tracker.mark_rate_limited(provider, reason=str(exc))
+        else:
+            if results:
+                return results, provider
+            empty_provider = provider
+
+    if empty_provider is not None:
+        return [], empty_provider
 
     if last_error is None:
         message = "All search providers in chain failed"
