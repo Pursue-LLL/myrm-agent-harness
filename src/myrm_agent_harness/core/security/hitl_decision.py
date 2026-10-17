@@ -70,9 +70,10 @@ def is_approved(user_response: object) -> bool:
 def rejection_feedback(user_response: object) -> str:
     """The human's own reason for a denial, when they gave one.
 
-    ``guidance`` carries the words a person typed (chat approval card, IM ``/deny <reason>``);
-    ``feedback`` is the fallback, because the IM sender fills ``feedback`` with its own generic
-    line while the person's words ride ``guidance``.
+    The IM ``/deny <reason>`` sender always fills ``feedback`` with its own generic line
+    (``Denied via <channel> channel command``) and puts the person's words in ``guidance``,
+    so ``guidance`` is read first; ``feedback`` is the fallback for every other client,
+    which sends no ``guidance``.
     """
     if not isinstance(user_response, Mapping):
         return ""
