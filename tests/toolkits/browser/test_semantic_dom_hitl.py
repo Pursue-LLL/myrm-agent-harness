@@ -22,6 +22,7 @@ def mock_session() -> MagicMock:
     page = MagicMock()
     page.url = "https://example.com/app"
     session.page = page
+    session.get_active_page.return_value = page
     return session
 
 
@@ -149,7 +150,10 @@ class TestEnforceSemanticInteractionGuard:
 
     @pytest.mark.asyncio
     async def test_page_url_failure_still_interrupts(self, mock_session: MagicMock) -> None:
-        type(mock_session.page).url = property(lambda _self: (_ for _ in ()).throw(RuntimeError("no page")))
+        def explode() -> str:
+            raise RuntimeError("no page")
+
+        type(mock_session.get_active_page.return_value).url = property(lambda _self: explode())
         with patch("langgraph.types.interrupt", return_value={"decision": "approve"}) as mock_interrupt:
             result = await enforce_semantic_interaction_guard(
                 session=mock_session,
@@ -260,3 +264,65 @@ class TestEnforceJsEvalGuard:
         assert result is not None
         assert "[BLOCKED]" in result
         assert "alternative approach" in result
+
+
+class TestRealClientAnswerShapes:
+    """Every shape the product's clients actually send must decide the gate: no gate may ignore a human."""
+
+    @pytest.mark.asyncio
+    async def test_drawer_approve_lets_high_risk_click_through(self, mock_session: MagicMock) -> None:
+        with patch("langgraph.types.interrupt", return_value={"decision": "approve"}):
+            result = await enforce_semantic_interaction_guard(
+                session=mock_session,
+                tool_name="browser_interact_tool",
+                action="click",
+                ref="e1",
+                ref_info=_ref(name="Delete account"),
+                text="",
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_channel_batch_approve_lets_high_risk_click_through(self, mock_session: MagicMock) -> None:
+        """IM approve arrives as {"decisions": [{"type": "approve"}]}; it used to be read as a denial."""
+        with patch("langgraph.types.interrupt", return_value={"decisions": [{"type": "approve"}]}):
+            result = await enforce_semantic_interaction_guard(
+                session=mock_session,
+                tool_name="browser_interact_tool",
+                action="click",
+                ref="e1",
+                ref_info=_ref(name="Delete account"),
+                text="",
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_channel_deny_blocks_with_channel_feedback(self, mock_session: MagicMock) -> None:
+        with patch(
+            "langgraph.types.interrupt",
+            return_value={"decisions": [{"type": "reject", "feedback": "Denied via feishu channel command"}]},
+        ):
+            result = await enforce_semantic_interaction_guard(
+                session=mock_session,
+                tool_name="browser_interact_tool",
+                action="click",
+                ref="e1",
+                ref_info=_ref(name="Delete account"),
+                text="",
+            )
+        assert result is not None
+        assert "Denied via feishu channel command" in result
+
+    @pytest.mark.asyncio
+    async def test_unknown_answer_shape_blocks_fail_closed(self, mock_session: MagicMock) -> None:
+        with patch("langgraph.types.interrupt", return_value={"approved": True}):
+            result = await enforce_semantic_interaction_guard(
+                session=mock_session,
+                tool_name="browser_interact_tool",
+                action="click",
+                ref="e1",
+                ref_info=_ref(name="Delete account"),
+                text="",
+            )
+        assert result is not None
+        assert "[BLOCKED]" in result

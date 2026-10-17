@@ -13,6 +13,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | safe_exec.py | Core | Safe command execution — direct exec by default, shell fallback when needed. Env derived from caller env or ``os.environ`` is always passed through ``sanitize_env()`` (dangerous vars stripped) before credential overrides are injected post-sanitize. Process-group isolation + full-tree SIGKILL on timeout. | ✅ |
 | shell_command_lexer.py | Core | The one reading of a shell command line, shared by the risk classifier, the approval-card span extractor, the destructive-action parser and the allow-always matcher (`toolkits/code_execution/security/`, `agent/security/command_allowlist_pattern.py`): where commands end, which words they have, which characters the shell interprets. Quote-, escape-, comment- and ANSI-C-aware; differentially fuzzed against bash 3.2 and 5.2. Pure functions, no dependencies. | ✅ |
 | tool_registry/ | Core | Tool metadata registry domain — permission mapping, canonical params, safety metadata, canonical tool group mapping (TOOL_GROUP_MAP/TOOL_TO_GROUP for skill conditional activation) + module-load safety coverage gate. See `tool_registry/_ARCH.md`. | ✅ |
+| hitl_decision.py | Core | The one reading of the value a client sends back into a LangGraph `interrupt` (HITL answer SSOT). `is_approved` accepts exactly the shapes the product's clients produce — one decision for the pause (`{"decision": "approve" \| "reject"}`, WebUI approval drawer + HITL timer) and one decision per requested item (`{"decisions": [{"type": ...}]}`, chat tool-approval card, drawer subagent batch, IM buttons; every entry must approve) — plus the plain-text approval words, and denies every other shape, including an unreadable one. `rejection_feedback` reads the human's own words (`feedback`, else the IM `/deny <reason>` `guidance`). Pure functions, no dependencies. The tool-approval middleware keeps its own count-checked normalizer, which reads the same two shapes and is fail-closed. | ✅ |
 | types.py | Core | Foundation security type hierarchy — SecurityConfig, PathPolicy, CapabilitySurface, CAPABILITY_SURFACE_PERMISSIONS, enums. | ✅ |
 | device_policy.py | Core | Device security policy SSOT & dual-insurance batch risk assessment (`DeviceSecurityPolicy`, `BatchRiskAssessment`, `evaluate_batch_risk`). | ✅ |
 | remote_ops_ledger.py | Core | Remote operations audit ledger and symmetric action recovery (`RemoteOpsActionRecord`, `ActionRecoveryHint`, `derive_recovery_hint`). | ✅ |
@@ -36,7 +37,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | ephemeral_credentials/ | Session-isolated ephemeral credential store and single-use zero-disk injection primitives with memory wipe ([ephemeral_credentials/_ARCH.md](ephemeral_credentials/_ARCH.md)). |
 | readonly_research_sandbox/ | Read-only research lease: while a session's lease is active only the lease's tools run (default-deny check, lease lifecycle, counters) ([readonly_research_sandbox/_ARCH.md](readonly_research_sandbox/_ARCH.md)). |
 | auto_review_resolution/ | Diagnostic behind the message the model reads when a tool call is refused: reason code, allowed alternatives, four resolution branches; stateless ([auto_review_resolution/_ARCH.md](auto_review_resolution/_ARCH.md)). |
-| ocap/ | Object-Capability (OCap) zero-trust delegation mesh primitives: signed handles, one-way attenuation, and cascading revocation ([ocap/_ARCH.md](ocap/_ARCH.md)). |
+| ocap/ | Object-Capability (OCap) primitives: per-spawn signed handles enforced by the file and shell executors, with one-way attenuation from the parent handle ([ocap/_ARCH.md](ocap/_ARCH.md)). |
 
 ## Key Dependencies
 
@@ -45,6 +46,8 @@ Foundational security primitives used across all layers. Zero dependency on agen
 ## Consumers
 
 - `toolkits/browser/session/interactor.py`, `toolkits/browser/tools/interact.py` — fill_credential
+- `toolkits/browser/tools/semantic_dom_hitl.py`, `toolkits/computer_use/semantic_gate.py`, `toolkits/browser/tools/execute_script.py` — read a high-risk action / privileged script answer
+- `agent/meta_tools/spawn_subagent/_delegate_batch.py`, `_delegate_cognitive.py` — read the batch cost answer
 - `toolkits/computer_use/` — desktop fill_credential backends
 - `myrm-agent-server/app/services/security/vault_credential_service.py` — sync decrypted credentials into global vault
 - `agent/meta_tools/file_ops/validators/invariant_validator.py` — pre-write Goal protection

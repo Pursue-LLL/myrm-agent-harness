@@ -101,3 +101,27 @@ async def test_approval_script_preview_truncated(mock_session: MagicMock) -> Non
         await _require_privileged_api_approval(mock_session, [".request.get()"], long_script)
     payload = mock_interrupt.call_args[0][0]
     assert len(payload["script_preview"]) == 500
+
+
+@pytest.mark.asyncio
+async def test_channel_batch_approve_lets_privileged_script_through(mock_session: MagicMock) -> None:
+    """IM approve arrives as {"decisions": [{"type": "approve"}]}; it used to be read as a denial."""
+    with (
+        patch("langgraph.types.interrupt", return_value={"decisions": [{"type": "approve"}]}),
+        patch("myrm_agent_harness.core.security.audit.record_decision"),
+    ):
+        result = await _require_privileged_api_approval(
+            mock_session, [".request.get()"], "await page.request.get('http://x.com')"
+        )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_unknown_answer_shape_blocks_fail_closed(mock_session: MagicMock) -> None:
+    with (
+        patch("langgraph.types.interrupt", return_value={"approved": True}),
+        patch("myrm_agent_harness.core.security.audit.record_decision"),
+    ):
+        result = await _require_privileged_api_approval(mock_session, [".evaluate"], "await page.evaluate('1+1')")
+    assert result is not None
+    assert "[BLOCKED]" in result

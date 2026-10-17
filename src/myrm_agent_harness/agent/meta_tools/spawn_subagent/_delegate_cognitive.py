@@ -7,10 +7,12 @@
 - agent.sub_agents.types::SubAgentResult (POS: Single subagent execution result)
 - agent.sub_agents.orchestrator::run_council (POS: Council orchestration primitive)
 - agent.sub_agents.orchestrator::run_alternatives (POS: Alternatives generation primitive)
+- agent.sub_agents.spawn_prep::build_spawn_child_context (POS: child runtime context taken only from the parent)
 - agent.parallel.summary::inject_capacity_signal (POS: Capacity signal injection for context management)
 - delegation_pause_gate::is_delegation_paused (POS: Session delegation pause check)
 - _delegate_budget::_estimate_batch_cost, _BatchBudgetAdmission (POS: Pre-flight cost estimation)
 - _delegate_batch::TaskRequest, _DEFAULT_COST_APPROVAL_THRESHOLD_USD (POS: Cost approval threshold)
+- core.security.hitl_decision::is_approved (POS: 人工审批答复唯一解读)
 
 [OUTPUT]
 - execute_cognitive_mode: Execute council or alternatives delegation mode
@@ -40,7 +42,10 @@ from myrm_agent_harness.agent.sub_agents.types import (
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
     from myrm_agent_harness.agent.base_agent import BaseAgent
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 logger = get_agent_logger(__name__)
 
@@ -54,11 +59,11 @@ async def execute_cognitive_mode(
     expert_agent_types: list[str] | None,
     context: dict[str, object] | None,
     context_files: list[str],
-    tool_registry_getter: Callable[[], list[object]],
+    tool_registry_getter: Callable[[], list[BaseTool]],
     readonly: bool,
     cross_review_rounds: int,
     chair_agent_type: str | None,
-    cancel_token: object | None,
+    cancel_token: CancellationToken | None,
     session_id: str,
     allowed_types: list[str] | None,
 ) -> dict[str, object]:
@@ -94,7 +99,7 @@ async def execute_cognitive_mode(
             task += f"\n\nAdditional Context Data:\n{context!s}"
 
     expert_configs: list[tuple[str, SubagentConfig]] = []
-    from myrm_agent_harness.agent.sub_agents.spawn_prep import apply_readonly_to_config
+    from myrm_agent_harness.agent.sub_agents.spawn_prep import apply_readonly_to_config, build_spawn_child_context
 
     for agent_type_id in expert_agent_types:
         if allowed_types is not None and agent_type_id not in allowed_types:
@@ -128,11 +133,7 @@ async def execute_cognitive_mode(
     if rejection is not None:
         return rejection
 
-    parent_ctx = getattr(parent_agent, "_last_context", None) or {}
-    child_context = dict(context or {})
-    for _ctx_key in ("workspace_binding", "workspaces_storage_root", "user_id", "session_id"):
-        if _ctx_key in parent_ctx:
-            child_context[_ctx_key] = parent_ctx[_ctx_key]
+    child_context = build_spawn_child_context(parent_ctx=getattr(parent_agent, "_last_context", None) or {})
 
     try:
         if mode == "council":
@@ -252,6 +253,8 @@ async def _preflight_cost_check(
 
     from langgraph.types import interrupt
 
+    from myrm_agent_harness.core.security.hitl_decision import is_approved
+
     interrupt_payload = {
         "action_type": "batch_cost_approval",
         "task_count": effective_count,
@@ -265,14 +268,7 @@ async def _preflight_cost_check(
     }
     decision = interrupt(interrupt_payload)
 
-    approved = True
-    if isinstance(decision, dict):
-        approved = decision.get("approved", True)
-    elif isinstance(decision, list) and decision:
-        first = decision[0]
-        approved = first.get("approved", True) if isinstance(first, dict) else bool(first)
-
-    if not approved:
+    if not is_approved(decision):
         return {
             "success": False,
             "status": "user_rejected",

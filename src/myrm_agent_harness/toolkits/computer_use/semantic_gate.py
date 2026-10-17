@@ -13,6 +13,7 @@ its browser DOM counterpart regardless of which channel performs it.
 - coordinate_scaler::CoordinateScaler (POS: 截图图像空间↔屏幕空间双向转换)
 - langgraph.types::interrupt (POS: HITL interrupt 机制)
 - core.security.audit::record_decision (POS: 安全决策审计)
+- core.security.hitl_decision::is_approved, rejection_feedback (POS: 人工审批答复唯一解读)
 
 [OUTPUT]
 - enforce_desktop_interact_guard: desktop_interact AX 激活动作语义门
@@ -87,20 +88,6 @@ class DesktopGuardContext(NamedTuple):
     scaler: CoordinateScaler | None
 
 
-def _parse_interrupt_decision(user_response: object) -> bool:
-    if isinstance(user_response, dict):
-        return user_response.get("decision") == "approve"
-    if isinstance(user_response, str):
-        return user_response.lower() in ("approve", "allow", "yes", "y")
-    return False
-
-
-def _user_rejection_feedback(user_response: object) -> str:
-    if isinstance(user_response, dict):
-        return str(user_response.get("feedback", "") or "")
-    return ""
-
-
 async def _require_hitl_approval(
     *,
     ctx: DesktopGuardContext,
@@ -114,6 +101,7 @@ async def _require_hitl_approval(
     from langgraph.types import interrupt
 
     from myrm_agent_harness.core.security.audit import record_decision
+    from myrm_agent_harness.core.security.hitl_decision import is_approved, rejection_feedback
 
     logger.warning(
         "[DESKTOP_SEMANTIC_GUARD] High-risk action blocked for approval: tool=%s app=%s reason=%s",
@@ -145,9 +133,7 @@ async def _require_hitl_approval(
                 hitl_payload["screenshot_base64"] = screenshot_b64
                 hitl_payload["screenshot_size"] = list(screenshot_size)
                 if highlight_screen_xy is not None and ctx.scaler is not None:
-                    hitl_payload["highlight_coordinate"] = list(
-                        ctx.scaler.screen_to_api(*highlight_screen_xy)
-                    )
+                    hitl_payload["highlight_coordinate"] = list(ctx.scaler.screen_to_api(*highlight_screen_xy))
         except Exception as exc:
             logger.debug("Desktop semantic guard screenshot capture failed: %s", exc)
 
@@ -164,13 +150,13 @@ async def _require_hitl_approval(
             "chat so a human can approve it, or find an alternative approach."
         )
 
-    if not _parse_interrupt_decision(user_response):
+    if not is_approved(user_response):
         record_decision(
             tool_name,
             "USER_REJECTED",
             f"User rejected high-risk desktop action: {reason}",
         )
-        feedback = _user_rejection_feedback(user_response)
+        feedback = rejection_feedback(user_response)
         return (
             f"[BLOCKED] User rejected this action: {reason}."
             + (f" Feedback: {feedback}" if feedback else "")
@@ -244,10 +230,7 @@ def resolve_coordinate_target(
         if not isinstance(value, ElementRef) or not _is_interactive_role(value.role):
             continue
         bbox = value.bbox
-        if (
-            bbox.x <= screen_x < bbox.x + bbox.width
-            and bbox.y <= screen_y < bbox.y + bbox.height
-        ):
+        if bbox.x <= screen_x < bbox.x + bbox.width and bbox.y <= screen_y < bbox.y + bbox.height:
             area = bbox.width * bbox.height
             if best is None or area < best_area:
                 best = value

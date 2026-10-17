@@ -2,6 +2,7 @@
 
 [INPUT]
 - _delegate_budget::_BatchBudgetAdmission, _admit_race_budget, _estimate_batch_cost (POS: Budget admission and cost estimation)
+- core.security.hitl_decision::is_approved (POS: 人工审批答复唯一解读)
 - sub_agents.types::SubagentCatalog, DelegateRole
 - parallel.runner::run_parallel_task_requests (POS: Parallel task execution engine)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — judge 兼容 think 剥离与 reasoning 模型回退)
@@ -56,7 +57,7 @@ class TaskRequest(BaseModel):
     context: dict[str, object] | None = Field(default=None, description="Optional context data")
     readonly: bool = Field(
         default=False,
-        description="If true, subagent cannot write files or run bash commands",
+        description="If true: no file writes, no bash, no MCP tools unless marked read-only",
     )
     complexity_tier: str | None = Field(
         default=None,
@@ -254,6 +255,8 @@ async def execute_batch_delegation(
         ):
             from langgraph.types import interrupt
 
+            from myrm_agent_harness.core.security.hitl_decision import is_approved
+
             task_summaries = [{"agent_type": t.agent_type, "objective": t.objective[:200]} for t in tasks]
             interrupt_payload = {
                 "action_type": "batch_cost_approval",
@@ -271,14 +274,7 @@ async def execute_batch_delegation(
             }
             decision = interrupt(interrupt_payload)
 
-            approved = True
-            if isinstance(decision, dict):
-                approved = decision.get("approved", True)
-            elif isinstance(decision, list) and decision:
-                first = decision[0]
-                approved = first.get("approved", True) if isinstance(first, dict) else bool(first)
-
-            if not approved:
+            if not is_approved(decision):
                 return {
                     "success": False,
                     "status": "user_rejected",

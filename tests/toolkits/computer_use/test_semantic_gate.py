@@ -343,3 +343,29 @@ async def test_out_of_bounds_coordinate_passes():
         )
     assert result is None
     mock_interrupt.assert_not_called()
+
+
+async def test_channel_batch_approve_lets_high_risk_activation_through():
+    """IM approve arrives as {"decisions": [{"type": "approve"}]}; it used to be read as a denial."""
+    with patch("langgraph.types.interrupt", return_value={"decisions": [{"type": "approve"}]}):
+        result = await enforce_desktop_interact_guard(
+            ctx=_ctx(),
+            ref_id="d42",
+            role="AXButton",
+            name="Delete All Records",
+            action="press",
+        )
+    assert result is None
+
+
+async def test_unknown_answer_shape_blocks_fail_closed():
+    with patch("langgraph.types.interrupt", return_value={"approved": True}):
+        result = await enforce_desktop_interact_guard(
+            ctx=_ctx(),
+            ref_id="d42",
+            role="AXButton",
+            name="Delete All Records",
+            action="press",
+        )
+    assert result is not None
+    assert "[BLOCKED]" in result

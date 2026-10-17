@@ -4,6 +4,7 @@
 - common::mark_untrusted (POS: unified browser output security boundary; credential redaction + untrusted-content wrapping)
 - patchright.async_api::Page (POS: Patchright page instance)
 - session.browser_session::BrowserSession (POS: browser session)
+- core.security.hitl_decision::is_approved, rejection_feedback (POS: 人工审批答复唯一解读)
 
 [OUTPUT]
 - create_execute_script_tool: Create browser_execute_script tool bound to session.
@@ -26,6 +27,7 @@ import textwrap
 from typing import TYPE_CHECKING, Any
 
 from langchain.tools import tool
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from .common import mark_untrusted
@@ -71,6 +73,7 @@ async def _require_privileged_api_approval(
     from langgraph.types import interrupt
 
     from myrm_agent_harness.core.security.audit import record_decision
+    from myrm_agent_harness.core.security.hitl_decision import is_approved, rejection_feedback
 
     apis = ", ".join(violations)
     logger.warning("[SCRIPT_PRIVILEGED_API] Detected privileged API access: %s", apis)
@@ -86,17 +89,12 @@ async def _require_privileged_api_approval(
         }
     )
 
-    if isinstance(user_response, dict) and user_response.get("decision") == "approve":
-        record_decision("browser_execute_script_tool", "USER_APPROVED", f"Privileged API approved: {apis}")
-        return None
-    if isinstance(user_response, str) and user_response.lower() in ("approve", "allow", "yes", "y"):
+    if is_approved(user_response):
         record_decision("browser_execute_script_tool", "USER_APPROVED", f"Privileged API approved: {apis}")
         return None
 
     record_decision("browser_execute_script_tool", "USER_REJECTED", f"Privileged API rejected: {apis}")
-    feedback = ""
-    if isinstance(user_response, dict):
-        feedback = str(user_response.get("feedback", "") or "")
+    feedback = rejection_feedback(user_response)
     return (
         f"[BLOCKED] Script uses privileged APIs ({apis}) that bypass network security policy. "
         f"User rejected execution."
@@ -145,7 +143,7 @@ class _AsyncYieldInjector(ast.NodeTransformer):
         return node
 
 
-def create_execute_script_tool(session: BrowserSession):
+def create_execute_script_tool(session: BrowserSession) -> BaseTool:
     """Create browser_execute_script tool bound to session."""
 
     class ExecuteScriptInput(BaseModel):
@@ -236,14 +234,14 @@ def create_execute_script_tool(session: BrowserSession):
         }
 
         output_buffer = io.StringIO()
-        print_queue = asyncio.Queue()
+        print_queue: asyncio.Queue[str | None] = asyncio.Queue()
 
         def custom_print(*args: object, **_kwargs: object) -> None:
             text = " ".join(str(a) for a in args)
             output_buffer.write(text + "\n")
             print_queue.put_nowait(text)
 
-        async def stream_flusher():
+        async def stream_flusher() -> None:
             while True:
                 text = await print_queue.get()
                 if text is None:
