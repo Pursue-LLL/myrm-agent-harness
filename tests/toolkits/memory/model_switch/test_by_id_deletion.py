@@ -1,8 +1,9 @@
 """Deleting a memory by id removes every copy of it, not only the one the current model reads.
 
 An interrupted migration leaves a memory in two places: the old model's collection (it is removed
-only after the current collection is read back to hold the copy) and the current one. Deleting the
-visible copy by id used to leave the other behind, and the next migration brought the memory back.
+only after the current collection is read back to hold the copy) and the current one. A delete that
+removed only the visible copy would let the next migration bring the memory back, so the other copy
+has to go with it.
 """
 
 from __future__ import annotations
