@@ -255,6 +255,25 @@ def get_loaded_skills() -> list[SkillMetadata]:
     return list(_loaded_skills_var.get() or ())
 
 
+_bound_skills_receipt_var: ContextVar[list[SkillMetadata] | None] = ContextVar(
+    "bound_skills_receipt",
+    default=None,
+)
+
+
+def set_bound_skills_receipt(skills: list[SkillMetadata]) -> None:
+    """Record agent-bound skills for turn-end metadata (does not affect prompts)."""
+    _bound_skills_receipt_var.set(list(skills))
+
+
+def get_bound_skills_receipt() -> list[SkillMetadata]:
+    return list(_bound_skills_receipt_var.get() or ())
+
+
+def reset_bound_skills_receipt() -> None:
+    _bound_skills_receipt_var.set(None)
+
+
 def add_loaded_skill(skill: SkillMetadata) -> None:
     """Record a skill loaded in the current run (idempotent by name).
 
