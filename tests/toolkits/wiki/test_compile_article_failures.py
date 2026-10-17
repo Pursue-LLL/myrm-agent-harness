@@ -18,7 +18,9 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+from myrm_agent_harness.toolkits.wiki.pipeline import articles
 from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
+from myrm_agent_harness.toolkits.wiki.pipeline.publication import ArticlePublishOutcome
 from myrm_agent_harness.toolkits.wiki.pipeline.resilience import EMBED_WINDOW_VIOLATION
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
@@ -181,6 +183,46 @@ async def test_an_article_failure_that_a_retry_cannot_fix_is_failed_without_an_a
     _let_the_backoff_pass(compiler)
     assert compiler._queue.get_transient_retryable_items() == []
     assert not compiler._queue.is_compile_paused()
+
+
+def _publish_scan_refusing(concept: str) -> AbstractContextManager[object]:
+    """Make the publish content scan refuse the article of ``concept`` and let the others through."""
+    publish = articles.publish_concept_article
+
+    async def refuse_one(
+        structure: WikiStructure, indexer: WikiIndexer | None, name: str, content: str
+    ) -> ArticlePublishOutcome:
+        if name == concept:
+            return ArticlePublishOutcome.BLOCKED
+        return await publish(structure, indexer, name, content)
+
+    return patch.object(articles, "publish_concept_article", refuse_one)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entrypoint", ["worker", "compile_all"])
+async def test_an_article_the_publish_scan_refused_fails_its_source_as_a_safety_block_without_a_retry(
+    wiki_structure: WikiStructure, entrypoint: str
+) -> None:
+    compiler = _new_compiler(wiki_structure, {})
+
+    with _publish_scan_refusing("beta"):
+        await _compile(compiler, entrypoint)
+
+    assert _statuses(compiler) == {"alpha": "completed", "beta": "failed", "gamma": "completed"}
+    beta = _rows(compiler)["beta"]
+    assert beta["error_kind"] == ErrorKind.SAFETY_BLOCK.value
+    assert beta["error_message"] == _ARTICLE_FAILED
+    assert not beta["retry_after"]
+    _let_the_backoff_pass(compiler)
+    assert compiler._queue.get_transient_retryable_items() == []
+    assert not compiler._queue.is_compile_paused()
+    assert [_article_exists(wiki_structure, name) for name in ("alpha", "beta", "gamma", "shared")] == [
+        True,
+        False,
+        True,
+        True,
+    ]
 
 
 @pytest.mark.asyncio

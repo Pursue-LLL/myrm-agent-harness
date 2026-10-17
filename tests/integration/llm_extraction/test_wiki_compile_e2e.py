@@ -16,6 +16,8 @@ from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
 
 pytestmark = pytest.mark.e2e
 
+_SOURCE_ONLY_FACTS = ("ORCHID-4417", "38,800", "17 天")
+
 
 def _make_structure(tmp_path) -> WikiStructure:
     structure = WikiStructure(tmp_path)
@@ -43,8 +45,14 @@ async def test_extract_concepts_from_doc_real_llm(tmp_path, basic_llm) -> None:
 
 @pytest.mark.asyncio
 async def test_generate_article_real_llm(tmp_path, basic_llm) -> None:
-    """A real LLM generates a non-empty wiki article file."""
+    """A real LLM writes a non-empty wiki article from the text of the concept's source."""
     structure = _make_structure(tmp_path)
+    (structure.raw_dir / "marketing.md").write_text(
+        "# 事件营销手册\n\n事件营销是一种通过制造热点事件来提升品牌知名度的策略。\n"
+        f"内部活动代号：{_SOURCE_ONLY_FACTS[0]}。\n单次活动预算上限为 {_SOURCE_ONLY_FACTS[1]} 元。\n"
+        f"报名后 {_SOURCE_ONLY_FACTS[2]} 内可全额退款。\n",
+        encoding="utf-8",
+    )
     compiler = WikiCompiler(
         basic_llm,
         structure,
@@ -64,6 +72,9 @@ async def test_generate_article_real_llm(tmp_path, basic_llm) -> None:
     assert article_path.exists(), "article file should be written by the real LLM path"
     content = article_path.read_text(encoding="utf-8")
     assert content.strip(), "article file should not be empty"
+    # Facts only the source states: a model that was told the path alone cannot reproduce any of them.
+    reproduced = [fact for fact in _SOURCE_ONLY_FACTS if fact in content]
+    assert len(reproduced) >= 2, f"article should be written from the source text, reproduced only {reproduced}"
 
 
 @pytest.mark.asyncio

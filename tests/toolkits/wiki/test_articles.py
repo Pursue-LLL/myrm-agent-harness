@@ -7,7 +7,7 @@ import pytest
 from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
 from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
-from myrm_agent_harness.toolkits.wiki.pipeline.articles import generate_articles_batch
+from myrm_agent_harness.toolkits.wiki.pipeline.articles import ArticleBlockedError, generate_articles_batch
 from myrm_agent_harness.toolkits.wiki.pipeline.resilience import EMBED_WINDOW_VIOLATION
 
 
@@ -76,6 +76,23 @@ async def test_a_failed_article_is_recorded_with_its_sources_and_classification_
     ]
     assert stats.failures[0].resolution.retry_after_seconds == 120
     assert (stats.generated, stats.blocked) == (1, 2)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("parallel", [True, False])
+async def test_an_article_the_publish_scan_refused_is_a_permanent_safety_block(parallel: bool) -> None:
+    async def generate(concept: ConceptInfo) -> str:
+        raise ArticleBlockedError(f"Article of '{concept.name}' was refused by the publish content scan")
+
+    stats = await generate_articles_batch(
+        [_concept("leaky", "a.md", "b.md")], generate, min_mentions=1, semaphore=_semaphore(parallel)
+    )
+
+    assert [
+        (f.name, f.source_files, f.resolution.error_kind, f.resolution.retryable, f.resolution.counts_toward_pause)
+        for f in stats.failures
+    ] == [("leaky", ("a.md", "b.md"), ErrorKind.SAFETY_BLOCK.value, False, False)]
+    assert (stats.generated, stats.blocked) == (0, 1)
 
 
 @pytest.mark.asyncio

@@ -6,7 +6,7 @@
 - .types::FailureResolution (POS: compile failure policy result)
 
 [OUTPUT]
-- resolve_io_failure, resolve_llm_failure, resolve_embed_failure: map failures to queue retry/pause policy
+- resolve_io_failure, resolve_llm_failure, resolve_embed_failure, resolve_blocked_publish: map failures to queue retry/pause policy
 - evaluate_batch_pause: batch-level compile circuit pause decision
 - TRANSIENT_ERROR_KINDS: the error kinds a queued retry can recover from, shared with the queue's retry selection
 - is_transient_error_kind: transient retry eligibility filter
@@ -81,6 +81,15 @@ def resolve_embed_failure(exc: EmbedInputTooLargeError) -> tuple[str, str]:
         f"{exc.limit}{scope}. Switch to a larger-window embedding model, then resume."
     )
     return reason, EMBED_WINDOW_VIOLATION
+
+
+def resolve_blocked_publish() -> FailureResolution:
+    """Classify an article the publish content scan refused: the same text is refused again until its sources change."""
+    return FailureResolution(
+        error_kind=ErrorKind.SAFETY_BLOCK.value,
+        retryable=False,
+        counts_toward_pause=False,
+    )
 
 
 def resolve_llm_failure(exc: Exception) -> FailureResolution:

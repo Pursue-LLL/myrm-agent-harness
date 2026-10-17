@@ -8,13 +8,15 @@
 - ..core.frontmatter_contract::WikiProvenance, apply_compile_gate, serialize_frontmatter_block (POS: frontmatter gate)
 - ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 - ..core.types::ConceptInfo (POS: Wiki toolkit type definitions)
+- .article_evidence::build_source_evidence, source_budget_chars (POS: the numbered source text an article is written from)
 - .compiler_provenance::provenance_from_raw_sources, restore_provenance_metadata (POS: provenance preservation)
 - .pending::WikiPendingEditsManager (POS: drafts awaiting approval)
-- .publication::publish_concept_article (POS: validated publish plus search index upsert)
-- .resilience::FailureResolution, resolve_embed_failure, resolve_llm_failure (POS: failure classification)
+- .publication::ArticlePublishOutcome, publish_concept_article (POS: validated publish plus search index upsert)
+- .resilience::FailureResolution, resolve_blocked_publish, resolve_embed_failure, resolve_llm_failure (POS: failure classification)
 - utils.chat_utils::extract_answer_text (POS: LLM answer extraction)
 
 [OUTPUT]
+- ArticleBlockedError: the publish content scan refused an article, so nothing was written
 - ConceptFailure: a concept whose article could not be written, with the sources behind it and why
 - ArticleBatchStats: what a batch wrote, what it could not, and the embed pause an index failure asks for
 - generate_article: write (or stage for approval) the article of one concept
@@ -48,10 +50,11 @@ from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
+from .article_evidence import build_source_evidence, source_budget_chars
 from .compiler_provenance import provenance_from_raw_sources, restore_provenance_metadata
 from .pending import WikiPendingEditsManager
-from .publication import publish_concept_article
-from .resilience import FailureResolution, resolve_embed_failure, resolve_llm_failure
+from .publication import ArticlePublishOutcome, publish_concept_article
+from .resilience import FailureResolution, resolve_blocked_publish, resolve_embed_failure, resolve_llm_failure
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
@@ -61,6 +64,10 @@ logger = get_agent_logger(__name__)
 _PENDING = "pending"
 _PUBLISHED = "published"
 _EMBED_BLOCKED = "blocked"
+
+
+class ArticleBlockedError(Exception):
+    """The publish content scan refused an article, so nothing was written for its concept."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,7 +98,7 @@ def _failure_of(concept: ConceptInfo, error: Exception) -> ConceptFailure:
     return ConceptFailure(
         name=concept.name,
         source_files=tuple(concept.source_files),
-        resolution=resolve_llm_failure(error),
+        resolution=resolve_blocked_publish() if isinstance(error, ArticleBlockedError) else resolve_llm_failure(error),
     )
 
 
@@ -195,10 +202,17 @@ async def generate_article(
         if purpose_text:
             purpose_context = f"Knowledge base direction: {purpose_text}\nFocus your article within this scope.\n\n"
 
+    # Read and scored on a worker thread: a long source must not stall the event loop the other articles run on.
+    source_docs = await asyncio.to_thread(
+        build_source_evidence,
+        structure,
+        concept,
+        source_budget_chars(llm, compile_config.max_source_context_chars),
+    )
     prompt = compile_config.generate_article_prompt_template.format(
         concept_name=concept.name,
         purpose_context=purpose_context,
-        source_docs="\n".join(f"- {f}" for f in concept.source_files),
+        source_docs=source_docs,
     )
 
     if existing_content:
@@ -247,11 +261,13 @@ async def generate_article(
         logger.info(f"Generated pending draft for article: {concept.name}")
         return _PENDING
 
-    await publish_concept_article(
+    outcome = await publish_concept_article(
         structure,
         indexer,
         concept.name,
         article_content,
     )
+    if outcome is ArticlePublishOutcome.BLOCKED:
+        raise ArticleBlockedError(f"Article of '{concept.name}' was refused by the publish content scan")
     logger.info(f"Generated and published article: {concept.name}")
     return _PUBLISHED

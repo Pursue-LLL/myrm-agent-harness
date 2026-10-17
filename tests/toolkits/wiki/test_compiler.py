@@ -8,6 +8,7 @@ from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
 )
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
 from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
@@ -41,12 +42,9 @@ async def test_wiki_compiler_generate_article(wiki_structure, mock_llm, mock_ind
 
     # We mock _generate_article directly since process() might involve multiple steps
     # We can test process but let's test the core generation first
-    class DummyConcept:
-        name = "Test Concept"
-        reason = "test"
-        source_files = ("test.md",)
+    concept = ConceptInfo(name="Test Concept", definition="test", source_files=["test.md"])
 
-    await compiler._generate_article(DummyConcept())
+    await compiler._generate_article(concept)
 
     # Verify file is written with structured claims
     article_path = wiki_structure.get_concept_file_path("Test Concept")
@@ -70,12 +68,9 @@ async def test_wiki_compiler_require_approval(wiki_structure, mock_llm, mock_ind
     compile_config = WikiCompileConfig(require_approval=True)
     compiler = WikiCompiler(mock_llm, wiki_structure, config, compile_config, indexer=mock_indexer)
 
-    class DummyConcept:
-        name = "Test Concept"
-        reason = "test"
-        source_files = ("test.md",)
+    concept = ConceptInfo(name="Test Concept", definition="test", source_files=["test.md"])
 
-    await compiler._generate_article(DummyConcept())
+    await compiler._generate_article(concept)
 
     # File should not exist directly
     article_path = wiki_structure.get_concept_file_path("Test Concept")
@@ -182,7 +177,6 @@ async def test_extract_concepts_from_doc_unreadable(wiki_structure, mock_llm, mo
     from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
         EmbedInputTooLargeError,
     )
-    from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
     from myrm_agent_harness.toolkits.wiki.pipeline.resilience import (
         EMBED_WINDOW_VIOLATION,
     )
