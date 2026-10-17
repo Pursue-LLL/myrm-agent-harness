@@ -160,7 +160,7 @@ def test_jieba_syntax_error_uses_fallback() -> None:
         with patch("builtins.__import__", side_effect=SyntaxError("invalid escape sequence")):
             service._jieba = None
             service._initialized = False
-            service._init_jieba_sync()
+            service._initialize()
     finally:
         if saved is not None:
             sys.modules["jieba"] = saved
