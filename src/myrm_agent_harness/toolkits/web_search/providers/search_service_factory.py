@@ -3,16 +3,20 @@
 [INPUT]
 web_search.core.common::SearchResult (POS: Unified search result dataclass)
 web_search.core.exceptions::SearchConfigError (POS: Search exception types)
+web_search.coalescing.search_coalescing::credential_fingerprint (POS: Non-reversible digest of an identity)
 web_search.providers.litellm_search::LiteLLMSearch (POS: LiteLLM unified search client, imported on first build so litellm stays out of package import)
 web_search.providers.volcengine_doubao_search::VolcengineDoubaoSearch (POS: Volcengine native search client)
 
 [OUTPUT]
 SearchService: Structural type every concrete search client satisfies
 build_search_service: Turns a SearchServiceConfig into a ready client, rejecting missing credentials up front
+describe_credential_scope: The identity a search for a config is billed and answered under
+credential_scope_digest: Digest of that identity, shared by result caching and quota cooldowns
 
 [POS]
 Provider wiring for WebSearcher: decides native vs LiteLLM client, direct vs gateway routing, and which
-credentials are mandatory. Holds no state; caching and retry stay in WebSearcher.
+credentials are mandatory. Sole owner of "which credential counts" — the routing decision here is what
+determines it — so the cache and the cooldown cannot disagree. Holds no state; caching and retry stay in WebSearcher.
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Protocol
 
+from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import credential_fingerprint
 from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.core.exceptions import SearchConfigError
 
@@ -45,10 +50,10 @@ def require_api_key(config: SearchServiceConfig) -> str:
 
 
 def describe_credential_scope(config: SearchServiceConfig) -> str:
-    """Identity a search for ``config`` is billed and answered under, as a cache-key component.
+    """Identity a search for ``config`` is billed and answered under.
 
-    Every credential a request may actually be answered with belongs here, because a cached
-    payload must never be replayed for another one:
+    Every credential a request may actually be answered with belongs here, because nothing keyed by this
+    identity may be shared with another one — neither a cached payload nor a quota cooldown:
 
     - A gateway-routed provider authenticates per request, so the gateway endpoint and token
       identify that hop. SearxNG is excluded: it is always reached at its own endpoint.
@@ -62,6 +67,16 @@ def describe_credential_scope(config: SearchServiceConfig) -> str:
         scopes.append(f"gateway:{gateway.gateway_url or ''}:{gateway.auth_token or ''}")
     scopes.append(f"direct:{config.api_key or ''}@{config.api_base or ''}")
     return "|".join(scopes)
+
+
+def credential_scope_digest(config: SearchServiceConfig) -> str:
+    """Digest of the credential scope, the one identity both the search cache and the quota cooldown address.
+
+    The two layers once derived this separately and drifted: a rotated key missed the cache but stayed benched
+    under the previous account's cooldown. Every caller that partitions stored state by credential takes its
+    identity from here, so a new flavour of state cannot silently pick a different scope.
+    """
+    return credential_fingerprint(describe_credential_scope(config))
 
 
 def build_search_service(config: SearchServiceConfig, *, bypass_gateway: bool = False) -> SearchService:

@@ -1,21 +1,27 @@
-"""build_search_service: provider wiring, credential requirements and gateway routing.
+"""build_search_service: provider wiring, credential requirements, gateway routing and credential identity.
 
 [INPUT]
-- web_search.providers.search_service_factory::build_search_service
+- web_search.providers.search_service_factory::build_search_service, credential_scope_digest
 - web_search.providers.web_searcher::SearchServiceConfig, WebSearcher
 - core.config.gateway::ToolGatewayConfig
 
 [POS]
-Guards which client a config yields, which credentials are mandatory, and that a half-configured gateway is
-rejected as a config error.
+Guards which client a config yields, which credentials are mandatory, that a half-configured gateway is
+rejected as a config error, and that the cache and the quota cooldown address one credential the same way.
 """
 
 import pytest
 
 from myrm_agent_harness.core.config.gateway import ToolGatewayConfig
+from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import credential_fingerprint
 from myrm_agent_harness.toolkits.web_search.core.exceptions import SearchConfigError
+from myrm_agent_harness.toolkits.web_search.providers.chain import quota_tracker_key
 from myrm_agent_harness.toolkits.web_search.providers.litellm_search import LiteLLMSearch
-from myrm_agent_harness.toolkits.web_search.providers.search_service_factory import build_search_service
+from myrm_agent_harness.toolkits.web_search.providers.search_service_factory import (
+    build_search_service,
+    credential_scope_digest,
+    describe_credential_scope,
+)
 from myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search import VolcengineDoubaoSearch
 from myrm_agent_harness.toolkits.web_search.providers.web_searcher import SearchServiceConfig, WebSearcher
 
@@ -107,3 +113,36 @@ async def test_searcher_caches_the_routed_client_but_not_the_bypass_client() -> 
     assert direct is not routed
     assert searcher._search_service is routed
     assert await searcher._get_search_service() is routed
+
+
+def test_the_credential_digest_is_a_fixed_size_fingerprint_of_its_own() -> None:
+    """The digest names the credential and nothing else: the cache key adds the slug as its own component.
+
+    A digest that folded in the slug would double it in the cache key and make the cooldown scope drift from
+    the cache identity the moment the two callers disagreed, so the shape is pinned here.
+    """
+    first = credential_scope_digest(_config("tavily", api_key="key-a"))
+    same = credential_scope_digest(_config("tavily", api_key="key-a"))
+
+    assert first == same
+    assert len(first) == 16 and all(char in "0123456789abcdef" for char in first)
+    assert "tavily" not in first
+    assert credential_fingerprint(describe_credential_scope(_config("tavily", api_key="key-a"))) == first
+
+
+def test_the_cache_and_the_cooldown_address_one_credential_the_same_way() -> None:
+    """A cached payload and a cooldown are keyed by the credential the factory names, so the two layers agree.
+
+    They diverged once, when a rotated key missed the cache but stayed benched under the old account's cooldown.
+    Both comparisons must flip together for that to happen again, so a re-derived identity on either side is caught.
+    """
+    account_a = _config("tavily", api_key="key-a")
+    account_a_again = _config("tavily", api_key="key-a")
+    rotated = _config("tavily", api_key="key-b")
+
+    assert credential_scope_digest(account_a) == credential_scope_digest(account_a_again)
+    assert credential_scope_digest(account_a) != credential_scope_digest(rotated)
+    assert quota_tracker_key(account_a) == quota_tracker_key(account_a_again)
+    assert quota_tracker_key(account_a) != quota_tracker_key(rotated)
+    # The cooldown key is the cache identity under the provider slug, never a second identity of its own.
+    assert quota_tracker_key(account_a) == f"tavily:{credential_scope_digest(account_a)}"

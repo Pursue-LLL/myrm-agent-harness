@@ -65,11 +65,12 @@ def slice_search_results(results: list[SearchResult], limit: int) -> list[Search
 def credential_fingerprint(identity: str) -> str:
     """Digest of the identity a search is billed and answered under.
 
-    Only the digest enters a cache key, never the secret itself: a cached payload must be
-    reused solely where the same identity produced it, and a key rotation, a different
-    account or a self-hosted endpoint change must miss instead of replaying the previous
-    account's answer. The identity string is composed by the search service factory, which
-    owns the routing decision that determines which credentials are actually used.
+    Only the digest enters a key, never the secret itself: state produced for one identity —
+    a cached payload or a quota cooldown — must be reused solely where that same identity
+    produced it, and a key rotation, a different account or a self-hosted endpoint change must
+    miss instead of reusing the previous account's answer or its benched state. The identity
+    string is composed by the search service factory, which owns the routing decision that
+    determines which credentials are actually used.
     """
     return hashlib.blake2b(identity.encode("utf-8"), digest_size=8).hexdigest()
 

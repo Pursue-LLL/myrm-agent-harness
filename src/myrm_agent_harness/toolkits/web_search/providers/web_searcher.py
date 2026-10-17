@@ -7,9 +7,9 @@ result caching, single-flight coalescing, and conversion to LangChain Documents.
 web_search.core.common::SearchResult (POS: Unified search result dataclass)
 web_search.core.error_handling::build_search_error_context, is_retryable_search_error (POS: Search error classification)
 web_search.core.exceptions::AllQueriesFailedError, ErrorContext, SearchAPIError (POS: Search exception types)
-web_search.coalescing.search_coalescing::await_coalesced_search, bucket_search_limit, build_search_cache_key, credential_fingerprint (POS: Search cache coalescing)
+web_search.coalescing.search_coalescing::await_coalesced_search, bucket_search_limit, build_search_cache_key (POS: Search cache coalescing)
 web_search.processing.search_results_processor::search_results_to_documents (POS: Search-result to Document converter)
-web_search.providers.search_service_factory::SearchService, build_search_service (POS: Provider client factory)
+web_search.providers.search_service_factory::SearchService, build_search_service, credential_scope_digest (POS: Provider client factory)
 
 [OUTPUT]
 WebSearcher: Configurable multi-provider web search with LRU cache, single-flight coalescing, limit bucketing, retry, and Document output
@@ -34,7 +34,6 @@ from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import 
     await_coalesced_search,
     bucket_search_limit,
     build_search_cache_key,
-    credential_fingerprint,
 )
 from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.core.error_handling import (
@@ -52,7 +51,7 @@ from myrm_agent_harness.toolkits.web_search.processing.search_results_processor 
 from myrm_agent_harness.toolkits.web_search.providers.search_service_factory import (
     SearchService,
     build_search_service,
-    describe_credential_scope,
+    credential_scope_digest,
 )
 
 SearchServiceType = str
@@ -188,7 +187,7 @@ class WebSearcher:
             query,
             bucketed_limit,
             extra_suffix,
-            credential_fingerprint(describe_credential_scope(self.config)),
+            credential_scope_digest(self.config),
         )
 
         async def fetch() -> list[SearchResult]:

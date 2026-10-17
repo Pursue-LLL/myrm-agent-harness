@@ -2,8 +2,7 @@
 
 [INPUT]
 - myrm_agent_harness.toolkits.web_search.providers.web_searcher::WebSearcher (POS: Web search orchestrator)
-- myrm_agent_harness.toolkits.web_search.providers.search_service_factory::describe_credential_scope (POS: Provider wiring for WebSearcher)
-- myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing::credential_fingerprint (POS: In-flight search request coalescing and cache-key helpers)
+- myrm_agent_harness.toolkits.web_search.providers.search_service_factory::credential_scope_digest (POS: Provider wiring for WebSearcher)
 - myrm_agent_harness.toolkits.web_search.core.error_handling::is_quota_or_rate_limit_error, is_persistent_quota_depleted_error
 
 [OUTPUT]
@@ -29,7 +28,6 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import credential_fingerprint
 from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     is_persistent_quota_depleted_error,
     is_quota_or_rate_limit_error,
@@ -39,7 +37,7 @@ from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     SearchAPIError,
 )
 from myrm_agent_harness.toolkits.web_search.providers.search_service_factory import (
-    describe_credential_scope,
+    credential_scope_digest,
 )
 
 if TYPE_CHECKING:
@@ -143,9 +141,11 @@ def quota_tracker_key(config: SearchServiceConfig) -> str:
     A slug alone names a provider family, not an account. Several entries of one chain — a second
     paid key, or the replacement an operator installs right after a rejection — answer under the
     same slug, so benching the slug would bench credentials that never failed and push traffic to
-    lower-priority providers. The fingerprint keeps the scope stable and does not carry the secret.
+    lower-priority providers. The credential identity comes from the factory's
+    ``credential_scope_digest``, the same one the result cache uses, so the two layers can never
+    disagree about which account a request belongs to.
     """
-    return f"{config.search_service}:{credential_fingerprint(describe_credential_scope(config))}"
+    return f"{config.search_service}:{credential_scope_digest(config)}"
 
 
 async def search_provider_chain(
