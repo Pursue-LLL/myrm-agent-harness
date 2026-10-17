@@ -45,9 +45,9 @@ __all__ = [
 
 _SKILL_SELECT_TOOL_DESCRIPTION_ZH = """选择并激活已绑定的技能，以获得专业领域能力、外部服务集成或任务标准流程（SOP）。
 
-已绑定技能目录位于本会话首条用户消息开头的 <bound_skills> 块中。
+已绑定技能目录位于本会话首条用户消息开头的 <bound_skills> 块中；若之后的用户消息带有 <bound_skills_update> 块，以该块中的清单为准（它取代此前所有技能清单）。
 规则：
-1. 强制要求：若用户请求涉及 <bound_skills> 中列出的任何专属领域、外部数据/服务或业务流程，你必须在第 1 轮首先调用本工具选择对应技能，严禁在未加载技能的情况下臆断、凭空猜测或声称无法完成。
+1. 强制要求：若用户请求涉及当前技能清单（<bound_skills> 或最新的 <bound_skills_update>）中列出的任何专属领域、外部数据/服务或业务流程，你必须在第 1 轮首先调用本工具选择对应技能，严禁在未加载技能的情况下臆断、凭空猜测或声称无法完成。
 2. 每个技能在当前会话只需选择一次 — 加载后的 SOP 及能力在后续对话中持续有效，切勿重复选择已加载的技能。
 3. 若有助于解决问题，可同时选择多个技能。
 4. 如需读取已加载技能的辅助脚本或参考文档，可传入 file_path 参数（例如 'scripts/run.py'、'references/api.md'）。
@@ -56,9 +56,9 @@ _SKILL_SELECT_TOOL_DESCRIPTION_ZH = """选择并激活已绑定的技能，以�
 
 _SKILL_SELECT_TOOL_DESCRIPTION_EN = """Select and activate bound skills that provide specialized domain capabilities, external service integrations, or task SOPs.
 
-The bound skill catalog is listed in the <bound_skills> block at the start of the first user message in this conversation.
+The bound skill catalog is listed in the <bound_skills> block at the start of the first user message in this conversation; a later user message may carry a <bound_skills_update> block, whose list is then the current one (it replaces every earlier skills list).
 Rules:
-1. MANDATORY: If the user request relates to any specialized domain, external data/service, or specific workflow in <bound_skills>, you MUST select the corresponding skill on turn 1 BEFORE taking any other action. Never guess, hallucinate, or claim inability without loading the skill.
+1. MANDATORY: If the user request relates to any specialized domain, external data/service, or specific workflow in the current catalog (<bound_skills>, or the latest <bound_skills_update>), you MUST select the corresponding skill on turn 1 BEFORE taking any other action. Never guess, hallucinate, or claim inability without loading the skill.
 2. Select each skill only ONCE per conversation — its SOP and capabilities remain active for all subsequent turns. Do NOT re-select loaded skills.
 3. You may select multiple skills simultaneously if they jointly help solve the task.
 4. To inspect auxiliary files or reference scripts of a loaded skill, pass file_path (e.g. 'scripts/run.py', 'references/api.md').
