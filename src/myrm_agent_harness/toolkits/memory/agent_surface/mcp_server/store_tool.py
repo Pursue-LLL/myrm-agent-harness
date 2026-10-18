@@ -35,7 +35,7 @@ from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary impor
     wiki_memory_save_rejection_message,
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.write_failure_feedback import write_failure_feedback
-from myrm_agent_harness.toolkits.memory.types import RuleSource
+from myrm_agent_harness.toolkits.memory.types import MemoryType, RuleSource
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
@@ -64,14 +64,16 @@ async def _store_knowledge(
     write_target: MemoryWriteTarget,
     pending: bool,
 ) -> str:
-    if not mgr.has_vector:
+    # Type-enabled, not dense-capable: without an embedding backend the type
+    # lives in the BM25 sparse mirror and stays writable.
+    if MemoryType.SEMANTIC not in mgr.get_enabled_types():
         return "Knowledge memory is not enabled."
     mem = await mgr.add_knowledge(content, importance=importance, tags=tags, write_target=write_target)
     return f"Knowledge {_outcome(pending)} (ID: {mem.id})"
 
 
 async def _store_event(mgr: MemoryManager, content: str, *, write_target: MemoryWriteTarget, pending: bool) -> str:
-    if not mgr.has_vector:
+    if MemoryType.EPISODIC not in mgr.get_enabled_types():
         return "Event memory is not enabled."
     mem = await mgr.add_event(content, event_type="agent_observation", write_target=write_target)
     return f"Event {_outcome(pending)} (ID: {mem.id})"

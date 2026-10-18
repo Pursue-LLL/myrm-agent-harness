@@ -232,6 +232,7 @@ async def create_local_memory_manager(
         embedding=embedding_service,
         cache=cache,
         approval_required=approval_required,
+        sparse_authoritative=embedding_service is None,
         dedup_llm=dedup_llm,
         consolidation_llm=consolidation_llm,
         namespaces=namespaces,

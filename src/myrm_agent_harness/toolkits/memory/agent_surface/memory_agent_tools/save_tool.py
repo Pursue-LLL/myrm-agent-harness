@@ -44,7 +44,7 @@ from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary impor
 from myrm_agent_harness.toolkits.memory.agent_surface.write_failure_feedback import write_failure_feedback
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.session import MemorySession
-from myrm_agent_harness.toolkits.memory.types import RuleSource
+from myrm_agent_harness.toolkits.memory.types import MemoryType, RuleSource
 
 
 class MemorySaveInput(BaseModel):
@@ -109,7 +109,9 @@ class _SaveContext:
 
 
 async def _save_knowledge(ctx: _SaveContext, *, importance: float, tags: list[str]) -> str:
-    if not ctx.manager.has_vector:
+    # Type-enabled, not dense-capable: without an embedding backend the type
+    # lives in the BM25 sparse mirror and stays writable.
+    if MemoryType.SEMANTIC not in ctx.manager.get_enabled_types():
         return "Knowledge memory is not enabled."
     if (buffer := ctx.bound_buffer) is not None:
         buffered = buffer.add_knowledge(ctx.content, importance=importance, tags=tags)
@@ -126,7 +128,7 @@ async def _save_knowledge(ctx: _SaveContext, *, importance: float, tags: list[st
 
 
 async def _save_event(ctx: _SaveContext) -> str:
-    if not ctx.manager.has_vector:
+    if MemoryType.EPISODIC not in ctx.manager.get_enabled_types():
         return "Event memory is not enabled."
     if (buffer := ctx.bound_buffer) is not None:
         buffered = buffer.add_event(ctx.content, event_type="agent_observation")

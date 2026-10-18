@@ -388,8 +388,10 @@ async def auto_extract_memories(
 
         verbatim_stored_count = 0
 
-        if enable_verbatim:
+        if enable_verbatim and memory_manager.has_vector:
             # Optional track: its failure must not discard the compressed track below.
+            # Conversation storage needs dense named vectors, so the track stays
+            # off in embeddings-less deployments instead of warning every turn.
             try:
                 verbatim_stored_count = await capture_current_exchange(
                     memory_manager, messages, source_chat_id=source_chat_id

@@ -42,7 +42,9 @@ async def _rate(
         return "Rate requires 'rating_score' (1-5)."
     if mem_type not in _VECTOR_TYPES:
         return "Rate is only supported for knowledge/event memories."
-    if not mgr.has_vector:
+    # Type-enabled, not dense-capable: without an embedding backend the type
+    # lives in the BM25 sparse mirror and stays rateable.
+    if mem_type not in mgr.get_enabled_types():
         return f"{category} memory is not enabled."
     if await mgr.rate_memory(memory_id, rating_score):
         return f"Memory rated (ID: {memory_id}, score: {rating_score})"
@@ -51,7 +53,7 @@ async def _rate(
 
 async def _delete(mgr: MemoryManager, mem_type: MemoryType, category: str, memory_id: str) -> str:
     if mem_type in _VECTOR_TYPES:
-        if not mgr.has_vector:
+        if mem_type not in mgr.get_enabled_types():
             return f"{category} memory is not enabled."
         collection = (
             mgr.config.semantic_collection if mem_type == MemoryType.SEMANTIC else mgr.config.episodic_collection
@@ -93,7 +95,7 @@ async def _correct(mgr: MemoryManager, mem_type: MemoryType, memory_id: str, new
         return "Correct requires 'new_content' with the corrected fact."
     if mem_type != MemoryType.SEMANTIC:
         return "Correct is only supported for knowledge memories."
-    if not mgr.has_vector:
+    if MemoryType.SEMANTIC not in mgr.get_enabled_types():
         return "Knowledge memory is not enabled."
     correction = await mgr.correct_memory(memory_id, new_content, allow_protected=False)
     return f"Memory corrected (new ID: {correction.id}). Prior entry {memory_id} kept in history."

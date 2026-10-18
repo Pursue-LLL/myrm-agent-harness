@@ -210,12 +210,11 @@ async def test_mutations_mixin_sparse_mutate_memory() -> None:
             self._mem = memory
             self._config = MagicMock()
             self._cache = None
+            self._vector = MagicMock()
+            self._embedding = MagicMock()
 
         async def get_memory(self, memory_id: str) -> SemanticMemory:
             return self._mem
-
-        def _vec(self) -> tuple[MagicMock, MagicMock]:
-            return MagicMock(), MagicMock()
 
     initial_mem = SemanticMemory(
         id="mem_profile_01",
@@ -229,6 +228,7 @@ editor: neovim""",
 
     # Patch vector memory update
     import myrm_agent_harness.toolkits.memory._manager.mutations as mut_mod
+
     original_update = mut_mod.update_vector_memory
     mut_mod.update_vector_memory = AsyncMock()  # type: ignore[attr-defined]
 
@@ -337,5 +337,3 @@ def test_sparse_mutation_namespace_and_url_colons_supported() -> None:
     assert res.retained_count == 1
     assert "- std::vector: 推荐用于高效连续内存数组" in res.mutated_text
     assert "- http://localhost:8080: 本地开发后端" in res.mutated_text
-
-

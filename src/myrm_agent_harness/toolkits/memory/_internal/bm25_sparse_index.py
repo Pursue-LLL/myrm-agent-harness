@@ -14,6 +14,8 @@
   legacy backends stay unwrapped on the corpus-scroll fallback path
 - unwrap_sparse_mirror: backend beneath the wrapper, for the named-vector
   conversation collection the mirror does not cover
+- is_sparse_authoritative: whether a store runs embeddings-less, so a content
+  rewrite can skip the dense embedding it would otherwise need
 
 [POS]
 Replaces the per-query full-corpus scroll + BM25Okapi rebuild (24x build/query
@@ -81,6 +83,11 @@ class BM25SparseIndexStore:
         # store: dense reads/writes have no collection to reach, so they are
         # routed to the mirror here once and every caller stays unchanged.
         self._sparse_authoritative = sparse_authoritative
+
+    @property
+    def sparse_authoritative(self) -> bool:
+        """Whether the mirror is the only store (embeddings-less deployments)."""
+        return self._sparse_authoritative
 
     def _schedule_backfill_once(self, config: MemoryConfig) -> None:
         """Kick off the one-time warmup from the first BM25 query.
@@ -377,3 +384,12 @@ def unwrap_sparse_mirror(vector: VectorStoreProtocol) -> VectorStoreProtocol:
     reads and writes address the backend directly.
     """
     return vector._inner if isinstance(vector, BM25SparseIndexStore) else vector
+
+
+def is_sparse_authoritative(vector: VectorStoreProtocol) -> bool:
+    """Whether the BM25 mirror is the only store (embeddings-less deployments).
+
+    A content rewrite needs no dense embedding here: the sparse encoding is
+    derived from the content itself at write time.
+    """
+    return isinstance(vector, BM25SparseIndexStore) and vector.sparse_authoritative

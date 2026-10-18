@@ -68,7 +68,7 @@ class MemoryManagerStorageMixin:
         return apply_channel_affinity(results, current_channel_id=self._scope.channel_id)
 
     async def _store_semantic(self, memory: SemanticMemory) -> SemanticMemory:
-        if self._embedding is None:
+        if self._sparse_authoritative:
             return await self._store_semantic_sparse_only(memory)
         v, e = self._vec()
         bound = self._bind_scope(memory)
@@ -82,7 +82,7 @@ class MemoryManagerStorageMixin:
         return stored
 
     async def _store_semantics_batch(self, memories: list[SemanticMemory]) -> list[SemanticMemory]:
-        if self._embedding is None:
+        if self._sparse_authoritative:
             return await self._store_semantics_sparse_only(memories)
         v, e = self._vec()
         bound_memories = [self._bind_scope(memory) for memory in memories]
@@ -104,13 +104,13 @@ class MemoryManagerStorageMixin:
         return stored_list
 
     async def _store_episodic(self, memory: EpisodicMemory) -> EpisodicMemory:
-        if self._embedding is None:
+        if self._sparse_authoritative:
             return await self._store_episodic_sparse_only(memory)
         v, e = self._vec()
         return await store_episodic(self._bind_scope(memory), v, self._config, e, self._cache, self._graph)
 
     async def _store_episodics_batch(self, memories: list[EpisodicMemory]) -> list[EpisodicMemory]:
-        if self._embedding is None:
+        if self._sparse_authoritative:
             return await self._store_episodics_sparse_only(memories)
         v, e = self._vec()
         return await store_episodics_batch(
@@ -142,7 +142,7 @@ class MemoryManagerStorageMixin:
                 logger.warning("Failed to record exact fact in relational store: %s", err)
 
     def _sparse_only_vector(self) -> BM25SparseIndexStore:
-        """Return the sparse-capable vector backend for embeddings-less writes.
+        """Return the sparse-capable vector backend for sparse-authoritative writes.
 
         A missing sparse-capable backend keeps the previous fail-fast
         behaviour: without an embedding backend and without a sparse mirror

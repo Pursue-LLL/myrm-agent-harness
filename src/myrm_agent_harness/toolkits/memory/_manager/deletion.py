@@ -74,13 +74,13 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
     # ── Embeddings-less sparse fallbacks ──
 
     def _sparse_only_vector(self) -> BM25SparseIndexStore | None:
-        """The sparse mirror when this deployment runs without embeddings.
+        """The sparse mirror when this deployment is sparse-authoritative.
 
         The wrapper itself routes reads/writes to the mirror in this mode;
         this accessor only gates embedding-migration logic that has no
         meaning without an embedding backend.
         """
-        if self._embedding is not None:
+        if not self._sparse_authoritative:
             return None
         vector = self._vector
         if vector is not None and isinstance(vector, BM25SparseIndexStore):

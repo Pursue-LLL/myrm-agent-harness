@@ -118,3 +118,57 @@ class TestSparseOnlyManager:
             assert hits[0].memory_type.value == "episodic"
         finally:
             await manager.close()
+
+
+@pytest.mark.slow
+class TestSparseOnlyAgentTools:
+    """The agent tools stay usable when the deployment runs without embeddings.
+
+    The write plane must not gate on dense capability: semantic/episodic
+    memories live in the sparse mirror, so save / search / rate / correct /
+    delete all stay reachable through the tool surface.
+    """
+
+    @pytest.mark.asyncio
+    async def test_agent_tools_write_read_manage_without_embedding(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+
+        manager = await create_local_memory_manager(tmp_path / "mem", None)
+        try:
+            tools = {tool.name: tool for tool in create_memory_tools(manager)}
+
+            saved = await tools["memory_save_tool"].coroutine(
+                content="用户偏好 TypeScript strict 模式", category="knowledge"
+            )
+            assert saved.startswith("Knowledge stored (ID:")
+            memory_id = saved.split("ID: ")[1].rstrip(")")
+
+            hits = await manager.search("strict", limit=5)
+            assert [h.memory.id for h in hits] == [memory_id]
+
+            rated = await tools["memory_manage_tool"].coroutine(
+                action="rate", memory_id=memory_id, category="knowledge", rating_score=5
+            )
+            assert rated.startswith("Memory rated")
+
+            corrected = await tools["memory_manage_tool"].coroutine(
+                action="correct",
+                memory_id=memory_id,
+                category="knowledge",
+                new_content="用户偏好 TypeScript strict 模式与 Vitest",
+            )
+            assert corrected.startswith("Memory corrected")
+            correction_id = corrected.split("new ID: ")[1].split(")")[0]
+
+            deleted = await tools["memory_manage_tool"].coroutine(
+                action="delete", memory_id=memory_id, category="knowledge"
+            )
+            assert deleted.startswith("Memory deleted")
+            # The correction is a distinct memory and survives the original's deletion.
+            assert [h.memory.id for h in await manager.search("strict", limit=5)] == [correction_id]
+
+            event = await tools["memory_save_tool"].coroutine(content="线上事故复盘：重试风暴", category="event")
+            assert event.startswith("Event stored (ID:")
+        finally:
+            await manager.close()

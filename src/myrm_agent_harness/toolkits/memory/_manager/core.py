@@ -101,6 +101,7 @@ class MemoryManagerCore:
         embedding: EmbeddingProtocol | None = None,
         cache: EmbeddingCacheProtocol | None = None,
         approval_required: bool = False,
+        sparse_authoritative: bool = False,
         dedup_llm: object | None = None,
         consolidation_llm: BaseChatModel | None = None,
         fts5_searcher: FTS5SearcherFunc | None = None,
@@ -143,7 +144,11 @@ class MemoryManagerCore:
         # Wrap once at the single vector assignment so every consumer (writer,
         # search service, maintenance, recurrence) shares the same BM25 sparse
         # mirror; the wrapper is a pure pass-through until the index warms up.
-        self._vector = wrap_with_bm25_sparse_index(vector, sparse_authoritative=embedding is None)
+        # ``sparse_authoritative`` is an explicit deployment decision (see
+        # create_local_memory_manager), not "no embedding": a metadata-only
+        # manager can hold dense collections without an embedding backend.
+        self._sparse_authoritative = sparse_authoritative
+        self._vector = wrap_with_bm25_sparse_index(vector, sparse_authoritative=sparse_authoritative)
         self._graph = graph
         self._embedding = embedding
         self._cache = cache

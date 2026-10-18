@@ -5,7 +5,7 @@ including edge cases (empty content, invalid types, clamped limits, profile
 lookup, time bounds, categories, and memory management operations).
 """
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -33,6 +33,7 @@ def mock_manager():
     manager.store = AsyncMock()
     manager.has_relational = True
     manager.has_vector = True
+    manager.get_enabled_types = MagicMock(return_value=[MemoryType.SEMANTIC, MemoryType.EPISODIC])
     manager.approval_required = False
     manager.get_profile_attribute = AsyncMock(return_value=None)
     manager.add_knowledge = AsyncMock()
@@ -589,12 +590,14 @@ class TestMemoryStoreTool:
     @pytest.mark.asyncio
     async def test_store_knowledge_disabled(self, mcp_server, mock_manager):
         mock_manager.has_vector = False
+        mock_manager.get_enabled_types.return_value = []
         result = await _get_tool_fn(mcp_server, "memory_store")(content="fact", category="knowledge")
         assert "not enabled" in result
 
     @pytest.mark.asyncio
     async def test_store_event_disabled(self, mcp_server, mock_manager):
         mock_manager.has_vector = False
+        mock_manager.get_enabled_types.return_value = []
         result = await _get_tool_fn(mcp_server, "memory_store")(content="event", category="event")
         assert "not enabled" in result
 
@@ -732,6 +735,7 @@ class TestMemoryManageTool:
     @pytest.mark.asyncio
     async def test_manage_rate_vector_disabled(self, mcp_server, mock_manager):
         mock_manager.has_vector = False
+        mock_manager.get_enabled_types.return_value = []
         result = await _get_tool_fn(mcp_server, "memory_manage")(
             action="rate", memory_id="m1", category="knowledge", rating_score=5
         )
@@ -748,6 +752,7 @@ class TestMemoryManageTool:
     @pytest.mark.asyncio
     async def test_manage_delete_vector_disabled(self, mcp_server, mock_manager):
         mock_manager.has_vector = False
+        mock_manager.get_enabled_types.return_value = []
         result = await _get_tool_fn(mcp_server, "memory_manage")(action="delete", memory_id="m1", category="knowledge")
         assert "not enabled" in result
 
@@ -772,6 +777,7 @@ class TestMemoryManageTool:
     @pytest.mark.asyncio
     async def test_manage_correct_vector_disabled(self, mcp_server, mock_manager):
         mock_manager.has_vector = False
+        mock_manager.get_enabled_types.return_value = []
         result = await _get_tool_fn(mcp_server, "memory_manage")(
             action="correct", memory_id="m1", category="knowledge", new_content="fix"
         )

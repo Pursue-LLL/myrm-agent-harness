@@ -72,7 +72,9 @@ async def _rate(
         return "Rate requires 'rating_score' (1-5)."
     if mem_type not in _VECTOR_TYPES:
         return "Rate action is only supported for knowledge/event memories."
-    if not manager.has_vector:
+    # Type-enabled, not dense-capable: without an embedding backend the type
+    # lives in the BM25 sparse mirror and stays rateable.
+    if mem_type not in manager.get_enabled_types():
         return f"{category} memory is not enabled."
     if await manager.rate_memory(memory_id, rating_score):
         return f"Memory rated (ID: {memory_id}, score: {rating_score})"
@@ -81,7 +83,7 @@ async def _rate(
 
 async def _delete(manager: MemoryManager, mem_type: MemoryType, category: str, memory_id: str) -> str:
     if mem_type in _VECTOR_TYPES:
-        if not manager.has_vector:
+        if mem_type not in manager.get_enabled_types():
             return f"{category} memory is not enabled."
         deleted = await manager.delete_memory(_vector_collection(manager, mem_type), [memory_id], allow_protected=False)
         if deleted > 0:
@@ -125,7 +127,7 @@ async def _correct(manager: MemoryManager, mem_type: MemoryType, memory_id: str,
         return "Correct requires 'new_content' with the corrected fact."
     if mem_type != MemoryType.SEMANTIC:
         return "Correct action is only supported for knowledge memories."
-    if not manager.has_vector:
+    if MemoryType.SEMANTIC not in manager.get_enabled_types():
         return "Knowledge memory is not enabled."
     correction = await manager.correct_memory(memory_id, new_content, allow_protected=False)
     return f"Memory corrected (new ID: {correction.id}). Prior entry {memory_id} kept in history."
@@ -133,7 +135,7 @@ async def _correct(manager: MemoryManager, mem_type: MemoryType, memory_id: str,
 
 async def _discard(manager: MemoryManager, mem_type: MemoryType, category: str, memory_id: str) -> str:
     if mem_type in _VECTOR_TYPES:
-        if not manager.has_vector:
+        if mem_type not in manager.get_enabled_types():
             return f"{category} memory is not enabled."
         discarded = await manager.delete_memory(
             _vector_collection(manager, mem_type), [memory_id], allow_protected=False

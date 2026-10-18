@@ -141,8 +141,9 @@ class MemoryManagerMutationsMixin:
         demoted.confidence = 0.1
         demoted.metadata = {**demoted.metadata, "corrected": True}
         demoted.updated_at = datetime.now(UTC)
-        v, e = self._vec()
-        await update_vector_memory(demoted, False, v, self._config, e, self._cache)
+        if self._vector is None:
+            raise MemoryError("Vector backend required")
+        await update_vector_memory(demoted, False, self._vector, self._config, self._embedding, self._cache)
 
         mutation_res = apply_sparse_mutation(existing.content, corrected_content)
         final_content = (
@@ -208,8 +209,9 @@ class MemoryManagerMutationsMixin:
             "sparse_appended_count": mutation_res.appended_count,
             "sparse_removed_count": mutation_res.removed_count,
         }
-        v, e = self._vec()
-        await update_vector_memory(updated, True, v, self._config, e, self._cache)
+        if self._vector is None:
+            raise MemoryError("Vector backend required")
+        await update_vector_memory(updated, True, self._vector, self._config, self._embedding, self._cache)
         return updated
 
     async def pin_memory(self, memory_id: str) -> AnyMemory:
@@ -393,7 +395,7 @@ class MemoryManagerMutationsMixin:
                 raise MemoryError("Vector backend required")
             e: EmbeddingProtocol | None = None
             if content_changed:
-                _, e = self._vec()
+                e = self._embedding
             return await update_vector_memory(
                 self._bind_scope(updated),
                 content_changed,

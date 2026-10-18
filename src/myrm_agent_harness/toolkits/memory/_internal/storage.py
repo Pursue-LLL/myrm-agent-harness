@@ -6,6 +6,7 @@
 - storage_search::{search_profile, search_semantic, search_episodic, ...} (POS: search-specific storage operations)
 - storage_conversation::{embed_conversations, store_conversations_batch} (POS: dual-embedding conversation storage)
 - storage_context::{load_context, WORKING_STATE_*} (POS: context loading for agent prompt)
+- bm25_sparse_index::is_sparse_authoritative (POS: embeddings-less content rewrites)
 - memory.types::{SemanticMemory, EpisodicMemory, ConversationMemory, ...} (POS: memory data models)
 
 [OUTPUT]
@@ -26,6 +27,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import is_sparse_authoritative
 from myrm_agent_harness.toolkits.memory._internal.storage_by_type import (
     count_by_type,
     delete_by_type,
@@ -362,9 +364,10 @@ async def update_vector_memory(
     cache: EmbeddingCacheProtocol | None = None,
 ) -> SemanticMemory | EpisodicMemory:
     if content_changed:
-        if embedding is None:
+        if embedding is not None:
+            memory.embedding = await embed_single(memory.content, embedding, cache)
+        elif not is_sparse_authoritative(vector):
             raise MemoryError("Embedding backend required when content changed")
-        memory.embedding = await embed_single(memory.content, embedding, cache)
     if isinstance(memory, SemanticMemory):
         await vector.upsert(config.semantic_collection, [semantic_to_doc(memory)])
     else:
