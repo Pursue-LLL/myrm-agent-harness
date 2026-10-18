@@ -16,7 +16,8 @@ is that reading. It owns both wrapper tables so they cannot drift apart:
 [OUTPUT]
 - TRANSPARENT_WRAPPERS / unwrap_transparent_wrapper: the allow-direction reading of ``command``, ``time``,
   ``timeout``.
-- substitution_bodies: the command text inside each ``$(...)`` and backtick the shell would run.
+- substitution_bodies: the command text inside each ``$(...)`` and backtick the shell would run. An
+  arithmetic ``$((...))`` runs no command of its own, so only a substitution nested inside it is returned.
 - direct_command_readings: the commands one line hands control to in one step — the command at the bottom of
   the prefix chain, a ``-c`` script or ``eval``, a substitution body. The chain is peeled with an index, so
   its length never hides the command it runs nor costs more than the text to read.
@@ -332,10 +333,18 @@ def _shell_script_index(words: Sequence[str], start: int) -> str | None:
 def substitution_bodies(text: str) -> list[str]:
     """The command text inside each ``$(...)`` and backtick substitution the shell would run.
 
-    Text the shell does not expand is not read: a single-quoted ``$(`` is literal. The scan is deliberately
-    approximate about quoting inside the substitution body, which can only make a caller look at more text.
+    Text the shell does not expand is not read: a single-quoted ``$(`` is literal. An arithmetic expansion
+    (``$((...))``) runs no command of its own, so its expression is not a command and is not returned — but a
+    ``$(...)`` or backtick nested inside it does run, so that one is. The scan is deliberately approximate
+    about quoting inside the substitution body, which can only make a caller look at more text.
     """
     bodies: list[str] = []
+    _collect_bodies(text, bodies)
+    return bodies
+
+
+def _collect_bodies(text: str, bodies: list[str]) -> None:
+    """Append the command text of each real substitution in *text* to *bodies* (see :func:`substitution_bodies`)."""
     index = 0
     length = len(text)
     while index < length:
@@ -351,7 +360,11 @@ def substitution_bodies(text: str) -> list[str]:
             closing = _matching_paren(text, index + 1)
             if closing < 0:
                 break
-            bodies.append(text[index + 2 : closing])
+            if text[index + 2 : index + 3] == "(":
+                # ``$((...))`` is arithmetic: its expression runs no command, but a substitution inside it does.
+                _collect_bodies(text[index + 2 : closing], bodies)
+            else:
+                bodies.append(text[index + 2 : closing])
             index = closing + 1
             continue
         if char == "`":
@@ -362,7 +375,6 @@ def substitution_bodies(text: str) -> list[str]:
             index = closing + 1
             continue
         index += 1
-    return bodies
 
 
 def _matching_paren(text: str, open_index: int) -> int:

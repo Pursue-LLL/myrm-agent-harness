@@ -45,6 +45,10 @@ from myrm_agent_harness.core.security.shell_command_lexer import (
     shell_words,
     split_command_spans,
 )
+from myrm_agent_harness.core.security.shell_wrapper_peel import (
+    DENY_WRAPPER_DEPTH,
+    substitution_bodies,
+)
 from myrm_agent_harness.toolkits.code_execution.security.safe_command_configs import (
     SUBCOMMAND_CONFIGS,
     FlagArgType,
@@ -338,11 +342,20 @@ def classify_command_risk(command: str) -> CommandRiskLevel:
     - ``time`` / ``timeout`` / ``command``: the wrapped command is judged instead.
     - Subcommand tools (e.g. git): the subcommand must have a config entry and all flags must pass the
       flag-level whitelist; ``$``, a backtick or brace expansion in the line makes the flags unreadable → UNKNOWN.
+    - Command substitution: the command each ``$(...)`` and backtick runs is judged the same way, so
+      ``echo $(curl ...)`` is UNKNOWN because ``curl`` is, not SAFE because ``echo`` is. Arithmetic expansion
+      (``$((...))``) runs no command and is not read as one. A substitution tree nested past
+      ``DENY_WRAPPER_DEPTH`` is UNKNOWN: a line the walk cannot finish reading is not vouched for.
     - No I/O redirection operators (``>``, ``<``, ``>>``).
-
-    ``$(...)`` / backtick command substitution is additionally blocked or escalated upstream by
-    ``shell_command_analyzer`` before a command reaches this function.
     """
+    return _classify_line(command, depth=0)
+
+
+def _classify_line(command: str, depth: int) -> CommandRiskLevel:
+    """Judge one command line and every command its substitutions run, ``depth`` levels down."""
+    if depth >= DENY_WRAPPER_DEPTH:
+        return CommandRiskLevel.UNKNOWN
+
     spans = split_command_spans(command)
     if not spans:
         return CommandRiskLevel.UNKNOWN
@@ -350,6 +363,10 @@ def classify_command_risk(command: str) -> CommandRiskLevel:
     for start, end in spans:
         level, _ = _classify_segment(command[start:end])
         if level != CommandRiskLevel.SAFE:
+            return CommandRiskLevel.UNKNOWN
+
+    for body in substitution_bodies(command):
+        if _classify_line(body, depth + 1) != CommandRiskLevel.SAFE:
             return CommandRiskLevel.UNKNOWN
 
     return CommandRiskLevel.SAFE
