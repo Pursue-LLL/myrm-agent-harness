@@ -101,8 +101,12 @@ async def test_failure_inside_the_interrupting_node_keeps_the_interrupt_pending_
         await graph.ainvoke(Command(resume={"decision": "reject"}), _CONFIG)
 
     snapshot = await graph.aget_state(_CONFIG)
-    assert snapshot.next == ("ask",)
+    # The pending question is the contract: it is what a manual reply still answers. Whether
+    # LangGraph also names the failed node in ``next`` differs between releases (1.2.11 reports
+    # an empty tuple there while the interrupt stays pending, 1.2.16 names ``ask``), and nothing
+    # in production reads ``next`` to decide a reply — so assert the interrupt, not that tuple.
     assert [task.interrupts[0].value for task in snapshot.tasks if task.interrupts] == [_PAUSE]
+    assert snapshot.values["decision"] == "", "the answering node never produced a decision"
 
     result = await graph.ainvoke(Command(resume={"decision": "approve"}), _CONFIG)
 
