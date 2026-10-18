@@ -72,8 +72,12 @@ async def approval_guidance_delivery(
     finally:
         current_tool_call_id_var.reset(token)
 
+    if not isinstance(result, ToolMessage):
+        # A tool that answers with its own Command owns the message list; leaving the note in the store
+        # keeps it from being consumed and silently dropped (the store is replaced at the next run).
+        return result
     note = claim_approval_note(call_id) if call_id else ""
-    if not note or not isinstance(result, ToolMessage):
+    if not note:
         return result
 
     tool_name = str(request.tool_call.get("name") or "unknown")
