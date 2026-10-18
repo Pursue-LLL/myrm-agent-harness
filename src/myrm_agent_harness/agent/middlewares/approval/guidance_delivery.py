@@ -49,11 +49,11 @@ def _guidance_message(tool_name: str, note: str) -> HumanMessage:
     )
 
 
-@wrap_tool_call  # type: ignore[untyped-decorator]
+@wrap_tool_call
 async def approval_guidance_delivery(
     request: ToolCallRequest,
-    handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command]],
-) -> ToolMessage | Command:
+    handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[object]]],
+) -> ToolMessage | Command[object]:
     """Dispatch the tool, then append the note the human left on its approval, if any."""
     call_id = str(request.tool_call.get("id") or "")
     token = current_tool_call_id_var.set(call_id)
