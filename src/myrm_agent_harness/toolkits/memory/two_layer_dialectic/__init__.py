@@ -16,6 +16,9 @@ from myrm_agent_harness.toolkits.memory.two_layer_dialectic.base_context_engine 
 from myrm_agent_harness.toolkits.memory.two_layer_dialectic.dialectic_engine import (
     DialecticReconciliationEngine,
 )
+from myrm_agent_harness.toolkits.memory.two_layer_dialectic.injector import (
+    TwoLayerContextInjector,
+)
 from myrm_agent_harness.toolkits.memory.two_layer_dialectic.models import (
     BaseContextBundle,
     ConflictItem,
@@ -23,6 +26,7 @@ from myrm_agent_harness.toolkits.memory.two_layer_dialectic.models import (
     DialecticPassRecord,
     DialecticReasoningLevel,
     DialecticReconciliationResult,
+    TwoLayerContextInjectionResult,
 )
 from myrm_agent_harness.toolkits.memory.two_layer_dialectic.orchestrator import (
     TwoLayerDialecticOrchestrator,
@@ -35,8 +39,6 @@ DialecticConflictCandidate = ConflictItem
 DialecticPassKind = DialecticReasoningLevel
 DialecticReconciliationConfig = DialecticCadenceConfig
 MultiPassDialecticReconciler = DialecticReconciliationEngine
-TwoLayerContextInjectionResult = TwoLayerInvocationPayload
-TwoLayerContextInjector = TwoLayerDialecticOrchestrator
 
 __all__ = [
     "BaseContextBundle",
@@ -57,3 +59,6 @@ __all__ = [
     "TwoLayerDialecticOrchestrator",
     "TwoLayerInvocationPayload",
 ]
+
+# Lab / legacy orchestrator payload alias (prefer TwoLayerContextInjectionResult from models)
+LabTwoLayerInvocationPayload = TwoLayerInvocationPayload

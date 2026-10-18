@@ -14,7 +14,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | ------------------------ | -------- | ------------------------------------------------------------------------------------------------------------- | ----- |
 | __init__.py              | Package  | Facade that re-exports only the names production code imports; everything else is imported from its defining submodule. | —     |
 | manager.py               | Core     | Public import path for ``MemoryManager`` and memory error types. | ✅    |
-| setup.py                 | Core     | Out-of-the-box local memory factory. Combines SQLite and embedded Qdrant to provide zero-config               | ✅    |
+| setup.py                 | Core     | Out-of-the-box local memory factory. Combines SQLite and embedded Qdrant for zero-config persistence in standalone deployments. `_probe_embedding_dimension` returns the embedder's real size, or `0` when the probe fails — collections are then created by their first write (which sizes them from the vectors that write carries) instead of freezing a guessed size every later write would fail against. | ✅    |
 | types.py                 | Core     | Memory type system foundation. Provides MemoryType, MemoryStatus, exact mutation outcome DTOs, profile attribute snapshots, BaseMemory (with trace_id), and all typed memory schemas. | ✅    |
 | config.py                | Core     | Memory configuration — functional switches and retrieval params only.                                         | ✅    |
 | threshold_strategy.py    | Core     | Adaptive similarity-threshold strategies: the protocol and the library-size based default used by `RetrievalConfig`. | ✅    |
@@ -59,11 +59,10 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | relational/ | Relational Store — abstract interface and SQLite implementation.                  |
 | strategies/ | Optional memory strategies: forgetting, extraction, deduplication, consolidation, preference stability, recurrence-triggered consolidation, and staleness review. |
 | proactive/ | Proactive follow-up track — LLM implicit commitment extraction, `CommitmentStore` protocol, heartbeat delivery. See [COMMITMENT_SYSTEM.md](proactive/COMMITMENT_SYSTEM.md). |
-| working_tree/ | ReTree topological self-correcting tree working memory engine, evidence DAG container, two-stage contradiction detector, and cascading backtracking repair engine. See [working_tree/_ARCH.md](working_tree/_ARCH.md). |
 | file_sync/ | Local-First Markdown File-as-Memory sync subsystem (LenientMarkdownParser, FileMemoryStore, MemoryAnchorFormatter, FileMemorySyncEngine). |
 | external_providers/ | Pluggable external memory provider lifecycle & supersedes lineage pack: unified 5-stage contract (prefetch/inject/sync/extract/mirror), single active provider scheduling, 300ms circuit breaking, supersedes version chains, scope isolation, and 3D benchmark suite. See [external_providers/_ARCH.md](external_providers/_ARCH.md). |
 | profile_notes/ | Dual-Layer Profile & Working Notes Memory Budget & Garbage Purge Guard: deterministic intake noise filtering (task progress, ephemeral numbers, error traces), dual-layer routing (USER <= 1375c, MEMORY <= 2200c), and multi-tier capacity watermark governance. |
-| sovereign_migration/ | Sovereign Asset Package Cross-Machine Migration Protocol & One-Click Restore: portable bundle packaging (.myrmpkg), checksum verification, dynamic path relativization, atomic restoring, and competitor ingestion adapters (Hermes, Claude Code, Codex). |
+| sovereign_migration/ | Third-party assistant asset detection and ingestion (Hermes, Claude Code, Codex); whole-instance backup/restore lives in `infra/state_archive`. |
 | handoff/ | Strongly typed cross-agent/cross-session handoff protocol with atomic exactly-once claim and durable session finalizer. See [handoff/_ARCH.md](handoff/_ARCH.md). |
 | onboarding/ | Onboarding insight sampling and first-encounter reporting for users migrating from other agent tools (sliding-window sampling, local redaction, fact distillation). See [onboarding/_ARCH.md](onboarding/_ARCH.md). |
 | tool_guidance/ | Deterministic, cache-stable synthesis of procedural tool memory (traps) into bounded, zero-LLM tool guidance. See [tool_guidance/_ARCH.md](tool_guidance/_ARCH.md). |
