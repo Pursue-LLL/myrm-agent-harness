@@ -259,6 +259,18 @@ class TestSparseOnlyLifecycle:
             await manager.close()
 
     @pytest.mark.asyncio
+    async def test_conversation_reads_answer_empty_without_embedding(self, tmp_path: Path) -> None:
+        """Conversations are never stored without embeddings: reading them answers empty, not an error."""
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+
+        manager = await create_local_memory_manager(tmp_path / "mem", None)
+        try:
+            assert await manager.count_memories(MemoryType.CONVERSATION) == 0
+            assert await manager.list_memories(MemoryType.CONVERSATION, limit=5) == []
+        finally:
+            await manager.close()
+
+    @pytest.mark.asyncio
     async def test_exact_duplicate_content_is_dropped(self, tmp_path: Path) -> None:
         from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
 
