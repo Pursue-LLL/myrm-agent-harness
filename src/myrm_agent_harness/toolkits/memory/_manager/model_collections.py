@@ -10,6 +10,7 @@
 [OUTPUT]
 - ModelCollection: a memory collection of one embedding model
 - current_collection / previous_model_collections / memory_collections: which collections hold memories
+- orphan_mirror_collections: keyword-mode mirrors whose dense collection never existed
 - catalog_of: the backend that can list collections
 - retire_if_drained: drop an emptied previous-model collection
 - drop_from_previous_models: remove deleted memory ids from the previous models' collections
@@ -37,7 +38,10 @@ from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_encoding import (
     BM25_COLLECTION_SUFFIX,
     bm25_collection_for,
 )
-from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import unwrap_sparse_mirror
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
+    is_sparse_authoritative,
+    unwrap_sparse_mirror,
+)
 from myrm_agent_harness.toolkits.memory.types import MemoryType
 from myrm_agent_harness.toolkits.vector.base import VectorStore
 
@@ -92,6 +96,32 @@ def previous_model_collections(names: Iterable[str], config: MemoryConfig) -> li
     return found
 
 
+def orphan_mirror_collections(names: Iterable[str], config: MemoryConfig) -> list[ModelCollection]:
+    """Keyword-mode mirrors left behind without their dense collection.
+
+    An embeddings-less deployment writes only the ``{collection}_bm25`` mirror. Once an embedding
+    model is configured, that mirror has no dense collection to follow, and neither the dense reads
+    nor the BM25 fan-out (which queries the current model's mirror) reach it — the memories would
+    be silently unreachable. The current deployment's own mirror is not an orphan: its dense name is
+    the current collection, so it is skipped here like it is in ``previous_model_collections``.
+    """
+    present = set(names)
+    current = {current_collection(config, memory_type) for memory_type in _VECTOR_TYPES}
+    found: list[ModelCollection] = []
+    for name in sorted(names):
+        if not name.endswith(BM25_COLLECTION_SUFFIX):
+            continue
+        dense = name[: -len(BM25_COLLECTION_SUFFIX)]
+        if dense in present or dense in current:
+            continue
+        for memory_type in _VECTOR_TYPES:
+            head = f"{config.collection_prefix}_{memory_type.value}_"
+            if dense.startswith(head) and len(dense) > len(head):
+                found.append(ModelCollection(name=name, memory_type=memory_type, model_suffix=dense[len(head) :]))
+                break
+    return found
+
+
 def catalog_of(vector: VectorStoreProtocol | None) -> VectorStore | None:
     """Backend that can list collections.
 
@@ -109,6 +139,10 @@ async def memory_collections(vector: VectorStoreProtocol | None, config: MemoryC
 
     A backend that cannot list collections reports the current model's names only; a listing
     backend reports only collections that exist, so a bulk deletion never trips over a missing one.
+
+    In a sparse-authoritative deployment the memories live in the current collection's ``_bm25``
+    mirror alone. The dense name is still reported, because every caller reads and deletes through
+    the wrapper, which routes to the mirror in this mode.
     """
     current = {memory_type: current_collection(config, memory_type) for memory_type in _VECTOR_TYPES}
     catalog = catalog_of(vector)
@@ -120,9 +154,14 @@ async def memory_collections(vector: VectorStoreProtocol | None, config: MemoryC
         logger.warning("Failed to list collections, covering the current model only: %s", e)
         return {memory_type: [name] for memory_type, name in current.items()}
     present = set(listed)
+    sparse_only = vector is not None and is_sparse_authoritative(vector)
     previous = previous_model_collections(listed, config)
     return {
-        memory_type: [name for name in [current[memory_type]] if name in present]
+        memory_type: (
+            [current[memory_type]]
+            if current[memory_type] in present or (sparse_only and bm25_collection_for(current[memory_type]) in present)
+            else []
+        )
         + [c.name for c in previous if c.memory_type is memory_type]
         for memory_type in _VECTOR_TYPES
     }
@@ -132,6 +171,8 @@ async def retire_if_drained(vector: VectorStoreProtocol | None, collection: str)
     """Drop an emptied previous-model collection together with its sparse mirror.
 
     Never pass the current model's collection. A collection that still holds memories is left alone.
+    A mirror can outlive its dense collection (keyword-mode memories a migration just drained), so
+    passing one retires the mirror on its own.
     """
     catalog = catalog_of(vector)
     if catalog is None:
@@ -140,7 +181,8 @@ async def retire_if_drained(vector: VectorStoreProtocol | None, collection: str)
         if await catalog.count(collection) > 0:
             return
         await catalog.delete_collection(collection)
-        await catalog.delete_collection(bm25_collection_for(collection))
+        if not collection.endswith(BM25_COLLECTION_SUFFIX):
+            await catalog.delete_collection(bm25_collection_for(collection))
     except Exception as e:
         logger.warning("Could not drop the emptied collection %s: %s", collection, e)
 

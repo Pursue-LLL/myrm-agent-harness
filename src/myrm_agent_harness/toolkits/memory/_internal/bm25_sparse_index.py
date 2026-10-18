@@ -283,7 +283,7 @@ class BM25SparseIndexStore:
             self._log_sync_failure("sparse-only-get", collection, exc)
             return []
 
-    # ── Pure pass-through of the VectorStoreProtocol surface ────────────
+    # ── VectorStoreProtocol surface (reads routed to the mirror when authoritative) ──
 
     async def search(
         self,
@@ -337,6 +337,8 @@ class BM25SparseIndexStore:
         return await self._inner.collection_exists(name)
 
     async def count(self, collection: str, filters: FilterDict | None = None) -> int:
+        if self._sparse_authoritative:
+            return await self._inner.count(bm25_collection_for(collection), filters=filters)
         return await self._inner.count(collection, filters=filters)
 
     async def health_check(self) -> bool:

@@ -6,7 +6,13 @@ Covers the embeddings-less degradation end to end on embedded Qdrant:
   mirror when no embedding backend is configured;
 - the deletion mixin reading and removing through the sparse mirror;
 - create_local_memory_manager(embedding_config=None) assembling a working
-  manager whose store/search/delete flows all reach the sparse channel.
+  manager whose store/search/delete flows all reach the sparse channel;
+- the agent tool surface (save / search / rate / correct / delete);
+- count / list / search agreement, delete_all, delete_by_type and the chat
+  purge reaching the mirror;
+- exact-duplicate suppression on the batch write path;
+- the upgrade migration carrying keyword-mode memories into a configured
+  embedding model (mirror-only orphan detection + reindex).
 """
 
 from __future__ import annotations
@@ -22,7 +28,7 @@ from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
     wrap_with_bm25_sparse_index,
 )
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, SemanticMemory
+from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, MemoryType, SemanticMemory
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
 CONFIG = MemoryConfig(embedding_model="sparse-only", collection_prefix="spo")
@@ -170,5 +176,178 @@ class TestSparseOnlyAgentTools:
 
             event = await tools["memory_save_tool"].coroutine(content="线上事故复盘：重试风暴", category="event")
             assert event.startswith("Event stored (ID:")
+        finally:
+            await manager.close()
+
+
+@pytest.mark.slow
+class TestSparseOnlyLifecycle:
+    """Counts and deletions must agree with what the mirror actually holds.
+
+    The dense path derives both from the collection listing; without an embedding backend
+    the memories live in the mirror alone, so a listing that only knows dense collections
+    made ``delete_all`` report success while nothing was deleted.
+    """
+
+    @pytest.mark.asyncio
+    async def test_count_list_and_search_agree_without_embedding(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+
+        manager = await create_local_memory_manager(tmp_path / "mem", None)
+        try:
+            await manager.store_batch(
+                [
+                    SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content="用户偏好 TypeScript strict 模式"),
+                    SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content="用户偏好 Vitest 优先"),
+                ]
+            )
+
+            assert await manager.count_memories(MemoryType.SEMANTIC) == 2
+            assert len(await manager.list_memories(MemoryType.SEMANTIC, limit=10)) == 2
+            assert len(await manager.search("TypeScript", limit=5)) == 1
+        finally:
+            await manager.close()
+
+    @pytest.mark.asyncio
+    async def test_delete_all_empties_the_mirror(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+
+        manager = await create_local_memory_manager(tmp_path / "mem", None)
+        try:
+            await manager.store_batch(
+                [
+                    SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content="清空校验：TypeScript strict"),
+                    SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content="清空校验：Vitest 优先"),
+                ]
+            )
+
+            counts = await manager.delete_all()
+
+            assert counts.get(manager.config.semantic_collection) == 2
+            assert await manager.search("TypeScript", limit=5) == []
+            assert await manager.count_memories(MemoryType.SEMANTIC) == 0
+        finally:
+            await manager.close()
+
+    @pytest.mark.asyncio
+    async def test_delete_by_type_and_chat_purge_reach_the_mirror(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+
+        manager = await create_local_memory_manager(tmp_path / "mem", None)
+        try:
+            chat_id = f"chat-{uuid4().hex}"
+            semantic = SemanticMemory(
+                id=str(uuid4()), user_id="sandbox_user", content="级联校验：TypeScript strict", source_chat_id=chat_id
+            )
+            episode = EpisodicMemory(
+                id=str(uuid4()), user_id="sandbox_user", content="级联校验：重试风暴复盘", source_chat_id=chat_id
+            )
+            await manager.store_batch([semantic, episode])
+
+            ids = await manager.list_memory_ids_by_metadata("source_chat_id", chat_id)
+            assert ids["semantic"] == [semantic.id]
+            assert ids["episodic"] == [episode.id]
+
+            assert await manager.delete_by_type(MemoryType.SEMANTIC) == 1
+            assert await manager.count_memories(MemoryType.SEMANTIC) == 0
+            assert await manager.count_memories(MemoryType.EPISODIC) == 1
+
+            purged = await manager.purge_by_source_chat_id(chat_id)
+            assert purged["episodic"] == 1
+            assert await manager.search("重试风暴", limit=5) == []
+        finally:
+            await manager.close()
+
+    @pytest.mark.asyncio
+    async def test_exact_duplicate_content_is_dropped(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+
+        manager = await create_local_memory_manager(tmp_path / "mem", None)
+        try:
+            content = "去重校验：用户偏好 TypeScript strict 模式"
+            await manager.store_batch(
+                [
+                    SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content=content),
+                    SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content=content),
+                    SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content="去重校验：用户偏好 Vitest 优先"),
+                ]
+            )
+            assert await manager.count_memories(MemoryType.SEMANTIC) == 2
+
+            # A later batch re-extracting the same fact does not pile up another copy.
+            await manager.store_batch([SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content=content)])
+            assert await manager.count_memories(MemoryType.SEMANTIC) == 2
+        finally:
+            await manager.close()
+
+
+class _KeywordUpgradeEmbedder:
+    """Deterministic embedder for the upgrade-migration test (no model call)."""
+
+    dimension = 8
+
+    async def embed(self, text: str) -> list[float]:
+        return [float(len(text) % 5 + 1)] + [0.5] * (self.dimension - 1)
+
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        return [await self.embed(text) for text in texts]
+
+
+@pytest.mark.slow
+class TestSparseOnlyUpgradeMigration:
+    """Keyword-mode memories must survive the switch to an embedding model."""
+
+    @pytest.mark.asyncio
+    async def test_keyword_mode_mirror_is_not_an_orphan(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+
+        manager = await create_local_memory_manager(tmp_path / "mem", None)
+        try:
+            await manager.store(SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content="孤儿校验：TypeScript"))
+            assert await manager.detect_orphan_collections() == []
+        finally:
+            await manager.close()
+
+    @pytest.mark.asyncio
+    async def test_keyword_memories_migrate_into_the_configured_model(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.memory.config import MemoryConfig
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+        from myrm_agent_harness.toolkits.vector.qdrant import create_embedded_store
+
+        base = tmp_path / "mem"
+        keyword = await create_local_memory_manager(base, None)
+        mirror = f"{keyword.config.semantic_collection}_bm25"
+        memories = [
+            SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content="迁移校验：TypeScript strict 模式"),
+            SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content="迁移校验：Vitest 优先"),
+        ]
+        try:
+            await keyword.store_batch(memories)
+        finally:
+            await keyword.close()
+
+        store = await create_embedded_store(path=str(base / "vector_store"))
+        config = MemoryConfig(embedding_model="upgrade-test-model")
+        manager = MemoryManager(
+            config,
+            user_id="sandbox_user",
+            vector=store,
+            embedding=_KeywordUpgradeEmbedder(),  # type: ignore[arg-type]
+            auto_warmup=False,
+        )
+        try:
+            orphans = await manager.detect_orphan_collections()
+            assert [(o.collection_name, o.document_count) for o in orphans] == [(mirror, 2)]
+
+            result = await manager.reindex_from_orphans()
+
+            assert result.migrated == 2
+            assert result.failed == 0
+            assert await manager.detect_orphan_collections() == []
+            assert await store.collection_exists(mirror) is False
+            moved = await store.get(config.semantic_collection, [m.id for m in memories])
+            assert {d.id for d in moved} == {m.id for m in memories}
+            assert {d.content for d in moved} == {m.content for m in memories}
         finally:
             await manager.close()

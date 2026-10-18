@@ -177,14 +177,14 @@ class MemoryManagerCore:
             store_procedurals_batch_func=self._store_procedurals_batch,
             store_conversations_batch_func=self._store_conversations_batch,
             deduplicate_semantic_batch_func=build_semantic_deduplicator(
-                vector=vector,
+                vector=self._vector,
                 embedding=embedding,
                 config=config,
                 cache=cache,
                 deduplicator=self._deduplicator,
             ),
             deduplicate_episodic_batch_func=build_episodic_deduplicator(
-                vector=vector,
+                vector=self._vector,
                 embedding=embedding,
                 config=config,
                 cache=cache,
@@ -324,6 +324,16 @@ class MemoryManagerCore:
     @property
     def has_vector(self) -> bool:
         return self._vector is not None and self._embedding is not None
+
+    @property
+    def has_vector_store(self) -> bool:
+        """Whether a vector backend backs this manager's memories.
+
+        Distinct from ``has_vector`` (dense capability): without an embedding
+        backend the BM25 sparse mirror is still a vector store, so semantic and
+        episodic memories are writable, countable and deletable.
+        """
+        return self._vector is not None
 
     @property
     def vector_is_persistent(self) -> bool:

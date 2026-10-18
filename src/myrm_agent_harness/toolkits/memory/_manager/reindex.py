@@ -3,7 +3,7 @@
 [INPUT]
 - memory.config::MemoryConfig (POS: per-model collection naming)
 - memory._internal.storage::{embed_batch, embed_conversations, doc_to_conversation, store_conversations_batch} (POS: cached batch embedding, dual-vector conversation embedder and writer)
-- memory._manager.model_collections::{catalog_of, current_collection, family_lock, previous_model_collections, retire_if_drained} (POS: per-model collection naming, retirement and the lock shared with deletions)
+- memory._manager.model_collections::{catalog_of, current_collection, family_lock, orphan_mirror_collections, previous_model_collections, retire_if_drained} (POS: per-model collection naming, retirement and the lock shared with deletions)
 - vector.base::VectorDocument (POS: scrolled memory documents)
 
 [OUTPUT]
@@ -16,6 +16,9 @@ memories unreachable. Detection lists the previous models' collections; migratio
 moves each memory (same id, payload, owner scope) into the current model's
 collection with a freshly embedded vector and removes it from the old collection
 once the current one is read back to hold it. An emptied old collection is dropped.
+A keyword-mode mirror whose dense collection never existed is detected and migrated
+the same way: the mirror's payload matches the dense layout, so the page re-embeds
+into the current collection and the drained mirror is retired.
 A page is read and settled under the collection family's lock but embedded outside it: the
 model call is slow and can hang, and a deletion must not queue behind it. Settling re-checks
 what the page read, so a memory a deletion removed meanwhile is not written back (and not counted
@@ -39,6 +42,7 @@ from myrm_agent_harness.toolkits.memory._manager.model_collections import (
     catalog_of,
     current_collection,
     family_lock,
+    orphan_mirror_collections,
     previous_model_collections,
     retire_if_drained,
 )
@@ -127,16 +131,21 @@ class MemoryManagerReindexMixin:
         """Detect collections left behind by previous embedding models.
 
         Collections of another model than the current one that still hold memories are orphans.
+        A keyword-mode mirror whose dense collection never existed counts too: once an embedding
+        model is configured, its memories are reachable through neither the dense reads nor the
+        BM25 fan-out (which queries the current model's mirror), so the migration has to carry
+        them over.
         """
         catalog = catalog_of(self._vector)
         if catalog is None:
             return []
 
         try:
-            previous = previous_model_collections(await catalog.list_collections(), self._config)
+            listed = await catalog.list_collections()
         except Exception as e:
             logger.warning("Failed to list collections for orphan detection: %s", e)
             return []
+        previous = previous_model_collections(listed, self._config) + orphan_mirror_collections(listed, self._config)
 
         orphans: list[OrphanCollectionInfo] = []
         for collection in previous:
