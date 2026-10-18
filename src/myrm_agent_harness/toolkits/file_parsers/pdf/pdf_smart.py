@@ -1,7 +1,7 @@
 """Smart PDF parser with OCR fallback for scanned documents.
 
 [INPUT]
-- pdf_content_extractor::extract_pdf_content (POS: Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page render fallback) strategy. Scanned PDFs (sparse text layer) are additionally OCR'd via the optional PaddleOCR parser so text-only consumers (RAG ingestion, non-vision models) still get readable text. Supports Table Encapsulation to prevent RAG chunking from splitting tables, using L0 summaries to ensure retrieval accuracy.)
+- pdf_content_extractor::extract_pdf_content (POS: Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page render fallback) strategy. Scanned PDFs (sparse text layer) are additionally OCR'd via the optional RapidOCR parser so text-only consumers (RAG ingestion, non-vision models) still get readable text. Supports Table Encapsulation to prevent RAG chunking from splitting tables, using L0 summaries to ensure retrieval accuracy.)
 - base::FileParser (POS: File parser base classes and data structures)
 
 [OUTPUT]

@@ -19,7 +19,7 @@ Utility functions module.
 | video_reader.py | Core | Sandbox video reads for file_read_tool; video-slot-first fallback chain + VideoAnalysisEngine. | ✅ |
 | path_utils.py | Core | Provides resolve_file_id_path. | ✅ |
 | vault_read.py | Core | vault:// URI read, workspace resolve, batch read for file_read_tool | ✅ |
-| pdf_reader.py | Core | PDF file reader with structure outline extraction and Large Document Smart RAG Diverter. | ✅ |
+| pdf_reader.py | Core | PDF file reader with structure outline extraction and Large Document Smart RAG Diverter: within the auto-index page limit the whole document is re-read text-only and ingested, empty documents are not ingested, and past the limit the hint reports the delivered pages only. Delivery mirrors the sibling readers: a vision model gets page image blocks, a text-only model with an auxiliary vision chain gets the same pages as text descriptions (real source page numbers from `PDFImageContent.page_number`), and a text layer that could not read some pages is disclosed through a `[PDF coverage]` prefix. A windowed read always carries a `[Partial Read]` hint naming the delivered page count, whether or not a knowledge base can absorb the rest | ✅ |
 
 ## Tests
 

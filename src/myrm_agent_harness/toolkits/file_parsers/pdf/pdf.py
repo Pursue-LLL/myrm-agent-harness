@@ -73,6 +73,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _PAGE_MARKER_LINE = re.compile(r"^\[Page \d+\][ \t\r]*$", re.MULTILINE)
+_PAGE_SECTION = re.compile(r"^\[Page (\d+)\][ \t\r]*$", re.MULTILINE)
 
 
 def count_content_chars(text: str) -> int:
@@ -84,6 +85,39 @@ def count_content_chars(text: str) -> int:
     sparse-text threshold.
     """
     return len(_PAGE_MARKER_LINE.sub("", text).strip())
+
+
+def pages_without_text(text: str) -> list[int]:
+    """1-based pages whose body carries no text at all, in ascending order.
+
+    A scanned page has no text objects, so its body is empty; a sparse but real page
+    still yields characters. That makes emptiness — not a density threshold — the
+    precise signal, and keeps the caller from accusing a readable page of being a scan.
+    Empty list when the text carries no page markers.
+    """
+    return [page for page in _page_numbers(text) if page not in pages_with_text(text)]
+
+
+def pages_with_text(text: str) -> set[int]:
+    """1-based pages whose body carries any text at all.
+
+    A page that failed OCR leaves no marker behind, so a caller holding the page set it
+    actually delivered must compare against this set rather than against the markers the
+    text happens to contain.
+    """
+    present: set[int] = set()
+    matches = list(_PAGE_SECTION.finditer(text))
+    for index, match in enumerate(matches):
+        body_start = match.end()
+        body_end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        if text[body_start:body_end].strip():
+            present.add(int(match.group(1)))
+    return present
+
+
+def _page_numbers(text: str) -> list[int]:
+    """1-based page numbers carrying a marker, in ascending order."""
+    return [int(match.group(1)) for match in _PAGE_SECTION.finditer(text)]
 
 
 class PDFPlumberParser(FileParser):

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from langchain_core.messages.content import ContentBlock, create_text_block
 from langchain_core.runnables import RunnableConfig
@@ -37,8 +37,9 @@ from ..utils.pdf_reader import read_pdf_as_content_blocks
 from ..utils.vault_read import path_base, read_vault_paths_to_parts
 from ..utils.video_reader import read_video_as_content_blocks
 from .file_integrity_guard import get_file_integrity_guard
-from .file_operation_service import FileOperationService, OperationContext, OperationType
+from .file_operation_service import FileOperationService
 from .file_read_truncation import truncate_file_output
+from .operation_context import OperationContext, OperationType
 from .result_formatter import clamp_line
 
 if TYPE_CHECKING:
@@ -46,6 +47,28 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 
 logger = logging.getLogger(__name__)
+
+
+async def _read_image_via_ocr(img_path: str, executor: CodeExecutor) -> str | None:
+    """Last-resort OCR text for an image when the model cannot see and no chain exists.
+
+    ``OcrTierEngine`` is the documented final tier of the vision pipeline; without this
+    call a text-only model with no configured vision route received nothing but a
+    metadata line for every image it was asked to read. Returns ``None`` when the OCR
+    extra is absent or the image held no readable text, so the caller keeps its previous
+    metadata response instead of reporting an unexamined image as empty.
+    """
+    from myrm_agent_harness.toolkits.llms.vision.ocr_tier import NO_READABLE_TEXT, OcrTierEngine
+
+    try:
+        vision_result = await OcrTierEngine().describe_local_image(img_path, executor)
+    except Exception as e:
+        logger.warning("OCR tier unavailable for %s: %s", img_path, e)
+        return None
+    text = vision_result.text.strip()
+    if not text or text == NO_READABLE_TEXT:
+        return None
+    return f"[Image OCR for {img_path}]:\n{text}"
 
 
 async def build_multimodal_result(
@@ -100,15 +123,24 @@ async def build_multimodal_result(
                 logger.warning("Vision fallback failed for %s: %s", img_path, e)
                 blocks.append(create_text_block(f"[Image file: {img_path}] (Vision analysis unavailable)"))
         else:
-            result = await read_image_as_content_blocks(img_path, executor, supports_vision=False)
-            if isinstance(result, list):
-                blocks.extend(result)
+            ocr_text = await _read_image_via_ocr(img_path, executor)
+            if ocr_text is not None:
+                blocks.append(create_text_block(ocr_text))
             else:
-                blocks.append(create_text_block(result))
+                plain_result = await read_image_as_content_blocks(img_path, executor, supports_vision=False)
+                if isinstance(plain_result, list):
+                    blocks.extend(plain_result)
+                else:
+                    blocks.append(create_text_block(plain_result))
 
     for pdf_path in pdf_paths:
         result = await read_pdf_as_content_blocks(
-            pdf_path, executor, supports_vision=supports_vision, parse_mode=parse_mode
+            pdf_path,
+            executor,
+            supports_vision=supports_vision,
+            vision_fallback_model_cfg=vision_fallback_model_cfg,
+            vision_fallback_model_cfgs=vision_fallback_model_cfgs,
+            parse_mode=parse_mode,
         )
         if isinstance(result, list):
             blocks.extend(result)
@@ -225,9 +257,22 @@ async def append_media_text_parts(
     for pdf_path in pdf_paths:
         if executor is not None:
             pdf_result = await read_pdf_as_content_blocks(
-                pdf_path, executor, supports_vision=False, parse_mode=parse_mode
+                pdf_path,
+                executor,
+                supports_vision=False,
+                vision_fallback_model_cfg=vision_fallback_model_cfg,
+                vision_fallback_model_cfgs=vision_fallback_model_cfgs,
+                parse_mode=parse_mode,
             )
-            if isinstance(pdf_result, str):
+            # With an auxiliary vision chain the reader returns blocks; flatten their text so
+            # this text-mode path keeps the document instead of silently dropping it.
+            if isinstance(pdf_result, list):
+                for block in pdf_result:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        block_text = cast("dict[str, object]", block).get("text")
+                        if isinstance(block_text, str):
+                            text_parts.append(block_text)
+            else:
                 text_parts.append(pdf_result)
         else:
             text_parts.append(f"[PDF file: {pdf_path}] (No workspace filesystem available)")

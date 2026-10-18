@@ -241,7 +241,7 @@ _PARSERS: dict[str, FileParser] = {
     ".pptx": PptxParser(),
     ".ppt": LegacyFormatParser(".pptx", PptxParser()),
     ".ipynb": IpynbParser(),
-    # Image files via OCR (PaddleOCR, optional dependency)
+    # Image files via OCR (RapidOCR, optional pdf-ocr extra)
     ".png": _OCR_PARSER,
     ".jpg": _OCR_PARSER,
     ".jpeg": _OCR_PARSER,

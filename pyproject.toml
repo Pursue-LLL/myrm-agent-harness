@@ -105,10 +105,11 @@ file-parsers = [
   "openpyxl>=3.1.5",    # Excel 文件读写
   "python-pptx>=1.0.2", # PowerPoint 文档解析
 ]
-# toolkits/file_parsers/ocr.py - 扫描 PDF / 图片 OCR 兜底（PaddleOCR，CJK 原生支持）
+# toolkits/file_parsers/ocr.py - 扫描 PDF / 图片 OCR 兜底（RapidOCR + ONNX Runtime，CJK 原生支持）
 pdf-ocr = [
-  "paddleocr>=3.2.0",   # PaddleOCR 引擎（含检测+识别模型）；3.7+ 的 paddlex 限制 numpy<2.4，与 retrieval 的 numpy>=2.5 冲突
-  "paddlepaddle>=3.3.1", # PaddlePaddle 深度学习框架
+  "rapidocr>=3.10.0",  # OCR 引擎（PP-OCR 检测+识别+方向分类，模型随包分发）
+  # ONNX Runtime 是 RapidOCR 的默认推理后端。Pyodide 无 wheel，须排除以保证跨平台锁可解。
+  "onnxruntime>=1.20.0; sys_platform != 'emscripten'",
 ]
 # FastAPI pin for hosts that embed the harness behind FastAPI (no harness module imports it)
 fastapi = [
@@ -139,12 +140,12 @@ compiled-core-musl = [
 # END compiled-core-musl
 ]
 all = [
-  "myrm-agent-harness[acp,browser,computer-use,image-processing,qdrant,retrieval,file-parsers,fastapi,observability,web]",
+  "myrm-agent-harness[acp,browser,computer-use,image-processing,qdrant,retrieval,file-parsers,pdf-ocr,fastapi,observability,web]",
 ]
 
 [tool.uv]
 # Universal lock for the Python 3.13 interpreter used by development and CI.
-environments = ["python_full_version >= '3.13' and python_full_version < '3.14'"]
+environments = ["python_full_version >= '3.13' and python_full_version < '3.14' and sys_platform != 'emscripten'"]
 # jieba (retrieval extra) ships invalid escape sequences: compiling it at first import emits a SyntaxWarning that
 # pytest's `filterwarnings = ["error"]` escalates to a SyntaxError. Compiling at install time keeps that import clean.
 compile-bytecode = true

@@ -1,7 +1,7 @@
 """
 [INPUT]
 file_path: str (Path to PDF)
-PDFExtractConfig: Configuration (max_pages, min_text_chars, table_format, ocr_pages, ocr_lang)
+PDFExtractConfig: Configuration (max_pages, min_text_chars, extract_embedded_images, table_format, ocr_pages, ocr_lang)
 pdf::count_content_chars (POS: Page-text length without the parser's page-marker lines)
 
 [OUTPUT]
@@ -12,9 +12,11 @@ PDFExtractResult: Unified result container
 
 Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page
 render fallback) strategy from the real page content (page markers never count). Scanned PDFs
-(sparse text layer) are additionally OCR'd via the optional PaddleOCR parser so text-only
+(sparse text layer) are additionally OCR'd via the optional RapidOCR parser so text-only
 consumers (RAG ingestion, non-vision models) still get readable text; a PDF without any real
 content yields empty text, and a scan reports the OCR/render window as ``parsed_pages``.
+Both image paths deliver at most the OCR window (``ocr_pages``, 0 means no ceiling), so a
+long document cannot flood a single prompt with page images.
 Supports Table Encapsulation to prevent RAG chunking from splitting tables, using L0
 summaries to ensure retrieval accuracy.
 """
@@ -26,13 +28,18 @@ import base64
 import io
 import logging
 import math
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
 from myrm_agent_harness.toolkits.file_parsers.base import PDFTable
 from myrm_agent_harness.toolkits.file_parsers.image_filter import ImageAblationFilter
-from myrm_agent_harness.toolkits.file_parsers.pdf.pdf import count_content_chars
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf import (
+    count_content_chars,
+    pages_with_text,
+    pages_without_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +50,9 @@ class PDFImageContent:
 
     data: str
     mime_type: str = "image/png"
+    # 1-based source page, so a consumer describing or citing the image can name the
+    # page it actually came from. 0 means the page is unknown.
+    page_number: int = 0
 
 
 @dataclass
@@ -54,8 +64,8 @@ class PDFExtractConfig:
     min_text_chars: int = 200
     extract_embedded_images: bool = True  # Enable structural embedded extraction
     table_format: Literal["inline", "placeholder"] = "placeholder"  # Default to placeholder for anti-fragmentation
-    ocr_pages: int = 30  # Max pages OCR'd for scanned PDFs (0 disables OCR fallback)
-    ocr_lang: str = "ch"  # PaddleOCR language ('en', 'japan', 'korean', ...); 'ch' covers Chinese + English
+    ocr_pages: int = 30  # Max pages OCR'd for scanned PDFs (0 disables OCR fallback); also the delivered-image ceiling
+    ocr_lang: str = "ch"  # OCR recognition language ('en', 'japan', 'korean', ...); 'ch' covers Chinese + English
     stitch_tables: bool = True  # Merge table fragments split by page breaks
 
 
@@ -66,10 +76,16 @@ class PDFExtractResult:
     text: str = ""
     images: list[PDFImageContent] = field(default_factory=list)
     page_count: int = 0
+    # Pages this extraction actually delivers (text or images): an extraction window
+    # shorter than page_count means the consumer sees a partial document.
     parsed_pages: int = 0
     strategy: Literal["text", "image", "hybrid", ""] = ""
     tables: list[PDFTable] = field(default_factory=list)
     image_trace: dict[str, object] = field(default_factory=dict)
+    # 1-based pages the text layer could not read (scanned images / blanks). Distinct from
+    # parsed_pages: that one reports the delivery window, this one reports unreadable
+    # content inside the window. Consumers disclose it instead of implying full coverage.
+    pages_without_text: list[int] = field(default_factory=list)
 
 
 def _extract_text_sync(
@@ -109,13 +125,25 @@ def _extract_text_sync(
     return text, page_count, parsed_pages, tables
 
 
-def _extract_embedded_images_sync(file_path: str, max_pages: int) -> list[PDFImageContent]:
-    """Smartly extract structural embedded images (charts, photos) while ignoring background artifacts."""
+def _extract_embedded_images_sync(
+    file_path: str,
+    max_pages: int,
+    max_images: int = 0,
+) -> tuple[list[PDFImageContent], bool]:
+    """Extract structural embedded images (charts, photos) while ignoring background artifacts.
+
+    ``max_images`` (0 = no ceiling) stops the scan early so a figure-heavy document
+    cannot push an unbounded number of page crops into one prompt; ``max_pages`` alone
+    only bounds the page window, not how many figures those pages carry.
+
+    Returns the images plus whether the ceiling cut the scan short. The flag is returned
+    rather than stored on the module: parallel extractions must not observe each other.
+    """
     try:
         import pdfplumber
     except (ImportError, TypeError):
         logger.warning("pdfplumber required for embedded image extraction.")
-        return []
+        return [], False
 
     images: list[PDFImageContent] = []
     try:
@@ -137,6 +165,18 @@ def _extract_embedded_images_sync(file_path: str, max_pages: int) -> list[PDFIma
                     if (x1 - x0) < 40 or (bottom - top) < 40:
                         continue
 
+                    # Only a figure that would itself have been delivered may report the ceiling.
+                    # Checking before these filters lets a trailing decorative artifact (a sprite,
+                    # a watermark fragment) claim a shortfall that never happened.
+                    if max_images and len(images) >= max_images:
+                        logger.info(
+                            "Embedded image ceiling reached (%d) at page %d of %s",
+                            max_images,
+                            page_num + 1,
+                            file_path,
+                        )
+                        return images, True
+
                     bbox = (x0, top, x1, bottom)
                     try:
                         # Crop via pdfplumber preserves exact page rendering of that object without manual color decoding
@@ -145,13 +185,13 @@ def _extract_embedded_images_sync(file_path: str, max_pages: int) -> list[PDFIma
                         buf = io.BytesIO()
                         pil_image.save(buf, format="PNG")
                         b64_data = base64.b64encode(buf.getvalue()).decode("ascii")
-                        images.append(PDFImageContent(data=b64_data))
+                        images.append(PDFImageContent(data=b64_data, page_number=page_num + 1))
                     except Exception as e:
                         logger.debug("Failed to crop embedded image on page %d: %s", page_num, e)
     except Exception as e:
         logger.warning("Error extracting embedded images from PDF: %s", e)
 
-    return images
+    return images, False
 
 
 def _render_pages_sync(
@@ -188,7 +228,7 @@ def _render_pages_sync(
                 buf = io.BytesIO()
                 pil_image.save(buf, format="PNG")
                 b64_data = base64.b64encode(buf.getvalue()).decode("ascii")
-                images.append(PDFImageContent(data=b64_data))
+                images.append(PDFImageContent(data=b64_data, page_number=page_num + 1))
 
             except Exception as e:
                 logger.warning("PDF page %d render failed: %s", page_num + 1, e)
@@ -206,7 +246,7 @@ async def _ocr_rendered_pages_async(
 ) -> str:
     """Best-effort OCR over rendered page images; returns `[Page N]`-marked text.
 
-    PaddleOCR is optional: when unavailable or a page fails, that page is skipped
+    RapidOCR is optional: when unavailable or a page fails, that page is skipped
     and the caller falls back to its existing behavior. Never raises.
     """
     from myrm_agent_harness.toolkits.file_parsers.ocr import OCRParser
@@ -220,7 +260,7 @@ async def _ocr_rendered_pages_async(
             raw = base64.b64decode(img.data)
             page_text = await parser.parse_bytes(raw, suffix=".png")
         except ImportError:
-            # PaddleOCR unavailable: remaining pages would fail the same way.
+            # RapidOCR unavailable: remaining pages would fail the same way.
             break
         except Exception as exc:
             logger.warning("PDF OCR failed for page %d: %s", idx + 1, exc)
@@ -248,32 +288,52 @@ async def extract_pdf_content(
     # Phase 2: Images
     raw_images: list[PDFImageContent] = []
     strategy: Literal["text", "image", "hybrid"] = "hybrid"
+    # Pages rendered for delivery (scan branch only). Embedded figures are not pages, so this
+    # stays empty on the text path.
+    rendered_pages: set[int] = set()
+    # Both image paths stop at the OCR window, so a figure-heavy or scanned document
+    # cannot deliver more (or further) pages than the window allows.
+    image_ceiling = min(cfg.max_pages, cfg.ocr_pages) if cfg.ocr_pages > 0 else cfg.max_pages
+    images_capped = False
 
     if count_content_chars(text) >= cfg.min_text_chars:
         if cfg.extract_embedded_images:
-            raw_images = await asyncio.to_thread(_extract_embedded_images_sync, file_path, cfg.max_pages)
+            raw_images, images_capped = await asyncio.to_thread(
+                _extract_embedded_images_sync, file_path, cfg.max_pages, image_ceiling
+            )
         else:
             strategy = "text"
     else:
         # Text sparse -> Scanned PDF
         strategy = "image"
-        # Render only the OCR window (all pages when OCR is disabled, e.g. vision-only
-        # consumers) so large scans stay bounded in time/memory and render/OCR ranges match.
-        render_limit = min(cfg.max_pages, cfg.ocr_pages) if cfg.ocr_pages > 0 else cfg.max_pages
         try:
-            raw_images = await asyncio.to_thread(_render_pages_sync, file_path, render_limit, cfg.max_pixels)
+            raw_images = await asyncio.to_thread(_render_pages_sync, file_path, image_ceiling, cfg.max_pixels)
+            rendered_pages = {img.page_number for img in raw_images if img.page_number > 0}
             # parsed_pages is what reaches the consumer, so a scan longer than the window reads as partial.
-            parsed_pages = min(parsed_pages, render_limit)
+            # A partial scan is disclosed through ``parsed_pages`` (pages missing), never through the
+            # ``truncated`` trace flag, whose contract is the embedded-figure ceiling of a full-page delivery.
+            parsed_pages = min(parsed_pages, image_ceiling)
         except (ImportError, TypeError):
             logger.warning("pypdfium2 not available, returning sparse text only.")
             strategy = "text"
 
-        # OCR fallback for scanned PDFs (best-effort; PaddleOCR optional).
+        # OCR fallback for scanned PDFs (best-effort; RapidOCR optional).
         # Keeps sparse text intact when OCR is unavailable or every page fails.
         if raw_images and cfg.ocr_pages > 0:
             ocr_text = await _ocr_rendered_pages_async(raw_images, cfg.ocr_pages, lang=cfg.ocr_lang)
             if ocr_text.strip():
                 text = ocr_text
+
+    # Which delivered pages could not be read as text. The authoritative page set depends on
+    # the branch: on the scan path the pages are the ones rendered for delivery, and OCR may
+    # cover only some of them — a page whose OCR failed leaves no marker behind, so deriving
+    # the gap from markers alone would silently drop it. On the text path the markers are the
+    # pages, and the embedded figures are *objects inside* pages, not pages themselves, so
+    # subtracting them would hide a scanned page.
+    if rendered_pages:
+        pages_unreadable = sorted(rendered_pages - pages_with_text(text))
+    else:
+        pages_unreadable = pages_without_text(text)
 
     # Page markers alone are no text: expose them as empty so consumers' empty-text
     # fallbacks (attachment references, image-only hints) apply.
@@ -289,8 +349,15 @@ async def extract_pdf_content(
         b64_list = [img.data for img in raw_images]
         kept_b64, trace = filter_svc.filter_images(b64_list)
 
+        # The filter returns bare payloads in input order; re-attach each kept image to
+        # the page it came from so a consumer describing it can name the real page.
+        provenance: dict[str, deque[int]] = {}
+        for img in raw_images:
+            provenance.setdefault(img.data, deque()).append(img.page_number)
         for data in kept_b64:
-            filtered_images.append(PDFImageContent(data=data))
+            pages = provenance.get(data)
+            page_number = pages.popleft() if pages else 0
+            filtered_images.append(PDFImageContent(data=data, page_number=page_number))
 
         trace_dict = {
             "total_processed": trace.total_processed,
@@ -298,7 +365,8 @@ async def extract_pdf_content(
             "dropped_count": trace.dropped_count,
             "drop_reasons": trace.drop_reasons,
         }
-
+        if images_capped:
+            trace_dict["truncated"] = True
         logger.info(
             "PDF Extraction Trace: %s | Mode: %s | Kept %d/%d images (Dropped: %s)",
             path.name,
@@ -322,4 +390,5 @@ async def extract_pdf_content(
         strategy=strategy,
         tables=all_tables,
         image_trace=trace_dict,
+        pages_without_text=pages_unreadable,
     )

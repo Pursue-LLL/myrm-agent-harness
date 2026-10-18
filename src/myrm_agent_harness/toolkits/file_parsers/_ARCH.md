@@ -19,7 +19,7 @@ auto-conversion).
 | excel.py | Core | Excel file parser. Supports markdown/text (content), structure (JSON metadata for token-efficient overview), audit (formula error detection). Dynamic data_only based on mode. | ✅ |
 | gfm_normalize.py | Core | Normalize parser output into consistent GitHub Flavored Markdown | ✅ |
 | image_filter.py | Core | Smart image ablation filter. Intercepts UI noise, decorative lines, tiny logos, | ✅ |
-| ocr.py | Core | OCR parser for images using PaddleOCR (2.x/3.x engine compatible, PaddleX unified API in 3.x). Supports CJK languages natively. | ✅ |
+| ocr.py | Core | OCR parser for images using RapidOCR (PP-OCR models on ONNX Runtime). Supports CJK languages natively. | ✅ |
 | pdf/（子包） | Core | PDF 解析子域：pdfplumber 文本/表格解析编排、智能提取（Text/Hybrid/Image + OCR 兜底）、SmartPDFParser 适配器、书签/编号/字号多信号标题管线（含垃圾书签质量门与行内落位）、跨页表格保守缝合、无边框表格启发式提取。`pdf*` 模块聚合于此，`pdf/__init__.py` 为聚合门面统一 re-export | ✅ |
 | pptx.py | Core | PowerPoint document parser. Supports markdown (slide text, tables, speaker notes) and structure mode (JSON metadata with shape IDs, types, positions, layouts for incremental edits). | ✅ |
 | rtf_parser.py | Core | RTF parser with font/color group handling and Markdown output | ✅ |
@@ -30,5 +30,5 @@ auto-conversion).
 
 - **Core**: `pdfplumber`（含 pypdfium2 传递依赖；`pdf/pdf.py`, `pdf/pdf_content_extractor.py`, `file_read_tool`）
 - **Optional `[file-parsers]`**: `python-docx`, `openpyxl`, `python-pptx`
-- **Optional `[pdf-ocr]`**: `paddleocr` + `paddlepaddle`（`ocr.py` 扫描 PDF OCR 兜底，经 `pdf/pdf_smart.py`/`extract_pdf_content` 接入；缺失时自动降级，返回文本层/页面图）
+- **Optional `[pdf-ocr]`**: `rapidocr` + `onnxruntime`（`ocr.py` 扫描 PDF OCR 兜底，经 `pdf/pdf_smart.py`/`extract_pdf_content` 接入；缺失时降级返回文本层/页面图）
 - **Stdlib**: `json`（`ipynb.py`，无额外依赖）

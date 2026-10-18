@@ -1,278 +1,201 @@
-"""Tests for the OCRParser (PaddleOCR 2.x/3.x compatible)."""
+"""Tests for the OCRParser (RapidOCR on ONNX Runtime)."""
 
-import sys
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 from myrm_agent_harness.toolkits.file_parsers.ocr import OCRParser, OCRResult
 
 
-def _fake_paddleocr(version: str, raise_import: bool = False) -> MagicMock:
-    """Build a fake paddleocr module with a given version."""
-    fake = MagicMock()
-    if raise_import:
-        fake.PaddleOCR = MagicMock(side_effect=ImportError("paddleocr is required"))
-        return fake
-    fake.__version__ = version
-    fake.PaddleOCR = MagicMock()
-    return fake
+class _FakeOutput:
+    """Stand-in for RapidOCR's ``RapidOCROutput`` (parallel tuples)."""
+
+    def __init__(self, txts=(), scores=(), boxes=None) -> None:
+        self.txts = txts
+        self.scores = scores
+        self.boxes = boxes
 
 
-def _patch_paddleocr(version: str, raise_import: bool = False):
-    return patch.dict(
-        "sys.modules",
-        {"paddleocr": _fake_paddleocr(version, raise_import)},
-    )
+@contextmanager
+def _rapidocr():
+    """Install a fake ``rapidocr`` module; yields the mocked ``RapidOCR`` class."""
+    fake_module = MagicMock()
+    with patch.dict("sys.modules", {"rapidocr": fake_module}):
+        yield fake_module.RapidOCR
 
 
-def _paddleocr_mod() -> MagicMock:
-    return sys.modules["paddleocr"]
+@contextmanager
+def _rapidocr_missing():
+    """Simulate the dependency being absent so ``from rapidocr import RapidOCR`` fails."""
+    with patch.dict("sys.modules", {"rapidocr": None}):
+        yield
 
 
 class TestGetEngine:
-    """Lazy engine initialization and version-dependent construction."""
+    """Lazy engine initialization and language/GPU wiring."""
 
-    def test_import_error_raises_hint(self):
-        with _patch_paddleocr("3.2.0", raise_import=True), pytest.raises(ImportError, match="paddleocr is required"):
+    def test_missing_dependency_raises_install_hint(self):
+        with _rapidocr_missing(), pytest.raises(ImportError, match="rapidocr is required"):
             OCRParser()._get_engine()
 
-    def test_v2_uses_legacy_constructor_args(self):
-        with _patch_paddleocr("2.7.3"):
-            parser = OCRParser(lang="en", use_gpu=True)
-            engine = parser._get_engine()
+    def test_language_and_gpu_reach_the_engine_params(self):
+        with _rapidocr() as engine_cls:
+            OCRParser(lang="japan", use_gpu=True)._get_engine()
 
-            fake_mod = _paddleocr_mod()
-            assert engine is fake_mod.PaddleOCR.return_value
-            _, kwargs = fake_mod.PaddleOCR.call_args
-            assert kwargs["use_angle_cls"] is True
-            assert kwargs["use_gpu"] is True
-            assert kwargs["lang"] == "en"
-            assert kwargs["show_log"] is False
+            params = engine_cls.call_args.kwargs["params"]
+            assert params["Rec.lang_type"] == "japan"
+            # CJK recognizers need the CJK detector, or page layout degrades.
+            assert params["Det.lang_type"] == "ch"
+            assert params["EngineConfig.onnxruntime.use_cuda"] is True
 
-    def test_v3_uses_paddlex_constructor_args(self):
-        with _patch_paddleocr("3.2.0"):
-            parser = OCRParser(lang="ch", use_gpu=False)
-            engine = parser._get_engine()
+    def test_latin_language_pairs_with_the_latin_detector(self):
+        with _rapidocr() as engine_cls:
+            OCRParser(lang="en")._get_engine()
 
-            fake_mod = _paddleocr_mod()
-            assert engine is fake_mod.PaddleOCR.return_value
-            _, kwargs = fake_mod.PaddleOCR.call_args
-            assert kwargs["use_textline_orientation"] is True
-            assert kwargs["device"] == "cpu"
-            assert kwargs["lang"] == "ch"
-            assert "use_angle_cls" not in kwargs
+            params = engine_cls.call_args.kwargs["params"]
+            assert params["Rec.lang_type"] == "en"
+            assert params["Det.lang_type"] == "en"
 
-    def test_engine_cached_after_first_initialization(self):
-        with _patch_paddleocr("3.2.0"):
+    def test_legacy_language_aliases_are_normalized(self):
+        with _rapidocr() as engine_cls:
+            OCRParser(lang="chinese")._get_engine()
+            assert engine_cls.call_args.kwargs["params"]["Rec.lang_type"] == "ch"
+
+    def test_engine_initialized_once(self):
+        with _rapidocr() as engine_cls:
             parser = OCRParser()
-            first = parser._get_engine()
-            second = parser._get_engine()
-
-            fake_mod = _paddleocr_mod()
-            assert first is second
-            assert fake_mod.PaddleOCR.call_count == 1
+            assert parser._get_engine() is parser._get_engine()
+            assert engine_cls.call_count == 1
 
 
 class TestParseSync:
-    """Inference call compatibility across engine generations."""
+    """Inference call and failure handling."""
 
-    def test_v2_calls_ocr_with_cls(self):
-        with _patch_paddleocr("2.7.3"):
+    def test_result_is_processed(self):
+        with _rapidocr():
             parser = OCRParser()
             engine = parser._get_engine()
-            engine.ocr.return_value = [[[[0, 0, 10, 10], ("hello", 0.9)]]]
+            engine.return_value = _FakeOutput(txts=("hello",), scores=(0.9,), boxes=None)
 
             result = parser._parse_sync("/tmp/img.png")
 
-        engine.ocr.assert_called_once_with("/tmp/img.png", cls=True)
-        assert result.text == "hello"
-
-    def test_v3_calls_predict(self):
-        with _patch_paddleocr("3.2.0"):
-            parser = OCRParser()
-            engine = parser._get_engine()
-            engine.predict.return_value = [{"rec_texts": ["hello", "world"], "rec_scores": [0.9, 0.8], "dt_polys": []}]
-
-            result = parser._parse_sync("/tmp/img.png")
-
-        engine.predict.assert_called_once_with("/tmp/img.png")
-        assert result.text == "hello\nworld"
+            engine.assert_called_once_with("/tmp/img.png")
+            assert result.text == "hello"
+            assert result.engine == "rapidocr"
 
     def test_engine_failure_returns_empty_result(self):
-        with _patch_paddleocr("3.2.0"):
+        with _rapidocr():
             parser = OCRParser()
             engine = parser._get_engine()
-            engine.predict.side_effect = RuntimeError("gpu out of memory")
+            engine.side_effect = RuntimeError("inference crashed")
 
             result = parser._parse_sync("/tmp/img.png")
 
-        assert result.text == ""
-        assert result.lines == []
+            assert result.text == ""
+            assert result.lines == []
 
 
-class TestProcessRawResultV2:
-    """2.x nested-list output parsing."""
+class TestProcessResult:
+    """RapidOCR parallel-tuple output parsing."""
 
-    def test_basic_lines_with_confidence(self):
+    def test_lines_and_average_confidence(self):
         parser = OCRParser(confidence_threshold=0.5)
-        raw = [
-            [
-                [[0, 0, 10, 10], ("hello", 0.9)],
-                [[10, 10, 20, 20], ("world", 0.6)],
-            ]
-        ]
-        result = parser._process_raw_result(raw)
+        result = parser._process_result(_FakeOutput(txts=("hello", "world"), scores=(0.9, 0.6)))
 
         assert result.text == "hello\nworld"
         assert len(result.lines) == 2
         assert result.lines[0].confidence == 0.9
-        assert result.lines[0].bbox == [0, 0, 10, 10]
         assert result.avg_confidence == pytest.approx(0.75)
 
-    def test_low_confidence_lines_filtered(self):
+    def test_low_confidence_lines_are_dropped(self):
         parser = OCRParser(confidence_threshold=0.8)
-        raw = [[[[0, 0, 10, 10], ("keep", 0.95)], [[10, 10, 20, 20], ("drop", 0.3)]]]
-        result = parser._process_raw_result(raw)
+        result = parser._process_result(_FakeOutput(txts=("keep", "drop"), scores=(0.95, 0.3)))
 
         assert result.text == "keep"
         assert len(result.lines) == 1
 
-    def test_blank_or_malformed_items_skipped(self):
+    def test_blank_lines_are_dropped(self):
         parser = OCRParser()
-        raw = [[None, [0, 0, 10, 10], [[0, 0, 10, 10], "no-conf"], [[0, 0, 10, 10], ("ok", 0.9)]]]
-        result = parser._process_raw_result(raw)
-
-        assert result.text == "ok"
-
-    def test_empty_result_returns_empty(self):
-        parser = OCRParser()
-        assert parser._process_raw_result(None).text == ""
-        assert parser._process_raw_result([]).text == ""
-        assert parser._process_raw_result([None]).text == ""
-
-
-class TestProcessRawResultV3:
-    """3.x PaddleX dict-like output parsing."""
-
-    def test_paddlex_result_parsed(self):
-        parser = OCRParser(confidence_threshold=0.5)
-        raw = [
-            {
-                "rec_texts": ["line one", "line two"],
-                "rec_scores": [0.91, 0.72],
-                "dt_polys": [[[0, 0], [10, 0], [10, 10], [0, 10]], [[20, 0], [30, 0], [30, 10], [20, 10]]],
-            }
-        ]
-        result = parser._process_raw_result(raw)
-
-        assert result.text == "line one\nline two"
-        assert len(result.lines) == 2
-        assert result.lines[0].bbox == [[0, 0], [10, 0], [10, 10], [0, 10]]
-        assert result.avg_confidence == pytest.approx(0.815)
-
-    def test_paddlex_missing_scores_defaults_zero(self):
-        parser = OCRParser(confidence_threshold=0.0)
-        raw = [{"rec_texts": ["no scores"], "rec_scores": [], "dt_polys": []}]
-        result = parser._process_raw_result(raw)
-
-        assert result.text == "no scores"
-        assert result.lines[0].confidence == 0.0
-
-    def test_paddlex_blank_texts_filtered(self):
-        parser = OCRParser()
-        raw = [{"rec_texts": ["", "  ", "real"], "rec_scores": [0.9, 0.8, 0.7], "dt_polys": []}]
-        result = parser._process_raw_result(raw)
+        result = parser._process_result(_FakeOutput(txts=("", "  ", "real"), scores=(0.9, 0.8, 0.7)))
 
         assert result.text == "real"
         assert len(result.lines) == 1
 
-    def test_paddlex_numpy_polys_converted_to_list(self):
-        """PaddleX dt_polys entries (numpy arrays) are exposed as plain lists (2.x parity)."""
-        import numpy as np
-
+    def test_no_detections_is_an_empty_result_not_an_error(self):
         parser = OCRParser()
-        raw = [
-            {
-                "rec_texts": ["boxed"],
-                "rec_scores": [0.9],
-                "dt_polys": [np.array([[0, 0], [10, 0], [10, 10], [0, 10]])],
-            }
-        ]
-        result = parser._process_raw_result(raw)
+        assert parser._process_result(_FakeOutput()).text == ""
+        assert parser._process_result(None).text == ""
+
+    def test_missing_scores_default_to_zero_and_are_filtered_out(self):
+        parser = OCRParser(confidence_threshold=0.5)
+        result = parser._process_result(_FakeOutput(txts=("no score",), scores=()))
+
+        assert result.text == ""
+
+    def test_numpy_boxes_are_exposed_as_plain_lists(self):
+        parser = OCRParser()
+        box = np.array([[0, 0], [10, 0], [10, 10], [0, 10]])
+        result = parser._process_result(_FakeOutput(txts=("boxed",), scores=(0.9,), boxes=(box,)))
 
         assert result.lines[0].bbox == [[0, 0], [10, 0], [10, 10], [0, 10]]
         assert isinstance(result.lines[0].bbox, list)
 
-    def test_paddlex_missing_poly_keeps_bbox_none(self):
-        """When dt_polys is shorter than rec_texts, bbox falls back to None."""
+    def test_missing_box_keeps_bbox_none(self):
         parser = OCRParser()
-        raw = [{"rec_texts": ["no poly"], "rec_scores": [0.9], "dt_polys": []}]
-        result = parser._process_raw_result(raw)
+        result = parser._process_result(_FakeOutput(txts=("no box",), scores=(0.9,), boxes=None))
 
-        assert result.text == "no poly"
+        assert result.text == "no box"
         assert result.lines[0].bbox is None
 
 
-class TestParseBytesAndParse:
+class TestParseEntryPoints:
     """Public parse entry points."""
 
     @pytest.mark.asyncio
     async def test_parse_bytes_empty_returns_empty(self):
-        parser = OCRParser()
-        assert await parser.parse_bytes(b"") == ""
+        assert await OCRParser().parse_bytes(b"") == ""
 
     @pytest.mark.asyncio
-    async def test_parse_bytes_writes_temp_and_parses(self):
-        with _patch_paddleocr("3.2.0"):
+    async def test_parse_bytes_writes_a_temp_file_and_cleans_up(self):
+        with _rapidocr():
             parser = OCRParser()
             engine = parser._get_engine()
-            engine.predict.return_value = [{"rec_texts": ["scanned page"], "rec_scores": [0.9], "dt_polys": []}]
+            engine.return_value = _FakeOutput(txts=("scanned page",), scores=(0.9,))
 
             text = await parser.parse_bytes(b"fake-png-bytes", suffix=".png")
 
-        assert text == "scanned page"
-        # temp file was created and passed to engine
-        call_path = engine.predict.call_args[0][0]
-        assert Path(call_path).exists() is False  # deleted after parse
-        assert call_path.endswith(".png")
+            assert text == "scanned page"
+            call_path = engine.call_args[0][0]
+            assert call_path.endswith(".png")
+            assert Path(call_path).exists() is False
 
     @pytest.mark.asyncio
     async def test_parse_missing_file_raises(self):
-        parser = OCRParser()
         with pytest.raises(FileNotFoundError):
-            await parser.parse("/nonexistent/img.png")
+            await OCRParser().parse("/nonexistent/img.png")
 
     @pytest.mark.asyncio
     async def test_parse_with_details_returns_ocr_result(self, tmp_path):
         img = tmp_path / "img.png"
         img.write_bytes(b"fake-png-bytes")
-        with _patch_paddleocr("2.7.3"):
+        with _rapidocr():
             parser = OCRParser()
             engine = parser._get_engine()
-            engine.ocr.return_value = [[[[0, 0, 10, 10], ("detail", 0.9)]]]
+            engine.return_value = _FakeOutput(txts=("detail",), scores=(0.9,))
 
             result = await parser.parse_with_details(str(img))
 
-        assert isinstance(result, OCRResult)
-        assert result.text == "detail"
-        assert result.engine == "paddleocr"
+            assert isinstance(result, OCRResult)
+            assert result.text == "detail"
+            assert result.engine == "rapidocr"
 
     @pytest.mark.asyncio
     async def test_parse_with_details_missing_file_raises(self):
-        parser = OCRParser()
         with pytest.raises(FileNotFoundError):
-            await parser.parse_with_details("/nonexistent/img.png")
-
-    @pytest.mark.asyncio
-    async def test_paddlex_low_confidence_lines_filtered(self):
-        parser = OCRParser(confidence_threshold=0.8)
-        raw = [{"rec_texts": ["keep", "drop"], "rec_scores": [0.95, 0.3], "dt_polys": []}]
-        result = parser._process_raw_result(raw)
-
-        assert result.text == "keep"
-        assert len(result.lines) == 1
+            await OCRParser().parse_with_details("/nonexistent/img.png")
 
     def test_supported_extensions(self):
         parser = OCRParser()
