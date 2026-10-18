@@ -321,11 +321,13 @@ def classify_segment_risk_detail(segment: str) -> tuple[CommandRiskLevel, SpanRi
     """Classify a single command with a stable i18n reason code.
 
     Text that holds more than one command is never vouched for: callers split a command line with
-    ``split_command_spans`` first.
+    ``split_command_spans`` first. The command each ``$(...)``/backtick runs is judged too, so a segment
+    reads the same here as through ``classify_command_risk``; the reason is the inner command's, matching the
+    plain spelling of what actually runs.
     """
     if len(split_command_spans(segment)) > 1:
         return CommandRiskLevel.UNKNOWN, "unknown_command"
-    return _classify_segment(segment)
+    return _judge_line(segment, depth=0)
 
 
 def classify_command_risk(command: str) -> CommandRiskLevel:
@@ -348,25 +350,30 @@ def classify_command_risk(command: str) -> CommandRiskLevel:
       ``DENY_WRAPPER_DEPTH`` is UNKNOWN: a line the walk cannot finish reading is not vouched for.
     - No I/O redirection operators (``>``, ``<``, ``>>``).
     """
-    return _classify_line(command, depth=0)
+    return _judge_line(command, depth=0)[0]
 
 
-def _classify_line(command: str, depth: int) -> CommandRiskLevel:
-    """Judge one command line and every command its substitutions run, ``depth`` levels down."""
+def _judge_line(command: str, depth: int) -> _Verdict:
+    """Judge one command line and every command its substitutions run, with the first lapse's reason.
+
+    The reason travels with the level so the approval card and the decision name the same command: an
+    inner ``$(npm ...)`` reports the inner command's reason, exactly as its plain spelling would.
+    """
     if depth >= DENY_WRAPPER_DEPTH:
-        return CommandRiskLevel.UNKNOWN
+        return CommandRiskLevel.UNKNOWN, "unknown_command"
 
     spans = split_command_spans(command)
     if not spans:
-        return CommandRiskLevel.UNKNOWN
+        return CommandRiskLevel.UNKNOWN, "empty_segment"
 
     for start, end in spans:
-        level, _ = _classify_segment(command[start:end])
-        if level != CommandRiskLevel.SAFE:
-            return CommandRiskLevel.UNKNOWN
+        verdict = _classify_segment(command[start:end])
+        if verdict[0] != CommandRiskLevel.SAFE:
+            return verdict
 
     for body in substitution_bodies(command):
-        if _classify_line(body, depth + 1) != CommandRiskLevel.SAFE:
-            return CommandRiskLevel.UNKNOWN
+        verdict = _judge_line(body, depth + 1)
+        if verdict[0] != CommandRiskLevel.SAFE:
+            return verdict
 
-    return CommandRiskLevel.SAFE
+    return CommandRiskLevel.SAFE, "safe"

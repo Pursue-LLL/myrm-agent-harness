@@ -16,6 +16,7 @@ import pytest
 from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
     CommandRiskLevel,
     classify_command_risk,
+    classify_segment_risk_detail,
 )
 
 SAFE = CommandRiskLevel.SAFE
@@ -113,3 +114,49 @@ class TestDepthIsFailClosed:
         """A line nested deeper than the walk reads must not be vouched for; the shell would still run it."""
         command = "echo " + "$(" * 200 + "rm -rf /" + ")" * 200
         assert classify_command_risk(command) is UNKNOWN
+
+
+class TestTheApprovalCardReadsTheCommandTheSameWay:
+    """``classify_segment_risk_detail`` feeds the approval card; it must not vouch where the decision refuses.
+
+    The card highlights each segment with this verdict, so a segment it calls SAFE while the decision raises
+    the card would show a risky command in the "safe" colour and name no reason.
+    """
+
+    @pytest.mark.parametrize(
+        ("command", "reason"),
+        [
+            ("npm publish --access public", "unknown_subcommand"),
+            ("echo $(npm publish --access public)", "unknown_subcommand"),
+            ("echo `npm publish --access public`", "unknown_subcommand"),
+            ("git push origin main", "unknown_subcommand"),
+            ("echo $(git push origin main)", "unknown_subcommand"),
+        ],
+    )
+    def test_wrapped_segment_names_the_inner_command_reason(self, command: str, reason: str) -> None:
+        assert classify_segment_risk_detail(command) == (UNKNOWN, reason)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "ls $(pwd)",
+            "echo $(date)",
+            "echo $(whoami)",
+            'grep foo "$(pwd)/x.txt"',
+        ],
+    )
+    def test_read_only_substitution_stays_safe_on_the_card(self, command: str) -> None:
+        assert classify_segment_risk_detail(command) == (SAFE, "safe")
+
+    @pytest.mark.parametrize(
+        ("command", "level", "reason"),
+        [
+            ("", UNKNOWN, "empty_segment"),
+            ("   ", UNKNOWN, "empty_segment"),
+            ("ls > out.txt", UNKNOWN, "redirect"),
+            ("foo", UNKNOWN, "unknown_command"),
+            ("ls; rm x", UNKNOWN, "unknown_command"),
+        ],
+    )
+    def test_plain_segment_reasons_are_unchanged(self, command: str, level: CommandRiskLevel, reason: str) -> None:
+        assert classify_segment_risk_detail(command) == (level, reason)
