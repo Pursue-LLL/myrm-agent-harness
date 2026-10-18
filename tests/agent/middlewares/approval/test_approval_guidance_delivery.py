@@ -333,10 +333,15 @@ async def test_two_parallel_approvals_each_deliver_their_own_note() -> None:
     await _run_to_pause(agent, config)
     await _answer_the_middleware_ask(agent, config, count=2)
 
+    # Answer each pending pause by its own id: after one is answered the graph re-parks on the
+    # other, and `interrupts[0]` keeps the id of the one still waiting, so track what was answered.
+    answered: set[str] = set()
     for note in ("note-for-publish", "note-for-archive"):
         snapshot = await agent.aget_state(config)
-        assert snapshot.interrupts, "each pause is answered in turn"
-        interrupt_id = snapshot.interrupts[0].id
+        pending = [i for i in snapshot.interrupts if i.id not in answered]
+        assert pending, "each pause is answered in turn"
+        interrupt_id = pending[0].id
+        answered.add(interrupt_id)
         async for _ in agent.astream(
             Command(resume={interrupt_id: {"decision": "approve", "guidance": note}}),
             config,
