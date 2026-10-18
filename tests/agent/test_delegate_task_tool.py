@@ -2055,6 +2055,98 @@ class TestBatchCostApproval:
     @pytest.mark.asyncio
     @patch("langgraph.types.interrupt")
     @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_approval_note_is_stashed_for_the_model(self, mock_estimate, mock_interrupt):
+        """Approving the batch cost pause hands the person's note to the delivery hook, not to ``feedback``."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+        from myrm_agent_harness.core.context_vars import (
+            claim_approval_note,
+            current_tool_call_id_var,
+            publish_approval_notes,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=2.00,
+        )
+        mock_interrupt.return_value = {"decision": "approve", "guidance": "keep it under 3 USD"}
+
+        publish_approval_notes()
+        token = current_tool_call_id_var.set("call-cost-1")
+        try:
+            parent = _make_mock_parent()
+            catalog = AsyncMock()
+            tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=MagicMock())
+            with patch(
+                "myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests",
+                AsyncMock(return_value={"success": True}),
+            ):
+                await tool.coroutine(
+                    tasks=[
+                        TaskRequest(agent_type="coder", objective="expensive 1"),
+                        TaskRequest(agent_type="coder", objective="expensive 2"),
+                    ],
+                    wait=True,
+                )
+        finally:
+            current_tool_call_id_var.reset(token)
+
+        assert claim_approval_note("call-cost-1") == "keep it under 3 USD"
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    async def test_approval_without_a_note_stashes_nothing(self, mock_estimate, mock_interrupt):
+        """A plain approve leaves the store empty, so the hook appends nothing."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+        )
+        from myrm_agent_harness.core.context_vars import (
+            claim_approval_note,
+            current_tool_call_id_var,
+            publish_approval_notes,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=2.00,
+        )
+        mock_interrupt.return_value = {"decision": "approve"}
+
+        publish_approval_notes()
+        token = current_tool_call_id_var.set("call-cost-2")
+        try:
+            parent = _make_mock_parent()
+            catalog = AsyncMock()
+            tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=MagicMock())
+            with patch(
+                "myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests",
+                AsyncMock(return_value={"success": True}),
+            ):
+                await tool.coroutine(
+                    tasks=[
+                        TaskRequest(agent_type="coder", objective="expensive 1"),
+                        TaskRequest(agent_type="coder", objective="expensive 2"),
+                    ],
+                    wait=True,
+                )
+        finally:
+            current_tool_call_id_var.reset(token)
+
+        assert claim_approval_note("call-cost-2") == ""
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
     async def test_rejection_without_a_reason_keeps_the_plain_result(self, mock_estimate, mock_interrupt):
         """A bare refusal adds no field, so the machine-readable result is unchanged."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
@@ -2927,6 +3019,49 @@ class TestCognitiveCostApproval:
         assert result is not None
         assert result["status"] == "user_rejected"
         assert result["rejection_feedback"] == "Use two experts, not five."
+
+    @pytest.mark.asyncio
+    @patch("langgraph.types.interrupt")
+    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget._estimate_batch_cost")
+    async def test_preflight_approval_note_is_stashed_for_the_model(self, mock_estimate, mock_interrupt):
+        """Approving the cognitive cost pause hands the person's note to the delivery hook."""
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _BatchBudgetAdmission,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
+            _preflight_cost_check,
+        )
+        from myrm_agent_harness.core.context_vars import (
+            claim_approval_note,
+            current_tool_call_id_var,
+            publish_approval_notes,
+        )
+
+        mock_estimate.return_value = _BatchBudgetAdmission(
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=2.00,
+        )
+        mock_interrupt.return_value = {"decision": "approve", "guidance": "use three experts"}
+
+        publish_approval_notes()
+        token = current_tool_call_id_var.set("call-cog-1")
+        try:
+            result = await _preflight_cost_check(
+                parent_agent=_make_mock_parent(),
+                catalog=AsyncMock(),
+                expert_agent_types=["a", "b"],
+                objective="task",
+                context_files=[],
+                context=None,
+                mode="alternatives",
+                cross_review_rounds=1,
+            )
+        finally:
+            current_tool_call_id_var.reset(token)
+
+        assert result is None, "an approval lets the run continue"
+        assert claim_approval_note("call-cog-1") == "use three experts"
 
     @pytest.mark.asyncio
     @patch("langgraph.types.interrupt")
