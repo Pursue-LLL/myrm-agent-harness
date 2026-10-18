@@ -12,7 +12,7 @@ import asyncio
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import bm25_collection_for
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_encoding import bm25_collection_for
 from myrm_agent_harness.toolkits.memory.manager import MemoryError as MemoryManagerError
 
 from .support import (

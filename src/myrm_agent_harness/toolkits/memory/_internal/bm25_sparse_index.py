@@ -1,14 +1,12 @@
 """BM25 Sparse Index — persistent, incrementally-maintained inverted index.
 
 [INPUT]
-- memory.protocols.vector::{VectorStoreProtocol, VectorDocument, FilterDict} (POS: vector protocol)
-- memory._internal.storage_converters::{doc_to_semantic, doc_to_episodic, _user_filter} (POS: converters)
-- memory.types::{MemorySearchResult, MemoryType} (POS: memory data models)
-- retriever.bm25_retrieval::preprocess_text (POS: shared CJK/latin tokenizer)
+- memory.protocols.vector::{FilterDict, VectorDocument, VectorSearchResult, VectorStoreProtocol} (POS: vector protocol)
+- memory._internal.bm25_sparse_encoding::{bm25_collection_for, doc_to_sparse_point} (POS: sparse encoding)
+- memory._internal.bm25_sparse_query::run_bm25_search (POS: sparse query pipeline)
+- toolkits.vector.qdrant.sparse::QdrantSparseMixin (POS: sparse-capable backend)
 
 [OUTPUT]
-- token_index: stable u31 token hash (zero-vocabulary, no term dictionary)
-- content_to_sparse / query_to_sparse: token stream -> (indices, values)
 - BM25SparseIndexStore: VectorStoreProtocol wrapper (sparse-capable backends
   only) that mirrors every upsert/delete into a ``{collection}_bm25`` sparse
   collection and serves BM25 queries from it
@@ -20,44 +18,39 @@
 [POS]
 Replaces the per-query full-corpus scroll + BM25Okapi rebuild (24x build/query
 cost ratio, silent recall loss past ``bm25_max_corpus_size``) with a persisted
-sparse index: tokens are hashed (crc32 & 0x7FFFFFFF), term frequency saturates
-via ``1 + ln(tf)``, and IDF weighting happens server-side (Qdrant sparse
-scoring). Sparse sync is fail-open — a broken index never blocks dense writes,
-the same guarantee graph indexing already follows.
+sparse index. This module owns the mirror's lifecycle — write interception,
+one-shot backfill, and sparse-only routing for embeddings-less deployments —
+while encoding and query execution live in the sibling modules. Sparse sync is
+fail-open — a broken index never blocks dense writes, the same guarantee graph
+indexing already follows.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import math
-import zlib
-from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_encoding import (
+    bm25_collection_for,
+    doc_to_sparse_point,
+)
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_query import run_bm25_search
 from myrm_agent_harness.toolkits.memory.protocols.vector import (
     FilterDict,
     VectorDocument,
     VectorSearchResult,
     VectorStoreProtocol,
 )
-from myrm_agent_harness.toolkits.memory.types import (
-    EpisodicMemory,
-    MemorySearchResult,
-    MemoryType,
-    SemanticMemory,
-)
-from myrm_agent_harness.toolkits.vector.base import SparsePoint
+from myrm_agent_harness.toolkits.memory.types import MemorySearchResult
 from myrm_agent_harness.toolkits.vector.qdrant.sparse import QdrantSparseMixin
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 
 logger = logging.getLogger(__name__)
-
-BM25_COLLECTION_SUFFIX = "_bm25"
 
 
 def _log_task_failure(task: asyncio.Task[object]) -> None:
@@ -67,64 +60,6 @@ def _log_task_failure(task: asyncio.Task[object]) -> None:
     exc = task.exception()
     if exc is not None:
         logger.warning("BM25 sparse backfill task failed: %s", exc)
-
-
-def token_index(token: str) -> int:
-    """Stable u31 token hash — zero vocabulary, no term dictionary to persist.
-
-    crc32 over the utf-8 token keeps hashing allocation-light; collisions merge
-    two rare terms' frequencies, a bounded-quality tradeoff standard for
-    hash-based sparse retrieval.
-    """
-    return zlib.crc32(token.encode("utf-8")) & 0x7FFFFFFF
-
-
-def content_to_sparse(text: str) -> tuple[list[int], list[float]]:
-    """Tokenize content into a saturated term-frequency sparse vector."""
-    from myrm_agent_harness.toolkits.retriever.bm25_retrieval import preprocess_text
-
-    # dedupe=False keeps term frequencies (default dedupe would flatten tf to 1)
-    frequencies = Counter(preprocess_text(text, dedupe=False))
-    if not frequencies:
-        return [], []
-    pairs = sorted((token_index(token), 1.0 + math.log(count)) for token, count in frequencies.items())
-    indices, values = zip(*pairs, strict=True)
-    return list(indices), list(values)
-
-
-def query_to_sparse(text: str) -> tuple[list[int], list[float]]:
-    """Tokenize a query into uniform-weight sparse indices (no tf on query side)."""
-    from myrm_agent_harness.toolkits.retriever.bm25_retrieval import preprocess_text
-
-    tokens = {t for t in preprocess_text(text) if t}
-    if not tokens:
-        return [], []
-    indices = sorted(token_index(t) for t in tokens)
-    return indices, [1.0] * len(indices)
-
-
-def bm25_collection_for(collection: str) -> str:
-    """Sparse mirror collection name for a dense collection."""
-    return f"{collection}{BM25_COLLECTION_SUFFIX}"
-
-
-def doc_to_sparse_point(doc: VectorDocument) -> SparsePoint:
-    """Convert a dense-path document into its sparse mirror point.
-
-    Payload stays identical to the dense upsert layout (same metadata and
-    timestamps), so FilterDict semantics filter sparse results exactly like
-    dense results.
-    """
-    indices, values = content_to_sparse(doc.content)
-    return SparsePoint(
-        id=doc.id,
-        indices=indices,
-        values=values,
-        content=doc.content,
-        metadata=dict(doc.metadata),
-        created_at=doc.created_at,
-        updated_at=doc.updated_at,
-    )
 
 
 class BM25SparseIndexStore:
@@ -270,9 +205,9 @@ class BM25SparseIndexStore:
     ) -> list[MemorySearchResult] | None:
         """Serve a BM25 query from the persistent sparse index.
 
-        Returns ``None`` when the sparse channel is unavailable or not yet
-        warmed so the caller can fall back to the corpus-scroll path; raises
-        nothing — transient sparse failures also degrade to ``None``.
+        Returns ``None`` while the index is not yet warmed so the caller can
+        fall back to the corpus-scroll path; the first call also schedules the
+        one-shot backfill. Query execution lives in ``run_bm25_search``.
         """
         if not self._sparse_ready:
             # First BM25 query in an async context: warm the index in the
@@ -280,77 +215,15 @@ class BM25SparseIndexStore:
             # corpus-scroll path until the backfill lands.
             self._schedule_backfill_once(config)
             return None
-
-        from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
-            _user_filter,
-            doc_to_episodic,
-            doc_to_semantic,
+        return await run_bm25_search(
+            self._inner,
+            query,
+            config,
+            limit=limit,
+            namespaces=namespaces,
+            since=since,
+            until=until,
         )
-
-        indices, values = query_to_sparse(query)
-        if not indices:
-            return None
-
-        filters = _user_filter(namespaces=namespaces, since=since, until=until)
-        top_k = limit if limit is not None else config.bm25_top_k
-
-        # converters produce concrete memory models; the record type is the
-        # same union MemorySearchResult.memory accepts, so no cast is needed.
-        targets: list[tuple[str, MemoryType, Callable[[VectorDocument], SemanticMemory | EpisodicMemory]]] = [
-            (config.semantic_collection, MemoryType.SEMANTIC, doc_to_semantic),
-            (config.episodic_collection, MemoryType.EPISODIC, doc_to_episodic),
-        ]
-
-        async def search_one(
-            collection: str, memory_type: MemoryType
-        ) -> list[tuple[float, VectorDocument, MemoryType]]:
-            try:
-                results = await self._inner.search_sparse(  # type: ignore[attr-defined]
-                    bm25_collection_for(collection),
-                    indices,
-                    values,
-                    limit=top_k,
-                    filters=filters,
-                )
-            except Exception as exc:
-                # A missing sparse collection means "never written in this
-                # mode" (embeddings-less deployments ensure it on first
-                # write); treat it as empty rather than failing the whole
-                # search. Real backend failures still degrade below.
-                if "not found" in str(exc).lower():
-                    logger.debug("BM25 sparse collection absent for %s; skipping", collection)
-                    return []
-                raise
-            return [(r.score, r.document, memory_type) for r in results]
-
-        # Both collections queried in parallel, mirroring the legacy dual-scroll.
-        try:
-            outcomes = await asyncio.gather(*(search_one(c, mt) for c, mt, _ in targets))
-        except Exception as exc:
-            logger.warning("BM25 sparse search degraded (non-fatal): %s", exc)
-            return None
-        hits = [hit for outcome in outcomes for hit in outcome]
-
-        if not hits:
-            return []
-
-        hits.sort(key=lambda h: h[0], reverse=True)
-        hits = hits[:top_k]
-        normalizer = hits[0][0] if hits[0][0] > 0 else 1.0
-        converters: dict[MemoryType, Callable[[VectorDocument], SemanticMemory | EpisodicMemory]] = {
-            MemoryType.SEMANTIC: doc_to_semantic,
-            MemoryType.EPISODIC: doc_to_episodic,
-        }
-        converted: list[MemorySearchResult] = []
-        for score, doc, memory_type in hits:
-            converted.append(
-                MemorySearchResult(
-                    memory=converters[memory_type](doc),
-                    score=min(score / normalizer, 1.0),
-                    memory_type=memory_type,
-                )
-            )
-        return converted
 
     # ── Sparse-only lifecycle (embeddings-less deployments) ─────────────
 

@@ -3,7 +3,8 @@
 [INPUT]
 - memory.config::MemoryConfig (POS: per-model collection naming)
 - memory.types::MemoryType (POS: memory taxonomy)
-- memory._internal.bm25_sparse_index::{BM25_COLLECTION_SUFFIX, bm25_collection_for, unwrap_sparse_mirror} (POS: sparse mirror naming and the backend beneath it)
+- memory._internal.bm25_sparse_encoding::{BM25_COLLECTION_SUFFIX, bm25_collection_for} (POS: sparse mirror naming)
+- memory._internal.bm25_sparse_index::unwrap_sparse_mirror (POS: the backend beneath the mirror)
 - vector.base::VectorStore (POS: collection listing / counting / dropping)
 
 [OUTPUT]
@@ -32,11 +33,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_encoding import (
     BM25_COLLECTION_SUFFIX,
     bm25_collection_for,
-    unwrap_sparse_mirror,
 )
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import unwrap_sparse_mirror
 from myrm_agent_harness.toolkits.memory.types import MemoryType
 from myrm_agent_harness.toolkits.vector.base import VectorStore
 

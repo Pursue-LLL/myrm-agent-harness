@@ -17,12 +17,14 @@ from uuid import uuid4
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
-    BM25SparseIndexStore,
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_encoding import (
     bm25_collection_for,
     content_to_sparse,
     query_to_sparse,
     token_index,
+)
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
+    BM25SparseIndexStore,
     wrap_with_bm25_sparse_index,
 )
 from myrm_agent_harness.toolkits.memory._internal.storage_search import search_bm25
