@@ -55,7 +55,7 @@ class _ScriptedModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "scripted"
 
-    def bind_tools(self, tools: Sequence[Any], **kwargs: Any) -> _ScriptedModel:  # noqa: ANN401
+    def bind_tools(self, tools: Sequence[Any], **kwargs: Any) -> _ScriptedModel:
         return self
 
     def _generate(
@@ -63,7 +63,7 @@ class _ScriptedModel(BaseChatModel):
         messages: list[BaseMessage],
         stop: list[str] | None = None,
         run_manager: CallbackManagerForLLMRun | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> ChatResult:
         message = self.script[min(self.index, len(self.script) - 1)]
         self.index += 1
@@ -101,7 +101,7 @@ def _build_agent(script: list[AIMessage]):
     )
 
 
-def create_registry_for_test():  # noqa: ANN201 - thin wrapper, keeps the import local
+def create_registry_for_test():
     from myrm_agent_harness.agent._internals._agent_build import create_registry
 
     return create_registry()
@@ -142,6 +142,69 @@ def _config() -> dict[str, object]:
 
 
 @pytest.mark.asyncio
+async def test_the_hook_passes_a_result_through_untouched_when_no_note_was_left() -> None:
+    """Called directly: no note means the tool result is returned exactly as it came."""
+    from langgraph.types import Command as _Command
+
+    from myrm_agent_harness.agent.middlewares.approval.guidance_delivery import (
+        approval_guidance_delivery,
+    )
+    from myrm_agent_harness.core.context_vars import publish_approval_notes
+
+    publish_approval_notes()
+    tool_message = ToolMessage(content="clicked", tool_call_id="c9", name=GATED_TOOL)
+
+    async def handler(request: object) -> ToolMessage:
+        return tool_message
+
+    request = type("R", (), {"tool_call": {"id": "c9", "name": GATED_TOOL}})()
+    result = await approval_guidance_delivery.awrap_tool_call(request, handler)
+
+    assert result is tool_message
+    assert not isinstance(result, _Command)
+
+
+@pytest.mark.asyncio
+async def test_the_hook_leaves_the_note_for_a_tool_that_answers_with_its_own_command() -> None:
+    """A tool owning the message list must not have the note consumed against it."""
+    from langgraph.types import Command as _Command
+
+    from myrm_agent_harness.agent.middlewares.approval.guidance_delivery import (
+        approval_guidance_delivery,
+    )
+    from myrm_agent_harness.core.context_vars import (
+        claim_approval_note,
+        current_tool_call_id_var,
+        publish_approval_notes,
+        stash_approval_note,
+    )
+
+    publish_approval_notes()
+    token = current_tool_call_id_var.set("c10")
+    stash_approval_note("kept for later")
+    current_tool_call_id_var.reset(token)
+
+    owned = _Command(update={"messages": []})
+
+    async def handler(request: object) -> _Command[object]:
+        return owned
+
+    request = type("R", (), {"tool_call": {"id": "c10", "name": GATED_TOOL}})()
+    result = await approval_guidance_delivery.awrap_tool_call(request, handler)
+
+    assert result is owned
+    assert claim_approval_note("c10") == "kept for later", "the note must not be consumed"
+
+
+def test_claiming_a_note_without_a_published_store_is_empty() -> None:
+    """A run that never published degrades to the old behaviour instead of raising."""
+    from myrm_agent_harness.core.context_vars import approval_notes_var, claim_approval_note
+
+    approval_notes_var.set(None)
+    assert claim_approval_note("c11") == ""
+
+
+@pytest.mark.asyncio
 async def test_a_note_too_long_to_be_an_instruction_is_bounded() -> None:
     """The approval box has no input limit; a paste must not become an unbounded request block."""
     from myrm_agent_harness.agent.middlewares.approval.guidance_delivery import MAX_NOTE_CHARS
@@ -165,9 +228,7 @@ async def test_a_note_too_long_to_be_an_instruction_is_bounded() -> None:
 
     snapshot = await agent.aget_state(config)
     notes = [
-        str(m.content)
-        for m in snapshot.values["messages"]
-        if m.additional_kwargs.get("approval_guidance") is True
+        str(m.content) for m in snapshot.values["messages"] if m.additional_kwargs.get("approval_guidance") is True
     ]
     assert len(notes) == 1
     assert len(notes[0]) <= MAX_NOTE_CHARS + 100, "the note must be bounded before it reaches the model"
