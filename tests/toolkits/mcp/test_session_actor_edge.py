@@ -126,7 +126,11 @@ def test_build_client_target_sse() -> None:
         actor = MCPSessionActor("srv", {"transport": "sse"})
         target = actor._build_client_target({"transport": "sse", "url": "http://x", "headers": {"a": "b"}})
         assert target is sse_client.return_value
-        sse_client.assert_called_once_with("http://x", headers={"a": "b"})
+        sse_client.assert_called_once()
+        args, kwargs = sse_client.call_args
+        assert args == ("http://x",)
+        assert kwargs.get("headers") == {"a": "b"}
+        assert callable(kwargs.get("httpx_client_factory"))
 
 
 def test_build_client_target_streamable_http_with_headers() -> None:

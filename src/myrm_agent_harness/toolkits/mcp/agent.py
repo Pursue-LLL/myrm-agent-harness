@@ -61,12 +61,13 @@ import contextlib
 import logging
 from collections.abc import Sequence
 from contextlib import AbstractAsyncContextManager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
 
 if TYPE_CHECKING:
     import httpx2
+    from mcp.client._transport import TransportStreams
 
 from .client import MCPClientManager, MCPServerConfigProtocol
 from .result_processing import OversizedResultHandler
@@ -94,10 +95,14 @@ class MCPAgent:
 
     def __init__(self) -> None:
         self._tool_server_mapping: dict[str, str] = {}
-        # ``httpx2.AsyncClient`` instances created for headered streamable HTTP
-        # enumeration targets. The SDK never closes an injected client, so the
-        # owner must: we track them here and close them after enumeration.
-        self._pending_http_clients: list[httpx2.AsyncClient] = []
+        self._server_instructions: dict[str, str | None] = {}
+
+    def get_server_instructions(self, server_name: str) -> str | None:
+        """Return the ``initialize`` instructions captured by the latest enumeration of *server_name*.
+
+        ``None`` means the server sent none or was never enumerated by this agent.
+        """
+        return self._server_instructions.get(server_name)
 
     def _get_tool_id(self, tool: BaseTool) -> str:
         """Get a unique identifier for a tool (name + description hash)."""
@@ -157,7 +162,7 @@ class MCPAgent:
     def _build_enumeration_target(
         server_config: MCPServerConfigProtocol,
         http_clients: list[httpx2.AsyncClient] | None = None,
-    ) -> AbstractAsyncContextManager[tuple[Any, Any]]:
+    ) -> AbstractAsyncContextManager[TransportStreams]:
         """Build the transport target for one-shot tool enumeration.
 
         - SSE: ``sse_client(url, headers=...)`` — SSE transport accepts ``headers``
@@ -178,12 +183,23 @@ class MCPAgent:
         if isinstance(raw_target, str):
             headers = MCPClientManager.get_headers(server_config)
             transport_type = server_config.type
+            has_tls = MCPClientManager.has_custom_tls(server_config)
             if transport_type == "sse":
                 from mcp.client.sse import sse_client
 
-                return sse_client(raw_target, headers=headers or None)
-            if headers:
-                http_client = MCPClientManager.build_streamable_http_client(headers)
+                ssl_ctx = MCPClientManager._build_ssl_context(server_config) if has_tls else None
+                sse_factory = MCPClientManager.build_sse_client_factory(raw_target, ssl_context=ssl_ctx)
+                return sse_client(
+                    raw_target,
+                    headers=headers or None,
+                    httpx_client_factory=sse_factory,
+                )
+            if headers or has_tls:
+                http_client = MCPClientManager.build_streamable_http_client(
+                    headers,
+                    url=raw_target,
+                    server_config=server_config,
+                )
                 if http_clients is not None:
                     http_clients.append(http_client)
                 from mcp.client.streamable_http import streamable_http_client
@@ -215,11 +231,53 @@ class MCPAgent:
 
         from myrm_agent_harness import __version__
 
+        from .session_actor_types import _describe_error, _extract_instructions
         from .tool_converter import convert_mcp_tools
 
         server_name = server_config.name
         connect_timeout = server_config.connect_timeout
         last_error = "not found tools"
+
+        if getattr(server_config, "type", "stdio") == "stdio":
+            from .security import check_osv_malware
+            from .transport import get_workspace_trust_gate
+
+            extra_params = getattr(server_config, "extra_params", None)
+            cwd_val: str | None = None
+            plugin_root_val: str | None = None
+            if isinstance(extra_params, dict):
+                raw_cwd = extra_params.get("cwd")
+                if isinstance(raw_cwd, str) and raw_cwd:
+                    cwd_val = raw_cwd
+                raw_plugin_root = extra_params.get("plugin_root")
+                if isinstance(raw_plugin_root, str) and raw_plugin_root:
+                    plugin_root_val = raw_plugin_root
+            gate = get_workspace_trust_gate()
+            if gate is not None:
+                try:
+                    gate.assert_mcp_spawn_allowed(
+                        workspace_root=None,
+                        cwd=cwd_val,
+                        plugin_root=plugin_root_val,
+                        trust_level=gate.get_trust_level(),
+                    )
+                except Exception as exc:
+                    return server_name, [], str(exc)
+
+            cmd = getattr(server_config, "command", None)
+            raw_args = getattr(server_config, "args", None)
+            if isinstance(cmd, str) and cmd:
+                advisory = await check_osv_malware(
+                    cmd,
+                    list(raw_args) if isinstance(raw_args, list) else None,
+                    use_cache=True,
+                )
+                if advisory:
+                    return (
+                        server_name,
+                        [],
+                        f"MCP security check failed for '{server_name}': Malware advisory detected: {advisory}",
+                    )
 
         for attempt in range(1, _TOOL_FETCH_MAX_ATTEMPTS + 1):
             pending_http_clients: list[httpx2.AsyncClient] = []
@@ -232,7 +290,8 @@ class MCPAgent:
                         write,
                         client_info=Implementation(name="myrm-agent", version=__version__),
                     ) as session:
-                        await session.initialize()
+                        init_result = await session.initialize()
+                        self._server_instructions[server_name] = _extract_instructions(init_result)
                         async with asyncio.timeout(connect_timeout):
                             tools = convert_mcp_tools(
                                 list((await session.list_tools()).tools),
@@ -258,13 +317,14 @@ class MCPAgent:
                     _TOOL_FETCH_MAX_ATTEMPTS,
                 )
             except Exception as e:
-                last_error = str(e)
+                # Transports raise anyio ExceptionGroups whose own text hides the cause (e.g. a TLS verify failure).
+                last_error = _describe_error(e)
                 logger.warning(
                     "MCP server '%s' enumeration failed (attempt %d/%d): %s",
                     server_name,
                     attempt,
                     _TOOL_FETCH_MAX_ATTEMPTS,
-                    e,
+                    last_error,
                 )
             finally:
                 await self._close_http_clients(pending_http_clients)

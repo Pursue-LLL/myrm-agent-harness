@@ -208,7 +208,11 @@ def test_build_client_target_sse_branch() -> None:
     with patch("mcp.client.sse.sse_client", return_value="sse-target") as mock_sse:
         target = actor._build_client_target({"transport": "sse", "url": "https://example.com/sse", "headers": headers})
     assert target == "sse-target"
-    mock_sse.assert_called_once_with("https://example.com/sse", headers=headers)
+    mock_sse.assert_called_once()
+    args, kwargs = mock_sse.call_args
+    assert args == ("https://example.com/sse",)
+    assert kwargs.get("headers") == headers
+    assert callable(kwargs.get("httpx_client_factory"))
 
 
 # ---------------------------------------------------------------------------

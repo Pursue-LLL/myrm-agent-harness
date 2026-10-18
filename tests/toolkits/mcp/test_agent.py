@@ -180,7 +180,11 @@ class TestBuildEnumerationTarget:
             result = MCPAgent._build_enumeration_target(config)
 
         assert result == "sse-cm"
-        mock_sse.assert_called_once_with("http://mcp.example", headers=headers)
+        mock_sse.assert_called_once()
+        args, kwargs = mock_sse.call_args
+        assert args == ("http://mcp.example",)
+        assert kwargs.get("headers") == headers
+        assert callable(kwargs.get("httpx_client_factory"))
 
     def test_streamable_http_with_headers_uses_injected_client(self) -> None:
         config = DummyConfig()

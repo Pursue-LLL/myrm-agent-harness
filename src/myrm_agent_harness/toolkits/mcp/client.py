@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import ssl
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -35,10 +35,9 @@ from myrm_agent_harness.core.security.http.redirect_guard import (
 if TYPE_CHECKING:
     import httpx2
     from mcp import StdioServerParameters
+    from mcp.shared._httpx_utils import McpHttpClientFactory
 
 logger = logging.getLogger(__name__)
-
-HttpxClientFactory = Callable[..., object]
 
 
 def _noninteractive_passphrase() -> bytes:
@@ -80,8 +79,46 @@ class MCPServerConfigProtocol(Protocol):
     client_key_password: str | None  # passphrase for an encrypted client key
 
 
+class _SSLConfigView:
+    """Lightweight adapter exposing TLS fields from a dictionary or config object."""
+
+    def __init__(
+        self,
+        name: str,
+        *,
+        url: str | None = None,
+        ssl_verify: bool | str | None = None,
+        client_cert: str | None = None,
+        client_key: str | None = None,
+        client_key_password: str | None = None,
+    ) -> None:
+        self.name = name
+        self.url = url
+        self.ssl_verify = ssl_verify
+        self.client_cert = client_cert
+        self.client_key = client_key
+        self.client_key_password = client_key_password
+
+
 class MCPClientManager:
     """MCP client manager — builds MCP transport targets from config."""
+
+    @staticmethod
+    def has_custom_tls(server_config: object) -> bool:
+        """Return True if *server_config* specifies custom TLS/mTLS settings."""
+        if isinstance(server_config, dict):
+            return (
+                server_config.get("ssl_verify") is not None
+                or server_config.get("client_cert") is not None
+                or server_config.get("client_key") is not None
+                or server_config.get("client_key_password") is not None
+            )
+        return (
+            getattr(server_config, "ssl_verify", None) is not None
+            or getattr(server_config, "client_cert", None) is not None
+            or getattr(server_config, "client_key", None) is not None
+            or getattr(server_config, "client_key_password", None) is not None
+        )
 
     @staticmethod
     def build_client_target(
@@ -157,7 +194,7 @@ class MCPClientManager:
 
     @staticmethod
     def _build_ssl_context(
-        server_config: MCPServerConfigProtocol,
+        server_config: MCPServerConfigProtocol | _SSLConfigView,
     ) -> ssl.SSLContext | None:
         """Build an ``ssl.SSLContext`` from the TLS/mTLS config, or None if unset.
 
@@ -219,9 +256,40 @@ class MCPClientManager:
         return ssl_context
 
     @staticmethod
+    def _ssl_view_from_dict(server_name: str, conn: dict[str, object]) -> _SSLConfigView:
+        raw_url = conn.get("url")
+        url_str = str(raw_url) if isinstance(raw_url, str) and raw_url else None
+        raw_verify = conn.get("ssl_verify")
+        ssl_verify: bool | str | None = raw_verify if isinstance(raw_verify, (bool, str)) else None
+        raw_cert = conn.get("client_cert")
+        client_cert = str(raw_cert) if isinstance(raw_cert, str) and raw_cert else None
+        raw_key = conn.get("client_key")
+        client_key = str(raw_key) if isinstance(raw_key, str) and raw_key else None
+        raw_pwd = conn.get("client_key_password")
+        client_key_password = str(raw_pwd) if isinstance(raw_pwd, str) and raw_pwd else None
+        return _SSLConfigView(
+            server_name,
+            url=url_str,
+            ssl_verify=ssl_verify,
+            client_cert=client_cert,
+            client_key=client_key,
+            client_key_password=client_key_password,
+        )
+
+    @staticmethod
+    def _build_ssl_context_from_dict(server_name: str, conn: dict[str, object]) -> ssl.SSLContext | None:
+        """Build an ``ssl.SSLContext`` from a connection dict if custom TLS is configured."""
+        return MCPClientManager._build_ssl_context(MCPClientManager._ssl_view_from_dict(server_name, conn))
+
+    @staticmethod
+    def build_tls_client_factory_from_dict(server_name: str, conn: dict[str, object]) -> McpHttpClientFactory | None:
+        """Build an ``McpHttpClientFactory`` from a connection dict if custom TLS is configured."""
+        return MCPClientManager._build_tls_client_factory(MCPClientManager._ssl_view_from_dict(server_name, conn))
+
+    @staticmethod
     def _build_tls_client_factory(
-        server_config: MCPServerConfigProtocol,
-    ) -> HttpxClientFactory | None:
+        server_config: MCPServerConfigProtocol | _SSLConfigView,
+    ) -> McpHttpClientFactory | None:
         """Build an httpx2 client factory closure for mTLS or custom SSL.
 
         Returns None if no TLS customization is needed (default behaviour).
@@ -264,29 +332,67 @@ class MCPClientManager:
         return factory
 
     @staticmethod
+    def build_sse_client_factory(
+        url: str,
+        *,
+        ssl_context: ssl.SSLContext | None = None,
+    ) -> McpHttpClientFactory:
+        """Build an httpx2 client factory closure for SSE transports with redirect security guard."""
+        import httpx2
+
+        event_hooks = create_mcp_redirect_guard_event_hooks(url) if url else None
+
+        def factory(
+            headers: dict[str, str] | None = None,
+            timeout: httpx2.Timeout | None = None,
+            auth: httpx2.Auth | None = None,
+        ) -> httpx2.AsyncClient:
+            return httpx2.AsyncClient(
+                headers=headers,
+                timeout=timeout,
+                auth=auth,
+                verify=ssl_context if ssl_context is not None else True,
+                follow_redirects=True,
+                event_hooks=event_hooks,
+            )
+
+        return factory
+
+    @staticmethod
     def build_streamable_http_client(
-        headers: dict[str, str],
+        headers: dict[str, str] | None = None,
         *,
         url: str | None = None,
+        server_config: MCPServerConfigProtocol | _SSLConfigView | None = None,
+        ssl_context: ssl.SSLContext | None = None,
     ) -> httpx2.AsyncClient:
         """Build a shared ``httpx2.AsyncClient`` for streamable HTTP transports.
 
         Single construction point for the MCP streamable-HTTP transport client
-        (auth headers + MCP-appropriate timeouts + redirect following + redirect security guard).
+        (auth headers + MCP-appropriate timeouts + redirect following + redirect
+        security guard + custom TLS/mTLS SSLContext).
         The caller owns the returned client and must close it when the session or
         one-shot enumeration ends.
         """
         import httpx2
 
+        effective_url = url or (
+            str(server_config.url) if server_config is not None and getattr(server_config, "url", None) else None
+        )
         event_hooks = None
-        if url:
-            event_hooks = create_mcp_redirect_guard_event_hooks(url)
+        if effective_url:
+            event_hooks = create_mcp_redirect_guard_event_hooks(effective_url)
+
+        effective_ssl = ssl_context
+        if effective_ssl is None and server_config is not None:
+            effective_ssl = MCPClientManager._build_ssl_context(server_config)
 
         return httpx2.AsyncClient(
-            headers=headers,
+            headers=headers or None,
             timeout=httpx2.Timeout(30.0, read=300.0),
             follow_redirects=True,
             event_hooks=event_hooks,
+            verify=effective_ssl if effective_ssl is not None else True,
         )
 
     @staticmethod
@@ -302,46 +408,6 @@ class MCPClientManager:
         if injected:
             headers.update(injected)
         return headers
-
-    @staticmethod
-    async def preflight_ping_probe(
-        server_config: MCPServerConfigProtocol,
-        timeout_seconds: float = 3.0,
-    ) -> bool:
-        """Probe MCP server reachability before dispatching tool calls.
-
-        For HTTP/SSE servers, sends a lightweight HEAD/GET or ping to prevent
-        hung agent sessions when an MCP endpoint is dead.
-        For stdio, validates executable existence and execution permissions.
-        """
-        import shutil
-
-        server_type = server_config.type
-        if server_type in ("sse", "streamable_http"):
-            url = str(server_config.url or "")
-            if not url:
-                return False
-            try:
-                import httpx2
-
-                headers = MCPClientManager.get_headers(server_config)
-                async with httpx2.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
-                    resp = await client.get(url, headers=headers)
-                    # Many SSE/MCP servers return 200, 400 (missing query), 404, or 405 on base GET;
-                    # As long as the port is open and server responds within timeout, it is reachable.
-                    return resp.status_code < 500
-            except Exception as e:
-                logger.warning("[MCP Health] Pre-call ping failed for %s (%s): %s", server_config.name, url, e)
-                return False
-
-        if server_type == "stdio":
-            command = server_config.command
-            if not command:
-                return False
-            resolved = shutil.which(command)
-            return resolved is not None
-
-        return True
 
     @staticmethod
     async def _inject_auth_headers_into_config(
