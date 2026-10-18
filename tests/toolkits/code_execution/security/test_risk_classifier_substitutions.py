@@ -110,9 +110,50 @@ class TestArithmeticIsNotACommandSubstitution:
 
 
 class TestDepthIsFailClosed:
+    @staticmethod
+    def _max_depth(command: str) -> tuple[CommandRiskLevel, int]:
+        """Judge *command* and report the deepest substitution level the walk actually reached."""
+        from myrm_agent_harness.toolkits.code_execution.security import risk_classifier as module
+
+        seen = 0
+        original = module._judge_line
+
+        def spy(text: str, depth: int = 0) -> tuple[CommandRiskLevel, str]:
+            nonlocal seen
+            seen = max(seen, depth)
+            return original(text, depth)
+
+        module._judge_line = spy  # type: ignore[assignment]
+        try:
+            level = classify_command_risk(command)
+        finally:
+            module._judge_line = original  # type: ignore[assignment]
+        return level, seen
+
     def test_a_substitution_tree_past_the_bound_is_unknown(self) -> None:
-        """A line nested deeper than the walk reads must not be vouched for; the shell would still run it."""
-        command = "echo " + "$(" * 200 + "rm -rf /" + ")" * 200
+        """A line nested deeper than the walk reads must not be vouched for; the shell would still run it.
+
+        Each level is an ``echo`` so the outer command stays read-only and the walk really descends; the
+        innermost command is safe, so only the depth bound can make this UNKNOWN.
+        """
+        depth = 200
+        command = "echo " + "$(echo " * depth + "ls" + ")" * depth
+        level, reached = self._max_depth(command)
+        assert level is UNKNOWN
+        assert reached >= 64, f"the depth bound was not reached (only {reached} levels)"
+
+    def test_a_substitution_tree_within_the_bound_is_still_read(self) -> None:
+        """A real command nested below the bound is judged, not dropped."""
+        depth = 60
+        command = "echo " + "$(echo " * depth + "ls" + ")" * depth
+        level, reached = self._max_depth(command)
+        assert level is SAFE
+        assert reached == depth, f"the walk stopped early at {reached}, before {depth}"
+
+    def test_a_destructive_command_past_the_bound_is_never_vouched_for(self) -> None:
+        """The bound fails closed, so a payload it cannot finish reading is not auto-approved."""
+        depth = 200
+        command = "echo " + "$(echo " * depth + "rm -rf /" + ")" * depth
         assert classify_command_risk(command) is UNKNOWN
 
 
