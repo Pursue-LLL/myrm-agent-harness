@@ -35,6 +35,7 @@ class _FakeVectorlessManager(MemoryManagerDeletionMixin):
     """The mixin's own reads with no backend wired: they must answer empty, not raise."""
 
     _vector = None
+    _embedding = None
     _relational = None
     _cache = None
     _graph = None

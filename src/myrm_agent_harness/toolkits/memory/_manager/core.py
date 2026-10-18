@@ -143,7 +143,7 @@ class MemoryManagerCore:
         # Wrap once at the single vector assignment so every consumer (writer,
         # search service, maintenance, recurrence) shares the same BM25 sparse
         # mirror; the wrapper is a pure pass-through until the index warms up.
-        self._vector = wrap_with_bm25_sparse_index(vector)
+        self._vector = wrap_with_bm25_sparse_index(vector, sparse_authoritative=embedding is None)
         self._graph = graph
         self._embedding = embedding
         self._cache = cache
@@ -193,7 +193,7 @@ class MemoryManagerCore:
             namespaces=self._namespaces,
             current_channel_id=self._scope.channel_id,
             config=config,
-            vector=vector,
+            vector=self._vector,
             graph=graph,
             relational=relational,
             embedding=embedding,
@@ -340,7 +340,10 @@ class MemoryManagerCore:
         types: list[MemoryType] = []
         if self.has_relational:
             types.extend([MemoryType.PROFILE, MemoryType.PROCEDURAL])
-        if self.has_vector:
+        if self._vector is not None:
+            # Searchability, not dense capability: without an embedding
+            # backend semantic and episodic memories live in the BM25
+            # sparse mirror and stay retrievable through that channel.
             types.extend([MemoryType.SEMANTIC, MemoryType.EPISODIC])
         return types
 

@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import asyncio
 
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
+    BM25SparseIndexStore,
+)
+from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
+    episodic_to_doc,
+    semantic_to_doc,
+)
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AnyMemory,
     ConsolidationConfig,
@@ -39,7 +46,7 @@ class MemoryManagerStorageMixin:
             raise MemoryError("Relational backend required")
         return self._relational
 
-    def _bind_scope(self, memory: AnyMemory) -> AnyMemory:
+    def _bind_scope[T: AnyMemory](self, memory: T) -> T:
         bound = bind_scope(memory, self._scope)
         if isinstance(bound, ProceduralMemory):
             if len(self._namespaces) > 1:
@@ -61,28 +68,22 @@ class MemoryManagerStorageMixin:
         return apply_channel_affinity(results, current_channel_id=self._scope.channel_id)
 
     async def _store_semantic(self, memory: SemanticMemory) -> SemanticMemory:
+        if self._embedding is None:
+            return await self._store_semantic_sparse_only(memory)
         v, e = self._vec()
         bound = self._bind_scope(memory)
         stored = await store_semantic(bound, v, self._config, e, self._cache)
-        if (
-            self._relational is not None
-            and hasattr(self._relational, "record_exact_fact")
-            and (stored.is_exact_fact or stored.exact_identifiers)
-        ):
-            try:
-                await self._relational.record_exact_fact(
-                    memory_id=stored.id,
-                    user_id=stored.user_id,
-                    content=stored.content,
-                    identifiers=stored.exact_identifiers,
-                    primary_namespace=stored.scope.primary_namespace if stored.scope else "",
-                    namespaces=stored.scope.namespaces if stored.scope else None,
-                )
-            except Exception as err:
-                logger.warning("Failed to record exact fact in relational store: %s", err)
+        from myrm_agent_harness.toolkits.memory.ephemeral_delta.notify import (
+            record_ephemeral_memory_delta,
+        )
+
+        record_ephemeral_memory_delta(key=f"memory:{stored.id}", value=stored.content)
+        await self._record_exact_fact_if_needed(stored)
         return stored
 
     async def _store_semantics_batch(self, memories: list[SemanticMemory]) -> list[SemanticMemory]:
+        if self._embedding is None:
+            return await self._store_semantics_sparse_only(memories)
         v, e = self._vec()
         bound_memories = [self._bind_scope(memory) for memory in memories]
         stored_list = await store_semantics_batch(
@@ -92,27 +93,25 @@ class MemoryManagerStorageMixin:
             e,
             self._cache,
         )
-        if self._relational is not None and hasattr(self._relational, "record_exact_fact"):
-            for stored in stored_list:
-                if stored.is_exact_fact or stored.exact_identifiers:
-                    try:
-                        await self._relational.record_exact_fact(
-                            memory_id=stored.id,
-                            user_id=stored.user_id,
-                            content=stored.content,
-                            identifiers=stored.exact_identifiers,
-                            primary_namespace=stored.scope.primary_namespace if stored.scope else "",
-                            namespaces=stored.scope.namespaces if stored.scope else None,
-                        )
-                    except Exception as err:
-                        logger.warning("Failed to record exact fact in relational store: %s", err)
+        from myrm_agent_harness.toolkits.memory.ephemeral_delta.notify import (
+            record_ephemeral_memory_delta,
+        )
+
+        for stored in stored_list:
+            record_ephemeral_memory_delta(key=f"memory:{stored.id}", value=stored.content)
+        for stored in stored_list:
+            await self._record_exact_fact_if_needed(stored)
         return stored_list
 
     async def _store_episodic(self, memory: EpisodicMemory) -> EpisodicMemory:
+        if self._embedding is None:
+            return await self._store_episodic_sparse_only(memory)
         v, e = self._vec()
         return await store_episodic(self._bind_scope(memory), v, self._config, e, self._cache, self._graph)
 
     async def _store_episodics_batch(self, memories: list[EpisodicMemory]) -> list[EpisodicMemory]:
+        if self._embedding is None:
+            return await self._store_episodics_sparse_only(memories)
         v, e = self._vec()
         return await store_episodics_batch(
             [self._bind_scope(memory) for memory in memories],
@@ -122,6 +121,89 @@ class MemoryManagerStorageMixin:
             self._cache,
             self._graph,
         )
+
+    async def _record_exact_fact_if_needed(self, memory: SemanticMemory) -> None:
+        """Mirror identifier-bearing memories into the relational exact-fact index (fail-open)."""
+        if (
+            self._relational is not None
+            and hasattr(self._relational, "record_exact_fact")
+            and (memory.is_exact_fact or memory.exact_identifiers)
+        ):
+            try:
+                await self._relational.record_exact_fact(
+                    memory_id=memory.id,
+                    user_id=memory.user_id,
+                    content=memory.content,
+                    identifiers=memory.exact_identifiers,
+                    primary_namespace=memory.scope.primary_namespace if memory.scope else "",
+                    namespaces=memory.scope.namespaces if memory.scope else None,
+                )
+            except Exception as err:
+                logger.warning("Failed to record exact fact in relational store: %s", err)
+
+    def _sparse_only_vector(self) -> BM25SparseIndexStore:
+        """Return the sparse-capable vector backend for embeddings-less writes.
+
+        A missing sparse-capable backend keeps the previous fail-fast
+        behaviour: without an embedding backend and without a sparse mirror
+        there is nowhere to persist the memory.
+        """
+        vector = self._vector
+        if vector is None or not isinstance(vector, BM25SparseIndexStore):
+            raise MemoryError("Vector + Embedding backends required")
+        return vector
+
+    async def _store_semantic_sparse_only(self, memory: SemanticMemory) -> SemanticMemory:
+        """Sparse-only semantic write for embeddings-less deployments.
+
+        Without an embedding backend the dense path cannot run; the memory
+        goes to the BM25 sparse mirror instead, which becomes the collection's
+        authoritative store and is served by the existing BM25 fan-out.
+        """
+        vector = self._sparse_only_vector()
+        bound = self._bind_scope(memory)
+        await vector.upsert_sparse_only(self._config.semantic_collection, [semantic_to_doc(bound)])
+        from myrm_agent_harness.toolkits.memory.ephemeral_delta.notify import (
+            record_ephemeral_memory_delta,
+        )
+
+        record_ephemeral_memory_delta(key=f"memory:{bound.id}", value=bound.content)
+        await self._record_exact_fact_if_needed(bound)
+        return bound
+
+    async def _store_semantics_sparse_only(self, memories: list[SemanticMemory]) -> list[SemanticMemory]:
+        """Batch companion to ``_store_semantic_sparse_only``."""
+        vector = self._sparse_only_vector()
+        bound_memories = [self._bind_scope(memory) for memory in memories]
+        await vector.upsert_sparse_only(
+            self._config.semantic_collection,
+            [semantic_to_doc(memory) for memory in bound_memories],
+        )
+        from myrm_agent_harness.toolkits.memory.ephemeral_delta.notify import (
+            record_ephemeral_memory_delta,
+        )
+
+        for stored in bound_memories:
+            record_ephemeral_memory_delta(key=f"memory:{stored.id}", value=stored.content)
+            await self._record_exact_fact_if_needed(stored)
+        return bound_memories
+
+    async def _store_episodic_sparse_only(self, memory: EpisodicMemory) -> EpisodicMemory:
+        """Sparse-only episodic write for embeddings-less deployments."""
+        vector = self._sparse_only_vector()
+        bound = self._bind_scope(memory)
+        await vector.upsert_sparse_only(self._config.episodic_collection, [episodic_to_doc(bound)])
+        return bound
+
+    async def _store_episodics_sparse_only(self, memories: list[EpisodicMemory]) -> list[EpisodicMemory]:
+        """Batch companion to ``_store_episodic_sparse_only``."""
+        vector = self._sparse_only_vector()
+        bound_memories = [self._bind_scope(memory) for memory in memories]
+        await vector.upsert_sparse_only(
+            self._config.episodic_collection,
+            [episodic_to_doc(memory) for memory in bound_memories],
+        )
+        return bound_memories
 
     async def _store_conversations_batch(self, memories: list[ConversationMemory]) -> list[ConversationMemory]:
         from myrm_agent_harness.toolkits.memory._internal.storage import (

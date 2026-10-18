@@ -242,7 +242,7 @@ def resolve_primary_namespace(namespaces: list[str]) -> str:
     )
 
 
-def bind_scope(memory: AnyMemory, scope: MemoryScope) -> AnyMemory:
+def bind_scope[T: AnyMemory](memory: T, scope: MemoryScope) -> T:
     if memory.scope.namespaces:
         return memory
     memory.scope = scope.model_copy(deep=True)

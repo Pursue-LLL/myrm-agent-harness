@@ -20,6 +20,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
+    BM25SparseIndexStore,
+)
 from myrm_agent_harness.toolkits.memory._internal.graph_cascade import (
     cascade_clean_derived_graph_nodes,
 )
@@ -52,6 +55,7 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
     # Dynamic mixin attributes satisfied by MemoryManagerCore / StorageMixin
     _graph: Any
     _vector: Any
+    _embedding: Any
     _relational: Any
     _cache: Any
     _config: Any
@@ -66,6 +70,22 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
     async def _cascade_clean_derived_graph_nodes(self, memory_id: str) -> None:
         """Remove Claim Graph nodes derived from a deleted/archived memory."""
         await cascade_clean_derived_graph_nodes(self._graph, memory_id)
+
+    # ── Embeddings-less sparse fallbacks ──
+
+    def _sparse_only_vector(self) -> BM25SparseIndexStore | None:
+        """The sparse mirror when this deployment runs without embeddings.
+
+        The wrapper itself routes reads/writes to the mirror in this mode;
+        this accessor only gates embedding-migration logic that has no
+        meaning without an embedding backend.
+        """
+        if self._embedding is not None:
+            return None
+        vector = self._vector
+        if vector is not None and isinstance(vector, BM25SparseIndexStore):
+            return vector
+        return None
 
     # ── Delete ──
 
@@ -84,12 +104,15 @@ class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQuerie
             docs = await self._owned_docs(collection, ids, allow_protected)
             if not docs:
                 return 0
-            failed = await drop_from_previous_models(self._vector, self._config, collection, [d.id for d in docs])
-            if failed:
-                raise MemoryError(
-                    f"Memories left in previous embedding models' collections: {', '.join(failed)}; "
-                    f"nothing was deleted from {collection}"
-                )
+            # Previous-model copies only exist under embedding-model migrations;
+            # an embeddings-less deployment has no previous models to clear.
+            if self._sparse_only_vector() is None:
+                failed = await drop_from_previous_models(self._vector, self._config, collection, [d.id for d in docs])
+                if failed:
+                    raise MemoryError(
+                        f"Memories left in previous embedding models' collections: {', '.join(failed)}; "
+                        f"nothing was deleted from {collection}"
+                    )
             deleted = await delete_from_vector(collection, [doc.id for doc in docs], self._vector)
         # Cleaning what was derived from them needs no lock: they are already gone from every collection.
         await self._forget_derived(docs)

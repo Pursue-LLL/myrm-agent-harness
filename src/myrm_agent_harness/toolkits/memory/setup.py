@@ -19,6 +19,9 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.memory._internal.storage_conversation import (
+    CONVERSATION_VECTORS,
+)
 from myrm_agent_harness.toolkits.memory.config import (
     AgentMemoryPolicy,
     MemoryConfig,
@@ -28,6 +31,7 @@ from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.relational.sqlite_store import (
     SQLiteRelationalStore,
 )
+from myrm_agent_harness.toolkits.retriever.embedding.base import EmbeddingService
 from myrm_agent_harness.toolkits.retriever.embedding.factory import (
     EmbeddingConfig,
     get_embedding_service,
@@ -48,10 +52,44 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_EMBEDDING_DIMENSION = 1536
+"""Size for the store's own default only, when the embedder cannot report or produce one."""
+
+_SPARSE_ONLY_EMBEDDING_MODEL = "sparse-only"
+"""Embedding-model marker for embeddings-less deployments.
+
+The config field feeds model-switch detection (collection lineage); without
+an embedding backend no dense vectors exist, so the marker stays stable and
+can never collide with a real model name.
+"""
+
+
+async def _probe_embedding_dimension(embedding_service: object) -> int:
+    """The embedder's vector size, probed when the service cannot report it yet.
+
+    ``dimension`` may raise until a first embed completes (auto-detect backends), so a
+    failure falls through to the probe. A probe failure returns 0: collections are then
+    created by their first write, which sizes them from the vectors that write carries,
+    instead of freezing a guessed size that every later write would fail against.
+    """
+    try:
+        dim = getattr(embedding_service, "dimension", 0)
+    except Exception as e:  # property raised (e.g. dimension not yet detected)
+        logger.debug("Embedding dimension not available yet (%s); probing.", e)
+        dim = 0
+    if isinstance(dim, int) and dim > 0:
+        return dim
+    try:
+        test_vec = await embedding_service.embed("dimension probe")  # type: ignore[attr-defined]
+    except Exception as e:
+        logger.warning("Cannot determine embedding dimension (%s); collections are created on first write.", e)
+        return 0
+    return len(test_vec)
+
 
 async def create_local_memory_manager(
     base_path: str | Path,
-    embedding_config: EmbeddingConfig,
+    embedding_config: EmbeddingConfig | None,
     *,
     user_id: str = "sandbox_user",
     approval_required: bool = False,
@@ -80,7 +118,11 @@ async def create_local_memory_manager(
         user_id: The owner of the memories.
         base_path: The directory where SQLite and Qdrant files will be stored.
                    In a SaaS environment, this should be the mounted `/persistent` volume.
-        embedding_config: Configuration for the embedding model.
+        embedding_config: Configuration for the embedding model. Pass ``None``
+            for embeddings-less deployments: semantic and episodic memories
+            then persist through the BM25 sparse mirror, which becomes the
+            authoritative store for their collections and is served by the
+            existing BM25 search channel until an embedding backend is configured.
         approval_required: Whether writes need human approval.
         dedup_llm: Optional LLM for smart deduplication.
 
@@ -92,39 +134,40 @@ async def create_local_memory_manager(
 
     # 1. Initialize Relational Store (SQLite)
     sqlite_path = base_path / "memory.db"
+    from myrm_agent_harness.toolkits.memory.ephemeral_delta.shared_store import (
+        configure_ephemeral_delta_persistence,
+    )
+
+    configure_ephemeral_delta_persistence(sqlite_path)
     relational_store = SQLiteRelationalStore(db_path=str(sqlite_path))
 
     # 2. Initialize Vector Store (Embedded Qdrant)
     qdrant_path = base_path / "vector_store"
-    embedding_service = get_embedding_service(embedding_config)
+    embedding_service: EmbeddingService | None = None
+    dim: int | None = None
+    if embedding_config is not None:
+        embedding_service = get_embedding_service(embedding_config)
 
-    # Determine the embedding dimension. `dimension` may be a property that raises
-    # until a first embed completes (auto-detect backends), so both "attribute
-    # missing" and "property raised" must fall through to the probe path instead
-    # of crashing startup for self-hosted/unknown embedding models.
-    try:
-        dim = getattr(embedding_service, "dimension", 0)
-    except Exception as e:  # property raised (e.g. dimension not yet detected)
-        logger.debug("Embedding dimension not available yet (%s); probing.", e)
-        dim = 0
-    if not isinstance(dim, int) or dim <= 0:
-        try:
-            test_vec = await embedding_service.embed("dimension probe")
-            dim = len(test_vec)
-        except Exception as e:
-            logger.warning(f"Cannot determine embedding dimension, defaulting to 1536: {e}")
-            dim = 1536
+        # Determine the embedding dimension. `dimension` may be a property that raises
+        # until a first embed completes (auto-detect backends), so both "attribute
+        # missing" and "property raised" must fall through to the probe path instead
+        # of crashing startup for self-hosted/unknown embedding models.
+        dim = await _probe_embedding_dimension(embedding_service)
 
     if vector_store is None:
         vector_config = VectorStoreConfig(
             mode=DeploymentMode.EMBEDDED,
             local_path=str(qdrant_path),
-            embedding_dimension=dim,
+            embedding_dimension=dim or _DEFAULT_EMBEDDING_DIMENSION,
         )
         vector_store = await create_vector_store(vector_config)
 
-    # Ensure collections exist
-    mem_config_args = {"embedding_model": embedding_config.model}
+    # Ensure collections exist. Dense collections need an embedding dimension;
+    # without an embedding backend they are skipped and the BM25 sparse mirror
+    # is ensured on the first sparse write instead.
+    mem_config_args = {
+        "embedding_model": embedding_config.model if embedding_config is not None else _SPARSE_ONLY_EMBEDDING_MODEL
+    }
     if time_decay_half_life_days is not None:
         from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
             ForgettingConfig,
@@ -132,47 +175,31 @@ async def create_local_memory_manager(
 
         mem_config_args["forgetting"] = ForgettingConfig(time_decay_half_life_days=time_decay_half_life_days)
     mem_config = MemoryConfig(**mem_config_args)
-    if vector_store:
+    if vector_store and dim:
         for coll in [mem_config.semantic_collection, mem_config.episodic_collection]:
             try:
-                exists = await vector_store.collection_exists(coll)
-                if not exists:
-                    await vector_store.create_collection(coll, dim)
+                await vector_store.ensure_collection(coll, dim)
             except Exception as e:
                 logger.warning(f"Failed to ensure collection '{coll}': {e}")
 
         try:
-            conv_coll = mem_config.conversation_collection
-            if not await vector_store.collection_exists(conv_coll):
-                from qdrant_client.models import Distance, VectorParams
-
-                vectors_config = {
-                    "raw": VectorParams(size=dim, distance=Distance.COSINE),
-                    "summary": VectorParams(size=dim, distance=Distance.COSINE),
-                }
-                if getattr(vector_store, "_is_async", False):
-                    await vector_store._client.create_collection(
-                        collection_name=conv_coll, vectors_config=vectors_config
-                    )
-                else:
-                    import asyncio
-
-                    await asyncio.to_thread(
-                        vector_store._client.create_collection,
-                        collection_name=conv_coll,
-                        vectors_config=vectors_config,
-                    )
+            if not await vector_store.collection_exists(mem_config.conversation_collection):
+                await vector_store.create_named_vector_collection(
+                    mem_config.conversation_collection, dim, names=CONVERSATION_VECTORS
+                )
         except Exception as e:
             logger.warning(f"Failed to ensure collection '{mem_config.conversation_collection}': {e}")
 
-    # 3. Initialize Embedding Cache
-    from myrm_agent_harness.toolkits.memory import EmbeddingCache
+    # 3. Initialize Embedding Cache (only meaningful with an embedding backend)
+    cache: EmbeddingCache | None = None
+    if embedding_service is not None and embedding_config is not None:
+        from myrm_agent_harness.toolkits.memory import EmbeddingCache
 
-    cache = EmbeddingCache(
-        embedding_func=embedding_service.embed,
-        batch_func=embedding_service.embed_batch,
-        model_name=embedding_config.model,
-    )
+        cache = EmbeddingCache(
+            embedding_func=embedding_service.embed,
+            batch_func=embedding_service.embed_batch,
+            model_name=embedding_config.model,
+        )
 
     # 4. Initialize Preference Facet Store (shares same SQLite DB)
     from myrm_agent_harness.toolkits.memory.strategies.preference_stability_store import (

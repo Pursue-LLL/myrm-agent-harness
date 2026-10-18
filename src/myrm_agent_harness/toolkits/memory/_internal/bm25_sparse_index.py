@@ -138,10 +138,14 @@ class BM25SparseIndexStore:
     ``bm25_search`` serves BM25 queries from it.
     """
 
-    def __init__(self, inner: VectorStoreProtocol) -> None:
+    def __init__(self, inner: VectorStoreProtocol, *, sparse_authoritative: bool = False) -> None:
         self._inner = inner
         self._sparse_ready = False
         self._backfill_scheduled = False
+        # Embeddings-less deployments keep the sparse mirror as the only
+        # store: dense reads/writes have no collection to reach, so they are
+        # routed to the mirror here once and every caller stays unchanged.
+        self._sparse_authoritative = sparse_authoritative
 
     def _schedule_backfill_once(self, config: MemoryConfig) -> None:
         """Kick off the one-time warmup from the first BM25 query.
@@ -172,6 +176,10 @@ class BM25SparseIndexStore:
         logger.warning("BM25 sparse index %s sync failed for %s (non-fatal): %s", op, collection, exc)
 
     async def upsert(self, collection: str, documents: Sequence[VectorDocument]) -> list[str]:
+        if self._sparse_authoritative:
+            # Embeddings-less deployments never created the dense collection;
+            # the sparse mirror is the authoritative store for the write.
+            return await self.upsert_sparse_only(collection, documents)
         ids = await self._inner.upsert(collection, documents)
         # Unconditional mirror attempt (no readiness gate): a write landing
         # mid-backfill must not fall through a scroll snapshot gap, and a
@@ -185,6 +193,8 @@ class BM25SparseIndexStore:
         return ids
 
     async def delete(self, collection: str, ids: list[str]) -> int:
+        if self._sparse_authoritative:
+            return await self.delete_sparse_only(collection, ids)
         deleted = await self._inner.delete(collection, ids)
         if deleted:
             try:
@@ -194,6 +204,12 @@ class BM25SparseIndexStore:
         return deleted
 
     async def delete_by_filter(self, collection: str, filters: FilterDict) -> int:
+        if self._sparse_authoritative:
+            try:
+                return await self._inner.delete_by_filter(bm25_collection_for(collection), filters)
+            except Exception as exc:
+                self._log_sync_failure("filter-delete", collection, exc)
+                return 0
         deleted = await self._inner.delete_by_filter(collection, filters)
         if deleted:
             try:
@@ -288,13 +304,23 @@ class BM25SparseIndexStore:
         async def search_one(
             collection: str, memory_type: MemoryType
         ) -> list[tuple[float, VectorDocument, MemoryType]]:
-            results = await self._inner.search_sparse(  # type: ignore[attr-defined]
-                bm25_collection_for(collection),
-                indices,
-                values,
-                limit=top_k,
-                filters=filters,
-            )
+            try:
+                results = await self._inner.search_sparse(  # type: ignore[attr-defined]
+                    bm25_collection_for(collection),
+                    indices,
+                    values,
+                    limit=top_k,
+                    filters=filters,
+                )
+            except Exception as exc:
+                # A missing sparse collection means "never written in this
+                # mode" (embeddings-less deployments ensure it on first
+                # write); treat it as empty rather than failing the whole
+                # search. Real backend failures still degrade below.
+                if "not found" in str(exc).lower():
+                    logger.debug("BM25 sparse collection absent for %s; skipping", collection)
+                    return []
+                raise
             return [(r.score, r.document, memory_type) for r in results]
 
         # Both collections queried in parallel, mirroring the legacy dual-scroll.
@@ -326,6 +352,57 @@ class BM25SparseIndexStore:
             )
         return converted
 
+    # ── Sparse-only lifecycle (embeddings-less deployments) ─────────────
+
+    async def upsert_sparse_only(self, collection: str, documents: Sequence[VectorDocument]) -> list[str]:
+        """Persist documents into the sparse mirror alone (dense upsert skipped).
+
+        Used when the deployment runs without an embedding backend: the
+        sparse channel becomes the authoritative store for the collection,
+        so the mirror is ensured and marked ready on the first write and
+        ``bm25_search`` serves these documents without a dense backfill.
+        Failures propagate: this is the only store for the write.
+        """
+        if not documents:
+            return []
+        sparse_name = bm25_collection_for(collection)
+        await self._inner.ensure_sparse_collection(sparse_name)  # type: ignore[attr-defined]
+        points = [doc_to_sparse_point(doc) for doc in documents]
+        await self._inner.upsert_sparse(sparse_name, points)  # type: ignore[attr-defined]
+        self._sparse_ready = True
+        return [doc.id for doc in documents]
+
+    async def delete_sparse_only(self, collection: str, ids: list[str]) -> int:
+        """Delete ids from the sparse mirror alone (dense delete skipped).
+
+        Companion to ``upsert_sparse_only`` for embeddings-less deployments
+        whose documents never reached the dense collection. Deletions stay
+        fail-open like the mirror syncs: a failed delete logs and reports 0.
+        """
+        if not ids:
+            return 0
+        try:
+            return await self._inner.delete(bm25_collection_for(collection), ids)
+        except Exception as exc:
+            self._log_sync_failure("sparse-only-delete", collection, exc)
+            return 0
+
+    async def get_sparse_only(self, collection: str, ids: list[str]) -> list[VectorDocument]:
+        """Get documents by id from the sparse mirror alone (embeddings-less reads).
+
+        Companion to ``upsert_sparse_only``: the ownership-gated delete paths
+        read the documents they are about to remove, and without embeddings
+        the dense collection holds none of them. A failed read logs and
+        reports an empty list, matching the mirror's fail-open posture.
+        """
+        if not ids:
+            return []
+        try:
+            return await self._inner.get(bm25_collection_for(collection), ids)
+        except Exception as exc:
+            self._log_sync_failure("sparse-only-get", collection, exc)
+            return []
+
     # ── Pure pass-through of the VectorStoreProtocol surface ────────────
 
     async def search(
@@ -346,6 +423,8 @@ class BM25SparseIndexStore:
         )
 
     async def get(self, collection: str, ids: list[str]) -> list[VectorDocument]:
+        if self._sparse_authoritative:
+            return await self.get_sparse_only(collection, ids)
         return await self._inner.get(collection, ids)
 
     async def scroll(
@@ -357,6 +436,10 @@ class BM25SparseIndexStore:
         filters: FilterDict | None = None,
         order_by: tuple[str, str] | None = None,
     ) -> tuple[list[VectorDocument], str | None]:
+        if self._sparse_authoritative:
+            return await self._inner.scroll(
+                bm25_collection_for(collection), limit=limit, offset=offset, filters=filters, order_by=order_by
+            )
         return await self._inner.scroll(collection, limit=limit, offset=offset, filters=filters, order_by=order_by)
 
     async def ensure_collection(self, name: str, dimension: int, *, distance: str = "cosine") -> None:
@@ -364,6 +447,11 @@ class BM25SparseIndexStore:
 
     async def create_collection(self, name: str, dimension: int, *, distance: str = "cosine") -> None:
         await self._inner.create_collection(name, dimension, distance=distance)
+
+    async def create_named_vector_collection(
+        self, name: str, dimension: int, *, names: Sequence[str], distance: str = "cosine"
+    ) -> bool:
+        return await self._inner.create_named_vector_collection(name, dimension, names=names, distance=distance)
 
     async def collection_exists(self, name: str) -> bool:
         return await self._inner.collection_exists(name)
@@ -384,6 +472,8 @@ class BM25SparseIndexStore:
 
 def wrap_with_bm25_sparse_index(
     vector: VectorStoreProtocol | None,
+    *,
+    sparse_authoritative: bool = False,
 ) -> VectorStoreProtocol | None:
     """Wrap a sparse-capable backend with the BM25 sparse mirror.
 
@@ -391,13 +481,17 @@ def wrap_with_bm25_sparse_index(
     qdrant with the sparse mixin is the only sparse backend, and an isinstance
     check (unlike hasattr duck-probing) cannot be spoofed by mock stand-ins,
     so tests keep direct attribute reach into their store.
+
+    ``sparse_authoritative`` marks embeddings-less deployments: the dense
+    collection does not exist, so reads/writes route straight to the mirror
+    and every caller keeps its dense-path code unchanged.
     """
     if vector is None:
         return None
     if isinstance(vector, BM25SparseIndexStore):
         return vector
     if isinstance(vector, QdrantSparseMixin):
-        return BM25SparseIndexStore(vector)
+        return BM25SparseIndexStore(vector, sparse_authoritative=sparse_authoritative)
     return vector
 
 
