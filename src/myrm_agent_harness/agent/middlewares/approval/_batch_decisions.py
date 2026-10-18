@@ -33,6 +33,7 @@ from myrm_agent_harness.agent.security.path_security import (
 from myrm_agent_harness.agent.security.types import SecurityConfig
 from myrm_agent_harness.core.security.redact import redact_for_display
 
+from .guidance_delivery import bounded_note
 from .helpers import add_to_allowlist_if_needed, record_approval, record_denial
 
 logger = logging.getLogger(__name__)
@@ -687,7 +688,7 @@ async def apply_approval_decisions(
                 )
                 guidance_messages.append(
                     HumanMessage(
-                        content=f"[User Guidance during approval of {tool_name}]: {guidance_text}",
+                        content=f"[User Guidance during approval of {tool_name}]: {bounded_note(guidance_text)}",
                         additional_kwargs={"approval_guidance": True},
                     )
                 )

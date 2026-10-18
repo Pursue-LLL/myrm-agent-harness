@@ -40,11 +40,21 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
 
+MAX_NOTE_CHARS = 4000
+"""How much of a person's note reaches the model. The approval box has no input limit, so a paste
+could otherwise drop an unbounded block into every later request of the turn; the head of the note
+is what carries the instruction, and the tail is dropped rather than summarized."""
+
+
+def bounded_note(note: str) -> str:
+    """A note shortened to `MAX_NOTE_CHARS`, marked with an ellipsis when it was longer."""
+    return note if len(note) <= MAX_NOTE_CHARS else note[:MAX_NOTE_CHARS] + "\u2026"
+
 
 def _guidance_message(tool_name: str, note: str) -> HumanMessage:
     """The trailing message that hands the human's note to the model."""
     return HumanMessage(
-        content=f"[User Guidance during approval of {tool_name}]: {note}",
+        content=f"[User Guidance during approval of {tool_name}]: {bounded_note(note)}",
         additional_kwargs={"approval_guidance": True},
     )
 

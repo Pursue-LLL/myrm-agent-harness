@@ -142,7 +142,40 @@ def _config() -> dict[str, object]:
 
 
 @pytest.mark.asyncio
-async def test_the_note_written_on_an_approval_reaches_the_model_after_the_result() -> None:
+async def test_a_note_too_long_to_be_an_instruction_is_bounded() -> None:
+    """The approval box has no input limit; a paste must not become an unbounded request block."""
+    from myrm_agent_harness.agent.middlewares.approval.guidance_delivery import MAX_NOTE_CHARS
+
+    agent = _build_agent(
+        [
+            AIMessage(content="", tool_calls=[{"name": GATED_TOOL, "args": {"action": "publish"}, "id": "c1"}]),
+            AIMessage(content="done"),
+        ]
+    )
+    config = _config()
+    await _run_to_pause(agent, config)
+    await _answer_the_middleware_ask(agent, config)
+
+    oversized = "a" * (MAX_NOTE_CHARS + 500)
+    async for _ in agent.astream(
+        Command(resume={"decision": "approve", "guidance": oversized}),
+        config,
+    ):
+        pass
+
+    snapshot = await agent.aget_state(config)
+    notes = [
+        str(m.content)
+        for m in snapshot.values["messages"]
+        if m.additional_kwargs.get("approval_guidance") is True
+    ]
+    assert len(notes) == 1
+    assert len(notes[0]) <= MAX_NOTE_CHARS + 100, "the note must be bounded before it reaches the model"
+    assert notes[0].endswith("\u2026"), "a shortened note says so"
+
+
+@pytest.mark.asyncio
+async def test_the_note_reaches_the_model_after_the_result() -> None:
     agent = _build_agent(
         [
             AIMessage(
