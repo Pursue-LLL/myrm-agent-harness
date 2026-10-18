@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from myrm_agent_harness.agent._factory.mcp_routing import (
     MCPRoutingResult,
-    _compress_direct_tools,
     demote_direct_servers_over_budget,
+    estimate_schema_tokens,
     estimate_single_tool_tokens,
     route_mcp_servers,
 )
@@ -92,7 +93,7 @@ async def test_route_mcp_servers_ptc_path() -> None:
 
 
 @pytest.mark.asyncio
-async def test_route_mcp_servers_clears_mcp_registry_before_routing() -> None:
+async def test_route_mcp_servers_preserves_global_registry_for_session_isolation() -> None:
     with patch("myrm_agent_harness.agent.skills.runtime.registry.skill_registry.clear_mcp_skills") as clear_mock:
         manager = MagicMock()
         manager.get_connection = AsyncMock(
@@ -104,7 +105,7 @@ async def test_route_mcp_servers_clears_mcp_registry_before_routing() -> None:
         ):
             await route_mcp_servers([])
 
-    clear_mock.assert_called_once()
+    clear_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -248,74 +249,31 @@ async def test_route_mcp_servers_aggregate_over_budget_demotes_to_ptc() -> None:
     assert len(result.skills) == 1
 
 
-class TestCompressDirectToolsEdgeCases:
-    def test_model_copy_name_mismatch_falls_back(self) -> None:
-        tool = _make_mock_tool("verbose")
-        tool.description = "Tool verbose" + "x" * 2000
-
-        def bad_copy(*, update: dict[str, str]) -> MagicMock:
-            cloned = _make_mock_tool("wrong_name", schema_size=10)
-            cloned.description = update["description"]
-            return cloned
-
-        tool.model_copy = bad_copy
-        compressed = _compress_direct_tools([tool])[0]
-        assert compressed.description != tool.description
-        assert len(compressed.description) < len(tool.description)
-
-    def test_model_copy_exception_falls_back_to_copy(self) -> None:
-        tool = _make_mock_tool("verbose")
-        tool.description = "Tool verbose" + "x" * 2000
-
-        def raise_copy(*, update: dict[str, str]) -> MagicMock:
-            raise TypeError("model_copy failed")
-
-        tool.model_copy = raise_copy
-        compressed = _compress_direct_tools([tool])[0]
-        assert len(compressed.description) < len(tool.description)
-
-    def test_copy_failure_keeps_original(self) -> None:
-        tool = _make_mock_tool("verbose")
-        tool.description = "Tool verbose" + "x" * 2000
-        tool.model_copy = None
-
-        class ImmutableDesc:
-            @property
-            def description(self) -> str:
-                return tool.description
-
-            @description.setter
-            def description(self, _value: str) -> None:
-                raise AttributeError("read-only")
-
-        fallback = ImmutableDesc()
-        fallback.name = tool.name  # type: ignore[attr-defined]
-        fallback.get_input_schema = tool.get_input_schema  # type: ignore[attr-defined]
-
-        with patch(
-            "myrm_agent_harness.agent._factory.mcp_routing.copy.copy",
-            return_value=fallback,
-        ):
-            compressed = _compress_direct_tools([tool])[0]
-        assert compressed is tool
-
-
 @pytest.mark.asyncio
-async def test_route_mcp_servers_direct_fc_overrides_per_server_threshold() -> None:
+async def test_route_mcp_servers_direct_fc_overrides_per_server_threshold(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """DIRECT_FC mode forces all servers into direct path, even above per-server threshold."""
     cfg = MCPConfig(name="large", type="stdio", command="echo")
     tools = [_make_mock_tool(f"tool_{i}", schema_size=500) for i in range(30)]
+    threshold = 100
+    assert estimate_schema_tokens(tools) > threshold, "precondition: the server must exceed the direct threshold"
     manager = MagicMock()
     manager.get_connection = AsyncMock(return_value=_mock_connection({"large": tools}))
 
-    with patch(
-        "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
-        AsyncMock(return_value=manager),
+    with (
+        patch("myrm_agent_harness.agent._factory.mcp_routing.compute_direct_threshold", return_value=threshold),
+        patch(
+            "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
+            AsyncMock(return_value=manager),
+        ),
+        caplog.at_level(logging.INFO, logger="myrm_agent_harness.agent._factory.mcp_routing"),
     ):
         result = await route_mcp_servers([cfg], surface_mode=MCPSurfaceMode.DIRECT_FC)
 
     assert len(result.direct_tools) == 30
     assert result.skills == []
+    assert "forced direct" in caplog.text
 
 
 @pytest.mark.asyncio
