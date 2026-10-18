@@ -8,6 +8,7 @@ executions, and structured error / cancellation handling.
 - agent.errors.tool_error_category::ToolErrorCategory (POS: Canonical tool error categories for structured error classification.)
 - agent.middlewares._session_context (POS: active tool registry + terminal error registry)
 - agent.middlewares.tooling._tool_helpers (POS: error formatting + terminal error classification)
+- utils.runtime.cancellation::reraise_if_cancelled (POS: keep a stop aimed at this task from being absorbed as an SDK cancel-scope leak)
 
 [OUTPUT]
 - resolve_dynamic_tool: Resolve ToolNode misses via the active agent ToolRegistry
@@ -35,6 +36,7 @@ from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     make_error_msg,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.runtime.cancellation import reraise_if_cancelled
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -145,7 +147,6 @@ async def handle_cancellation(
     from myrm_agent_harness.agent.hooks.executor import fire_hook
     from myrm_agent_harness.agent.hooks.types import HookEvent
     from myrm_agent_harness.agent.streaming.types import AgentEventType
-    from myrm_agent_harness.utils.runtime.cancellation import reraise_if_cancelled
 
     reraise_if_cancelled(e)
 

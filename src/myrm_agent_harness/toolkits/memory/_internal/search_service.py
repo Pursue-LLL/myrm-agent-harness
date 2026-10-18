@@ -81,6 +81,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     MemoryType,
     ProceduralMemory,
 )
+from myrm_agent_harness.utils.runtime.cancellation import reraise_if_cancelled
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.retriever.reranker.base import RerankerService
@@ -305,13 +306,12 @@ class MemorySearchService:
                         runtime_config.retrieval.timeout_seconds,
                     )
                 except BaseException as exc:
+                    if isinstance(exc, asyncio.CancelledError):
+                        reraise_if_cancelled(exc)
                     degraded = True
                     warning_codes.append(GATHER_QUERY_EMBEDDING_FAILED)
                     get_search_metrics().record_degradation("error")
-                    logger.warning(
-                        "Memory query embedding failed: %s; continuing with local-only recall",
-                        exc,
-                    )
+                    logger.warning("Memory query embedding failed: %s; continuing with local-only recall", exc)
             embed_metadata: dict[str, Any] = {}
             if query_vector is None and embedding_required:
                 embed_metadata["degraded"] = True
@@ -420,6 +420,8 @@ class MemorySearchService:
                         runtime_config.retrieval.timeout_seconds,
                     )
                 except BaseException as exc:
+                    if isinstance(exc, asyncio.CancelledError):
+                        reraise_if_cancelled(exc)
                     graph_degraded = True
                     degraded = True
                     warning_codes.append(GATHER_GRAPH_FAILED)
@@ -481,11 +483,7 @@ class MemorySearchService:
                 MemoryTraceStep(
                     phase="rerank",
                     status=(
-                        "warning"
-                        if rerank_outcome.degraded
-                        else "success"
-                        if rerank_outcome.applied
-                        else "skipped"
+                        "warning" if rerank_outcome.degraded else "success" if rerank_outcome.applied else "skipped"
                     ),
                     title="cross_rerank",
                     summary=(
@@ -526,14 +524,6 @@ class MemorySearchService:
         )
         return final
 
-    def _resolve_runtime_config(self, query: str) -> MemoryConfig:
-        return ChannelPruner.resolve_channels(
-            self._config,
-            query,
-            [],
-            memory_types_unspecified=True,
-        ).runtime_config
-
     async def _embed_query_if_needed(self, query: str, memory_types: list[MemoryType]) -> list[float] | None:
         needs_vector = any(
             memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CONVERSATION)
@@ -558,9 +548,9 @@ class MemorySearchService:
     ) -> tuple[list[list[MemorySearchResult]], bool, list[str], list[str]]:
         """Fan out per-type store searches and collect results under one deadline.
 
-        Returns ``(result_lists, degraded, warning_codes, source_names)``. Store tasks that outlive
-        the shared wall-clock deadline are cancelled and whatever already completed is kept,
-        so a hanging remote store degrades recall instead of blocking the agent turn.
+        Returns ``(result_lists, degraded, warning_codes, source_names)``. Store tasks that outlive the
+        shared wall-clock deadline are cancelled and completed results kept, so a hanging store degrades
+        recall; a stop aimed at this task cancels the store tasks it awaits, then lets the stop continue.
         """
         tasks: list[asyncio.Task[list[MemorySearchResult]]] = []
         task_stream_map: dict[asyncio.Task[Any], str] = {}
@@ -604,11 +594,17 @@ class MemorySearchService:
         if not tasks:
             return [], False, [], []
 
-        done, pending = await asyncio.wait(
-            tasks,
-            timeout=_deadline_remaining(deadline),
-            return_when=asyncio.ALL_COMPLETED,
-        )
+        try:
+            done, pending = await asyncio.wait(
+                tasks,
+                timeout=_deadline_remaining(deadline),
+                return_when=asyncio.ALL_COMPLETED,
+            )
+        except asyncio.CancelledError:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
         degraded = False
         warning_codes: list[str] = []
         if pending:

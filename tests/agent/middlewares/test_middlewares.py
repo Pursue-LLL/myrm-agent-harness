@@ -293,7 +293,7 @@ class TestToolInterceptorMiddleware:
         req = _make_request()
 
         with patch(
-            "myrm_agent_harness.utils.runtime.cancellation.reraise_if_cancelled",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.reraise_if_cancelled",
             return_value=None,
         ):
             result = await self._call_middleware(req, handler)

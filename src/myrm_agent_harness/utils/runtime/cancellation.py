@@ -305,6 +305,7 @@ __all__ = [
     "OperationCancelledError",
     "create_cancellation_context",
     "get_cancel_token",
+    "reraise_if_cancelled",
     "run_until_cancelled",
     "set_cancel_token",
 ]

@@ -2,6 +2,24 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-18-016 · 记忆检索的 fail-open 把「停止」也一起降级：用户在 WebUI 点停止、IM 里发 `/stop`、或工具级超时触发时，检索把它当成一次普通失败返回「降级结果」，回合当作成功继续跑到下一个事件点；同时被停止的收集阶段把仍在持有 SQLite/向量句柄的 store 子任务留在后台
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-18（按「取消分类只有一条规则」逐处核对检索链路，用真实 `MemoryManager`/真实工具中间件复现） |
+| **修复时间** | 2026-10-18（本地提交，未 push） |
+| **严重程度** | P2：不丢数据、不崩，但三条用户可见路径都受影响。① 点停止后回合没有在被停止的那一刻收口，用户看到的「停止」形同没反应，要等下一个流事件被 token 拦下才结束；② 工具级超时（`tool_executor` 的 `asyncio.timeout`）在检索里被吞掉，工具本身不再有可靠上限，最坏只能等网关的静默看门狗（默认 300s）；③ 被停止的收集阶段把 store 子任务（每条仍在 `await` 远程/本地 store）留在后台，持有句柄直到自己自然结束 |
+| **关联产品** | harness `toolkits/memory/_internal/search_service.py`、`utils/runtime/cancellation.py`、`agent/middlewares/tooling/_tool_execution_lifecycle.py`；server 侧停止入口见 `myrm-agent-server` 的 `POST /agent/{message_id}/cancel`、`POST /chats/{chat_id}/cancel`、以及 IM 路由的 `/stop`（`_abort_session_task` 里 `active.task.cancel()`，即真正的 `task.cancel()`） |
+| **根因** | 检索要「fail-open（失败就降级，不阻塞回合）」，于是在 embed 与 graph 两段用 `except BaseException as exc` 把任何异常都转成降级返回值。`BaseException` 包含 `CancelledError`：用户停止（`task.cancel()`）或外层超时打断时，这个异常在到达框架早就写好的取消边界 `_tool_execution_lifecycle.handle_cancellation`（第一行就是 `reraise_if_cancelled`）之前，就在检索内部被换算成了「降级成功」，于是边界永远看不到真停止。同一文件收集阶段的 `await asyncio.wait(tasks, ...)` 在宿主任务被取消时会抛出，但 `asyncio.wait` 不会取消它正在等待的自建子任务，`pending` 清理分支执行不到，子任务泄漏 |
+| **修复** | ① embed/graph 两段在降级前先判类型：`if isinstance(exc, asyncio.CancelledError): reraise_if_cancelled(exc)`——只有「确实冲着本任务来的停止」才重新抛出（`reraise_if_cancelled` 以 `Task.cancelling() > 0` 判定，SDK cancel-scope 漏出的取消与 `gather(return_exceptions=True)` 交回的已取消子任务仍照旧降级），模块级导入 `reraise_if_cancelled`；② `_collect_result_lists` 把 `await asyncio.wait(...)` 包进 `try/except asyncio.CancelledError`，先 `task.cancel()` 全部自建任务、再 `await asyncio.gather(..., return_exceptions=True)` 收尾，然后 `raise` 让停止继续，与既有 `pending` 分支同语义；③ 一致性：`cancellation.__all__` 补 `reraise_if_cancelled`；`_tool_execution_lifecycle` 的 `[INPUT]` 登记该依赖并把函数内导入提到模块级；④ 同步把 `tests/agent/middlewares/test_middlewares.py` 的 patch 目标改为消费者模块，否则导入提升后该用例会静默打到未使用的源模块名上；⑤ 删除 `search_service.py` 中零调用的 `_resolve_runtime_config`（全仓仅剩定义本身），抵消新增行数以守住该文件 850 行上限 |
+| **反复次数** | 第 1 次发现 |
+| **踩坑** | ① 一开始想上「全仓 AST 门禁，禁止会接到 `CancelledError` 又无具名策略的 handler」，实测全仓 35 处里 33 处是自有任务循环/子任务收口，误伤远大于收益，主动砍掉，改为只把该两处交回既有判定；② 初版按「`CancelledError` 到达就是真停止」写，探针证明分三种来源：`asyncio.timeout` 与 `wait_for` 自身超时残留为 0（应降级），真 `task.cancel()` 残留为 1（应上抛），因此必须走 `reraise_if_cancelled` 而不是无条件 `raise`；③ 泄漏探针前两版都失真（mock 把协程当任务、`__slots__` 阻止替换方法），第三版用公开 API 才复现出 1 个 `relational.search_rules` 存活；④ 该文件恰在 850 行硬上限，新增即红，只能靠删死代码与合并日志行腾出行数 |
+| **回归** | 新增 `tests/toolkits/memory/test_search_cancellation.py` 5 例：`test_stop_during_embedding_reaches_the_caller`、`test_stop_during_graph_enrichment_reaches_the_caller`（宿主取消必须以 `CancelledError` 逃出）、`test_store_error_still_returns_degraded_results`、`test_embedding_error_still_fails_open`（普通异常仍降级，不得回归成上抛）、`test_no_store_task_survives_a_stop`（停止后无 store 子任务存活）。变异验证：逐一去掉 embed 守卫、graph 守卫、collect 清理、把导入退回函数内，各自只让对应用例确定性变红（其余 4 例仍过），`finally` 还原后源文件 sha 与改前一致（`a3dea8b6…`）。全量：`tests/toolkits/memory/` 3189 通过 5 跳过、`tests/agent/middlewares/` 1687 通过（唯一失败 `test_session_context.py::test_workspace_root_default` 单独跑通过，与被改文件无关）、`tests/utils/runtime/` 全过；`ruff check`/`ruff format --check` 与 `mypy` 对三个源文件干净；`check_import_resolvability`、`validate_arch_inventory`（我的目录）、`md_ref_validator` 通过 |
+| **实测** | ① 真实 `MemoryManager`，embed 阶段阻塞时投递停止：改前读数 `stop ABSORBED -> search returned []; degraded=True`，改后 `stop PROPAGATED`；② 真实工具中间件端到端（`/stop` 形态 = `task.cancel()`）：改前 `AGENT CONTINUES WITH: degraded(error)`，改后 `STOP REACHED THE TURN -> cancelled`；③ 真实 `MemoryManager` PROCEDURAL 收集阻塞时停止：改前 `host: RETURNED NORMALLY`（被当降级）且 `store task STILL ALIVE: 1 (relational.search_rules)`，改后 `host: CancelledError` 且 `STILL ALIVE: 0`；④ 网关形态探针（`asyncio.timeout_at(...)` + `watchdog.reschedule()`）：吸收取消后再次 `reschedule` 会抛 `RuntimeError: Cannot change state of expiring Timeout`，修后不再进入该状态 |
+| **局限** | ① 只修检索链路上的这两段与收集清理，未做全仓门禁（理由见「踩坑」①）；② 未实测前端停止到 UI 终态的端到端时延，只证明停止能到达工具边界（不声称时延数字）；③ 该文件已顶着 850 行上限，后续再加内容必须同步拆分或再删死代码 |
+| **代码位置** | `toolkits/memory/_internal/search_service.py`：模块级导入 `reraise_if_cancelled`、embed 段守卫（`:308`）、graph 段守卫（`:422`）、`_collect_result_lists` 的停止清理（`:601`）· `utils/runtime/cancellation.py`：`reraise_if_cancelled`（`:333`）、`__all__`（`:308`）· `agent/middlewares/tooling/_tool_execution_lifecycle.py`：`[INPUT]` 登记、模块级导入、`handle_cancellation` 调用点（`:150`）· `tests/toolkits/memory/test_search_cancellation.py` · `tests/agent/middlewares/test_middlewares.py`（patch 目标） |
+
 ### BUG-HARNESS-2026-10-17-015 · 每一轮都把调用方的完整历史叠到线程已经持有的历史上：线程里的历史逐轮翻倍（`add_messages` 给每条喂入的消息新 id，不去重），且技能目录每轮被重写进首条用户消息，绑定的技能一变就改写全对话的前缀，提供商的前缀缓存整段失效；重新生成还会把被重发的那条用户消息喂给模型两次
 
 | 字段 | 内容 |
