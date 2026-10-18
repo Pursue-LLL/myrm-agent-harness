@@ -23,7 +23,6 @@ Full cross-layer map: [ARCHITECTURE.md](../../ARCHITECTURE.md) §跨层概念映
 |------|------|-------------|-------|
 | __init__.py | Core | Package entry — lazy re-exports via api/ | — |
 | api/ | Core | Public API surface for external consumers (factory, Protocol, DTO) |
-| client.py | SDK facade | AgentClient fluent API; convenience layer, not PyPI-stable contract (see api/) |
 | Submodule | Description |
 |-----------|-------------|
 | agent/ | Agent core module — runtime, context management, skill system. External consumers use api/ instead. |
