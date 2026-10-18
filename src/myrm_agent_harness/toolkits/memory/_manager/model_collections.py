@@ -142,7 +142,10 @@ async def memory_collections(vector: VectorStoreProtocol | None, config: MemoryC
 
     In a sparse-authoritative deployment the memories live in the current collection's ``_bm25``
     mirror alone. The dense name is still reported, because every caller reads and deletes through
-    the wrapper, which routes to the mirror in this mode.
+    the wrapper, which routes to the mirror in this mode. A mirror left behind without its dense
+    collection (keyword-mode memories from before an embedding model was configured) is reported
+    under its own name so a dense deployment reaches it too, and a deletion that clears it retires
+    the mirror instead of leaving the memories to reappear on the next migration.
     """
     current = {memory_type: current_collection(config, memory_type) for memory_type in _VECTOR_TYPES}
     catalog = catalog_of(vector)
@@ -156,6 +159,7 @@ async def memory_collections(vector: VectorStoreProtocol | None, config: MemoryC
     present = set(listed)
     sparse_only = vector is not None and is_sparse_authoritative(vector)
     previous = previous_model_collections(listed, config)
+    leftover_mirrors = orphan_mirror_collections(listed, config)
     return {
         memory_type: (
             [current[memory_type]]
@@ -163,6 +167,7 @@ async def memory_collections(vector: VectorStoreProtocol | None, config: MemoryC
             else []
         )
         + [c.name for c in previous if c.memory_type is memory_type]
+        + [c.name for c in leftover_mirrors if c.memory_type is memory_type]
         for memory_type in _VECTOR_TYPES
     }
 

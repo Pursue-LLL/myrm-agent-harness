@@ -321,6 +321,45 @@ class TestSparseOnlyUpgradeMigration:
             await manager.close()
 
     @pytest.mark.asyncio
+    async def test_delete_all_reaches_an_unmigrated_keyword_mirror(self, tmp_path: Path) -> None:
+        """Clearing memories in a dense deployment must also clear a mirror left by keyword mode.
+
+        Otherwise the memories survive the clear and reappear on the next migration.
+        """
+        from myrm_agent_harness.toolkits.memory.config import MemoryConfig
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+        from myrm_agent_harness.toolkits.vector.qdrant import create_embedded_store
+
+        base = tmp_path / "mem"
+        keyword = await create_local_memory_manager(base, None)
+        mirror = f"{keyword.config.semantic_collection}_bm25"
+        memory = SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content="窗口期校验：TypeScript strict")
+        try:
+            await keyword.store(memory)
+        finally:
+            await keyword.close()
+
+        store = await create_embedded_store(path=str(base / "vector_store"))
+        manager = MemoryManager(
+            MemoryConfig(embedding_model="upgrade-test-model"),
+            user_id="sandbox_user",
+            vector=store,
+            embedding=_KeywordUpgradeEmbedder(),  # type: ignore[arg-type]
+            auto_warmup=False,
+        )
+        try:
+            assert await store.count(mirror) == 1
+
+            counts = await manager.delete_all()
+
+            assert counts.get(mirror) == 1
+            assert await store.count(mirror) == 0
+            assert await manager.detect_orphan_collections() == []
+        finally:
+            await manager.close()
+
+    @pytest.mark.asyncio
     async def test_keyword_memories_migrate_into_the_configured_model(self, tmp_path: Path) -> None:
         from myrm_agent_harness.toolkits.memory.config import MemoryConfig
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
