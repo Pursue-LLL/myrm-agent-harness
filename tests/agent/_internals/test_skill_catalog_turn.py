@@ -314,6 +314,61 @@ async def test_a_successful_empty_load_tells_the_model_no_skill_is_available(
 
 
 @pytest.mark.asyncio
+async def test_a_removed_skill_is_absent_from_the_update_that_supersedes_the_baseline(
+    saver: BaseCheckpointSaver[str], chat: _Graph
+) -> None:
+    backend = _Backend([_skill("alpha_skill"), _skill("beta_skill")])
+    agent = _agent(backend)
+    record: list[list[str]] = []
+    await _turn(chat, saver, agent, record, "one", mode="continue")
+
+    backend.skills = [_skill("alpha_skill")]
+    _, delivery = await _turn(chat, saver, agent, record, "two", mode="continue")
+
+    thread = await _thread(chat)
+    update = _text(thread[len(thread) - 2])
+    assert delivery.action == "update"
+    assert update.startswith("<bound_skills_update hash=")
+    assert "alpha_skill" in update
+    assert "beta_skill" not in update
+
+
+@pytest.mark.asyncio
+async def test_a_drift_reaches_a_multimodal_new_message_without_touching_its_image_part(
+    saver: BaseCheckpointSaver[str], chat: _Graph
+) -> None:
+    backend = _Backend([_skill("alpha_skill")])
+    agent = _agent(backend)
+    record: list[list[str]] = []
+    await _turn(chat, saver, agent, record, "one", mode="continue")
+    prefix = [_text(message) for message in await _thread(chat)]
+
+    backend.skills.append(_skill("beta_skill"))
+    history = await resolve_turn_history(saver, _THREAD, "continue")
+    messages = [
+        HumanMessage(
+            content=[
+                {"type": "image_url", "image_url": {"url": "https://example.com/x.png"}},
+                {"type": "text", "text": "what is this"},
+            ]
+        )
+    ]
+    delivery = await deliver_bound_skills_catalog(messages, agent, history)
+    await chat.ainvoke({"messages": messages}, _config())
+
+    thread = await _thread(chat)
+    assert delivery.action == "update"
+    assert [_text(message) for message in thread[: len(prefix)]] == prefix
+    new_message = thread[len(prefix)]
+    assert isinstance(new_message, HumanMessage)
+    assert isinstance(new_message.content, list)
+    assert new_message.content[0]["type"] == "image_url"
+    body = new_message.content[1]["text"]
+    assert body.startswith("<bound_skills_update hash=")
+    assert body.endswith("what is this")
+
+
+@pytest.mark.asyncio
 async def test_a_user_typed_block_never_reaches_a_continued_thread(
     saver: BaseCheckpointSaver[str], chat: _Graph
 ) -> None:
@@ -439,3 +494,27 @@ class TestResume:
         await sync_bound_skills_for_resume(MagicMock(spec=BaseAgent))
 
         assert get_bound_skills_receipt() == []
+
+    @pytest.mark.asyncio
+    async def test_a_bind_drift_during_a_pause_reaches_the_model_as_an_update_on_the_next_message(
+        self, saver: BaseCheckpointSaver[str], chat: _Graph
+    ) -> None:
+        backend = _Backend([_skill("alpha_skill")])
+        agent = _agent(backend)
+        record: list[list[str]] = []
+        await _turn(chat, saver, agent, record, "one", mode="continue")
+        prefix = [_text(message) for message in await _thread(chat)]
+
+        agent._agent = MagicMock()
+        backend.skills.append(_skill("beta_skill"))
+        await sync_bound_skills_for_resume(agent)
+
+        assert agent._agent.method_calls == []
+        assert [skill.name for skill in get_bound_skills_receipt()] == ["alpha_skill", "beta_skill"]
+
+        _, delivery = await _turn(chat, saver, agent, record, "two", mode="continue")
+
+        thread = await _thread(chat)
+        assert delivery.action == "update"
+        assert [_text(message) for message in thread[: len(prefix)]] == prefix
+        assert "beta_skill" in _text(thread[len(prefix)])
