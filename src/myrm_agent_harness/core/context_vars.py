@@ -14,6 +14,9 @@ introducing forbidden dependencies (e.g. toolkits/ → agent/).
 - chat_id_var: Active chat/session id for per-session spill directories
 - approval_session_var: Approval-routing session key shared by agent/ and toolkits/
 - protected_paths_var: Goal-scoped protected path patterns every write channel must honour
+- current_tool_call_id_var: The call the tool body is running inside (set by the tool-call middleware)
+- approval_notes_var: The human's notes on this run's approvals, keyed by tool call id
+- publish_approval_notes / stash_approval_note / claim_approval_note: the note hand-off
 
 [POS]
 Foundation ContextVar registry. Eliminates coupling between agent/ and toolkits/
@@ -44,3 +47,36 @@ approval_session_var: ContextVar[str] = ContextVar("approval_session_key", defau
 # agent/middlewares/_session_context so the sandbox executor can enforce the same
 # rules as the file tools and the shell pre-flight without depending on agent/.
 protected_paths_var: ContextVar[tuple[str, ...]] = ContextVar("protected_paths", default=())
+
+# The tool call the running tool body belongs to. The tool-call middleware sets it around
+# the dispatch so a gate can tell one call from another; tool bodies read it and never set it.
+current_tool_call_id_var: ContextVar[str] = ContextVar("current_tool_call_id", default="")
+
+# The human's notes on this run's approvals, keyed by tool call id. A gate the human answered
+# stashes the note it read from the answer; the tool-call middleware claims it once the tool
+# returned and appends it after the tool result. Held here so toolkits/ can stash without
+# importing agent/, and as a mutable dict because LangGraph runs a tool body in a copied
+# context: rebinding a ContextVar there would not be visible to the middleware, mutating the
+# published dict is.
+approval_notes_var: ContextVar[dict[str, str] | None] = ContextVar("approval_notes", default=None)
+
+
+def publish_approval_notes() -> None:
+    """Open this run's approval-note store. Called once per run, before the graph streams."""
+    approval_notes_var.set({})
+
+
+def stash_approval_note(note: str) -> None:
+    """Record the human's note for the tool call currently running. A no-op without a note."""
+    store = approval_notes_var.get()
+    call_id = current_tool_call_id_var.get()
+    if store is not None and call_id and note:
+        store[call_id] = note
+
+
+def claim_approval_note(call_id: str) -> str:
+    """Take the note for ``call_id``, once; empty when the human left none."""
+    store = approval_notes_var.get()
+    if store is None:
+        return ""
+    return store.pop(call_id, "")

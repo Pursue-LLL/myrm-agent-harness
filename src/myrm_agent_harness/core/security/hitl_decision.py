@@ -6,6 +6,7 @@
 [OUTPUT]
 - is_approved: whether an ``interrupt()`` answer approves the gated action
 - rejection_feedback: the human's own words for a denial, when they gave any
+- approval_guidance: the human's own steering for an approval, when they gave any
 - APPROVE_WORDS: approval strings accepted from plain-text clients
 
 [POS]
@@ -89,6 +90,36 @@ def rejection_feedback(user_response: object) -> str:
             return text
     for entry in _batch_entries(user_response) or ():
         text = rejection_feedback(entry)
+        if text:
+            return text
+    return ""
+
+
+def approval_guidance(user_response: object) -> str:
+    """The human's own steering given with an approval, when they gave any.
+
+    Reads the same two shapes ``is_approved`` does — one decision for the whole pause
+    (``{"decision": "approve", "guidance": "<words>"}``) and one decision per requested item
+    (``{"decisions": [{"type": "approve", "guidance": "<words>"}, ...]}``, first entry with
+    words) — and reads **only** ``guidance``.
+
+    ``feedback`` is deliberately not a source here even though ``rejection_feedback`` falls
+    back to it. On a rejection, ``feedback`` is the person's own reason; on an approval it is
+    whatever the sender puts there, which for the HITL timer is its own synthetic
+    ``"Auto-approved: approval timeout (Ns)"`` and for a bulk button its own label. Reading it
+    would hand the model a machine's line as if the person had typed it.
+
+    Blank and whitespace-only values are not steering, so an answer that carries none returns
+    an empty string and the run resumes exactly as it did before.
+    """
+    if not isinstance(user_response, Mapping):
+        return ""
+    value = user_response.get("guidance")
+    text = value.strip() if isinstance(value, str) else ""
+    if text:
+        return text
+    for entry in _batch_entries(user_response) or ():
+        text = approval_guidance(entry)
         if text:
             return text
     return ""

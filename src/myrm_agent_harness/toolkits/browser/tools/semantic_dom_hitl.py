@@ -5,7 +5,8 @@
 - toolkits.browser.tools._semantic_risk::classify_js_eval_risk (POS: JS eval risk)
 - langgraph.types::interrupt (POS: LangGraph HITL interrupt mechanism)
 - core.security.audit::record_decision (POS: Security decision audit trail)
-- core.security.hitl_decision::is_approved, rejection_feedback (POS: 人工审批答复唯一解读)
+- core.context_vars::stash_approval_note (POS: The human's note on an approval, handed to the model)
+- core.security.hitl_decision::approval_guidance, is_approved, rejection_feedback (POS: 人工审批答复唯一解读)
 
 [OUTPUT]
 - enforce_semantic_interaction_guard: Gate click/dblclick on high-risk ARIA refs
@@ -45,8 +46,13 @@ async def _require_hitl_approval(
     """Return a block message when the user rejects; None when approved."""
     from langgraph.types import interrupt
 
+    from myrm_agent_harness.core.context_vars import stash_approval_note
     from myrm_agent_harness.core.security.audit import record_decision
-    from myrm_agent_harness.core.security.hitl_decision import is_approved, rejection_feedback
+    from myrm_agent_harness.core.security.hitl_decision import (
+        approval_guidance,
+        is_approved,
+        rejection_feedback,
+    )
 
     page_url = ""
     try:
@@ -104,6 +110,7 @@ async def _require_hitl_approval(
         "USER_APPROVED",
         f"User approved high-risk DOM action: {reason}",
     )
+    stash_approval_note(approval_guidance(user_response))
     return None
 
 

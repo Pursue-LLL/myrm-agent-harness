@@ -72,6 +72,9 @@ def build_middlewares(
     call-limits -> budget -> security -> user -> safety -> skill-attenuation -> debug.
     SkillAttenuationMiddleware is last so its awrap_tool_call can resolve dynamic tools.
     """
+    from myrm_agent_harness.agent.middlewares.approval.guidance_delivery import (
+        approval_guidance_delivery,
+    )
     from myrm_agent_harness.agent.middlewares.clarification_guard_middleware import (
         ClarificationGuardMiddleware,
     )
@@ -97,6 +100,7 @@ def build_middlewares(
         dangling_tool_call_middleware,
         subagent_limit_middleware,
         tool_interceptor_middleware,
+        approval_guidance_delivery,
         ClarificationGuardMiddleware(),
         ToolApprovalMiddleware(),
         CompletionGuard(),

@@ -100,8 +100,13 @@ async def _require_hitl_approval(
     """Return a block message when the user rejects; None when approved."""
     from langgraph.types import interrupt
 
+    from myrm_agent_harness.core.context_vars import stash_approval_note
     from myrm_agent_harness.core.security.audit import record_decision
-    from myrm_agent_harness.core.security.hitl_decision import is_approved, rejection_feedback
+    from myrm_agent_harness.core.security.hitl_decision import (
+        approval_guidance,
+        is_approved,
+        rejection_feedback,
+    )
 
     logger.warning(
         "[DESKTOP_SEMANTIC_GUARD] High-risk action blocked for approval: tool=%s app=%s reason=%s",
@@ -168,6 +173,7 @@ async def _require_hitl_approval(
         "USER_APPROVED",
         f"User approved high-risk desktop action: {reason}",
     )
+    stash_approval_note(approval_guidance(user_response))
     return None
 
 

@@ -255,7 +255,12 @@ async def execute_batch_delegation(
         ):
             from langgraph.types import interrupt
 
-            from myrm_agent_harness.core.security.hitl_decision import is_approved, rejection_feedback
+            from myrm_agent_harness.core.context_vars import stash_approval_note
+            from myrm_agent_harness.core.security.hitl_decision import (
+                approval_guidance,
+                is_approved,
+                rejection_feedback,
+            )
 
             task_summaries = [{"agent_type": t.agent_type, "objective": t.objective[:200]} for t in tasks]
             interrupt_payload = {
@@ -285,6 +290,8 @@ async def execute_batch_delegation(
                 if feedback:
                     refusal["rejection_feedback"] = feedback
                 return refusal
+
+            stash_approval_note(approval_guidance(decision))
 
     from myrm_agent_harness.agent.parallel.runner import run_parallel_task_requests
 

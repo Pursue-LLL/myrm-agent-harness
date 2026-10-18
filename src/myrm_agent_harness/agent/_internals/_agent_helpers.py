@@ -115,6 +115,12 @@ def reset_all_guards(
     reset_audit_log()
     reset_privacy_tracker()
 
+    # Open the per-run store the human's approval notes are handed over in: a gate stashes the
+    # note it read from the answer, the tool-call middleware claims it after the tool returned.
+    from myrm_agent_harness.core.context_vars import publish_approval_notes
+
+    publish_approval_notes()
+
 
 def extract_query_text(query: object) -> str:
     """Extract a human-readable query string from various input types."""
@@ -188,6 +194,7 @@ _CHECKPOINT_INCOMPATIBLE_CONTEXT_KEYS: tuple[str, ...] = (
     "goal_provider",
     "on_goal_terminal",
     "on_loop_restart",
+    "on_goal_hold",
     "file_content_reader",
 )
 

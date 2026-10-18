@@ -6,12 +6,17 @@ import pytest
 
 from myrm_agent_harness.core.security.hitl_decision import (
     APPROVE_WORDS,
+    approval_guidance,
     is_approved,
     rejection_feedback,
 )
 
 DRAWER_APPROVE = {"decision": "approve"}
 """WebUI approval drawer: one decision for the whole pause (``buildDrawerResumeValue.ts``)."""
+DRAWER_APPROVE_WITH_NOTE = {"decision": "approve", "guidance": "only staging, not prod"}
+"""The same drawer answer with the person's note on the approval (``PolymorphicApprovalCard.tsx``)."""
+TIMEOUT_AUTO_APPROVE = {"decision": "approve", "feedback": "Auto-approved: approval timeout (300s)"}
+"""The HITL timer's own synthetic answer (``agent/middlewares/approval/scheduler.py``): not a person's words."""
 DRAWER_REJECT = {"decision": "reject", "feedback": "too expensive"}
 IM_APPROVE = {"decisions": [{"type": "approve"}]}
 """IM channel buttons: the same batch shape the chat tool-approval card sends (``router_commands_approval.py``)."""
@@ -144,3 +149,52 @@ def test_rejection_feedback_reads_the_human_words(answer: object, expected: str)
 def test_whitespace_only_feedback_is_not_a_reason(answer: object, expected: str) -> None:
     """A gate writes the field only when there is a reason; a blank string is not one."""
     assert rejection_feedback(answer) == expected
+
+
+@pytest.mark.parametrize(
+    ("answer", "expected"),
+    [
+        (DRAWER_APPROVE_WITH_NOTE, "only staging, not prod"),
+        # A batch answer carries the note on its first approving entry.
+        (
+            {"decisions": [{"type": "approve", "guidance": "use the staging URL"}]},
+            "use the staging URL",
+        ),
+        ({"decisions": [{"type": "approve", "feedback": "ok"}, {"type": "approve", "guidance": "then rerun"}]}, "then rerun"),
+        # Surrounding whitespace never reaches the model.
+        ({"decision": "approve", "guidance": "  keep it under 10 USD  "}, "keep it under 10 USD"),
+        # Blank, missing, and non-string notes are not notes.
+        ({"decision": "approve", "guidance": "   "}, ""),
+        ({"decision": "approve", "guidance": ""}, ""),
+        ({"decision": "approve", "guidance": 42}, ""),
+        (DRAWER_APPROVE, ""),
+        ({"decision": "approve"}, ""),
+        ({"decisions": [{"type": "approve"}]}, ""),
+        (None, ""),
+        ("approve", ""),
+    ],
+)
+def test_approval_guidance_reads_the_humans_note_on_an_approval(answer: object, expected: str) -> None:
+    """Only a note the person wrote counts; a blank or absent one is no note at all."""
+    assert approval_guidance(answer) == expected
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        TIMEOUT_AUTO_APPROVE,
+        {"decision": "approve", "feedback": "Auto-approved: approval timeout (300s)"},
+        {"decisions": [{"type": "approve", "feedback": "Batch rejected by user"}]},
+        {"decision": "approve", "feedback": "User rejected this action."},
+    ],
+)
+def test_approval_guidance_never_reads_feedback(answer: object) -> None:
+    """``feedback`` on an approval is a machine's own line, never the person's note.
+
+    The HITL timer resumes a timed-out approval with
+    ``feedback="Auto-approved: approval timeout (Ns)"`` and the batch buttons send their own
+    labels; reading ``feedback`` here would feed those synthetic lines to the model as if the
+    person had typed them. On a rejection ``feedback`` is the person's own reason, which
+    ``rejection_feedback`` already reads — so a note on an approval comes only from ``guidance``.
+    """
+    assert approval_guidance(answer) == ""

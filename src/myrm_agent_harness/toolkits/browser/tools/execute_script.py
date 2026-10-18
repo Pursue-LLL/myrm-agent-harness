@@ -72,8 +72,13 @@ async def _require_privileged_api_approval(
     """Trigger HITL approval when script uses APIs that bypass domain filter."""
     from langgraph.types import interrupt
 
+    from myrm_agent_harness.core.context_vars import stash_approval_note
     from myrm_agent_harness.core.security.audit import record_decision
-    from myrm_agent_harness.core.security.hitl_decision import is_approved, rejection_feedback
+    from myrm_agent_harness.core.security.hitl_decision import (
+        approval_guidance,
+        is_approved,
+        rejection_feedback,
+    )
 
     apis = ", ".join(violations)
     logger.warning("[SCRIPT_PRIVILEGED_API] Detected privileged API access: %s", apis)
@@ -91,6 +96,7 @@ async def _require_privileged_api_approval(
 
     if is_approved(user_response):
         record_decision("browser_execute_script_tool", "USER_APPROVED", f"Privileged API approved: {apis}")
+        stash_approval_note(approval_guidance(user_response))
         return None
 
     record_decision("browser_execute_script_tool", "USER_REJECTED", f"Privileged API rejected: {apis}")

@@ -253,7 +253,12 @@ async def _preflight_cost_check(
 
     from langgraph.types import interrupt
 
-    from myrm_agent_harness.core.security.hitl_decision import is_approved, rejection_feedback
+    from myrm_agent_harness.core.context_vars import stash_approval_note
+    from myrm_agent_harness.core.security.hitl_decision import (
+        approval_guidance,
+        is_approved,
+        rejection_feedback,
+    )
 
     interrupt_payload = {
         "action_type": "batch_cost_approval",
@@ -281,4 +286,5 @@ async def _preflight_cost_check(
             refusal["rejection_feedback"] = feedback
         return refusal
 
+    stash_approval_note(approval_guidance(decision))
     return None
