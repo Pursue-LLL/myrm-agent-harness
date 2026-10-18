@@ -32,6 +32,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+CONVERSATION_VECTORS: tuple[str, ...] = ("raw", "summary")
+"""Named vectors every conversation point carries: the raw exchange and its summary."""
+
 
 async def embed_conversations(
     memories: list[ConversationMemory],

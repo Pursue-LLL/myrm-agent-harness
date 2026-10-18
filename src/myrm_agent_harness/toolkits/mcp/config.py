@@ -8,6 +8,7 @@ MCP server configuration models passed to the Agent.
 [OUTPUT]
 - MCPAuthProvider: Authentication provider protocol for remote MCP servers.
 - MCPConfig: MCP server configuration (SSE, Stdio, Streamable HTTP).
+- mcp_config_to_runtime_dict: Serialize an MCP server config into a complete runtime dict preserving auth, TLS, filters, and callbacks.
 - should_register_mcp_tool: Per-server include/exclude filter for MCP tool whitelisting.
 - sanitize_mcp_name_component: Sanitize name component for ``mcp__{server}__{tool}`` generation (replaces non-alnum, collapses consecutive underscores, strips leading/trailing underscores, falls back to 'unnamed').
 - is_mcp_tool_name: Check if a tool name follows the ``mcp__{server}__{tool}`` convention.
@@ -209,6 +210,16 @@ class MCPConfig(BaseModel):
         exclude=True,
         description="Authentication provider for remote connections (business layer injects)",
     )
+    oversized_result_handler: object | None = Field(
+        default=None,
+        exclude=True,
+        description="Callback to persist oversized MCP tool outputs (business layer injects)",
+    )
+    elicitation_handler: object | None = Field(
+        default=None,
+        exclude=True,
+        description="Async callback for MCP elicitation (user confirmation, business layer injects)",
+    )
 
     @model_validator(mode="after")
     def _validate_transport(self) -> MCPConfig:
@@ -290,10 +301,51 @@ def parse_mcp_tool_name(name: str) -> tuple[str, str] | None:
     return rest[:idx], rest[idx + len(_MCP_DELIM) :]
 
 
+def mcp_config_to_runtime_dict(cfg: object) -> dict[str, object]:
+    """Serialize an MCP server config into a complete runtime dictionary.
+
+    Single source of truth used by ``mcp_routing`` and ``core_generator`` when
+    persisting MCP configs into ``MCPSkillData.config``. Preserves all fields
+    that affect ``MCPConnectionManager._make_config_hash`` as well as auth,
+    TLS/mTLS, timeout, and runtime handler callbacks so PTC execution reuses
+    the warm pooled session without cache misses or credential loss.
+    """
+    data: dict[str, object] = {
+        "name": getattr(cfg, "name", ""),
+        "type": getattr(cfg, "type", "stdio"),
+        "url": getattr(cfg, "url", None),
+        "command": getattr(cfg, "command", None),
+        "args": getattr(cfg, "args", None),
+        "description": getattr(cfg, "description", ""),
+        "headers": getattr(cfg, "headers", None),
+        "extra_params": getattr(cfg, "extra_params", None),
+        "required_secrets": getattr(cfg, "required_secrets", None),
+        "tool_include": getattr(cfg, "tool_include", None),
+        "tool_exclude": getattr(cfg, "tool_exclude", None),
+        "host_serial": getattr(cfg, "host_serial", False),
+        "connect_timeout": getattr(cfg, "connect_timeout", 15.0),
+        "execute_timeout": getattr(cfg, "execute_timeout", 120.0),
+        "keepalive_interval": getattr(cfg, "keepalive_interval", None),
+        "max_output_chars": getattr(cfg, "max_output_chars", 100_000),
+        "ssl_verify": getattr(cfg, "ssl_verify", None),
+        "client_cert": getattr(cfg, "client_cert", None),
+        "client_key": getattr(cfg, "client_key", None),
+        "client_key_password": getattr(cfg, "client_key_password", None),
+        "auth_provider": getattr(cfg, "auth_provider", None),
+        "oversized_result_handler": getattr(cfg, "oversized_result_handler", None),
+        "elicitation_handler": getattr(cfg, "elicitation_handler", None),
+    }
+    injected_headers = getattr(cfg, "_injected_auth_headers", None)
+    if injected_headers is not None:
+        data["_injected_auth_headers"] = injected_headers
+    return data
+
+
 __all__ = [
     "MCPAuthProvider",
     "MCPConfig",
     "is_mcp_tool_name",
+    "mcp_config_to_runtime_dict",
     "parse_mcp_tool_name",
     "sanitize_mcp_name_component",
     "should_register_mcp_tool",

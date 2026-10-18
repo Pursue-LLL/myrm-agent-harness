@@ -100,6 +100,7 @@ async def test_create_local_memory_manager_probes_dimension_when_missing(
 async def test_create_local_memory_manager_falls_back_to_default_dimension_on_probe_failure(
     tmp_path: Path,
 ):
+    """A failed probe sizes nothing: collections are created by their first write instead."""
     base_path = tmp_path / "memory"
     embedding_config = EmbeddingConfig(model="openai/text-embedding-3-small")
     mock_embedding_service = AsyncMock()
@@ -123,7 +124,10 @@ async def test_create_local_memory_manager_falls_back_to_default_dimension_on_pr
             base_path=base_path, embedding_config=embedding_config
         )
 
+    # The store default is not the model's size; the guess must never reach ensure/create.
     assert mock_create_vector_store.await_args.args[0].embedding_dimension == 1536
+    mock_vector_store.ensure_collection.assert_not_awaited()
+    mock_vector_store.create_named_vector_collection.assert_not_awaited()
     await manager.close()
 
 
@@ -195,19 +199,17 @@ async def test_create_local_memory_manager_with_time_decay(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_create_local_memory_manager_async_conversation_collection(
+async def test_create_local_memory_manager_creates_the_conversation_collection_with_named_vectors(
     tmp_path: Path,
 ):
-    """Async vector store client uses the async create_collection path."""
+    """The conversation collection is created through the store API with raw/summary vectors."""
     base_path = tmp_path / "memory"
     embedding_config = EmbeddingConfig(model="openai/text-embedding-3-small")
     mock_embedding_service = AsyncMock()
     mock_embedding_service.dimension = 768
     mock_embedding_service.embed_batch = AsyncMock(return_value=[[0.1] * 768])
     mock_vector_store = AsyncMock()
-    mock_vector_store._is_async = True
     mock_vector_store.collection_exists = AsyncMock(return_value=False)
-    mock_vector_store._client.create_collection = AsyncMock()
 
     with (
         patch(
@@ -224,7 +226,9 @@ async def test_create_local_memory_manager_async_conversation_collection(
         )
 
     assert isinstance(manager, MemoryManager)
-    mock_vector_store._client.create_collection.assert_awaited_once()
+    mock_vector_store.create_named_vector_collection.assert_awaited_once_with(
+        manager.config.conversation_collection, 768, names=("raw", "summary")
+    )
     await manager.close()
 
 
