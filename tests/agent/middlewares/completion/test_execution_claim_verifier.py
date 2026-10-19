@@ -26,8 +26,15 @@ def _record(
     args: dict[str, object] | None = None,
     success: SuccessLevel | None = SuccessLevel.FULL_SUCCESS,
     verification: VerificationCategory | None = None,
+    result_content: str = "",
 ) -> CallRecord:
-    record = CallRecord(tool_name=tool_name, args_hash="hash", args=args or {}, success_level=success)
+    record = CallRecord(
+        tool_name=tool_name,
+        args_hash="hash",
+        args=args or {},
+        result_content=result_content,
+        success_level=success,
+    )
     record.verification_type = verification
     return record
 
@@ -149,6 +156,64 @@ def test_zero_test_run_cannot_anchor_a_pass_claim() -> None:
         )
     ]
     assert check_execution_claim(user_text="帮我跑测试", assistant_text="所有测试全部通过。", records=records)
+
+
+def test_collect_only_run_cannot_anchor_a_pass_claim() -> None:
+    records = [
+        _record(
+            "bash_code_execute_tool",
+            args={"command": "pytest --collect-only -q"},
+            result_content="collected 12 items",
+            verification=VerificationCategory.TEST,
+        )
+    ]
+    assert check_execution_claim(user_text="帮我跑测试", assistant_text="所有测试全部通过。", records=records)
+
+
+def test_zero_test_output_cannot_anchor_a_pass_claim() -> None:
+    records = [
+        _record(
+            "bash_code_execute_tool",
+            args={"command": "pytest -q"},
+            result_content="no tests ran in 0.01s",
+            verification=VerificationCategory.TEST,
+        )
+    ]
+    assert check_execution_claim(user_text="帮我跑测试", assistant_text="所有测试全部通过。", records=records)
+
+
+def test_real_test_output_grounds_the_claim() -> None:
+    records = [
+        _record(
+            "bash_code_execute_tool",
+            args={"command": "pytest -q"},
+            result_content="236 passed in 12.4s",
+            verification=VerificationCategory.TEST,
+        )
+    ]
+    assert check_execution_claim(user_text="帮我跑测试", assistant_text="所有测试全部通过。", records=records) is None
+
+
+def test_mcp_history_tool_cannot_anchor_an_outbound_claim() -> None:
+    records = [_record("mcp__slack__slack_conversations_history")]
+    assert check_execution_claim(user_text="帮我给客户发消息", assistant_text="已发送消息给客户。", records=records)
+
+
+def test_mcp_send_tool_grounds_the_outbound_claim() -> None:
+    records = [_record("mcp__slack__slack_post_message")]
+    assert (
+        check_execution_claim(user_text="帮我给客户发消息", assistant_text="已发送消息给客户。", records=records) is None
+    )
+
+
+def test_ptc_read_call_cannot_anchor_an_outbound_claim() -> None:
+    records = [
+        _record(
+            "bash_code_execute_tool",
+            args={"command": "python -c \"from skills.mcp_slack import slack_list_messages; slack_list_messages()\""},
+        )
+    ]
+    assert check_execution_claim(user_text="帮我给客户发消息", assistant_text="已发送消息给客户。", records=records)
 
 
 def test_file_write_cannot_anchor_an_outbound_claim() -> None:

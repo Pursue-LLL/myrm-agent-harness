@@ -251,11 +251,32 @@ def _mentioned_categories(sentence: str) -> list[VerificationCategory]:
     return categories
 
 
+#: Test runs that only collect or select cases prove nothing about passing.
+_TEST_DRY_RUN: re.Pattern[str] = re.compile(
+    r"--collect-only|--co\b|--list-tests|--dry-run|--deselect",
+    re.IGNORECASE,
+)
+#: Zero-test outcomes never ground a pass claim.
+_TEST_ZERO_SHAPE: re.Pattern[str] = re.compile(
+    r"\b0\s+passed\b|\bno tests? ran\b|\bno tests? found\b|\bno test files\b|"
+    r"\bcollected 0 items\b|\bran 0 tests\b|\b0 passing\b|\btests:\s*0\b|\[no test files\]|\[no tests to run\]",
+    re.IGNORECASE,
+)
+
+
+def _is_test_pass_evidence(record: CallRecord) -> bool:
+    """A test claim is grounded by a real runner with a non-empty run behind it."""
+    command = _command_text(record)
+    if not _is_strict_test_runner(command) or _TEST_DRY_RUN.search(command):
+        return False
+    return not _TEST_ZERO_SHAPE.search(str(getattr(record, "result_content", "")))
+
+
 def _category_evidence(records: Sequence[CallRecord], category: VerificationCategory) -> bool:
     for record in records:
         if getattr(record, "verification_type", None) != category or not _succeeded(record):
             continue
-        if category is VerificationCategory.TEST and not _is_strict_test_runner(_command_text(record)):
+        if category is VerificationCategory.TEST and not _is_test_pass_evidence(record):
             continue
         return True
     return False
@@ -266,7 +287,7 @@ def _any_verification_evidence(records: Sequence[CallRecord]) -> bool:
         category = getattr(record, "verification_type", None)
         if category is None or not _succeeded(record):
             continue
-        if category is VerificationCategory.TEST and not _is_strict_test_runner(_command_text(record)):
+        if category is VerificationCategory.TEST and not _is_test_pass_evidence(record):
             continue
         return True
     return False
@@ -279,19 +300,28 @@ _READONLY_MCP_TOOL: re.Pattern[str] = re.compile(
 )
 
 
+def _outbound_mcp_evidence(tool_name: str) -> bool:
+    """An MCP call grounds an outbound claim only with outbound semantics."""
+    tool_part = tool_name.rsplit("__", 1)[-1]
+    return bool(_OUTBOUND_TOOL_NAME.search(tool_part)) and not _READONLY_MCP_TOOL.search(tool_part)
+
+
 def _outbound_evidence(records: Sequence[CallRecord]) -> bool:
     for record in records:
         if not _succeeded(record):
             continue
         tool_name = str(getattr(record, "tool_name", ""))
         if is_mcp_tool_name(tool_name):
-            tool_part = tool_name.rsplit("__", 1)[-1]
-            if _READONLY_MCP_TOOL.search(tool_part):
-                continue
-            return True
+            if _outbound_mcp_evidence(tool_name):
+                return True
+            continue
         if tool_name == "bash_code_execute_tool":
             command = _command_text(record)
-            if _MCP_PTC_BASH_MARKER in command or _OUTBOUND_COMMAND.search(command):
+            if _MCP_PTC_BASH_MARKER in command:
+                if _OUTBOUND_TOOL_NAME.search(command) and not _READONLY_MCP_TOOL.search(command):
+                    return True
+                continue
+            if _OUTBOUND_COMMAND.search(command):
                 return True
             continue
         if _OUTBOUND_TOOL_NAME.search(tool_name):
