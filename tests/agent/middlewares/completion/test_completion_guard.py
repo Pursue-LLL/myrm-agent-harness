@@ -769,9 +769,7 @@ class TestClassifyVerification:
             ("bun run build", VerificationCategory.BUILD),
         ],
     )
-    def test_detects_verification_commands(
-        self, command: str, expected: VerificationCategory
-    ) -> None:
+    def test_detects_verification_commands(self, command: str, expected: VerificationCategory) -> None:
         assert classify_verification({"command": command}) == expected
 
     @pytest.mark.parametrize(
@@ -795,35 +793,19 @@ class TestClassifyVerification:
 
     def test_chained_commands(self) -> None:
         """Detects verification in chained commands (&&, ;)."""
-        assert (
-            classify_verification({"command": "cd src && pytest tests/"})
-            == VerificationCategory.TEST
-        )
-        assert (
-            classify_verification({"command": "cd src; ruff check ."})
-            == VerificationCategory.LINT
-        )
+        assert classify_verification({"command": "cd src && pytest tests/"}) == VerificationCategory.TEST
+        assert classify_verification({"command": "cd src; ruff check ."}) == VerificationCategory.LINT
 
     def test_exact_match_without_trailing_args(self) -> None:
         """Exact command matches (no args after pattern)."""
         assert classify_verification({"command": "pytest"}) == VerificationCategory.TEST
-        assert (
-            classify_verification({"command": "npm test"}) == VerificationCategory.TEST
-        )
-        assert (
-            classify_verification({"command": "tsc"}) == VerificationCategory.TYPECHECK
-        )
+        assert classify_verification({"command": "npm test"}) == VerificationCategory.TEST
+        assert classify_verification({"command": "tsc"}) == VerificationCategory.TYPECHECK
 
     def test_chained_exact_match(self) -> None:
         """Chained commands with exact match at end."""
-        assert (
-            classify_verification({"command": "cd dir && pytest"})
-            == VerificationCategory.TEST
-        )
-        assert (
-            classify_verification({"command": "source .venv/bin/activate && mypy"})
-            == VerificationCategory.TYPECHECK
-        )
+        assert classify_verification({"command": "cd dir && pytest"}) == VerificationCategory.TEST
+        assert classify_verification({"command": "source .venv/bin/activate && mypy"}) == VerificationCategory.TYPECHECK
 
 
 class TestFrontendBrowserVerificationWarning:
@@ -1212,9 +1194,7 @@ class TestMixedMessageGuard:
             ("browser_ask_human_tool", {"reason": "Enter SMS code"}),
         ],
     )
-    async def test_preserves_interaction_ui_carriers(
-        self, tool_name: str, args: dict[str, object]
-    ) -> None:
+    async def test_preserves_interaction_ui_carriers(self, tool_name: str, args: dict[str, object]) -> None:
         """Safety: content + interaction/UI carrier must NOT be stripped — these
         are registry read-only but carry user-visible functionality (question,
         grant, render); dropping them breaks the interaction/UI chain."""
@@ -2060,9 +2040,7 @@ class TestHasExternalEvidence:
             tool_name="bash_code_execute_tool",
             args_hash="mcp1",
             args={
-                "command": (
-                    'python3 -c "from skills.mcp_12306_skill import get_tickets; print(\\"ok\\")"'
-                ),
+                "command": ('python3 -c "from skills.mcp_12306_skill import get_tickets; print(\\"ok\\")"'),
             },
             success_level=SuccessLevel.FULL_SUCCESS,
         )
@@ -2178,9 +2156,7 @@ class TestHasExternalEvidence:
         )
 
         messages = [
-            HumanMessage(
-                content="What are the latest code changes in the auth module?"
-            ),
+            HumanMessage(content="What are the latest code changes in the auth module?"),
             AIMessage(content="All done."),
         ]
         reason = build_external_evidence_reason(messages=messages, records=[])
@@ -2394,7 +2370,10 @@ class TestCompletionGuardTodoChecklist:
         assert "Todo t1: fetch remote resource (Status: blocked)" in checklist
         assert "Todo t2: implement core logic (Status: in_progress)" in checklist
         assert "You MUST complete actionable todos and call `todo_write(merge=true)` before finishing." in checklist
-        assert "For blocked todos that cannot be completed due to external constraints, mark them as 'cancelled'" in checklist
+        assert (
+            "For blocked todos that cannot be completed due to external constraints, mark them as 'cancelled'"
+            in checklist
+        )
 
     def test_build_checklist_with_only_blocked_todos(self, tmp_path: Path) -> None:
         from myrm_agent_harness.agent.meta_tools.progress.schemas import (
@@ -2430,7 +2409,10 @@ class TestCompletionGuardTodoChecklist:
         # Should NOT prompt to complete actionable todos since there are none
         assert "You MUST complete actionable todos" not in checklist
         # Should prompt to mark blocked as cancelled
-        assert "For blocked todos that cannot be completed due to external constraints, mark them as 'cancelled'" in checklist
+        assert (
+            "For blocked todos that cannot be completed due to external constraints, mark them as 'cancelled'"
+            in checklist
+        )
 
 
 class TestCompletionGuardUnwrittenDeliverablesAndAutoStaging:
@@ -2455,10 +2437,12 @@ class TestCompletionGuardUnwrittenDeliverablesAndAutoStaging:
             "```\n"
             "All done!"
         )
-        state = _make_state([
-            HumanMessage(content="Please implement the FastAPI server."),
-            AIMessage(content=code_msg),
-        ])
+        state = _make_state(
+            [
+                HumanMessage(content="Please implement the FastAPI server."),
+                AIMessage(content=code_msg),
+            ]
+        )
         runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
 
         mock_loop_guard = MagicMock()
@@ -2486,10 +2470,12 @@ class TestCompletionGuardUnwrittenDeliverablesAndAutoStaging:
             "    return a - b\n"
             "```"
         )
-        state = _make_state([
-            HumanMessage(content="Create calculator"),
-            AIMessage(content=code_msg),
-        ])
+        state = _make_state(
+            [
+                HumanMessage(content="Create calculator"),
+                AIMessage(content=code_msg),
+            ]
+        )
         runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
 
         mock_loop_guard = MagicMock()
@@ -2532,10 +2518,12 @@ class TestCompletionGuardUnwrittenDeliverablesAndAutoStaging:
             "```\n"
             "Let me know if you have questions!"
         )
-        state = _make_state([
-            HumanMessage(content="什么是快速排序算法？请解释一下原理"),
-            AIMessage(content=snippet_msg),
-        ])
+        state = _make_state(
+            [
+                HumanMessage(content="什么是快速排序算法？请解释一下原理"),
+                AIMessage(content=snippet_msg),
+            ]
+        )
         runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
 
         mock_loop_guard = MagicMock()
@@ -2556,13 +2544,13 @@ class TestCompletionGuardQueryGroundingIntegration:
         reset_completion_guard()
 
     @pytest.mark.asyncio
-    async def test_query_intent_without_tool_calls_blocks_with_query_grounding_reason(
-        self, tmp_path: Path
-    ) -> None:
-        state = _make_state([
-            HumanMessage(content="查一下订单 OD-10086 的发货状态"),
-            AIMessage(content="订单 OD-10086 已经发货了，预计明天送达。"),
-        ])
+    async def test_query_intent_without_tool_calls_blocks_with_query_grounding_reason(self, tmp_path: Path) -> None:
+        state = _make_state(
+            [
+                HumanMessage(content="查一下订单 OD-10086 的发货状态"),
+                AIMessage(content="订单 OD-10086 已经发货了，预计明天送达。"),
+            ]
+        )
         runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
 
         mock_loop_guard = MagicMock()
@@ -2579,19 +2567,19 @@ class TestCompletionGuardQueryGroundingIntegration:
         assert "no query or MCP tool was executed" in str(reason)
 
     @pytest.mark.asyncio
-    async def test_multi_entity_query_missing_one_entity_blocks_in_guard(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_multi_entity_query_missing_one_entity_blocks_in_guard(self, tmp_path: Path) -> None:
         rec_od = CallRecord(
             tool_name="mcp__erp__query_order",
             args_hash="hash_query_od",
             args={"order_id": "OD-9921"},
             success_level=SuccessLevel.FULL_SUCCESS,
         )
-        state = _make_state([
-            HumanMessage(content="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度"),
-            AIMessage(content="订单 OD-9921 已发货，工单 TK-8802 正在处理中。"),
-        ])
+        state = _make_state(
+            [
+                HumanMessage(content="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度"),
+                AIMessage(content="订单 OD-9921 已发货，工单 TK-8802 正在处理中。"),
+            ]
+        )
         runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
 
         mock_loop_guard = MagicMock()
@@ -2608,21 +2596,19 @@ class TestCompletionGuardQueryGroundingIntegration:
         assert "TK-8802" in str(reason)
 
     @pytest.mark.asyncio
-    async def test_multi_entity_query_missing_one_with_honest_negative_passes_guard(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_multi_entity_query_missing_one_with_honest_negative_passes_guard(self, tmp_path: Path) -> None:
         rec_od = CallRecord(
             tool_name="mcp__erp__query_order",
             args_hash="hash_query_od",
             args={"order_id": "OD-9921"},
             success_level=SuccessLevel.FULL_SUCCESS,
         )
-        state = _make_state([
-            HumanMessage(content="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度"),
-            AIMessage(
-                content="订单 OD-9921 已发货；系统查询显示工单 TK-8802 暂未查询到对应处理进度。"
-            ),
-        ])
+        state = _make_state(
+            [
+                HumanMessage(content="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度"),
+                AIMessage(content="订单 OD-9921 已发货；系统查询显示工单 TK-8802 暂未查询到对应处理进度。"),
+            ]
+        )
         runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
 
         mock_loop_guard = MagicMock()
@@ -2634,9 +2620,7 @@ class TestCompletionGuardQueryGroundingIntegration:
         assert res is None
 
     @pytest.mark.asyncio
-    async def test_multi_entity_query_all_grounded_passes_guard(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_multi_entity_query_all_grounded_passes_guard(self, tmp_path: Path) -> None:
         rec_od = CallRecord(
             tool_name="mcp__erp__query_order",
             args_hash="hash_query_od",
@@ -2649,10 +2633,12 @@ class TestCompletionGuardQueryGroundingIntegration:
             args={"ticket_id": "TK-8802"},
             success_level=SuccessLevel.FULL_SUCCESS,
         )
-        state = _make_state([
-            HumanMessage(content="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度"),
-            AIMessage(content="订单 OD-9921 已发货，工单 TK-8802 处理中。"),
-        ])
+        state = _make_state(
+            [
+                HumanMessage(content="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度"),
+                AIMessage(content="订单 OD-9921 已发货，工单 TK-8802 处理中。"),
+            ]
+        )
         runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
 
         mock_loop_guard = MagicMock()
@@ -2662,9 +2648,6 @@ class TestCompletionGuardQueryGroundingIntegration:
             res = await self.guard.aafter_model(state, runtime)
 
         assert res is None
-
-
-
 
 
 class TestExecutionClaimGate:
@@ -2748,7 +2731,8 @@ class TestExecutionClaimGate:
     @pytest.mark.asyncio
     async def test_mixed_message_path_keeps_tool_calls_for_unbacked_claim(self) -> None:
         filler = "\n".join(
-            f"- 第 {index} 条分析结论：该模块在压力场景下表现稳定，相关指标与上一轮相比没有退化。" for index in range(12)
+            f"- 第 {index} 条分析结论：该模块在压力场景下表现稳定，相关指标与上一轮相比没有退化。"
+            for index in range(12)
         )
         content = f"分析完成：\n{filler}\n所有测试全部通过。"
         assert len(content) > 500
@@ -2829,6 +2813,38 @@ class TestExecutionClaimGate:
         assert disclosure is not None
         staged = disclosure.get("staged_artifacts")
         assert isinstance(staged, list) and len(staged) == 1
+
+    @pytest.mark.asyncio
+    async def test_inline_copy_turn_publishes_no_plan_badge(self) -> None:
+        state = _make_state(
+            [
+                HumanMessage(content="帮我写三版产品文案"),
+                AIMessage(content="这是三版文案：\n1. 版本一。\n2. 版本二。\n3. 版本三。"),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is None
+        assert _cg_state.pop_run_disclosure("") is None
+
+    @pytest.mark.asyncio
+    async def test_unbacked_claim_publishes_plan_badge_for_disclosure(self) -> None:
+        state = _make_state(
+            [
+                HumanMessage(content="帮我跑一下测试"),
+                AIMessage(content="所有测试全部通过。"),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is not None
+        disclosure = _cg_state.pop_run_disclosure("")
+        assert disclosure is not None
+        assert disclosure.get("deliverable_tier", {}).get("tier") == "PLAN"
 
     @pytest.mark.asyncio
     async def test_concurrent_runs_keep_separate_rejection_budgets(self) -> None:

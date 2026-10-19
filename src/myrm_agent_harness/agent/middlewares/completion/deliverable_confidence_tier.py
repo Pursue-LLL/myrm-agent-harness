@@ -11,7 +11,7 @@ assign a verifiable confidence tier to the agent's delivery.
 - DeliverableConfidenceTier: SSOT enum (VERIFIED, ARTIFACT, RESEARCH, PLAN)
 - DeliverableTierMetadata: Structured delivery confidence report
 - resolve_deliverable_tier(): Deterministic physical evidence aggregator (<0.05ms)
-- has_work_intent / should_disclose_tier(): disclosure policy for the tier badge
+- should_disclose_tier(): disclosure policy for the tier badge
 
 [POS]
 Core SSOT contract for delivery confidence evaluation; consumed by CompletionGuard,
@@ -20,7 +20,6 @@ Server SSE/API, Cron post-run assurance, and WebUI/Tauri frontend badges.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -159,37 +158,16 @@ def resolve_deliverable_tier(
     return DeliverableTierMetadata(tier=DeliverableConfidenceTier.PLAN, evidence=evidence)
 
 
-#: Work/deliverable requests make a PLAN-tier badge informative ("no evidence
-#: produced for the work you asked for") instead of noise on casual chat.
-_WORK_INTENT_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(
-        r"(?:写|编写|创建|新建|生成|实现|开发|搭建|制作|重构|修复|修改|改一下|改好|优化|部署|上线|发布"
-        r"|发送|发邮件|导出|保存|落盘|整理|转换|爬取|抓取|分析数据|做个|做一份|跑|运行|执行|测试)"
-    ),
-    re.compile(
-        r"(?i)\b(?:write|create|generate|implement|build|refactor|fix|modify|change|optimize|deploy|publish"
-        r"|send|export|save|convert|crawl|scrape|run|execute|test)\b"
-    ),
-)
-
-
-def has_work_intent(user_text: str | None) -> bool:
-    """True when the latest user request asks for concrete work or a deliverable."""
-    text = (user_text or "").strip()
-    if not text:
-        return False
-    return any(pattern.search(text) for pattern in _WORK_INTENT_PATTERNS)
-
-
-def should_disclose_tier(metadata: DeliverableTierMetadata, *, user_text: str | None) -> bool:
+def should_disclose_tier(metadata: DeliverableTierMetadata, *, has_claim: bool) -> bool:
     """True when the tier badge carries information the user can act on.
 
     Evidence-bearing tiers are always disclosed. The PLAN tier means "nothing
-    verifiable was produced", which is only informative when the user asked for
-    work — on casual conversation it would be noise.
+    verifiable was produced", which is only informative when the answer itself
+    makes a completion claim: an unbacked claim is exactly the gap a badge
+    should surface. Casual conversation and inline deliverables stay clean.
     """
     if metadata.tier is DeliverableConfidenceTier.PLAN:
-        return has_work_intent(user_text)
+        return has_claim
     return True
 
 
@@ -197,7 +175,6 @@ __all__ = [
     "DeliverableConfidenceTier",
     "DeliverableTierEvidence",
     "DeliverableTierMetadata",
-    "has_work_intent",
     "resolve_deliverable_tier",
     "should_disclose_tier",
 ]

@@ -40,6 +40,7 @@ is out of scope.
 
 [OUTPUT]
 - check_execution_claim(): 三类承重断言与本轮执行轨迹不一致时的阻断原因，或 None
+- has_completion_claim(): 回答里是否出现完成式断言（供披露策略判定 PLAN 档是否值得展示）
 
 [POS]
 CompletionGuard 的断言接地判定器。把最终汇报里的完成式断言绑定到本轮真实工具记录，不满足即要求取证或如实改写。
@@ -311,4 +312,28 @@ def check_execution_claim(
     return None
 
 
-__all__ = ["check_execution_claim"]
+def has_completion_claim(assistant_text: str) -> bool:
+    """True when the answer makes a completion claim, whatever its evidence.
+
+    Used by the disclosure policy: the PLAN badge is only informative when the
+    turn actually claims something (an unbacked claim is the gap worth showing).
+    """
+    if not assistant_text.strip():
+        return False
+    for sentence in _sentences(assistant_text):
+        if sentence.endswith(("?", "？")) or _excluded(sentence):
+            continue
+        if (
+            _VERIFICATION_FIRST_PERSON.search(sentence)
+            or _VERIFICATION_RESULT_ZH.search(sentence)
+            or _VERIFICATION_RESULT_EN.search(sentence)
+            or _OUTBOUND_FIRST_PERSON.search(sentence)
+            or _OUTBOUND_BARE_RESULT.search(sentence)
+            or _EDIT_CLAIM_ZH.search(sentence)
+            or _EDIT_CLAIM_EN.search(sentence)
+        ):
+            return True
+    return False
+
+
+__all__ = ["check_execution_claim", "has_completion_claim"]

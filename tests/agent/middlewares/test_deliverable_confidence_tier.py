@@ -112,8 +112,7 @@ def test_should_disclose_evidence_tiers_always():
         should_disclose_tier,
     )
 
-    for records in (
-        [],
+    verified = resolve_deliverable_tier(
         [
             CallRecord(
                 tool_name="bash_code_execute_tool",
@@ -122,21 +121,18 @@ def test_should_disclose_evidence_tiers_always():
                 verification_type=VerificationCategory.TEST,
                 success_level=SuccessLevel.FULL_SUCCESS,
             )
-        ],
-    ):
-        meta = resolve_deliverable_tier(records)
-        assert should_disclose_tier(meta, user_text="今天天气怎么样？") is (meta.tier is not DeliverableConfidenceTier.PLAN)
+        ]
+    )
+    assert verified.tier is DeliverableConfidenceTier.VERIFIED
+    assert should_disclose_tier(verified, has_claim=False) is True
 
 
-def test_plan_tier_is_disclosed_only_for_work_requests():
+def test_plan_tier_is_disclosed_only_for_completion_claims():
     from myrm_agent_harness.agent.middlewares.completion.deliverable_confidence_tier import (
-        has_work_intent,
         should_disclose_tier,
     )
 
-    meta = resolve_deliverable_tier([])
-    assert meta.tier is DeliverableConfidenceTier.PLAN
-    assert should_disclose_tier(meta, user_text="今天天气怎么样？") is False
-    assert should_disclose_tier(meta, user_text="帮我写一个报价单") is True
-    assert has_work_intent(None) is False
-    assert has_work_intent("write a summary") is True
+    plan = resolve_deliverable_tier([])
+    assert plan.tier is DeliverableConfidenceTier.PLAN
+    assert should_disclose_tier(plan, has_claim=False) is False
+    assert should_disclose_tier(plan, has_claim=True) is True

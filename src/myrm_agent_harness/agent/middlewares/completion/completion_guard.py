@@ -109,6 +109,7 @@ from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier 
 )
 from myrm_agent_harness.agent.middlewares.completion.execution_claim_verifier import (
     check_execution_claim,
+    has_completion_claim,
 )
 from myrm_agent_harness.agent.middlewares.completion.ppt_outline_verifier import (
     check_ppt_outline_quality,
@@ -227,7 +228,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         filtered_records = [r for r in records if not r.tool_name.startswith("_")]
         latest_user_text = extract_latest_human_text(messages)
         content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content or "")
-        publish_tier_disclosure(content_str, filtered_records, latest_user_text)
+        publish_tier_disclosure(content_str, filtered_records, has_claim=has_completion_claim(content_str))
 
         is_attempting_completion = False
 

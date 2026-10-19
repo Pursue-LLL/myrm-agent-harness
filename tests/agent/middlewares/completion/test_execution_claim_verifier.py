@@ -12,6 +12,7 @@ import pytest
 
 from myrm_agent_harness.agent.middlewares.completion.execution_claim_verifier import (
     check_execution_claim,
+    has_completion_claim,
 )
 from myrm_agent_harness.agent.security.guards.loop_guard import (
     CallRecord,
@@ -300,3 +301,29 @@ def test_edit_claim_without_code_context_is_ignored() -> None:
         )
         is None
     )
+
+
+@pytest.mark.parametrize(
+    "assistant_text",
+    [
+        "所有测试全部通过。",
+        "已发送报价邮件给客户。",
+        "已修复登录 bug。",
+        "I ran the tests and they all pass.",
+    ],
+)
+def test_has_completion_claim_detects_claim_sentences(assistant_text: str) -> None:
+    assert has_completion_claim(assistant_text) is True
+
+
+@pytest.mark.parametrize(
+    "assistant_text",
+    [
+        "这是三版文案，请挑选。",
+        "测试没有通过，我还没开始修复。",
+        "README 说明：安装后运行 pytest，所有测试通过即可提交。",
+        "这行代码在 v2 里被修复了吗？",
+    ],
+)
+def test_has_completion_claim_ignores_casual_and_excluded_sentences(assistant_text: str) -> None:
+    assert has_completion_claim(assistant_text) is False

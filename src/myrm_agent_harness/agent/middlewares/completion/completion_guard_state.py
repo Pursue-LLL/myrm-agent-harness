@@ -15,7 +15,8 @@ Two concerns live here, both scoped to a single assistant turn:
 
 The tier publisher applies the disclosure policy from
 ``deliverable_confidence_tier``: evidence-bearing tiers always go out, the PLAN
-tier only when the user asked for work (casual conversation stays clean).
+tier only when the answer itself makes a completion claim (casual conversation
+and inline deliverables stay clean).
 
 [INPUT]
 - agent.middlewares.completion.deliverable_confidence_tier::resolve_deliverable_tier, should_disclose_tier (POS: 交付置信档解析与披露策略)
@@ -111,13 +112,14 @@ def pop_run_disclosure(message_id: str) -> dict[str, object] | None:
 def publish_tier_disclosure(
     content: str,
     records: list[CallRecord],
-    user_text: str | None,
+    *,
+    has_claim: bool,
 ) -> None:
     """Publish the evidence tier the UI may show for this turn."""
     if not content.strip():
         return
     metadata = resolve_deliverable_tier(records, content=content)
-    if not should_disclose_tier(metadata, user_text=user_text):
+    if not should_disclose_tier(metadata, has_claim=has_claim):
         return
     publish_disclosure(deliverable_tier=metadata.to_dict())
 
