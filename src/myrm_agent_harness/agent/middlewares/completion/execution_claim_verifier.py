@@ -269,6 +269,8 @@ _TEST_DRY_RUN: re.Pattern[str] = re.compile(
     r"--collect-only|--co\b|--list-tests|--dry-run|--deselect",
     re.IGNORECASE,
 )
+#: A PATH rewrite can point the runner name at a substitute binary.
+_TEST_PATH_REWRITE: re.Pattern[str] = re.compile(r"(?:^|[\s;&])PATH=", re.IGNORECASE)
 #: Zero-test outcomes never ground a pass claim.
 _TEST_ZERO_SHAPE: re.Pattern[str] = re.compile(
     r"\b0\s+passed\b|\bno tests? ran\b|\bno tests? found\b|\bno test files\b|"
@@ -280,7 +282,7 @@ _TEST_ZERO_SHAPE: re.Pattern[str] = re.compile(
 def _is_test_pass_evidence(record: CallRecord) -> bool:
     """A test claim is grounded by a real runner with a non-empty run behind it."""
     command = _command_text(record)
-    if not _is_strict_test_runner(command) or _TEST_DRY_RUN.search(command):
+    if not _is_strict_test_runner(command) or _TEST_DRY_RUN.search(command) or _TEST_PATH_REWRITE.search(command):
         return False
     return not _TEST_ZERO_SHAPE.search(str(getattr(record, "result_content", "")))
 

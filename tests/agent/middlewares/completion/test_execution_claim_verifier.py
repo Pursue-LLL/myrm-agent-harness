@@ -182,6 +182,18 @@ def test_zero_test_output_cannot_anchor_a_pass_claim() -> None:
     assert check_execution_claim(user_text="帮我跑测试", assistant_text="所有测试全部通过。", records=records)
 
 
+def test_runner_hidden_behind_a_path_rewrite_cannot_ground_a_pass_claim() -> None:
+    records = [
+        _record(
+            "bash_code_execute_tool",
+            args={"command": "PATH=/workspace/fake pytest -q"},
+            result_content="1 passed in 0.01s",
+            verification=VerificationCategory.TEST,
+        )
+    ]
+    assert check_execution_claim(user_text="帮我跑测试", assistant_text="所有测试全部通过。", records=records)
+
+
 def test_real_test_output_grounds_the_claim() -> None:
     records = [
         _record(
