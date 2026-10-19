@@ -120,6 +120,8 @@ PTC（程序化工具调用）
 - **Python 执行**：每次调用创建独立子进程，通过 wrapper script 注入模块黑名单。内置 **Actionable Diagnostic Hints** 机制，拦截 `ModuleNotFoundError` 并追加 `python -m pip install` 修复建议，引导大模型自主纠错。
 - **Bash 执行**：通过 `PersistentSession` 维护长驻 Bash 进程，环境变量和工作目录跨命令保持
 - **文件操作**：直接使用 `pathlib` 本地 IO，零网络开销
+- **只读工作区**：当前运行绑定的 OCap 句柄不含 WRITE（如 Verifier 的 READ+EXECUTE 句柄）时，`LocalExecutor` 把该次执行视为 `readonly_workspace`：原生写/删/`mkdir` 被拒绝，Python 子进程的写入守卫与 Bash 会话的 OS 沙箱（`SandboxPolicy.writable_paths` 为空，`/tmp` 草稿目录仍可写）同时生效。只读运行使用独立的 Bash 会话（会话键带 `_readonly` 标记），不复用也不污染可写会话。Bash 工具的后台作业（`run_in_background`）同样如此：`_background_spawn.py` 默认按句柄收窄为只读并以空 `writable_paths` 生成沙箱策略。MCP 服务器等 harness 自有进程显式声明 `ExecutionContext.harness_owned=True`，不继承任何 agent 的句柄。容器内部署没有嵌套 OS 沙箱，Shell 写入不被 OS 阻止。
+- **执行证据**：每次真正启动进程前（Python、Bash、Bash 流式，以及非 harness 自有的后台作业），执行器向当前 `track_execution()` 作用域写入证据（`execution_evidence.py`，ContextVar）；Verifier 的 PASS 闸门读取该证据（无证据的 PASS 不构成结论），被命令校验器拒绝的命令不计入，MCP 服务器启动不计入。证据只证明“启动过进程”，不证明验证充分：Verifier 跑一条无关命令即可满足闸门，验证质量仍取决于 Verifier 的提示词与模型。
 
 #### Language routing (`code_detector` + `python_extractor`)
 
@@ -183,10 +185,10 @@ Python wrapper 在用户代码运行前注入一个 import 钩子，惰性拦截
 
 ### 7. ExecutionInterceptor（执行拦截器）
 
-提供在破坏性操作（如文件写入、高危 Shell 命令）执行前的 Hook 机制。
+提供在「文件回滚无法完全撤销」的操作执行前的 Hook 机制：文件改写（写入、删除、`rm`、`sed -i`），以及触达工作区之外的 Shell 命令（数据库、容器/云、网络写入、`git push`/包发布）。
 
-- **协议**：`ExecutionInterceptor.before_destructive_action(workspace_path, action_type, payload)`
-- **触发点**：`LocalExecutor.execute_bash`（仅高危命令）和 `LocalFileOpsMixin.write_file` / `delete_file`。
+- **协议**：`ExecutionInterceptor.before_destructive_action(workspace_path, action_type, payload)`；`bash` 的 payload 携带 `destructive`（命令改写文件）与 `external_effects`（`security/external_effect_detector.py` 判定的外部影响类别，无则为空），由拦截器各自决定处置。
+- **触发点**：`LocalExecutor.execute_bash`（命令改写文件或有外部影响时）和 `LocalFileOpsMixin.write_file` / `delete_file`。
 - **安全保证**：拦截器调用被包裹在严格的 `asyncio.wait_for` 超时和 `try...except` 块中，**绝不阻塞**核心代码执行。
 - **业务集成**：`myrm-agent-server` 通过此 Hook 实现基于 Git 的底层文件系统自动快照（Auto-snapshot）。
 
@@ -308,14 +310,14 @@ from myrm_agent_harness.toolkits.code_execution import (
 
 | 模式 | 数据库 | 向量库 | 场景 |
 |------|--------|--------|------|
-| LOCAL | SQLite | 嵌入式 Qdrant | 桌面客户端 / CLI WebUI |
+| LOCAL | SQLite | 嵌入式 Qdrant | 桌面客户端 / 本地 WebUI |
 | SANDBOX | SQLite（持久化卷） | 嵌入式 Qdrant（持久化卷） | 云端 Sandbox |
 
 ### 架构决策：沙箱内 SQLite + 持久化卷
 
 **核心问题**：在 per-user 沙箱模式下，业务服务层（认证、对话管理、知识库、记忆、订阅、配额）应该放在控制平面还是沙箱内？
 
-**决策**：claw-server 完整应用在沙箱内，所有模式统一使用 SQLite + 嵌入式 Qdrant，Sandbox 模式下数据存储在沙箱持久化卷上，无外部数据库凭据。
+**决策**：myrm-agent-server 完整应用在云电脑内，所有模式统一使用 SQLite + 嵌入式 Qdrant，Sandbox 模式下数据存储在云电脑持久化卷上，无外部数据库凭据。
 
 ```
 控制平面（独立部署）
@@ -330,7 +332,7 @@ from myrm_agent_harness.toolkits.code_execution import (
   User, UserSubscription, UserQuotaUsage, WakeTrigger
 
 沙箱（per-user）
-  └── claw-server 完整应用
+  └── myrm-agent-server 完整应用
       ├── 认证、对话管理、知识库、记忆
       ├── 订阅、配额（本地副本）
       ├── Agent 执行（Plan → Execute → Reflect）
@@ -399,8 +401,7 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 |------|---------|------|
 | 控制平面 → 沙箱 | 创建沙箱时 | User + Subscription + Quota 初始数据 |
 | 控制平面 → 沙箱 | 运行期间（WebSocket） | 订阅升级/降级通知 |
-| 沙箱 → 控制平面 | 创建/更新 CronJob 时 | WakeTrigger（next_run_time） |
-| 沙箱 → 控制平面 | 创建/更新 ChannelPairing 时 | WakeTrigger（channel 路由信息） |
+| 沙箱 → 控制平面 | 「下一次必须运行时间」变化时（目标额度窗口到点续跑 / cron 下次运行 / 看板改期任务到点） | HTTP `PUT /api/internal/sandboxes/{id}/wake-schedule`；控制平面到点唤醒已被回收器暂停的沙箱，之后由沙箱自身定时器接管 |
 | 沙箱 → 控制平面 | Agent 执行消耗 token 时 | QuotaUsage 增量更新 |
 | 沙箱 → 控制平面 | Sleep 前强制同步 | 配额最终一致性保证 |
 

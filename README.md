@@ -42,7 +42,7 @@
 ### 架构亮点
 - ✅ **框架-业务分离**：纯框架层，零业务逻辑（[自动化检测与修复](scripts/_ARCH.md)）
 - ✅ **智能缓存系统**：文件缓存与 LRU 等策略（行为依赖负载与配置）
-- ✅ **多沙箱支持**：Local（开发）、Docker（生产）、E2B（云端）统一 API；Docker / E2B 由控制平面承载，harness 内的执行器只有 `LocalExecutor`
+- ✅ **多沙箱承载**：harness 只提供 `LocalExecutor`；Docker / Docker+gVisor、Firecracker、Fly Machines、E2B 由 `myrm-control-plane` 承载
 - ✅ **类型安全**：包内代码以严格类型约束为目标（见 `pyproject` / `mypy` 配置）
 - ✅ **测试**：`tests/` 下单元、集成与性能等用例；以本地 `pytest` 结果为准
 - ✅ **分形自文档**：自组织、自愈的四层文档系统
@@ -530,13 +530,7 @@ executor.bind_workspace("/path/to/workspace")
 result = await executor.execute(ExecutionContext(code="print('hello')"))
 ```
 
-**模式对比**：Docker / E2B 是 `myrm-control-plane` 承载沙箱的方式；harness 的 `ExecutionMode` 目前只有 `LOCAL`，Agent 在所选沙箱内以 `LocalExecutor` 执行代码。
-
-| 模式 | 隔离性 | 性能 | 可扩展性 | 成本 |
-|------|--------|------|----------|------|
-| **Local** | ❌ 无 | ⚡ 最快 | ❌ 受限 | ✅ 免费 |
-| **Docker** | ✅ 强 | 🔥 快 | 🔥 好 | ✅ 免费 |
-| **E2B** | ✅ 强 | ⚡ 即时 | ✅ 无限 | 💵 付费 |
+**沙箱承载**：`myrm-control-plane` 支持 Docker / Docker+gVisor / Firecracker / Fly.io / E2B 五种后端；harness 的 `ExecutionMode` 只有 `LOCAL`，Agent 在所选云电脑内以 `LocalExecutor` 执行代码。
 
 ---
 
