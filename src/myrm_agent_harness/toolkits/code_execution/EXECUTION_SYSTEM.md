@@ -288,27 +288,19 @@ from myrm_agent_harness.toolkits.code_execution import (
 | **myrm-control-plane** | 沙箱生命周期管理（创建/Sleep/唤醒/回收） |
 | **myrm-agent-harness** | Agent 框架层（工具集、运行时、ACP 协议） |
 
-### 沙箱策略
+### 沙箱策略：Agent 专用云电脑
 
-采用 **per-user** 模式（每个用户一个持久化沙箱），参考 Happycapy 与 Manus Cloud Computer 的 per-user 形态。
+每个用户一台 **Agent 专用云电脑**：**agent-in-sandbox** —— harness（Agent 运行时 / 执行循环）、浏览器、终端、文件系统、代码执行全部在同一台云电脑内运行；文件、已装软件、浏览器状态跨会话保留，可 7×24 常驻与接续工作。
 
-| 策略 | 代表产品 | 特点 |
-|------|---------|------|
-| per-task（临时） | Manus 任务沙箱 | 每个任务一个临时沙箱，执行完销毁；跨任务状态由独立的 per-user Cloud Computer 承载 |
-| **per-user**（持久） | Manus Cloud Computer / Happycapy / **Myrm** | 每个用户一台持久沙箱，跨任务保留文件与已装环境 |
+| 维度 | 我们的形态 |
+|------|-----------|
+| 粒度 | per-user（每用户一台，专属，不与他人共享） |
+| Harness 位置 | 云电脑内（与执行同机，无桥接层） |
+| 状态 | 持久：文件系统 + 已装软件 + 浏览器 profile |
+| 常驻 | 7×24 可常驻；空闲按套餐休眠，唤醒即续 |
+| 外部凭据 | 无（数据在云电脑内的 SQLite + 嵌入式 Qdrant） |
 
-**选型依据**（[Computer Agents 2026-03 博客](https://computer-agents.com/blog/persistent-vs-ephemeral-agents-2026)：厂商自述数据，来源为公开 API 测试 + 社区反馈 + 内部运行，非独立第三方基准，仅作方向性参考）：
-
-| 指标 | per-task | per-user | 差距 |
-|------|---------|---------|------|
-| 多日任务自动化率 | 22% | **87%** | +295% |
-| 错误自恢复率 | 41% | **78%** | +90% |
-| 幻觉/偏移率 | 29% | **11%** | -62% |
-| 每 100 复杂任务成本 | $18-42 | **$9-21** | -50% |
-
-完整对比见 [§ 与竞品对比](#与竞品对比)。
-
-**注**：早期文档引用的「Manus Credits 浪费率 72.4%」无可复核来源，已删除。per-task 与 per-user 的真实取舍是：前者隔离边界更小、回收更彻底，但需外部记忆系统补偿状态丢失；后者天然保留工作区与安装环境，代价是休眠/唤醒、配额与卷治理。
+竞品同构参考见 [竞品 Harness 运行位置](#竞品-harness-运行位置2026-10-核验)。
 
 ### 部署模式
 
@@ -364,14 +356,14 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 | 检查配额 / 读取记忆 / 检索知识库 | 50-300ms/次 | <5ms/次 |
 | 单次循环总额外延迟 | **500ms-3s** | **无** |
 
-此外，本地模式没有控制平面，拆分方案需要启动本地控制平面或维护两套代码路径。行业实践中 Manus/Happycapy 均选择将状态放在沙箱内（file-based），而非拆分到控制平面。
+此外，本地模式没有控制平面，拆分方案需要启动本地控制平面或维护两套代码路径。行业实践中，2026 年的 Personal Agent（Grok Bot / Muse / dots 等）都把用户状态放在各自的云电脑内，而非拆分到平台侧数据库。
 
 **选择当前方案的理由**：
 
 1. **Agent 自循环零延迟**：所有业务数据通过本地 SQLite 访问（<5ms），不受网络延迟影响
 2. **无外部凭据**：沙箱不连接外部数据库，即使沙箱被突破也无外部凭据可泄露
 3. **代码路径统一**：所有部署模式使用相同的 SQLite + 嵌入式 Qdrant，无条件分支
-4. **行业最佳实践**：与 Happycapy（持久化卷 + 沙箱内完整应用）一致
+4. **行业最佳实践**：与 2026 主流 Personal Agent 一致（云电脑内运行完整应用，状态留在本机）
 5. **结构化数据管理**：SQLite 提供 SQL 查询、事务、索引，配合嵌入式 Qdrant 实现向量检索，per-user 数据量下功能充足
 
 ### 数据分层
@@ -424,19 +416,24 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 
 所有部署模式代码路径完全一致，仅通过环境变量切换存储路径。
 
-### 与竞品对比
+### 竞品 Harness 运行位置（2026-10 核验）
 
-| 维度 | Manus | Happycapy | **Myrm** |
-|------|-------|-----------|------------|
-| 沙箱策略 | per-task 临时沙箱 + per-user Cloud Computer（双环境） | per-user | **per-user** |
-| Agent 运行位置 | 沙箱内 | 沙箱内 | **沙箱内** |
-| 状态存储 | 任务沙箱临时文件系统 + Cloud Computer 持久文件 | 沙箱文件系统（持久卷） | **SQLite + 嵌入式 Qdrant（持久卷）** |
-| Memory 机制 | file-based（glob/grep） | file-based（持久化卷） | **数据库 + 向量库** |
-| 外部凭据 | 无 | 无 | **无** |
-| 本地模式 | 不支持 | 不支持 | **支持（SQLite）** |
-| 自托管（开源产品层） | 不支持 | 不支持 | **支持** |
+| 产品 | Harness / Agent 运行时位置 |
+|------|---------------------------|
+| Grok Bot | 用户专属 persistent cloud VM（官方 "per user, not per Bot"，含浏览器 / 文件系统 / 终端） |
+| Meta Muse | Muse Secure VM（per person 的专属云电脑） |
+| OpenAI Dots | 每个 Dot 自己的云电脑（官方 "Each dot works on its own cloud computer"） |
+| Google Gemini Spark | 远程执行环境（官方确认远程浏览器 + 远程代码执行，未公开 VM 细节） |
+| Instinct | 持久 cloud computer（第三方复刻项目文档，非官方） |
+| Manus Cue | 每个 Agent 自有身份 + 云电脑（官方 "Each agent gets its own ... computer"） |
+| Today AI | 24 小时在线 Cloud Computer（媒体报道，无官方文档） |
+| 腾讯 LightVela | 腾讯轻量云专属实例（官方 "We host Hermes Agent in the cloud"） |
+| 蚂蚁灵光 | 架构未公开（无云电脑披露） |
+| **Myrm** | **每用户 Agent 专用云电脑（agent-in-sandbox）** |
 
-**差异化优势**：结构化数据管理（SQL + 向量库）、无外部凭据、本地模式支持、开源产品层自托管。
+**结论**：2026 年 Personal Agent 的标准架构是 **harness 跑在云电脑内**，本地设备只是客户端（聊天入口、审批、看屏幕）；平台侧只有控制面（创建 / 回收 / 计费 / 网关 / 恢复），不跑 agent loop。逐项证据（官方文档 / 媒体）见 `temp-docs/temp-task-context/cloud_hosted_personal_agent_runtime_research_20261019.md` §1、§15。
+
+**差异化优势**：本地模式（SQLite）与开源产品层自托管（主流云端 Personal Agent 均不支持）、结构化数据管理（SQL + 向量库）、无外部凭据。
 
 **2026 行业趋势验证**：
 - [RisingWave](https://risingwave.com/blog/stateful-sandboxes-for-ai-agents)：Stateful sandbox 需要嵌入式数据库
@@ -445,11 +442,11 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 - E2B 支持暂停持久化：`pause` 同时保留文件系统与内存，paused 无限期保留（无 TTL）；约束是 Pro 连续运行上限 24h（Hobby 1h）需一次 pause、pause ≈4s/GiB（官方 [Sandbox persistence](https://e2b.dev/docs/sandbox/persistence)）
 - 沙箱内 SQLite + 嵌入式 Qdrant 的方案与 Sprites 的 stateful sandbox 理念高度一致
 
-### 2026-10 供给选型更新
+### 云电脑供给（2026-10）
 
-> 完整调研与来源（含逐项核验与修正记录）见 `temp-docs/temp-task-context/cloud_hosted_personal_agent_runtime_research_20261019.md` §16–§17。
+> 完整调研与来源（含逐项核验与修正记录）见 `temp-docs/temp-task-context/cloud_hosted_personal_agent_runtime_research_20261019.md` §16–§18。
 
-**双档供给，按活跃度分流**（官方 2026-10 价格，规格对齐）：
+**Agent 专用云电脑的底层供给双档分流**（官方 2026-10 价格，规格对齐）：
 
 | 档位 | 供给 | 适用 | 关键数据 |
 |------|------|------|----------|
