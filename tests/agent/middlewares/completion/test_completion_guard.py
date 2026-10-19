@@ -742,6 +742,42 @@ class TestCompletionCheckTool:
         result = _completion_check_tool.invoke({"force_fail": True})
         assert "CRITICAL SYSTEM DIRECTIVE" in result
 
+    def test_force_fail_includes_staged_deliverable_notice(self) -> None:
+        result = _cg_mod._completion_check_tool.invoke(
+            {
+                "force_fail": True,
+                "staged_artifacts": [{"filename": "draft_worker.py"}],
+                "execution_claim_reason": "unbacked claim",
+            }
+        )
+        assert "draft_worker.py" in result
+        assert "claimed work" in result
+
+    @pytest.mark.parametrize(
+        ("args", "marker"),
+        [
+            (
+                {"deliverable_write_reason": "claim without write"},
+                "Deliverable write claim without tool evidence",
+            ),
+            (
+                {"execution_claim_reason": "claim without execution"},
+                "Completion claim without executed evidence",
+            ),
+            (
+                {"query_grounding_reason": "ungrounded entity query"},
+                "Entity query observation ungrounded",
+            ),
+            (
+                {"ppt_outline_reason": "weak outline"},
+                "PPT Reporting Plan Outline Quality Gate Failed",
+            ),
+        ],
+    )
+    def test_tool_reports_each_block_reason(self, args: dict[str, str], marker: str) -> None:
+        result = _cg_mod._completion_check_tool.invoke(args)
+        assert marker in result
+
 
 class TestClassifyVerification:
     """Test classify_verification command detection."""
