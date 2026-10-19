@@ -30,7 +30,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 
 | Submodule | Description |
 |-----------|-------------|
-| `completion/` | Finish gate, verification checklist, external evidence, deliverable write checks. See [completion/_ARCH.md](completion/_ARCH.md). |
+| `completion/` | Finish gate, verification checklist, external evidence, deliverable write checks, execution-claim grounding, and per-turn evidence disclosure. See [completion/_ARCH.md](completion/_ARCH.md). |
 | `approval/` | HITL approval queue, batch, scheduler. See [approval/_ARCH.md](approval/_ARCH.md). |
 | `guardrails/` | Guardrail provider chain + GuardrailMiddleware. See [guardrails/_ARCH.md](guardrails/_ARCH.md). |
 | `tooling/` | Single interception point for all tool calls: interceptor, executor, history hygiene, dangling-call repair, skill attenuation, and their guards/helpers. See [tooling/_ARCH.md](tooling/_ARCH.md). |

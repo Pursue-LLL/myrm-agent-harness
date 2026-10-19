@@ -2,12 +2,12 @@
 
 Two concerns live here, both scoped to a single assistant turn:
 
-1. **Guard state** — the rejection budget and forced-finish latch. A
-   module-global counter lets concurrent runs (multi-session streams, background
-   reruns and cron jobs inside one server process) reset or exhaust each other's
-   budget, which can block or release the wrong turn. Entries are keyed by the
-   bound message id the runtime stamps for the turn, with a small insertion-order
-   LRU cap so long-lived processes stay flat.
+1. **Guard state** — the rejection budget and forced-finish latch. Scoping the
+   budget per turn keeps concurrent runs (multi-session streams, background
+   reruns and cron jobs inside one server process) independent: one turn can
+   neither reset nor exhaust another turn's budget. Entries are keyed by the
+   bound message id the runtime stamps for the turn, with a small
+   insertion-order LRU cap so long-lived processes stay flat.
 2. **Disclosure payload** — the evidence tier badge and the auto-staged
    deliverable drafts the post-run event emitter reads once for ``message_end``.
    The server persists them as message metadata so the UI can show what a

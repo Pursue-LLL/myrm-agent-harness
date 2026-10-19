@@ -12,10 +12,11 @@ Three claim families (each grounded by a different evidence predicate):
    never grounds a pass claim).
 2. **Outbound / irreversible actions** — "sent", "published", "deployed",
    "submitted", "committed". Grounded by a successful MCP call (direct or PTC
-   bash), a successful outbound command (curl, mail, git push, docker push,
-   ...), or a tool whose name carries outbound semantics. Plain file writes and
-   browser navigation never ground an outbound claim: they did not deliver
-   anything to a third party.
+   bash) that is not a read-only call, a successful outbound command (curl,
+   mail, git push, docker push, ...), or a tool whose name carries outbound
+   semantics. Plain file writes, read-only MCP calls and browser navigation
+   never ground an outbound claim: they did not deliver anything to a third
+   party.
 3. **Code modification** — "fixed", "implemented", "refactored". Only checked
    when the user asked for a code change in this turn; grounded by a successful
    workspace write or a successful shell mutation.
@@ -195,7 +196,8 @@ _BASH_MUTATION: re.Pattern[str] = re.compile(
 
 _VERIFICATION_INTENT: re.Pattern[str] = re.compile(
     r"(?:跑|运行|执行|测一?下|测一测|验证|检查|核对)(?:一下|一遍)?[^。！？\n]{0,10}(?:测试|单测|用例|回归|lint|构建|编译)"
-    r"|\b(?:run|execute|check)\s+(?:the\s+)?(?:tests?|lint|build|type\s*-?\s*check)\b",
+    r"|\b(?:run|execute)\s+(?:the\s+)?(?:tests?|checks?|lint|build|type\s*-?\s*check)\b"
+    r"|\bcheck\s+(?:the\s+)?(?:tests?|lint|build|type\s*-?\s*check)\b",
     re.IGNORECASE,
 )
 _ACTION_INTENT: re.Pattern[str] = re.compile(
@@ -238,10 +240,20 @@ def _is_strict_test_runner(command: str) -> bool:
     return False
 
 
-def _verification_evidence(records: Sequence[CallRecord], category: VerificationCategory) -> bool:
+def _mentioned_categories(sentence: str) -> list[VerificationCategory]:
+    """Categories the claim names. Empty means the wording is generic
+    ("all checks pass"), which is grounded by any successful verification."""
+    lowered = sentence.lower()
+    categories: list[VerificationCategory] = []
+    for category, keywords in _CATEGORY_KEYWORDS:
+        if any(keyword.lower() in lowered for keyword in keywords):
+            categories.append(category)
+    return categories
+
+
+def _category_evidence(records: Sequence[CallRecord], category: VerificationCategory) -> bool:
     for record in records:
-        record_category = getattr(record, "verification_type", None)
-        if record_category != category or not _succeeded(record):
+        if getattr(record, "verification_type", None) != category or not _succeeded(record):
             continue
         if category is VerificationCategory.TEST and not _is_strict_test_runner(_command_text(record)):
             continue
@@ -249,13 +261,22 @@ def _verification_evidence(records: Sequence[CallRecord], category: Verification
     return False
 
 
-def _mentioned_categories(sentence: str) -> list[VerificationCategory]:
-    lowered = sentence.lower()
-    categories: list[VerificationCategory] = []
-    for category, keywords in _CATEGORY_KEYWORDS:
-        if any(keyword.lower() in lowered for keyword in keywords):
-            categories.append(category)
-    return categories or [VerificationCategory.TEST]
+def _any_verification_evidence(records: Sequence[CallRecord]) -> bool:
+    for record in records:
+        category = getattr(record, "verification_type", None)
+        if category is None or not _succeeded(record):
+            continue
+        if category is VerificationCategory.TEST and not _is_strict_test_runner(_command_text(record)):
+            continue
+        return True
+    return False
+
+
+#: Read-only MCP calls (list/search/get/...) never ground an outbound claim.
+_READONLY_MCP_TOOL: re.Pattern[str] = re.compile(
+    r"(?:^|_)(?:get|list|search|read|fetch|query|describe|inspect|watch|find|count|status)(?:_|$)",
+    re.IGNORECASE,
+)
 
 
 def _outbound_evidence(records: Sequence[CallRecord]) -> bool:
@@ -264,6 +285,9 @@ def _outbound_evidence(records: Sequence[CallRecord]) -> bool:
             continue
         tool_name = str(getattr(record, "tool_name", ""))
         if is_mcp_tool_name(tool_name):
+            tool_part = tool_name.rsplit("__", 1)[-1]
+            if _READONLY_MCP_TOOL.search(tool_part):
+                continue
             return True
         if tool_name == "bash_code_execute_tool":
             command = _command_text(record)
@@ -317,7 +341,11 @@ def _verification_reason(
 ) -> str | None:
     if not first_person and not (user_text and _VERIFICATION_INTENT.search(user_text)):
         return None
-    missing = [category.value for category in _mentioned_categories(sentence) if not _verification_evidence(records, category)]
+    categories = _mentioned_categories(sentence)
+    if categories:
+        missing = [category.value for category in categories if not _category_evidence(records, category)]
+    else:
+        missing = [] if _any_verification_evidence(records) else ["verification"]
     if not missing:
         return None
     return (

@@ -156,6 +156,36 @@ def test_file_write_cannot_anchor_an_outbound_claim() -> None:
     assert check_execution_claim(user_text="帮我把邮件发给客户", assistant_text="已发送邮件给客户。", records=records)
 
 
+def test_readonly_mcp_call_cannot_anchor_an_outbound_claim() -> None:
+    records = [_record("mcp__slack__slack_list_messages")]
+    assert check_execution_claim(user_text="帮我把消息发给客户", assistant_text="已发送消息给客户。", records=records)
+
+
+def test_outbound_mcp_call_grounds_the_claim() -> None:
+    records = [_record("mcp__dingtalk-mcp__send_robot_message")]
+    assert (
+        check_execution_claim(user_text="帮我把消息发给客户", assistant_text="已发送消息给客户。", records=records)
+        is None
+    )
+
+
+def test_generic_verification_wording_accepts_any_successful_check() -> None:
+    records = [
+        _record("bash_code_execute_tool", args={"command": "ruff check ."}, verification=VerificationCategory.LINT)
+    ]
+    assert (
+        check_execution_claim(user_text="Please run the checks", assistant_text="All checks pass.", records=records)
+        is None
+    )
+
+
+def test_generic_verification_wording_without_any_check_is_blocked() -> None:
+    assert (
+        check_execution_claim(user_text="Please run the checks", assistant_text="All checks pass.", records=[])
+        is not None
+    )
+
+
 def test_lint_claim_requires_lint_evidence_not_just_tests() -> None:
     records = [
         _record("bash_code_execute_tool", args={"command": "pytest -q"}, verification=VerificationCategory.TEST)

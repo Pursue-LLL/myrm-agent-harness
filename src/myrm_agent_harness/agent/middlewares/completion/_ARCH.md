@@ -31,4 +31,4 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](../MIDDLEWARE_SYSTEM.md)
 - `agent.middlewares.tooling.tool_interceptor_middleware` — LoopGuard CallRecord window
 - `agent.security.guards.loop_guard` — CallRecord, ToolGroup, VerificationCategory
 - `toolkits.code_execution` — independent verification re-run sandbox
-- `agent._internals.run_lifecycle.post_run_events` — consumes `pop_run_disclosure()` into the `message_end` event (server persists it as message metadata)
+- `agent._internals.run_lifecycle.post_run_events` — attaches the per-turn disclosure payload via `attach_disclosure_to_event()` to the `message_end` event (the server persists it as message metadata)
