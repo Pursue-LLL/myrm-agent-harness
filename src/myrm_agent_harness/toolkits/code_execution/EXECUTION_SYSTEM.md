@@ -290,14 +290,14 @@ from myrm_agent_harness.toolkits.code_execution import (
 
 ### 沙箱策略
 
-采用 **per-user** 模式（每个用户一个持久化沙箱），参考 Happycapy 架构。
+采用 **per-user** 模式（每个用户一个持久化沙箱），参考 Happycapy 与 Manus Cloud Computer 的 per-user 形态。
 
 | 策略 | 代表产品 | 特点 |
 |------|---------|------|
-| per-task | Manus | 每个任务一个临时沙箱，执行完销毁 |
-| **per-user** | Happycapy / **Myrm** | 每个用户一个持久沙箱，跨任务保留状态 |
+| per-task（临时） | Manus 任务沙箱 | 每个任务一个临时沙箱，执行完销毁；跨任务状态由独立的 per-user Cloud Computer 承载 |
+| **per-user**（持久） | Manus Cloud Computer / Happycapy / **Myrm** | 每个用户一台持久沙箱，跨任务保留文件与已装环境 |
 
-**选型依据**（2026 行业基准，[Computer Agents Benchmarks](https://computer-agents.com/blog/persistent-vs-ephemeral-agents-2026)）：
+**选型依据**（[Computer Agents 2026-03 博客](https://computer-agents.com/blog/persistent-vs-ephemeral-agents-2026)：厂商自述数据，来源为公开 API 测试 + 社区反馈 + 内部运行，非独立第三方基准，仅作方向性参考）：
 
 | 指标 | per-task | per-user | 差距 |
 |------|---------|---------|------|
@@ -308,7 +308,7 @@ from myrm_agent_harness.toolkits.code_execution import (
 
 完整对比见 [§ 与竞品对比](#与竞品对比)。
 
-**注**：Credits 浪费率 72.4% 是 Manus 当前实现的实测数据，非 per-task 固有缺陷。per-task 可通过完善的外部记忆系统降低浪费，但需要额外工程（共享数据库 + API 调用）。per-user 天然避免上下文丢失——数据在沙箱内自然存在。
+**注**：早期文档引用的「Manus Credits 浪费率 72.4%」无可复核来源，已删除。per-task 与 per-user 的真实取舍是：前者隔离边界更小、回收更彻底，但需外部记忆系统补偿状态丢失；后者天然保留工作区与安装环境，代价是休眠/唤醒、配额与卷治理。
 
 ### 部署模式
 
@@ -428,9 +428,9 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 
 | 维度 | Manus | Happycapy | **Myrm** |
 |------|-------|-----------|------------|
-| 沙箱策略 | per-task | per-user | **per-user** |
+| 沙箱策略 | per-task 临时沙箱 + per-user Cloud Computer（双环境） | per-user | **per-user** |
 | Agent 运行位置 | 沙箱内 | 沙箱内 | **沙箱内** |
-| 状态存储 | 沙箱文件系统（临时） | 沙箱文件系统（持久卷） | **SQLite + 嵌入式 Qdrant（持久卷）** |
+| 状态存储 | 任务沙箱临时文件系统 + Cloud Computer 持久文件 | 沙箱文件系统（持久卷） | **SQLite + 嵌入式 Qdrant（持久卷）** |
 | Memory 机制 | file-based（glob/grep） | file-based（持久化卷） | **数据库 + 向量库** |
 | 外部凭据 | 无 | 无 | **无** |
 | 本地模式 | 不支持 | 不支持 | **支持（SQLite）** |
@@ -441,9 +441,27 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 **2026 行业趋势验证**：
 - [RisingWave](https://risingwave.com/blog/stateful-sandboxes-for-ai-agents)：Stateful sandbox 需要嵌入式数据库
 - [PingCAP](https://www.pingcap.com/blog/local-first-rag-using-sqlite-ai-agent-memory-openclaw/)：local-first + zero-ops 嵌入式数据库是 2026 趋势
-- [Fly.io/Sprites](https://fly.io/blog/sprites)（CEO Kurt Mackey, 2026.01）："Ephemeral sandboxes are obsolete. Claude doesn't want a stateless container. Claude wants a computer." — 推出 Sprites（持久化 Firecracker microVM + 100GB NVMe + Checkpoint/Restore），专为 per-user 持久化 Agent 场景设计
-- E2B 持久化上限 14 天（Session-scoped），Fly.io Sprites 永久持久化（Indefinite），两者底层均为 Firecracker 但持久化哲学完全不同
+- [Fly.io: Code And Let Live](https://fly.io/blog/code-and-let-live)（Annie Ruygt）："we're calling it: ephemeral sandboxes are obsolete"、"They don't want containers. They don't want 'sandboxes'. They want computers." — 推出 Sprites（持久化 Firecracker microVM + 100GB ext4 + Checkpoint/Restore），专为 per-user 持久化 Agent 场景设计
+- E2B 支持暂停持久化：`pause` 同时保留文件系统与内存，paused 无限期保留（无 TTL）；约束是 Pro 连续运行上限 24h（Hobby 1h）需一次 pause、pause ≈4s/GiB（官方 [Sandbox persistence](https://e2b.dev/docs/sandbox/persistence)）
 - 沙箱内 SQLite + 嵌入式 Qdrant 的方案与 Sprites 的 stateful sandbox 理念高度一致
+
+### 2026-10 供给选型更新
+
+> 完整调研与来源（含逐项核验与修正记录）见 `temp-docs/temp-task-context/cloud_hosted_personal_agent_runtime_research_20261019.md` §16–§17。
+
+**双档供给，按活跃度分流**（官方 2026-10 价格，规格对齐）：
+
+| 档位 | 供给 | 适用 | 关键数据 |
+|------|------|------|----------|
+| 默认 / 低活跃 | **Fly Sprites** | 大多数个人用户 | 空闲不计 compute 费；warm 为内存冻结（100–500ms，进程续跑），cold 为进程重启（1–2s）；4C8G 满负荷 ≈ $0.329/h |
+| always-on | **Fly Machines** | 高活跃 / 常驻任务 | performance-2x（2C4G）$66/月；performance-4x（4C8G）$132/月 |
+
+- **成本交叉点**：同规格下约 **13 小时/天**（4C8G：Sprites $0.329/h vs Machines $132/月）。低于该值 Sprites 更省，高于该值 Machines 更省。存储另计：Sprites 冷存储 $0.02/GB-月，Machines 卷 $0.15/GB-月。
+- **E2B 为第二后端**（任务 / 溢出 / 不可信第三方代码）：pause 保留内存 + 文件系统、paused 无限期保留；约束是 Pro 连续运行 24h（Hobby 1h）需一次 pause，pause ≈4s/GiB。
+- **淘汰 Modal**：默认寿命 5 分钟、最长 24 小时，不适合常驻个人云电脑。
+- **不接外部任务沙箱作为主路径**：一台用户沙箱已覆盖隔离、执行、持久化；仅三类触发例外（不可信第三方代码、GPU、大规模并行溢出）。
+- **终态**：自建 Firecracker / K8s，掌握成本与体验上限。
+- **落地现状**：控制平面 `flyio` 后端当前使用 Machines（`auto_stop = "stop"`），Sprites 迁移为 P1；E2B 后端适配已存在。
 
 ## Bash Execution Resilience & Command Rewriting
 
