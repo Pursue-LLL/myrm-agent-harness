@@ -252,6 +252,18 @@ class BM25SparseIndexStore:
         self._sparse_ready = True
         return [doc.id for doc in documents]
 
+    async def list_sparse_only(self, collection: str, *, limit: int = 100) -> list[VectorDocument]:
+        """List documents that live only in the sparse mirror.
+
+        Dense-capable deployments never set ``_sparse_ready`` through this path,
+        so the list stays empty there and the dense listing remains the only
+        source. Sparse-authoritative deployments (no embedding backend) would
+        otherwise write memories that no list view can see.
+        """
+        if not self._sparse_ready:
+            return []
+        return await self._inner.scroll_sparse(bm25_collection_for(collection), limit=limit)  # type: ignore[attr-defined]
+
     async def delete_sparse_only(self, collection: str, ids: list[str]) -> int:
         """Delete ids from the sparse mirror alone (dense delete skipped).
 

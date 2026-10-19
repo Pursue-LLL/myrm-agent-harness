@@ -115,6 +115,15 @@ async def list_by_type(
         filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))
         docs = await _scroll_with_offset(coll, filters, fetch_limit=limit, skip=offset)
         converter = doc_to_semantic if memory_type == MemoryType.SEMANTIC else doc_to_episodic
+        if not docs and offset == 0:
+            # Sparse-authoritative deployments (no embedding backend) keep their
+            # writes in the BM25 mirror only; list it so those memories do not
+            # vanish from the memory list and the settings UI.
+            lister = getattr(vector, "list_sparse_only", None)
+            if lister is not None:
+                sparse_docs = await lister(coll, limit=limit)
+                if sparse_docs:
+                    return [converter(d) for d in sparse_docs]
         return [converter(d) for d in docs]
     if memory_type == MemoryType.CONVERSATION and vector:
         filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))

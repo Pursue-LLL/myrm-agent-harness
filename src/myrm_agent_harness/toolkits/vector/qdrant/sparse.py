@@ -175,6 +175,35 @@ class QdrantSparseMixin:
             for point in cast("models.QueryResponse", results).points
         ]
 
+    async def scroll_sparse(self, collection: str, *, limit: int = 100) -> list[VectorDocument]:
+        """List documents from a sparse collection (payload matches the dense layout).
+
+        Sparse-authoritative deployments (no embedding backend) keep their writes
+        in the mirror alone, so listing must read it or those memories stay
+        invisible in the UI and in the list API.
+        """
+        from qdrant_client import models
+
+        records, _ = await self._with_retry(
+            self._client.scroll,  # type: ignore[attr-defined]
+            collection_name=collection,
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+        return [
+            self._sparse_point_to_document(
+                models.ScoredPoint(
+                    id=record.id,
+                    version=0,
+                    score=0.0,
+                    payload=record.payload,
+                    vector=None,
+                )
+            )
+            for record in records
+        ]
+
     def _sparse_point_to_document(self, point: models.ScoredPoint) -> VectorDocument:
         """Convert a sparse-collection point back to a VectorDocument."""
         payload = dict(point.payload) if point.payload else {}

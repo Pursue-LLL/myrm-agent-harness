@@ -71,6 +71,19 @@ class TestSparseOnlyWrapperLifecycle:
             got = await wrapped.get_sparse_only(CONFIG.semantic_collection, [doc.id])
             assert [d.id for d in got] == [doc.id]
 
+            # The list path falls back to the mirror when the dense side is empty.
+            from myrm_agent_harness.toolkits.memory._internal.storage_by_type import list_by_type
+
+            listed = await list_by_type(
+                MemoryType.SEMANTIC,
+                limit=10,
+                offset=0,
+                relational=None,
+                vector=wrapped,
+                config=CONFIG,
+            )
+            assert [memory.content for memory in listed] == [doc.content]
+
             deleted = await wrapped.delete_sparse_only(CONFIG.semantic_collection, [doc.id])
             assert deleted == 1
             gone = await wrapped.bm25_search("vitest", CONFIG)
