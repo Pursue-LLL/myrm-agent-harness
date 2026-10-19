@@ -125,6 +125,29 @@ class TestSparseOnlyManager:
         finally:
             await manager.close()
 
+    @pytest.mark.asyncio
+    async def test_tags_survive_a_keyword_roundtrip(self, tmp_path: Path) -> None:
+        """Tags the WebUI filters and charts must come back from the sparse mirror."""
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+
+        manager = await create_local_memory_manager(tmp_path / "mem", None)
+        try:
+            mem = SemanticMemory(
+                id=str(uuid4()),
+                user_id="sandbox_user",
+                content="用户偏好 TypeScript strict 模式",
+                tags=["CodeStyle", "编辑器"],
+            )
+            await manager.store(mem)
+
+            listed = await manager.list_memories(MemoryType.SEMANTIC, limit=10, offset=0)
+            assert [memory.tags for memory in listed] == [["codestyle", "编辑器"]]
+
+            hits = await manager.search("TypeScript", limit=5)
+            assert [hit.memory.tags for hit in hits] == [["codestyle", "编辑器"]]
+        finally:
+            await manager.close()
+
 
 @pytest.mark.slow
 class TestSparseOnlyAgentTools:
@@ -173,6 +196,18 @@ class TestSparseOnlyAgentTools:
             assert deleted.startswith("Memory deleted")
             # The correction is a distinct memory and survives the original's deletion.
             assert [h.memory.id for h in await manager.search("strict", limit=5)] == [correction_id]
+
+            discarded = await tools["memory_manage_tool"].coroutine(
+                action="discard", memory_id=correction_id, category="knowledge"
+            )
+            assert discarded.startswith("Memory discarded")
+            assert await manager.search("strict", limit=5) == []
+
+            rule = await manager.add_rule("提交代码前", "运行 lint")
+            discarded_rule = await tools["memory_manage_tool"].coroutine(
+                action="discard", memory_id=rule.id, category="rule"
+            )
+            assert discarded_rule.startswith("Rule discarded")
 
             event = await tools["memory_save_tool"].coroutine(content="线上事故复盘：重试风暴", category="event")
             assert event.startswith("Event stored (ID:")
