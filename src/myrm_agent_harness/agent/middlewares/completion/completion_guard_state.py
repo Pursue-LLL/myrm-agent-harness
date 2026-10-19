@@ -71,7 +71,7 @@ def reset_run_state() -> None:
     _run_disclosures.pop(key, None)
 
 
-def _trim_registry(registry: dict[str, object]) -> None:
+def _trim_registry[RegistryValue](registry: dict[str, RegistryValue]) -> None:
     while len(registry) > RUN_STATE_LIMIT:
         registry.pop(next(iter(registry)), None)
 

@@ -315,7 +315,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             assistant_text=content_str,
             records=filtered_records,
         )
-        query_grounding_reason: str | None = None
+        query_grounding_reason = None
         if last_ai_msg.content:
             content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content)
             deliverable_write_reason = check_deliverable_write_claim(content_str, filtered_records)

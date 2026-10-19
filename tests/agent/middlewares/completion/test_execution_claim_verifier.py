@@ -202,7 +202,8 @@ def test_mcp_history_tool_cannot_anchor_an_outbound_claim() -> None:
 def test_mcp_send_tool_grounds_the_outbound_claim() -> None:
     records = [_record("mcp__slack__slack_post_message")]
     assert (
-        check_execution_claim(user_text="帮我给客户发消息", assistant_text="已发送消息给客户。", records=records) is None
+        check_execution_claim(user_text="帮我给客户发消息", assistant_text="已发送消息给客户。", records=records)
+        is None
     )
 
 
@@ -210,7 +211,7 @@ def test_ptc_read_call_cannot_anchor_an_outbound_claim() -> None:
     records = [
         _record(
             "bash_code_execute_tool",
-            args={"command": "python -c \"from skills.mcp_slack import slack_list_messages; slack_list_messages()\""},
+            args={"command": 'python -c "from skills.mcp_slack import slack_list_messages; slack_list_messages()"'},
         )
     ]
     assert check_execution_claim(user_text="帮我给客户发消息", assistant_text="已发送消息给客户。", records=records)
@@ -252,9 +253,7 @@ def test_generic_verification_wording_without_any_check_is_blocked() -> None:
 
 
 def test_lint_claim_requires_lint_evidence_not_just_tests() -> None:
-    records = [
-        _record("bash_code_execute_tool", args={"command": "pytest -q"}, verification=VerificationCategory.TEST)
-    ]
+    records = [_record("bash_code_execute_tool", args={"command": "pytest -q"}, verification=VerificationCategory.TEST)]
     assert (
         check_execution_claim(
             user_text="帮我检查 lint",

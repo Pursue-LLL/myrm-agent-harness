@@ -112,7 +112,20 @@ _VERIFICATION_FIRST_PERSON: re.Pattern[str] = re.compile(
 _CATEGORY_KEYWORDS: tuple[tuple[VerificationCategory, tuple[str, ...]], ...] = (
     (
         VerificationCategory.TEST,
-        ("测试", "单测", "用例", "回归", "pytest", "vitest", "jest", "go test", "npm test", "cargo test", "tests", "test suite"),
+        (
+            "测试",
+            "单测",
+            "用例",
+            "回归",
+            "pytest",
+            "vitest",
+            "jest",
+            "go test",
+            "npm test",
+            "cargo test",
+            "tests",
+            "test suite",
+        ),
     ),
     (
         VerificationCategory.LINT,
