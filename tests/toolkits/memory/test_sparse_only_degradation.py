@@ -360,6 +360,69 @@ class TestSparseOnlyUpgradeMigration:
             await manager.close()
 
     @pytest.mark.asyncio
+    async def test_metadata_cascade_clears_the_mirror(self, tmp_path: Path) -> None:
+        """A metadata cascade (chat purge, import rollback) reaches the mirror, not just dense collections."""
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+
+        manager = await create_local_memory_manager(tmp_path / "mem", None)
+        try:
+            chat_id = f"chat-{uuid4().hex}"
+            await manager.store(
+                SemanticMemory(
+                    id=str(uuid4()),
+                    user_id="sandbox_user",
+                    content="级联校验：TypeScript strict 模式",
+                    source_chat_id=chat_id,
+                )
+            )
+
+            counts = await manager.delete_memories_by_metadata("source_chat_id", chat_id)
+
+            assert counts["semantic"] == 1
+            assert await manager.count_memories(MemoryType.SEMANTIC) == 0
+            assert await manager.search("TypeScript", limit=5) == []
+        finally:
+            await manager.close()
+
+    @pytest.mark.asyncio
+    async def test_delete_reaches_a_legacy_mirror_copy(self, tmp_path: Path) -> None:
+        """A delete during a migration clears the mirror copy too, so the memory cannot reappear."""
+        from myrm_agent_harness.toolkits.memory.config import MemoryConfig
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+        from myrm_agent_harness.toolkits.memory.setup import create_local_memory_manager
+        from myrm_agent_harness.toolkits.vector.qdrant import create_embedded_store
+
+        base = tmp_path / "mem"
+        keyword = await create_local_memory_manager(base, None)
+        mirror = f"{keyword.config.semantic_collection}_bm25"
+        memory = SemanticMemory(id=str(uuid4()), user_id="sandbox_user", content="窗口期校验：TypeScript strict")
+        try:
+            await keyword.store(memory)
+        finally:
+            await keyword.close()
+
+        store = await create_embedded_store(path=str(base / "vector_store"))
+        config = MemoryConfig(embedding_model="upgrade-test-model")
+        manager = MemoryManager(
+            config,
+            user_id="sandbox_user",
+            vector=store,
+            embedding=_KeywordUpgradeEmbedder(),  # type: ignore[arg-type]
+            auto_warmup=False,
+        )
+        try:
+            # Mid-migration state: the memory is already in the current collection and still in the mirror.
+            await manager.store(memory.model_copy(deep=True))
+
+            deleted = await manager.delete_memory(config.semantic_collection, [memory.id])
+
+            assert deleted == 1
+            assert await store.get(config.semantic_collection, [memory.id]) == []
+            assert await store.count(mirror) == 0
+        finally:
+            await manager.close()
+
+    @pytest.mark.asyncio
     async def test_keyword_memories_migrate_into_the_configured_model(self, tmp_path: Path) -> None:
         from myrm_agent_harness.toolkits.memory.config import MemoryConfig
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
