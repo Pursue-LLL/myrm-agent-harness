@@ -125,8 +125,14 @@ def publish_tier_disclosure(
 
 
 def attach_disclosure_to_event(event: dict[str, object], message_id: str) -> None:
-    """Attach the turn's disclosure payload (if any) to a ``message_end`` event."""
-    disclosure = pop_run_disclosure(message_id)
+    """Attach the turn's disclosure payload (if any) to a ``message_end`` event.
+
+    The guard reads the turn key from the runtime ContextVar while the emitter
+    knows the message id explicitly; a resumed or re-entered graph cycle can
+    leave the guard on the unbound slot, so fall back to it. The unbound slot is
+    cleared at every run start, which keeps the fallback turn-local.
+    """
+    disclosure = pop_run_disclosure(message_id) or pop_run_disclosure(UNBOUND_RUN_KEY)
     if not disclosure:
         return
     deliverable_tier = disclosure.get("deliverable_tier")

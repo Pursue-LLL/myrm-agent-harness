@@ -80,6 +80,19 @@ class DeliverableTierMetadata:
         }
 
 
+#: Write tools name their target path differently across the toolchain.
+_PATH_ARG_KEYS: tuple[str, ...] = ("path", "file_path", "filepath", "target_path")
+
+
+def _written_path(record: CallRecord) -> str:
+    """Return the file path a write record targeted, whatever key the tool used."""
+    for key in _PATH_ARG_KEYS:
+        value = record.args.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
 def resolve_deliverable_tier(
     records: list[CallRecord],
     *,
@@ -115,7 +128,7 @@ def resolve_deliverable_tier(
     for record in records:
         grp = get_tool_group(record.tool_name)
         if grp == ToolGroup.WRITE and record.success_level != SuccessLevel.FAILURE:
-            path = str(record.args.get("path", "")).strip()
+            path = _written_path(record)
             if path and path not in files_written:
                 files_written.append(path)
 

@@ -133,3 +133,15 @@ def test_attach_disclosure_to_event_writes_payload_once() -> None:
     second: dict[str, object] = {"type": "message_end"}
     state_mod.attach_disclosure_to_event(second, "msg-attach")
     assert "deliverable_tier" not in second
+
+
+def test_attach_falls_back_to_the_unbound_slot_when_keys_diverge() -> None:
+    """A resumed or re-entered cycle can bind no turn id while the emitter knows one."""
+    state_mod.publish_disclosure(deliverable_tier={"tier": "ARTIFACT"})
+    event: dict[str, object] = {"type": "message_end"}
+
+    state_mod.attach_disclosure_to_event(event, "msg-known-to-the-emitter")
+
+    assert event["deliverable_tier"] == {"tier": "ARTIFACT"}
+    assert state_mod.pop_run_disclosure("") is None
+    assert state_mod.pop_run_disclosure("msg-known-to-the-emitter") is None
