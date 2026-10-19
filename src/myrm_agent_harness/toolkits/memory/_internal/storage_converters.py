@@ -144,6 +144,19 @@ def _parse_domain(raw_domain: object) -> MemoryDomain:
         return MemoryDomain.USER
 
 
+def _string_list_from_metadata(meta: dict[str, object], key: str) -> list[str]:
+    """Restore a list-valued payload key (tags, related entities) as strings.
+
+    The payload keeps tags and entities under single keys, which are excluded
+    from the free-form ``extra`` metadata, so a read that skips them loses the
+    tag filter / tag statistics and the entity graph edges for every memory.
+    """
+    raw = meta.get(key)
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [str(item) for item in raw if str(item).strip()]
+
+
 def doc_to_semantic(doc: VectorDocument) -> SemanticMemory:
     """Convert VectorDocument to SemanticMemory."""
     meta = doc.metadata
@@ -188,6 +201,7 @@ def doc_to_semantic(doc: VectorDocument) -> SemanticMemory:
         overview_l1=str(meta.get("overview_l1", "")),
         domain=_parse_domain(meta.get("domain")),
         domain_category=str(meta.get("domain_category", "")),
+        tags=_string_list_from_metadata(meta, "tags"),
     )
 
 
@@ -228,6 +242,7 @@ def doc_to_episodic(doc: VectorDocument) -> EpisodicMemory:
         overview_l1=str(meta.get("overview_l1", "")),
         domain=_parse_domain(meta.get("domain")),
         domain_category=str(meta.get("domain_category", "")),
+        related_entities=_string_list_from_metadata(meta, "related_entities"),
     )
 
 
@@ -368,6 +383,7 @@ def episodic_to_doc(m: EpisodicMemory) -> VectorDocument:
         "event_type": m.event_type,
         "importance": m.importance,
         "source_chat_id": m.source_chat_id or "",
+        "related_entities": list(m.related_entities),
         "access_count": m.access_count,
         "user_rating": m.user_rating,
         "tags": [t.lower() for t in getattr(m, "tags", [])],

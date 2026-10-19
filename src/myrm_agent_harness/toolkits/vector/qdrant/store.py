@@ -73,6 +73,11 @@ class QdrantVectorStore(QdrantSparseMixin, VectorStore):
         self._config = config
         self._default_dimension = config.embedding_dimension
         self._is_async = is_async
+        # The embedded (local) client is a synchronous, thread-unsafe object; later
+        # operations run it through ``asyncio.to_thread``, so concurrent searches
+        # and deletes used to interleave inside it and lose writes (a delete could
+        # silently keep the point). One lock per store serializes those calls.
+        self._local_exec_lock = asyncio.Lock()
 
     @property
     def config(self) -> VectorStoreConfig:
@@ -120,7 +125,8 @@ class QdrantVectorStore(QdrantSparseMixin, VectorStore):
         """Execute client operation, handling sync/async transparently."""
         if self._is_async:
             return await operation(*args, **kwargs)  # type: ignore[misc]
-        return await asyncio.to_thread(operation, *args, **kwargs)  # type: ignore[arg-type]
+        async with self._local_exec_lock:
+            return await asyncio.to_thread(operation, *args, **kwargs)  # type: ignore[arg-type]
 
     # Collection operations
 
@@ -315,7 +321,7 @@ class QdrantVectorStore(QdrantSparseMixin, VectorStore):
         from qdrant_client.models import PointStruct
 
         try:
-            await self._client.get_collection(collection_name=collection)
+            await self._execute(self._client.get_collection, collection_name=collection)  # type: ignore[attr-defined]
         except Exception:
             if documents and documents[0].vector:
                 dim = len(documents[0].vector)

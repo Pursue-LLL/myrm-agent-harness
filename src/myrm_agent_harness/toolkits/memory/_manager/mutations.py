@@ -332,7 +332,10 @@ class MemoryManagerMutationsMixin:
             updated.is_active = is_active
             updated.status = MemoryStatus.ACTIVE if is_active else MemoryStatus.DISABLED
         if metadata is not None:
-            updated.metadata = {**updated.metadata, **metadata}
+            # Callers pass the complete metadata they computed from the current one
+            # (dropping keys is how the consolidation rollback and the subsumption
+            # undo clear their markers), so this replaces it instead of merging.
+            updated.metadata = dict(metadata)
         if isinstance(updated, ProceduralMemory):
             if reasoning is not None:
                 updated.reasoning = reasoning
@@ -396,7 +399,7 @@ class MemoryManagerMutationsMixin:
             e: EmbeddingProtocol | None = None
             if content_changed:
                 e = self._embedding
-            return await update_vector_memory(
+            result = await update_vector_memory(
                 self._bind_scope(updated),
                 content_changed,
                 self._vector,
@@ -404,6 +407,9 @@ class MemoryManagerMutationsMixin:
                 e,
                 self._cache,
             )
+            if content_changed:
+                self._record_ephemeral_delta_for_memory(result)
+            return result
         if isinstance(updated, ProceduralMemory):
             return await self._rel().update_rule(memory_id, updated)
         raise ValueError(f"Cannot update memory type: {type(updated).__name__}")

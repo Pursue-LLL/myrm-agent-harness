@@ -16,9 +16,9 @@ dependencies; applications decide how to execute, store, and expose these DTOs.
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 
 class MemoryGatherWarningCode(StrEnum):
@@ -65,26 +65,11 @@ MemoryArchiveRestoreItemStatus = Literal[
     "failed",
     "rolled_back",
 ]
-MemoryImportSource = Literal[
-    "native_json",
-    "myrm_archive",
-    "agentmemory",
-    "gbrain",
-    "memweaver",
-    "claude_code_jsonl",
-    "hermes",
-    "openclaw",
-    "cursor_rules",
-    "codex",
-    "claude",
-    "windsurf",
-    "trae",
-    "gemini",
-    "mem0",
-    "chatgpt",
-    "plur",
-    "unknown",
-]
+# Import sources are a product-owned vocabulary: the framework validates only
+# the label shape (lowercase snake case) so that adding a product source never
+# requires a framework release, while malformed labels still fail fast at the
+# boundary. The strict enumeration lives in the business layer.
+MemoryImportSource = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 MemoryImportMappingStatus = Literal["mapped", "partially_mapped", "unsupported", "dropped"]
 MemoryImportPlanStatus = Literal["planned", "skipped", "unsupported"]
 

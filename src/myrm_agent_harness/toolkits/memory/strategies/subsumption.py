@@ -111,7 +111,7 @@ async def find_subsumed_memories(
             continue
 
         # Skip memories that are already subsumed
-        if memory.metadata.get("status") == "subsumed":
+        if memory.metadata.get("subsumed") is True:
             continue
 
         # Skip memories the user protected: cognitive erasure is automated
@@ -152,7 +152,7 @@ async def apply_subsumption(manager: MemoryManager, memory_ids: list[str]) -> in
             if not isinstance(mem, (SemanticMemory, ProceduralMemory)):
                 continue
 
-            mem.metadata["status"] = "subsumed"
+            mem.metadata["subsumed"] = True
             await manager.update_memory(
                 mem.id,
                 metadata=mem.metadata,
@@ -181,9 +181,9 @@ async def undo_subsumption(manager: MemoryManager, memory_ids: list[str]) -> int
             if not mem:
                 continue
 
-            if mem.metadata.get("status") == "subsumed":
+            if mem.metadata.get("subsumed") is True:
                 # Remove soft delete marker
-                del mem.metadata["status"]
+                del mem.metadata["subsumed"]
 
                 from myrm_agent_harness.toolkits.memory.types import (
                     MemoryStatus,
