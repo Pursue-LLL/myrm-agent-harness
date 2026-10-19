@@ -2,6 +2,36 @@
 
 > 每次 harness 框架层用户可感知失败/运行时 bug，**必须追加一条**。产品业务 bug 记各产品仓台账（`myrm-agent/myrm-agent-server`）。
 
+### BUG-HARNESS-2026-10-19-020 · 暂存交付物披露与交付置信档只写不读：收尾把暂存清单挂在消息的 `additional_kwargs` 上而全仓没有读取方（服务端等的是 `message_end` 事件字段），置信档解析器全仓没有调用方，于是「草案已暂存」与证据档永远不出现在用户界面
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-19（对 topic_03 #32 实施前逐文件核对披露链路：`completion_guard.py` 的写入处、`run_lifecycle.post_run_events` 的事件字段、server `stream_collector` 的读取处、前端 hydration 的键名） |
+| **修复时间** | 2026-10-19 |
+| **严重程度** | P3：不丢数据（草案已真实落到 `.myrm/staged_artifacts/`），但两条用户可见披露静默失效；模型还在回答里写了「已暂存」，界面却是空白 |
+| **关联产品** | harness `agent/middlewares/completion/completion_guard_state.py`（披露登记与 `attach_disclosure_to_event`）、`agent/middlewares/completion/completion_guard.py`（收尾登记证据档与暂存清单）、`agent/_internals/run_lifecycle.py`（`message_end` 携带 `deliverable_tier`/`staged_artifacts`）、`agent/middlewares/completion/deliverable_confidence_tier.py`（披露策略）；产品侧 `myrm-agent-server` 收集器与前端渲染已具备读者 |
+| **根因** | 生产与消费的键面不一致：harness 写 `AIMessage.additional_kwargs["staged_artifacts"]`，而 server `stream_collector` 只读 `message_end` 事件的 `staged_artifacts`；置信档解析器 `resolve_deliverable_tier` 没有任何生产调用方，正常聊天轮次因此拿不到 tier |
+| **修复** | 收尾判定时在披露登记处登记证据档与暂存清单（同一轮同一键），`post_run_events` 经 `attach_disclosure_to_event` 写入 `message_end`；删除无人读取的 `additional_kwargs` 写入；披露策略（正向证据档总是披露，PLAN 档仅当用户本轮为工作/交付意图）收在 `should_disclose_tier` |
+| **回归** | `tests/agent/middlewares/completion/test_completion_guard.py`（证据档发布、PLAN 不打扰、暂存披露）、`tests/agent/test_run_lifecycle.py::TestPostRunEventsDisclosure`（事件携带一次且不重复）、server `tests/api/agent/test_stream_collector_disclosure.py`（`extra_data` 落 `deliverableTier`/`stagedArtifacts`）；前端 store 测试 460 例通过 |
+| **实测** | 收尾后 `pop_run_disclosure` 返回 `{"deliverable_tier": {...}, "staged_artifacts": [...]}`；`post_run_events` 的 `message_end` 含两个字段，第二次调用不再携带 |
+| **局限** | 未跑真实浏览器的端到端渲染（本地无 Chrome 栈）；覆盖到「事件 → 服务端 extra_data → 前端 hydration 键名」为止 |
+
+### BUG-HARNESS-2026-10-19-019 · 完成门禁的拦截预算与强制收尾闩锁是模块级全局：同进程并发回合互相重置/耗尽预算
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-19（对 topic_03 #32 实施做对抗式审查：`completion_guard.py` 的模块级计数 + `_agent_helpers.reset_all_guards` 每回合调用 `reset_completion_guard()`，而 server 单进程存在并发回合） |
+| **修复时间** | 2026-10-19 |
+| **严重程度** | P2（并发下用户可见：无端提前强制收尾并把「未能验证工作」的警告写进回答，或该拦不拦） |
+| **关联产品** | harness `agent/middlewares/completion/completion_guard_state.py`（按轮次消息 id 分桶的 `RunGuardState`、插入序 LRU 128）、`agent/middlewares/completion/completion_guard.py`（`current_run_state()`）；并发来源：多会话流 + `app/lifecycle/auto_continue.py` 后台续跑 + cron 定时任务 |
+| **根因** | `_rejection_count` / `_forced_finish` 是模块级变量；每回合开始都调用 `reset_completion_guard()` 清零，两个并发回合会互相覆盖对方的状态：A 的拦截次数被 B 的清零抹掉，或 A 的强制收尾闩锁让 B 直接放行 |
+| **修复** | 状态改为按 runtime 绑定的 message id（`snapshot_observer.get_bound_message_id`）分桶，`reset_completion_guard()` 只清理当前回合；无绑定值时回退单槽，保持独立/嵌入式调用语义不变 |
+| **回归** | `tests/agent/middlewares/completion/test_completion_guard.py::TestExecutionClaimGate::test_concurrent_runs_keep_separate_rejection_budgets`（两个消息 id 交替拦截，各自预算独立且都未触发强制收尾）；completion 套件 275 例通过 |
+| **实测** | 该用例在不分桶的实现上不再成立：两次拦截会把共享计数推到 2，msg_b 的第一次拦截即被计入 |
+| **局限** | 覆盖的是同进程确定性交替调用，未做真实多会话并发压力测试 |
+
 ### BUG-HARNESS-2026-10-18-018 · 非视觉主模型读 PDF 时扫描页被整页丢弃：页面图在 `supports_vision` 上是一道硬闸，图片读路径有视觉回退分支而 PDF 没有，于是同一批次里普通截图能被辅助模型转成文字、扫描页却连一次描述调用都没发生；同时逐页覆盖缺口没有任何读者（页数用全文总字数判定，够长就把整篇判成「有文本」）
 
 | 字段 | 内容 |
