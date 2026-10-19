@@ -8,6 +8,16 @@ verification checklist built from this run's tool records.
 
 Keeping the tool separate from the guard orchestration keeps both files focused:
 the guard decides *whether* to block, this module decides *what the model reads*.
+
+[INPUT]
+- agent.middlewares.completion.completion_guard_checklist::build_checklist (POS: 任务感知验证清单)
+- agent.orchestration.hooks::COMPLETION_CHECK_TOOL_NAME (POS: 运行时钩子名 SSOT)
+
+[OUTPUT]
+- _completion_check_tool: 完成检查运行时钩子，按阻断原因返回模型侧指令，无原因时返回验证清单
+
+[POS]
+CompletionGuard 注入的完成检查钩子。模型可见文案的唯一定义处：每种阻断原因对应一条可执行修复指引。
 """
 
 from __future__ import annotations

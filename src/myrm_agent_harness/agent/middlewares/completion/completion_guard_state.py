@@ -16,6 +16,19 @@ Two concerns live here, both scoped to a single assistant turn:
 The tier publisher applies the disclosure policy from
 ``deliverable_confidence_tier``: evidence-bearing tiers always go out, the PLAN
 tier only when the user asked for work (casual conversation stays clean).
+
+[INPUT]
+- agent.middlewares.completion.deliverable_confidence_tier::resolve_deliverable_tier, should_disclose_tier (POS: 交付置信档解析与披露策略)
+- agent.meta_tools.file_ops.observers.snapshot_observer::get_bound_message_id (POS: 本轮 assistant 消息 id)
+- agent.security.guards.loop_guard::CallRecord (POS: 工具调用记录)
+
+[OUTPUT]
+- current_run_state / reset_run_state: 当前回合的拦截预算与强制收尾闩锁
+- publish_disclosure / pop_run_disclosure / publish_tier_disclosure: 每轮披露载荷的写入与取用
+- attach_disclosure_to_event(): 把披露载荷挂到 message_end 事件
+
+[POS]
+完成门禁的回合级状态与披露登记处。状态按 runtime 绑定的消息 id 分桶（LRU 128），并发回合互不影响；披露载荷供 post-run 事件一次性消费。
 """
 
 from __future__ import annotations

@@ -33,6 +33,16 @@ Trigger discipline (false positives are the main risk):
 Boundary (stated, not hidden): evidence proves an action ran; it does not prove
 the claim is semantically correct, and a runner that lies about its own results
 is out of scope.
+
+[INPUT]
+- agent.security.guards.loop_guard::CallRecord, SuccessLevel, ToolGroup, VerificationCategory, get_tool_group (POS: 工具调用记录与成功等级 SSOT)
+- toolkits.mcp.config::is_mcp_tool_name (POS: Direct FC MCP 工具名识别)
+
+[OUTPUT]
+- check_execution_claim(): 三类承重断言与本轮执行轨迹不一致时的阻断原因，或 None
+
+[POS]
+CompletionGuard 的断言接地判定器。把最终汇报里的完成式断言绑定到本轮真实工具记录，不满足即要求取证或如实改写。
 """
 
 from __future__ import annotations
