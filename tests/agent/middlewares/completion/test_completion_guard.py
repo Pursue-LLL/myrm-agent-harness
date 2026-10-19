@@ -9,6 +9,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 import myrm_agent_harness.agent.middlewares.completion.completion_guard as _cg_mod
+import myrm_agent_harness.agent.middlewares.completion.completion_guard_state as _cg_state
 from myrm_agent_harness.agent.middlewares.completion.completion_guard import (
     COMPLETION_CHECK_TOOL_NAME,
     CompletionGuard,
@@ -334,14 +335,14 @@ class TestCompletionGuardTriggerConditions:
             result = await self.guard.aafter_model(state, None)
 
         assert result is not None
-        assert _cg_mod._rejection_count == 1
+        assert _cg_state.current_run_state().rejections == 1
         assert result["messages"][0].tool_calls[0]["args"].get("force_fail") is not True
 
     @pytest.mark.asyncio
     async def test_max_rejections_graceful_degradation(self) -> None:
         """Should inject force_fail=True when max rejections are reached."""
         self.guard._max_rejections = 2
-        _cg_mod._rejection_count = 2
+        _cg_state.current_run_state().rejections = 2
         state = _make_state([AIMessage(content="All done!")])
         with patch(LOOP_GUARD_PATCH) as mock_guard:
             mock_guard.return_value._window = [
@@ -355,14 +356,14 @@ class TestCompletionGuardTriggerConditions:
             result = await self.guard.aafter_model(state, None)
 
         assert result is not None
-        assert _cg_mod._forced_finish is True
+        assert _cg_state.current_run_state().forced_finish is True
         assert result["messages"][0].tool_calls[0]["args"].get("force_fail") is True
 
     @pytest.mark.asyncio
     async def test_after_forced_finish_guard_releases(self) -> None:
         """After max-rejections force-finish, subsequent completions pass through."""
         self.guard._max_rejections = 2
-        _cg_mod._rejection_count = 2
+        _cg_state.current_run_state().rejections = 2
         state = _make_state(
             [
                 AIMessage(
@@ -387,7 +388,7 @@ class TestCompletionGuardTriggerConditions:
                 )
             ]
             first = await self.guard.aafter_model(state, None)
-        assert first is not None and _cg_mod._forced_finish is True
+        assert first is not None and _cg_state.current_run_state().forced_finish is True
         # Next completion attempt is released without further injections.
         released = await self.guard.aafter_model(state, None)
         assert released is None
@@ -435,11 +436,11 @@ class TestCompletionGuardReset:
     """Test reset_completion_guard resets rejection counter."""
 
     def test_reset_clears_rejection_count(self) -> None:
-        _cg_mod._rejection_count = 5
-        _cg_mod._forced_finish = True
+        _cg_state.current_run_state().rejections = 5
+        _cg_state.current_run_state().forced_finish = True
         reset_completion_guard()
-        assert _cg_mod._rejection_count == 0
-        assert _cg_mod._forced_finish is False
+        assert _cg_state.current_run_state().rejections == 0
+        assert _cg_state.current_run_state().forced_finish is False
 
 
 class TestBuildChecklist:
@@ -2664,3 +2665,198 @@ class TestCompletionGuardQueryGroundingIntegration:
 
 
 
+
+
+class TestExecutionClaimGate:
+    """Completion claims must be grounded by this run's tool records."""
+
+    def setup_method(self) -> None:
+        self.guard = CompletionGuard()
+        reset_completion_guard()
+
+    def teardown_method(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
+            set_current_message_id,
+        )
+
+        set_current_message_id("")
+        reset_completion_guard()
+
+    @pytest.mark.asyncio
+    async def test_blocks_unbacked_test_claim(self) -> None:
+        state = _make_state(
+            [
+                HumanMessage(content="帮我跑一下测试，告诉我结果"),
+                AIMessage(content="我已经运行了完整测试套件：所有测试全部通过（pytest 236 passed, 0 failed）。"),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is not None
+        args = result["messages"][0].tool_calls[0]["args"]
+        assert "execution_claim_reason" in args
+        assert args.get("force_fail") is not True
+
+    @pytest.mark.asyncio
+    async def test_allows_claim_backed_by_verification_record(self) -> None:
+        record = CallRecord(
+            tool_name="bash_code_execute_tool",
+            args_hash="verify",
+            args={"command": "pytest -q"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        record.verification_type = VerificationCategory.TEST
+
+        state = _make_state(
+            [
+                HumanMessage(content="帮我跑一下测试，告诉我结果"),
+                AIMessage(content="所有测试全部通过。"),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = [record]
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_forced_finish_carries_claim_reason_and_notice(self) -> None:
+        self.guard._max_rejections = 1
+        _cg_state.current_run_state().rejections = 1
+        state = _make_state(
+            [
+                HumanMessage(content="帮我跑一下测试"),
+                AIMessage(content="所有测试全部通过。"),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is not None
+        args = result["messages"][0].tool_calls[0]["args"]
+        assert args.get("force_fail") is True
+        assert "execution_claim_reason" in args
+
+        notice = _cg_mod._completion_check_tool.invoke(
+            {"force_fail": True, "execution_claim_reason": args["execution_claim_reason"]}
+        )
+        assert "claimed work" in notice
+
+    @pytest.mark.asyncio
+    async def test_mixed_message_path_keeps_tool_calls_for_unbacked_claim(self) -> None:
+        filler = "\n".join(
+            f"- 第 {index} 条分析结论：该模块在压力场景下表现稳定，相关指标与上一轮相比没有退化。" for index in range(12)
+        )
+        content = f"分析完成：\n{filler}\n所有测试全部通过。"
+        assert len(content) > 500
+        state = _make_state(
+            [
+                HumanMessage(content="帮我跑一下测试，告诉我结果"),
+                AIMessage(
+                    content=content,
+                    tool_calls=[{"id": "tc_read", "name": "file_read_tool", "args": {"path": "/tmp/a.txt"}}],
+                ),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        # The claim cannot be grounded, so the Mixed Message Guard must not
+        # strip the read-only call and terminate with an unbacked answer.
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_publishes_evidence_tier_for_work_turn(self) -> None:
+        record = CallRecord(
+            tool_name="file_write_tool",
+            args_hash="write",
+            args={"path": "report.md"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        state = _make_state(
+            [
+                HumanMessage(content="帮我写一份报告"),
+                AIMessage(content="报告已生成，详见工作区。"),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = [record]
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is None
+        disclosure = _cg_state.pop_run_disclosure("")
+        assert disclosure is not None
+        tier = disclosure.get("deliverable_tier")
+        assert isinstance(tier, dict)
+        assert tier.get("tier") == "ARTIFACT"
+
+    @pytest.mark.asyncio
+    async def test_does_not_publish_plan_tier_for_casual_chat(self) -> None:
+        state = _make_state([HumanMessage(content="你喜欢什么颜色？"), AIMessage(content="我没有偏好。")])
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is None
+        assert _cg_state.pop_run_disclosure("") is None
+
+    @pytest.mark.asyncio
+    async def test_staged_artifacts_are_published_for_disclosure(self, tmp_path: Path) -> None:
+        self.guard._max_rejections = 1
+        _cg_state.current_run_state().rejections = 1
+        code_msg = (
+            "```python\n"
+            "# filename: app/calc.py\n"
+            "def add(a, b):\n"
+            "    return a + b\n"
+            "\n"
+            "def sub(a, b):\n"
+            "    return a - b\n"
+            "```"
+        )
+        state = _make_state([HumanMessage(content="帮我创建 calculator"), AIMessage(content=code_msg)])
+        runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, runtime)
+
+        assert result is not None
+        disclosure = _cg_state.pop_run_disclosure("")
+        assert disclosure is not None
+        staged = disclosure.get("staged_artifacts")
+        assert isinstance(staged, list) and len(staged) == 1
+
+    @pytest.mark.asyncio
+    async def test_concurrent_runs_keep_separate_rejection_budgets(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
+            set_current_message_id,
+        )
+
+        state = _make_state([HumanMessage(content="继续"), AIMessage(content="All done!")])
+        write = CallRecord(
+            tool_name="file_write_tool",
+            args_hash="w",
+            args={"path": "/tmp/test.py"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = [write]
+
+            set_current_message_id("msg_a")
+            reset_completion_guard()
+            assert await self.guard.aafter_model(state, None) is not None
+            assert await self.guard.aafter_model(state, None) is not None
+
+            set_current_message_id("msg_b")
+            reset_completion_guard()
+            assert await self.guard.aafter_model(state, None) is not None
+
+        assert _cg_state._run_states["msg_a"].rejections == 2
+        assert _cg_state._run_states["msg_b"].rejections == 1
+        assert _cg_state._run_states["msg_a"].forced_finish is False
+        assert _cg_state._run_states["msg_b"].forced_finish is False

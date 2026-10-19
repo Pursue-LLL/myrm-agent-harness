@@ -105,3 +105,38 @@ def test_resolve_deliverable_tier_precedence_verified_over_artifact():
     assert "src/main.py" in meta.evidence.files_written
     assert meta.evidence.verification_count == 1
     assert meta.to_dict()["tier"] == "VERIFIED"
+
+
+def test_should_disclose_evidence_tiers_always():
+    from myrm_agent_harness.agent.middlewares.completion.deliverable_confidence_tier import (
+        should_disclose_tier,
+    )
+
+    for records in (
+        [],
+        [
+            CallRecord(
+                tool_name="bash_code_execute_tool",
+                args_hash="hash6",
+                args={"command": "pytest"},
+                verification_type=VerificationCategory.TEST,
+                success_level=SuccessLevel.FULL_SUCCESS,
+            )
+        ],
+    ):
+        meta = resolve_deliverable_tier(records)
+        assert should_disclose_tier(meta, user_text="今天天气怎么样？") is (meta.tier is not DeliverableConfidenceTier.PLAN)
+
+
+def test_plan_tier_is_disclosed_only_for_work_requests():
+    from myrm_agent_harness.agent.middlewares.completion.deliverable_confidence_tier import (
+        has_work_intent,
+        should_disclose_tier,
+    )
+
+    meta = resolve_deliverable_tier([])
+    assert meta.tier is DeliverableConfidenceTier.PLAN
+    assert should_disclose_tier(meta, user_text="今天天气怎么样？") is False
+    assert should_disclose_tier(meta, user_text="帮我写一个报价单") is True
+    assert has_work_intent(None) is False
+    assert has_work_intent("write a summary") is True

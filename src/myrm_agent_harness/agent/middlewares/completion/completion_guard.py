@@ -42,12 +42,14 @@ persisting across ReAct cycles.
 - agent.middlewares.completion.completion_guard_checklist::build_checklist, classify_verification, find_last_successful_verification_command (POS: Verification command classification, checklist generation, and temporal-order verification command extraction for CompletionGuard.)
 - agent.middlewares.completion.completion_guard_external_evidence::build_external_evidence_reason (POS: Freshness-sensitive external evidence gate including MCP PTC bash via skills.mcp_* and Direct FC via mcp__{server}__{tool})
 - agent.middlewares.completion.deliverable_write_verifier::check_deliverable_write_claim (POS: Zero-call deliverable write claim detection for CompletionGuard)
+- agent.middlewares.completion.execution_claim_verifier::check_execution_claim (POS: Completion-claim grounding against this run's tool records)
+- agent.middlewares.completion.deliverable_confidence_tier::resolve_deliverable_tier, should_disclose_tier (POS: Evidence tier calculation and disclosure policy)
 - agent.middlewares.completion.completion_guard_safety::is_mutating_tool, _INTERACTION_UI_TOOLS (POS: Effectful tool detection SSOT and interaction/UI carriers for Mixed Message Guard)
 
 [OUTPUT]
 - CompletionGuard: after_model middleware for critical completion verification + independent re-run
 - classify_verification(): re-export from completion_guard_checklist
-- reset_completion_guard(): reset session state for new run
+- reset_completion_guard(): reset this run's guard state
 - is_mutating_tool(): re-export from completion_guard_safety
 
 [POS]
@@ -69,8 +71,11 @@ from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage
-from langchain_core.tools import BaseTool, tool
+from langchain_core.tools import BaseTool
 
+from myrm_agent_harness.agent.middlewares.completion.completion_check_tool import (
+    _completion_check_tool,
+)
 from myrm_agent_harness.agent.middlewares.completion.completion_guard_checklist import (
     _CODE_EXTENSIONS,
     _has_post_verification_code_write,
@@ -88,6 +93,12 @@ from myrm_agent_harness.agent.middlewares.completion.completion_guard_safety imp
     is_mutating_tool,
     is_substantive_final_response,
 )
+from myrm_agent_harness.agent.middlewares.completion.completion_guard_state import (
+    current_run_state,
+    publish_disclosure,
+    publish_tier_disclosure,
+    reset_run_state,
+)
 from myrm_agent_harness.agent.middlewares.completion.deliverable_auto_staging import (
     stage_unwritten_deliverables,
 )
@@ -95,6 +106,9 @@ from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier 
     UnwrittenDeliverable,
     check_deliverable_write_claim,
     check_unwritten_deliverables,
+)
+from myrm_agent_harness.agent.middlewares.completion.execution_claim_verifier import (
+    check_execution_claim,
 )
 from myrm_agent_harness.agent.middlewares.completion.ppt_outline_verifier import (
     check_ppt_outline_quality,
@@ -113,87 +127,10 @@ _find_last_verification_cmd = find_last_successful_verification_command
 
 logger = logging.getLogger(__name__)
 
-_rejection_count: int = 0
-_forced_finish: bool = False
-
 
 def reset_completion_guard() -> None:
-    """Reset guard state — call at the start of each agent run."""
-    global _rejection_count, _forced_finish
-    _rejection_count = 0
-    _forced_finish = False
-
-
-@tool(COMPLETION_CHECK_TOOL_NAME)
-def _completion_check_tool(
-    workspace_root: str = "",
-    force_fail: bool = False,
-    evidence_reason: str = "",
-    deliverable_write_reason: str = "",
-    query_grounding_reason: str = "",
-    ppt_outline_reason: str = "",
-    staged_artifacts: list[dict[str, object]] | None = None,
-) -> str:
-    """Generate a task-aware verification checklist before finishing.
-
-    Review the session's tool-call history and produce a checklist of items
-    to verify (tests, lint, type-check, browser state, execution results)
-    before delivering the final answer.
-    """
-    if force_fail:
-        msg = (
-            " CRITICAL SYSTEM DIRECTIVE: You have failed to verify your work multiple times. "
-            "You are now permitted to finish the task, but you MUST include a clear warning "
-            "in your final response to the user stating that you were unable to successfully "
-            "verify the changes (e.g., tests failed or were not run) and that they should "
-            "manually review the work."
-        )
-        if staged_artifacts:
-            staged_names = ", ".join(str(item.get("filename", "")) for item in staged_artifacts)
-            msg += f"\nNOTICE: Unwritten deliverables were automatically staged to .myrm/staged_artifacts/ [{staged_names}]."
-        return msg
-
-    if evidence_reason.strip():
-        return (
-            " CRITICAL COMPLETION CHECK: This response appears to require external evidence, "
-            "but no successful evidence-gathering tools were observed in this run.\n"
-            f"Reason: {evidence_reason}\n"
-            "Before finishing, run at least one successful evidence step (web_search_tool, "
-            "web_fetch_tool, browser evidence tools, or MCP tools), then synthesize the answer."
-        )
-
-    if deliverable_write_reason.strip():
-        return (
-            " CRITICAL COMPLETION CHECK: Deliverable write claim without tool evidence.\n"
-            f"Reason: {deliverable_write_reason}\n"
-            "Before finishing, call file_write_tool or file_edit_tool to persist the file, "
-            "or revise the response to remove the false write claim."
-        )
-
-    if query_grounding_reason.strip():
-        return (
-            " CRITICAL COMPLETION CHECK: Entity query observation ungrounded.\n"
-            f"Reason: {query_grounding_reason}\n"
-            "Before finishing, execute the appropriate query or MCP tool to retrieve verified data, "
-            "or revise the response to honestly state the missing status or tool failure to the user."
-        )
-
-    if ppt_outline_reason.strip():
-        return (
-            " CRITICAL COMPLETION CHECK: PPT Reporting Plan Outline Quality Gate Failed.\n"
-            f"Reason: {ppt_outline_reason}\n"
-            "Before delivering the final outline or executing slide generation, refine the presentation structure: "
-            "ensure each slide has a punchy headline (max 6-8 words), an explicit takeaway statement, and concrete visual/data anchors."
-        )
-
-    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
-        get_loop_guard,
-    )
-
-    guard = get_loop_guard()
-    records = list(guard._window)
-    checklist_str, _ = _build_checklist(records, workspace_root=workspace_root)
-    return checklist_str
+    """Reset this run's guard state — call at the start of each agent run."""
+    reset_run_state()
 
 
 _RERUN_TIMEOUT_SECONDS: int = 120
@@ -269,8 +206,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
 
     async def aafter_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
         """Intercept completion attempts and inject verification when critical errors exist."""
-        global _rejection_count, _forced_finish
-        if not self._enabled or _forced_finish:
+        run_state = current_run_state()
+        if not self._enabled or run_state.forced_finish:
             return None
 
         messages = state.get("messages", [])
@@ -280,6 +217,17 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         last_ai_msg = next((msg for msg in reversed(messages) if isinstance(msg, AIMessage)), None)
         if last_ai_msg is None:
             return None
+
+        from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
+            get_loop_guard,
+        )
+
+        guard = get_loop_guard()
+        records = list(guard._window)
+        filtered_records = [r for r in records if not r.tool_name.startswith("_")]
+        latest_user_text = extract_latest_human_text(messages)
+        content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content or "")
+        publish_tier_disclosure(content_str, filtered_records, latest_user_text)
 
         is_attempting_completion = False
 
@@ -311,27 +259,28 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                     if not has_non_strippable:
                         # 防假完成：用户请求外部/新鲜数据但会话中尚无成功证据时，
                         # 保留只读工具调用让 Agent 真正获取数据，避免未核实内容直接到达用户。
-                        from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
-                            get_loop_guard,
-                        )
-
-                        guard = get_loop_guard()
-                        window_records = list(guard._window)
-                        filtered = [r for r in window_records if not r.tool_name.startswith("_")]
                         requires_evidence = (
                             build_external_evidence_reason(
                                 messages=messages,
-                                records=filtered,
+                                records=filtered_records,
                             )
                             is not None
                         )
-                        latest_user_text = extract_latest_human_text(messages)
                         query_grounding_reason = check_query_grounding_claim(
                             user_text=latest_user_text,
                             assistant_text=content_str,
-                            records=filtered,
+                            records=filtered_records,
                         )
-                        if requires_evidence or query_grounding_reason is not None:
+                        execution_claim_reason = check_execution_claim(
+                            user_text=latest_user_text,
+                            assistant_text=content_str,
+                            records=filtered_records,
+                        )
+                        if (
+                            requires_evidence
+                            or query_grounding_reason is not None
+                            or execution_claim_reason is not None
+                        ):
                             return None
                         logger.info(
                             "[CompletionGuard] Mixed message detected: content is substantive "
@@ -342,14 +291,6 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                         patched.tool_calls = []
                         return {"messages": [patched]}
             return None
-
-        from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
-            get_loop_guard,
-        )
-
-        guard = get_loop_guard()
-        records = list(guard._window)
-        filtered_records = [r for r in records if not r.tool_name.startswith("_")]
 
         workspace_root = None
         if hasattr(runtime, "get") and isinstance(runtime, dict):
@@ -368,7 +309,12 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         )
         deliverable_write_reason: str | None = None
         unwritten_deliverables: list[UnwrittenDeliverable] = []
-        latest_human_for_grounding = extract_latest_human_text(messages)
+        latest_human_for_grounding = latest_user_text
+        execution_claim_reason = check_execution_claim(
+            user_text=latest_human_for_grounding,
+            assistant_text=content_str,
+            records=filtered_records,
+        )
         query_grounding_reason: str | None = None
         if last_ai_msg.content:
             content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content)
@@ -405,6 +351,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             has_critical_errors = True
         if deliverable_write_reason is not None:
             has_critical_errors = True
+        if execution_claim_reason is not None:
+            has_critical_errors = True
         if query_grounding_reason is not None:
             has_critical_errors = True
         if ppt_outline_reason is not None:
@@ -418,7 +366,12 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         # modified AFTER the last successful verification. Other critical errors
         # (no verification, failed verification, empty tests, execution failures)
         # must NOT be bypassed by independent re-run.
-        if evidence_reason is None and query_grounding_reason is None and ppt_outline_reason is None:
+        if (
+            evidence_reason is None
+            and execution_claim_reason is None
+            and query_grounding_reason is None
+            and ppt_outline_reason is None
+        ):
             has_code_writes = any(
                 get_tool_group(r.tool_name) == ToolGroup.WRITE and _is_code_file(str(r.args.get("path", "")))
                 for r in filtered_records
@@ -435,14 +388,14 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                         return None
 
         # --- CRITICAL BLOCKING MODE ---
-        current_rejections = _rejection_count
+        current_rejections = run_state.rejections
 
         if current_rejections >= self._max_rejections:
             logger.error(
                 "[CompletionGuard] Max rejections (%d) reached. Allowing agent to finish despite critical errors.",
                 self._max_rejections,
             )
-            _forced_finish = True
+            run_state.forced_finish = True
             staged_metas_dict: list[dict[str, object]] = []
             if unwritten_deliverables and workspace_root:
                 staged = stage_unwritten_deliverables(str(workspace_root), unwritten_deliverables)
@@ -457,15 +410,16 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 forced_args["evidence_reason"] = evidence_reason
             if deliverable_write_reason is not None:
                 forced_args["deliverable_write_reason"] = deliverable_write_reason
+            if execution_claim_reason is not None:
+                forced_args["execution_claim_reason"] = execution_claim_reason
             if query_grounding_reason is not None:
                 forced_args["query_grounding_reason"] = query_grounding_reason
             if ppt_outline_reason is not None:
                 forced_args["ppt_outline_reason"] = ppt_outline_reason
             if staged_metas_dict:
                 forced_args["staged_artifacts"] = staged_metas_dict
+                publish_disclosure(staged_artifacts=staged_metas_dict)
             patched = deepcopy(last_ai_msg)
-            if staged_metas_dict:
-                patched.additional_kwargs["staged_artifacts"] = staged_metas_dict
             patched.tool_calls = [
                 {
                     "name": COMPLETION_CHECK_TOOL_NAME,
@@ -476,7 +430,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             ]
             return {"messages": [patched]}
 
-        _rejection_count = current_rejections + 1
+        run_state.rejections = current_rejections + 1
         logger.warning(
             "[CompletionGuard] Critical errors found. Blocking completion (rejection %d/%d).",
             current_rejections + 1,
@@ -489,6 +443,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             tool_args["evidence_reason"] = evidence_reason
         if deliverable_write_reason is not None:
             tool_args["deliverable_write_reason"] = deliverable_write_reason
+        if execution_claim_reason is not None:
+            tool_args["execution_claim_reason"] = execution_claim_reason
         if query_grounding_reason is not None:
             tool_args["query_grounding_reason"] = query_grounding_reason
         if ppt_outline_reason is not None:

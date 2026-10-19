@@ -817,3 +817,47 @@ class TestExtractCheckpointState:
 async def _async_gen(items: list[object]):
     for item in items:
         yield item
+
+
+class TestPostRunEventsDisclosure:
+    """The per-turn disclosure payload rides the message_end event exactly once."""
+
+    @pytest.mark.asyncio
+    async def test_attaches_disclosure_payload_once(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_state import (
+            publish_disclosure,
+        )
+
+        publish_disclosure(
+            deliverable_tier={"tier": "VERIFIED", "evidence": {"verification_count": 1}},
+            staged_artifacts=[{"filename": "draft.py", "relative_path": ".myrm/staged_artifacts/draft.py"}],
+        )
+
+        stats = AgentRunStatistics()
+        with patch(
+            "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
+            return_value=None,
+        ):
+            events = [e async for e in post_run_events(stats, "", {}, False, None)]
+            again = [e async for e in post_run_events(stats, "", {}, False, None)]
+
+        message_end = next(e for e in events if e["type"] == AgentEventType.MESSAGE_END.value)
+        assert message_end["deliverable_tier"]["tier"] == "VERIFIED"
+        assert message_end["staged_artifacts"][0]["filename"] == "draft.py"
+
+        second_end = next(e for e in again if e["type"] == AgentEventType.MESSAGE_END.value)
+        assert "deliverable_tier" not in second_end
+        assert "staged_artifacts" not in second_end
+
+    @pytest.mark.asyncio
+    async def test_message_end_without_disclosure_has_no_keys(self) -> None:
+        stats = AgentRunStatistics()
+        with patch(
+            "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
+            return_value=None,
+        ):
+            events = [e async for e in post_run_events(stats, "msg-without-disclosure", {}, False, None)]
+
+        message_end = next(e for e in events if e["type"] == AgentEventType.MESSAGE_END.value)
+        assert "deliverable_tier" not in message_end
+        assert "staged_artifacts" not in message_end

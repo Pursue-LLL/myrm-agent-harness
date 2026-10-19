@@ -710,6 +710,11 @@ async def post_run_events(
         "messageId": message_id,
         "completion_status": completion_status,
     }
+
+    # Per-turn disclosure (evidence tier + staged drafts) published by the completion guard.
+    from myrm_agent_harness.agent.middlewares.completion import attach_disclosure_to_event
+
+    attach_disclosure_to_event(message_end_event, message_id)
     if stats.token_usage:
         usage_dict = stats.token_usage.to_dict()
         if stats.model_usage:
@@ -746,4 +751,5 @@ async def post_run_events(
                     "today_cost": round(tracker.total_cost_usd, 6),
                     "remaining": round(remaining, 6),
                 }
+
     yield message_end_event
