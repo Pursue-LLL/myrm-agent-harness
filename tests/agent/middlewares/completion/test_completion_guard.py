@@ -2883,6 +2883,36 @@ class TestExecutionClaimGate:
         assert disclosure.get("deliverable_tier", {}).get("tier") == "PLAN"
 
     @pytest.mark.asyncio
+    async def test_disclosure_survives_a_later_segment_with_an_empty_window(self) -> None:
+        """A resumed segment sees an empty loop window; the turn's write still discloses."""
+        record = CallRecord(
+            tool_name="file_write_tool",
+            args_hash="write",
+            args={"path": "/workspace/report.md"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        state = _make_state(
+            [
+                HumanMessage(content="帮我写一份报告"),
+                AIMessage(content="报告已生成，详见工作区。"),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = [record]
+            assert await self.guard.aafter_model(state, None) is None
+        first = _cg_state.pop_run_disclosure("")
+        assert first is not None and first["deliverable_tier"]["tier"] == "ARTIFACT"
+
+        # New segment of the same turn: the loop window starts empty.
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            assert await self.guard.aafter_model(state, None) is None
+
+        second = _cg_state.pop_run_disclosure("")
+        assert second is not None
+        assert second["deliverable_tier"]["tier"] == "ARTIFACT"
+
+    @pytest.mark.asyncio
     async def test_concurrent_runs_keep_separate_rejection_budgets(self) -> None:
         from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
             set_current_message_id,

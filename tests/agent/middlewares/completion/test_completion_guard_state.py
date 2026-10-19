@@ -145,3 +145,22 @@ def test_attach_falls_back_to_the_unbound_slot_when_keys_diverge() -> None:
     assert event["deliverable_tier"] == {"tier": "ARTIFACT"}
     assert state_mod.pop_run_disclosure("") is None
     assert state_mod.pop_run_disclosure("msg-known-to-the-emitter") is None
+
+
+def test_record_evidence_accumulates_and_dedupes_within_a_turn() -> None:
+    record = _test_record()
+
+    first = state_mod.record_evidence([record])
+    second = state_mod.record_evidence([record])
+
+    assert len(first) == 1
+    assert second is first
+    assert len(second) == 1
+
+    _bound("msg-other")
+    other_ledger = state_mod.record_evidence([record])
+    assert other_ledger is not second
+    assert len(other_ledger) == 1
+    state_mod.reset_run_state()
+    _bound("")
+    state_mod.reset_run_state()

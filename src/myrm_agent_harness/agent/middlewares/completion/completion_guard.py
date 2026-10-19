@@ -97,6 +97,7 @@ from myrm_agent_harness.agent.middlewares.completion.completion_guard_state impo
     current_run_state,
     publish_disclosure,
     publish_tier_disclosure,
+    record_evidence,
     reset_run_state,
 )
 from myrm_agent_harness.agent.middlewares.completion.deliverable_auto_staging import (
@@ -228,7 +229,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         filtered_records = [r for r in records if not r.tool_name.startswith("_")]
         latest_user_text = extract_latest_human_text(messages)
         content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content or "")
-        publish_tier_disclosure(content_str, filtered_records, has_claim=has_completion_claim(content_str))
+        turn_evidence = record_evidence(filtered_records)
+        publish_tier_disclosure(content_str, turn_evidence, has_claim=has_completion_claim(content_str))
 
         is_attempting_completion = False
 

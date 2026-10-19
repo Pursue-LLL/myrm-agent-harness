@@ -34,7 +34,7 @@ and inline deliverables stay clean).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from myrm_agent_harness.agent.middlewares.completion.deliverable_confidence_tier import (
     resolve_deliverable_tier,
@@ -48,10 +48,17 @@ UNBOUND_RUN_KEY = ""
 
 @dataclass(slots=True)
 class RunGuardState:
-    """Rejection budget and forced-finish latch for one assistant turn."""
+    """Rejection budget, forced-finish latch and evidence ledger for one turn.
+
+    A turn can run in several segments (HITL resume, retry, continuation). The
+    disclosure must describe what the *turn* produced, so the evidence recorded
+    by earlier segments stays here while the guard's own checks keep reading the
+    current segment's window.
+    """
 
     rejections: int = 0
     forced_finish: bool = False
+    evidence: list[CallRecord] = field(default_factory=list)
 
 
 _run_states: dict[str, RunGuardState] = {}
@@ -76,6 +83,21 @@ def current_run_state() -> RunGuardState:
         _run_states[key] = state
         _trim_registry(_run_states)
     return state
+
+
+def record_evidence(records: list[CallRecord]) -> list[CallRecord]:
+    """Merge the current segment's records into the turn ledger (idempotent)."""
+    seen = {
+        (record.tool_name, record.args_hash, record.result_hash)
+        for record in current_run_state().evidence
+    }
+    for record in records:
+        key = (record.tool_name, record.args_hash, record.result_hash)
+        if key in seen:
+            continue
+        seen.add(key)
+        current_run_state().evidence.append(record)
+    return current_run_state().evidence
 
 
 def reset_run_state() -> None:
@@ -152,6 +174,7 @@ __all__ = [
     "pop_run_disclosure",
     "publish_disclosure",
     "publish_tier_disclosure",
+    "record_evidence",
     "reset_run_state",
     "run_key",
 ]
