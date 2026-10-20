@@ -36,10 +36,9 @@ from myrm_agent_harness.agent.goals.verification.handoff_verification_gate impor
 from myrm_agent_harness.agent.goals.verification.handoff_verification_types import (
     HandoffVerificationIssue,
     HandoffVerificationResult,
-    VerificationSeverity as HandoffVerificationSeverity,
 )
-from myrm_agent_harness.agent.goals.verification.security import (
-    SecurityScanCriterion,
+from myrm_agent_harness.agent.goals.verification.handoff_verification_types import (
+    VerificationSeverity as HandoffVerificationSeverity,
 )
 
 __all__ = [
@@ -54,7 +53,6 @@ __all__ = [
     "HandoffVerificationSeverity",
     "ReviewComment",
     "ReviewSeverity",
-    "SecurityScanCriterion",
     "VerificationGatekeeper",
     "VerificationResult",
     "classify_execution_fault",

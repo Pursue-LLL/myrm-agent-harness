@@ -13,6 +13,7 @@ framework components interact with goals exclusively through this protocol.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from .types import CheckpointMode, Goal, GoalAccountingOutcome, GoalBudget, GoalStatus
@@ -78,8 +79,13 @@ class GoalProvider(Protocol):
         *,
         reason: str,
         max_wait_seconds: int | None = None,
+        kind: str | None = None,
+        resume_at: datetime | None = None,
     ) -> Goal:
-        """Transition goal to WAIT — skip judge/continuation until unwait or timeout."""
+        """Transition goal to WAIT — skip judge/continuation until unwait or timeout.
+
+        ``kind`` / ``resume_at`` mark a wait the host ends by itself at a known time.
+        """
         ...
 
     async def exit_wait(self, goal_id: str) -> Goal:
@@ -144,17 +150,6 @@ class GoalProvider(Protocol):
         self, criteria: str, content: str, context_messages: list[Any] | None = None
     ) -> VerificationResult:
         """Evaluate a semantic criterion using an LLM judge."""
-        ...
-
-    async def evaluate_security_scan(
-        self,
-        scan_mode: str = "diff",
-        target_paths: list[str] | None = None,
-        fail_on_severity: str = "high",
-        poc_command: str | None = None,
-        cwe_allowlist: list[str] | None = None,
-    ) -> VerificationResult:
-        """Evaluate security vulnerabilities and PoC validation for goal acceptance."""
         ...
 
     async def stash_goal(

@@ -42,12 +42,8 @@ async def test_verify_all_fail_all():
     gatekeeper = VerificationGatekeeper([])
     gatekeeper.criteria = [
         MockCriterion(passed=True, label="ok"),
-        MockCriterion(
-            passed=False, reason="Reason 1", error_logs="Logs 1", label="fail-1"
-        ),
-        MockCriterion(
-            passed=False, reason="Reason 2", error_logs="Logs 2", label="fail-2"
-        ),
+        MockCriterion(passed=False, reason="Reason 1", error_logs="Logs 1", label="fail-1"),
+        MockCriterion(passed=False, reason="Reason 2", error_logs="Logs 2", label="fail-2"),
     ]
 
     result = await gatekeeper.verify_all()
@@ -78,3 +74,22 @@ async def test_gatekeeper_registry():
     assert len(gatekeeper.criteria) == 2
     assert type(gatekeeper.criteria[0]).__name__ == "ShellCriterion"
     assert type(gatekeeper.criteria[1]).__name__ == "SemanticCriterion"
+
+
+@pytest.mark.parametrize("criterion_type", ["bogus", "unknown", None, ["shell"], 7])
+def test_gatekeeper_skips_unregistered_criterion_types(criterion_type, caplog):
+    """A type that is not in CRITERION_REGISTRY is skipped with a warning.
+
+    ``security`` / ``security_scan`` are registered (SecurityScanCriterion), so they
+    belong to the resolved cases, not here; the unhashable and non-string values are
+    what this guards.
+    """
+    configs = [
+        {"type": criterion_type, "command": "echo 1"},
+        {"type": "shell", "command": "echo 1"},
+    ]
+    with caplog.at_level("WARNING"):
+        gatekeeper = VerificationGatekeeper(configs)
+
+    assert [type(c).__name__ for c in gatekeeper.criteria] == ["ShellCriterion"]
+    assert "Unknown acceptance criterion type" in caplog.text

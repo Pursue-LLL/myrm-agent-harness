@@ -32,6 +32,7 @@ from .protocols import GoalProvider
 from .storage import GoalStorage
 from .types import CheckpointMode, Goal, GoalAccountingOutcome, GoalBudget, GoalStatus
 from .wait_background_bash import WAIT_ON_BACKGROUND_JOB_ID_KEY
+from .wait_provider_window import PROVIDER_WINDOW_METADATA_KEYS, WAIT_KIND_KEY, WAIT_RESUME_AT_KEY
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.goals.verification.base import VerificationResult
@@ -226,8 +227,13 @@ class GoalManager(GoalManagerQueueMixin, GoalProvider):
         *,
         reason: str,
         max_wait_seconds: int | None = None,
+        kind: str | None = None,
+        resume_at: datetime | None = None,
     ) -> Goal:
-        """Pause autonomous continuation while waiting for an external process."""
+        """Pause autonomous continuation while waiting for an external process.
+
+        ``kind`` / ``resume_at`` mark a wait the host should end by itself at a known time.
+        """
         goal = await self._storage.get_goal(goal_id)
         if not goal:
             raise ValueError(f"Goal {goal_id} not found")
@@ -243,6 +249,11 @@ class GoalManager(GoalManagerQueueMixin, GoalProvider):
         goal.metadata["wait_reason"] = reason.strip() or "Waiting for external process"
         goal.metadata["wait_started_at"] = datetime.now(UTC).isoformat()
         goal.metadata["wait_max_seconds"] = wait_cap
+        for key, value in ((WAIT_KIND_KEY, kind), (WAIT_RESUME_AT_KEY, resume_at.isoformat() if resume_at else None)):
+            if value is None:
+                goal.metadata.pop(key, None)
+            else:
+                goal.metadata[key] = value
         goal.updated_at = datetime.now(UTC)
         await self._storage.save_goal(goal)
         logger.info("Goal %s entered WAIT (max=%ds): %s", goal_id, wait_cap, reason[:80])
@@ -262,6 +273,8 @@ class GoalManager(GoalManagerQueueMixin, GoalProvider):
         goal.metadata.pop("wait_started_at", None)
         goal.metadata.pop("wait_max_seconds", None)
         goal.metadata.pop(WAIT_ON_BACKGROUND_JOB_ID_KEY, None)
+        goal.metadata.pop(WAIT_KIND_KEY, None)
+        goal.metadata.pop(WAIT_RESUME_AT_KEY, None)
         goal.updated_at = datetime.now(UTC)
         await self._storage.save_goal(goal)
         logger.info("Goal %s exited WAIT → ACTIVE", goal_id)
@@ -361,6 +374,8 @@ class GoalManager(GoalManagerQueueMixin, GoalProvider):
         goal.consecutive_judge_parse_failures = 0
         goal.verification_retries = 0
         goal.metadata.pop("pause_reason", None)
+        for key in PROVIDER_WINDOW_METADATA_KEYS:
+            goal.metadata.pop(key, None)
         goal.updated_at = datetime.now(UTC)
         await self._storage.save_goal(goal)
         record_goal_resumed()

@@ -12,6 +12,7 @@ Goal System 负责管理长期任务（Long-running Tasks）的生命周期、�
 - **自适应循环与收敛控制**：GoalBudget 扩展 `convergence_window`（连续无进展轮次阈值）、`loop_on_pause`（暂停后自动重启）、`max_loop_restarts`（重启安全上限）三个可选字段。Goal 运行时追踪 `no_progress_streak`（连续零工具调用计数）和 `loop_restarts`（已重启次数）。
 - `resume_goal(reset_turns=True)` 方法支持恢复暂停或预算受限的 Goal，重置 convergence 计数器（no_progress_streak、loop_restarts、consecutive_judge_parse_failures、verification_retries）并可选重置 turn 计数。
 - **`enter_wait` / `exit_wait`**：Goal 进入 WAIT 态时 continuation 跳过 judge 与 turn 计费；支持 `wait_reason` + `wait_max_seconds`（默认 2h）超时自动 PAUSE。白名单 build/test/CI 命令在 `wait_background_bash.py` 于 turn 末自动 enter_wait，并在 Goal metadata 写入 `wait_on_background_job_id`（32 位 hex，与 BSDL `BackgroundJobStore.job_id` / REST `shell:{job_id}` 对齐）；Server `goal_wait_background_resume.py` 在 background job finish 时按 `(session_id, job_id)` 匹配并 exit_wait，再 `trigger_goal_stream_with_failure_policy(needs_human_review)` 续跑；Server `goal_wait_orphan_recovery.py` 在进程重启且 Store 将 job 标为 orphaned 时，按同一 `(session_id, job_id)` 把仍 WAIT 的 Goal 置为 NEEDS_HUMAN_REVIEW 并推送 `goal_needs_review` SSE。`handle_unattended_goal_stream_failure` 统一处理 setup 与 runtime stream 失败（NEEDS_HUMAN_REVIEW + `goal_needs_review` SSE）；loop_restart 失败 `keep_active` 保留 Cron fallback。
+- **供应商额度窗口 WAIT**：流层读到供应商给出的重置时间（`toolkits/llms/errors/provider_window`）且超过 300s 轮内等待上限时，`wait_provider_window.park_goal_for_provider_window` 调 `enter_wait(kind="usage_limit", resume_at=…)`，metadata 写 `wait_kind` / `wait_resume_at`，`max_wait_seconds` = 等待时长 + `HOLD_MAX_S`（24h，与宿主迟到容忍同一口径，重置后才结束的一轮不会抢在宿主唤醒前把目标暂停），turn 不计费。重置超过 24h、或同一进度点连续停靠超过 `MAX_NO_PROGRESS_HOLDS` 时直接 `PAUSED`（`pause_kind=usage_limit`）。host 通过 `on_goal_hold` 回调拿到停靠结果并在 `wait_resume_at` 调 `exit_wait` + 续跑；宿主迟到超过 `HOLD_MAX_S`（24h）则 `pause_goal_after_missed_wake`。`resume_goal` 清理 `PROVIDER_WINDOW_METADATA_KEYS`。
 - **`update_metadata`**：合并 metadata 字段（pause_reason、pending_terminal 等）。
 - **`GoalFinalizer`（`finalizer.py`）**：所有 COMPLETE 过渡的 SSOT。Semantic Judge / Convergence 同步完成；`complete_goal_tool` 异步完成并设置 `pending_terminal`，由 `check_continuation` 在同一 turn 末解析为 `verdict=done`，触发 `on_goal_terminal`（learnings + 队列 dequeue）。
 - `account_usage(turn_delta=1)` 在每个 continuation turn 精确递增 turns_used。
@@ -43,7 +44,7 @@ Goal System 负责管理长期任务（Long-running Tasks）的生命周期、�
   - **前端视觉验证提醒**：如果修改了前端渲染文件（`.tsx/.jsx/.vue/.svelte/.astro/.css/.scss/.less/.html`，通过路径片段匹配智能排除 test/store/utils/hooks/types 等非渲染目录及 `.test.`/`.spec.`/`.config.`/`.stories.` 等非渲染文件）且未使用浏览器工具验证，追加 WARNING 提示 Agent 进行视觉确认。
   - **文本任务包容放行**：如果修改的仅仅是文本文件（如 `.md`, `.txt`），则只给出普通警告，允许正常完工，避免非代码任务陷入死循环。
   - **执行断言接地**：最终回复中的承重断言与本轮工具记录对齐——"测试/lint/类型/构建已通过"要求真实测试运行器且真实执行（collect-only 与零用例不算），"已发送/已发布/已部署/已提交"要求发送语义的 MCP / 外发命令 / 外发工具名，用户本轮要求改代码时的"已修复/已实现"要求成功写操作；命中即要求取证或如实改写。
-  - **每轮披露**：收尾计算证据档（已验证 / 有工件 / 有来源 / 计划）与自动暂存的草案清单，经 `message_end` 事件持久化到消息元数据，供回答头部的证据档徽章与末尾的暂存草案横幅渲染；`PLAN` 档仅在回答完成式断言成立时披露。
+  - **每轮披露**：收尾计算证据档（已验证 / 有工件 / 有来源 / 计划）与自动暂存的草案清单，经 `message_end` 事件持久化到消息元数据，供回答头部的证据档徽章与末尾的暂存草案横幅渲染；`PLAN` 档仅在回答含完成式断言时披露。
 - **优雅降级 (Graceful Degradation)**：当连续拦截次数达到 `max_rejections`（默认 3 次）时，不再粗暴地触发 `interrupt()` 导致前端假死，而是注入一个带有 `force_fail=True` 的特殊指令。该指令允许 Agent 完工，但**强制要求 Agent 在最终回复中向用户输出明确的 Markdown 警告**，说明其未能成功验证代码，请用户人工审查。拦截预算按轮次消息 id 分桶，并发回合互不干扰。
 - 物理层面彻底杜绝了 AI 的"幻觉式完工"和"偷懒早退"，同时保证了系统的健壮性和用户体验。
 
@@ -105,18 +106,12 @@ Goal System 负责管理长期任务（Long-running Tasks）的生命周期、�
 5. `ProgressMiddleware` 持续注入活跃 todo 焦点，引导 Agent 执行未完成任务或标记取消/阻塞。
 6. Agent 调用 `todo_write(merge=true)` 标记完成 → SSE → 前端更新打勾。
 
-### 8. DAG 并发执行引擎 (DAG Executor)
-- 将线性的 Plan 升级为有向无环图 (DAG)。
-- `orchestrator.py` 中的 `execute_dag_plan` 支持基于依赖关系的并发执行，并支持通过 Yield-Resume 机制实现运行时动态并发裂变 (Swarm Fission)。
-- 引入 `StateReducer` 解决并发状态读写冲突。
-- 极大降低 IO 密集型任务的总耗时。
-
-### 9. 主动缓存自愈 (Active Cache Healer)
+### 8. 主动缓存自愈 (Active Cache Healer)
 - 监控长会话中的 Prompt Cache 命中率。
 - 当命中率连续跌破阈值时，主动触发 `MemoryManager.compress_context()`。
 - 保护大模型缓存，防止 Token 成本飙升和响应卡顿。
 
-### 10. 启动时孤儿 Goal 恢复 (Orphaned Goal Recovery)
+### 9. 启动时孤儿 Goal 恢复 (Orphaned Goal Recovery)
 - 服务重启后，之前处于 ACTIVE 状态的 Goal 不再有执行引擎驱动（async task 随旧进程消亡）。
 - Server 层 `pause_orphaned_active_goals()` 在 lifespan Phase 3 异步执行：
   - 调用 `GoalStorage.list_active_sessions()` 枚举所有有 ACTIVE Goal 的 session。
@@ -127,7 +122,7 @@ Goal System 负责管理长期任务（Long-running Tasks）的生命周期、�
 - 用户在前端看到 GoalStatusCard 的 PAUSED 状态及 reason 提示，可一键 Resume。
 - 设计优势：不自动 Resume（避免 token 浪费和意图漂移），比 Hermes 的 `resume_pending` 懒恢复更透明，比 OpenClaw 的前端 reconcile 更可靠（后端保证数据一致性）。
 
-### 11. 优先级队列与自动串行执行 (Priority Queue)
+### 10. 优先级队列与自动串行执行 (Priority Queue)
 - 当已有 ACTIVE goal 时，新提交的 goal 自动进入 QUEUED 状态（`GoalStatus.QUEUED`），存入持久化队列索引。
 - 当前 goal 到达终态（COMPLETE/CANCELLED/BUDGET_LIMITED）后，`on_goal_terminal` 回调自动调用 `dequeue_next()` 取出下一个 goal。
 - 被 dequeue 的 goal 自动设置 `auto_approve=True`，在 `GoalInterceptor` 中跳过 `interrupt()` 审批，直接执行。

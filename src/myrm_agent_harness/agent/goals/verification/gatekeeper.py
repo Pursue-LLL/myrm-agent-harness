@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-CRITERION_REGISTRY = {
+CRITERION_REGISTRY: dict[str, type[BaseCriterion]] = {
     "shell": ShellCriterion,
     "semantic": SemanticCriterion,
     "security": SecurityScanCriterion,
@@ -48,7 +48,7 @@ class VerificationGatekeeper:
         self.criteria: list[BaseCriterion] = []
         for config in criteria_configs:
             crit_type = config.get("type")
-            if crit_type in CRITERION_REGISTRY:
+            if isinstance(crit_type, str) and crit_type in CRITERION_REGISTRY:
                 cls = CRITERION_REGISTRY[crit_type]
                 self.criteria.append(cls.from_dict(config))
             else:
