@@ -81,10 +81,12 @@ class SkillRegistry:
 
     def __init__(self):
         self._skills: dict[str, SkillMetadata] = {}
+        self._ipc_mcp_skill_cache: dict[str, SkillMetadata] = {}
 
     def register(self, skill: SkillMetadata) -> None:
         self._skills[skill.name] = skill
         if skill.is_mcp_skill:
+            self._ipc_mcp_skill_cache[skill.name] = skill
             source = f"mcp:{skill.mcp.server}" if skill.mcp else "mcp"
         elif skill.is_storage_skill:
             source = "storage"
@@ -94,6 +96,18 @@ class SkillRegistry:
 
     def get_skill(self, name: str) -> SkillMetadata | None:
         return self._skills.get(name)
+
+    def get_mcp_skill_for_ipc(self, name: str) -> SkillMetadata | None:
+        """Resolve an MCP skill for PTC/IPC execution across subagent routing passes.
+
+        Prefers the active registry view; falls back to the IPC MCP skill cache
+        so an in-flight parent PTC call is never broken when a concurrent
+        MCP-less subagent invokes ``clear_mcp_skills()``.
+        """
+        active = self._skills.get(name)
+        if active is not None:
+            return active
+        return self._ipc_mcp_skill_cache.get(name)
 
     def list_skills(self) -> list[SkillMetadata]:
         return list(self._skills.values())
@@ -117,6 +131,7 @@ class SkillRegistry:
 
     def clear(self) -> None:
         self._skills.clear()
+        self._ipc_mcp_skill_cache.clear()
 
 
 skill_registry = SkillRegistry()
@@ -137,8 +152,9 @@ def get_metadata_summary(
     XML format is more parseable by LLMs than Markdown lists, and supports
     structured attributes (availability, trust, routing hints).
 
-    Skills with always=True are guaranteed inclusion in the XML. Remaining slots
-    are filled by available skills first, then unavailable ones, up to max_skills.
+    Skills with always=True are guaranteed inclusion in the XML **once the bound set exceeds the
+    inline threshold**; below it every skill is inlined and ``always`` changes nothing. Remaining
+    slots are filled by available skills first, then unavailable ones, up to max_skills.
 
     Cache impact: stable skill list in messages[] keeps tool schema bytes stable;
     catalog size still counts toward cached conversation prefix when present.

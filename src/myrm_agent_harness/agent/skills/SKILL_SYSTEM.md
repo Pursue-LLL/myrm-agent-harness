@@ -143,7 +143,7 @@ max-context-tokens: 8000
 | `requires.env` | string[] | 可选 | 需要的环境变量 | Nanobot |
 | `requires.config` | string[] | 可选 | 需要的配置文件路径 | ironclaw |
 | `tags` | string[] | 可选 | 分类标签（用于搜索、过滤、选择器匹配） | NextClaw + ironclaw |
-| `always` | boolean | 可选 | 是否始终加载到系统 Prompt（默认 `false`） | Nanobot |
+| `always` | boolean | 可选 | 绑定技能总数超过内联阈值（`SKILL_INLINE_THRESHOLD = 20`）时，保证该技能仍出现在 `<bound_skills>` 目录里；默认 `false`。**不注入 SKILL.md 正文，也不进 SystemMessage**（见 §4.3） | Nanobot |
 | `hooks` | object[] | 可选 | Hook 定义（事件触发） | 现有架构 |
 | `allowed-tools` | string[] | 可选 | 允许使用的工具白名单（仅登记或已绑定的工具名生效，见下） | 现有架构 |
 | `patterns` | string[] | 可选 | 正则模式（精确匹配 URL/路径等格式） | ironclaw |
@@ -161,7 +161,7 @@ max-context-tokens: 8000
 **关键设计决策**：
 - `requires` 采用 Nanobot 的结构化格式 + ironclaw 的 `config` 扩展，支持自动化检查
 - `exclude-keywords` 和 `max-context-tokens` 来自 ironclaw，用于确定性选择器
-- `always` 来自 Nanobot，支持"始终加载"的特殊技能（如 memory）
+- `always` 来自 Nanobot，但**语义已收窄**：它只在技能数超过内联阈值时保住目录可见性，不注入正文、不进 SystemMessage（见 §4.3）
 - `allowed-tools` 是独占白名单：技能加载期间只保留所列工具。名称只有已登记（`is_registered_action_tool`）或本轮已绑定（如 MCP 工具）时才参与收窄；其他生态写法（`Bash`、`Read`、`Bash(ls *)` 等）无法对应任何 Myrm 工具，被忽略并在日志中按技能提示一次，声明里没有任何可识别名称的技能等同未声明。信任级别上限不受影响
 
 ---
@@ -288,11 +288,34 @@ Level 3: 资源（Resources）
 
 ### 4.3 Always 技能
 
-标记 `always: true` 的技能，其完整正文（Level 2）始终注入系统 Prompt。
+`always: true` 的真实语义**只有一个**：当绑定技能总数超过内联阈值（`SKILL_INLINE_THRESHOLD = 20`）时，该技能仍然出现在 `<bound_skills>` 目录中。
+
+**它不做什么**（容易误解，务必看清）：
+
+- ❌ **不**注入 SKILL.md 正文。L2 正文只在模型调用 `skill_select_tool` 后才通过 ToolMessage 返回（`core_generator.py` 的三级披露、`skill_document_loader.get_skill_document()`）。
+- ❌ **不**写入 SystemMessage。目录块本身是 HumanMessage 的一段（`skill_catalog_delivery.py`），正文从不进 system prompt。
+- ❌ **在技能总数 ≤ 20 时完全无效**。`catalog_display.resolve_catalog_display_skills()` 的分支是 `elif len(model_visible) > SKILL_INLINE_THRESHOLD`，未超阈值时全部内联，`always` 不参与任何决策（已实测：`total=1` 时 `always=True` 与 `False` 结果相同）。
+
+**它的真实分配行为**（`catalog_display.py:76-86`）：
+
+```
+always_skills  = 所有 always=True 的技能（无上限）
+remaining      = SKILL_SELECT_INLINE_MAX(20) - len(always_skills)，下限 0
+core_non_always= non_always[: min(SKILL_CORE_MAX(10), remaining)]
+display_skills = always_skills + core_non_always  （再按名字排序后截断到 20）
+```
+
+**两个后果必须知道**：
+
+1. `always` 无数量上限。MCP 技能全部由 `core_generator.py` 硬编码 `always=True`，因此接入的 MCP 服务器越多，非 always 技能（典型是用户手写技能）能拿到的名额越少；`always` 数量 ≥ 20 时，用户技能在目录里**完全不可见**（仍可通过 `skill_search_tool` 检索到并选中，因为该工具的索引与 `skill_select_tool` 的白名单都取自全量 `filtered_skills`）。
+2. 进入该分支后，非 always 技能实际最多只取 `SKILL_CORE_MAX = 10` 个，即使 `remaining` 还有 20 个名额。所以技能总数从 20 涨到 21 时，目录可见数量会从 20 掉到 10。这是**当前代码行为**；`TOOL_DESIGN_STRATEGY.md §三` 的"核心/外围技能"分层只描述了设计意图，没有对这个 10 的截断给出说明。
+
+**如何被发现**：不在目录里的技能不会被模型「自然想到」，但仍有两条路可达 —— `skill_search_tool`（BM25 + jieba，索引全量绑定技能）检索出名字，然后 `skill_select_tool` 按名字加载。**目录只影响「能否被看见」，不影响「能否被选中」。**
 
 **约束**：
-- Always 技能数量应控制在 1-3 个（避免 Token 爆炸）
-- 典型 Always 技能：memory（持久记忆）、core-policies（核心策略）
+- 建议 always 技能数量控制在 1-3 个。
+- 典型 always 技能：memory（持久记忆）、core-policies（核心策略）。
+- MCP 技能是例外：它们由生成器统一置为 `always=True`，不由 SKILL.md frontmatter 控制。
 
 ### 4.4 缓存策略
 
@@ -1070,7 +1093,8 @@ STATIC_SKILL_SLUGS: list[str] = [
    - **适用场景**：用户在 GUI 标记为核心、对当前智能体高频使用的技能。
 
 2. **L2 外围技能 (Peripheral Skills)**：
-   - **机制**：将技能的 `[名称: 简短描述]` 注入首条用户消息的 ``<bound_skills>`` 块（最多 20 个内联；超出部分以 ``hidden_count`` 标注并通过 `skill_search_tool` 发现），``skill_select_tool.description`` 保持字节稳定。
+   - **机制**：将技能的 `[名称: 简短描述]` 注入首条用户消息的 ``<bound_skills>`` 块（`SKILL_SELECT_INLINE_MAX = 20` 上限；超出部分以 ``hidden_count`` 标注并通过 `skill_search_tool` 发现），``skill_select_tool.description`` 保持字节稳定。
+   - **注意**：进入"超出"分支后，非 `always` 技能的实际名额还要再过一道 `SKILL_CORE_MAX = 10` 的截断（见 §4.3 与 `catalog_display.py` 模块注释）。所以"最多 20 个"只在未超阈值时成立；技能总数从 20 变为 21 时，可见数量会从 20 落到 10。
    - **特点**：极低 Token 消耗，0 认知负担。LLM 知道其存在，需要时通过 `skill_select_tool` 渐进式加载完整 SOP。
    - **适用场景**：低频使用、长尾技能。
 

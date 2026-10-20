@@ -13,6 +13,31 @@
 [POS]
 Runtime catalog display SSOT. Keeps skill_select_tool schema static while preserving
 Per-Agent cognitive-load inline rules from get_meta_tools.
+
+Visible vs selectable — the two sets are deliberately different:
+
+- ``display_skills`` (≤ ``SKILL_SELECT_INLINE_MAX``) is what the model can *see*: it is
+  rendered into the ``<bound_skills>`` HumanMessage block by
+  ``skill_catalog_delivery.render_bound_skills_catalog``.
+- ``filtered_skills`` is the full bound list. ``skill_select_tool`` validates against it and
+  ``skill_search_tool`` indexes it, so a hidden skill stays *selectable* as long as the model
+  learns its name — from an earlier turn, an explicit user mention, or a search hit.
+
+A skill missing from the catalog is therefore not unreachable, but it is not discoverable by
+recall either: reaching it costs one ``skill_search_tool`` round trip.
+
+Allocation when the bound set exceeds ``SKILL_INLINE_THRESHOLD``:
+
+1. Every ``always=True`` skill is taken first, with no cap of its own.
+2. The remainder is filled with non-always skills, capped by both
+   ``SKILL_SELECT_INLINE_MAX - len(always)`` and ``SKILL_CORE_MAX``.
+3. The combined list is sorted by name and truncated to ``SKILL_SELECT_INLINE_MAX``.
+
+Consequence worth knowing before changing anything: because step 2 is capped at
+``SKILL_CORE_MAX``, a bound set just over the threshold shows far fewer skills than the
+threshold itself allows (20 skills → 20 visible, 21 skills → 10 visible). MCP skills are built
+with ``always=True`` (``agent.skills.mcp.core_generator``), so they consume step 1's budget
+unconditionally.
 """
 
 from __future__ import annotations

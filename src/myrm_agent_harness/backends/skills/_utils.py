@@ -93,7 +93,9 @@ class SkillFrontmatter:
     """Skill hidden when any listed tool group IS enabled (fallback for that group)."""
 
     always: bool = False
-    """If True, always included in skill_select_tool XML (get_metadata_summary), not SystemMessage."""
+    """Guaranteed a slot in the ``<bound_skills>`` catalog when the bound set exceeds the
+    inline threshold. Does NOT inject the SKILL.md body and does NOT enter SystemMessage;
+    has no effect at all while the bound set fits inline. See agent/skills/SKILL_SYSTEM.md §4.3."""
 
     model_invocable: bool = True
     """Whether the model can auto-select this skill via skill_select_tool"""
@@ -639,7 +641,7 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         parsed.get("fallback-for-tool-groups") or parsed.get("fallback_for_tool_groups"),
     )
 
-    # always: optional, always-inject flag
+    # always: optional, catalog-slot guarantee above the inline threshold (never body injection)
     always = bool(parsed.get("always", False))
 
     # model-invocable: optional (default True)

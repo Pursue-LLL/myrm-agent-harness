@@ -174,16 +174,16 @@ class ToolLayer(IntEnum):
 
 | 结局 | 条件 | LLM 如何调用 |
 |------|------|-------------|
-| **Direct FC** | 单服 schema ≤ `compute_direct_threshold()` 且 aggregate direct ≤ **1200 tok** | Turn1 完整 JSON Schema，`tool_call` |
+| **Direct FC** | 单服 schema ≤ `compute_direct_threshold()`（`FALLBACK_PTC_OVERHEAD_TOKENS` 450 × `PTC_OVERHEAD_MULTIPLIER` 25 = **11,250 tok**）且 aggregate direct ≤ `AGGREGATE_DIRECT_TOKEN_BUDGET`（**15,000 tok**） | Turn1 完整 JSON Schema，`tool_call` |
 | **MCP PTC** | 单服超大 **或** aggregate 超标（最大服优先 demote） | `skill_select` → `file_read(/mcp/...)` → `bash_code_execute` Python |
-| **OpenAPI direct** | 选中 endpoint 生成 schema ≤ **1200 tok** | Turn1 direct tools |
+| **OpenAPI direct** | 选中 endpoint 生成 schema ≤ `AGGREGATE_DIRECT_TOKEN_BUDGET`（**15,000 tok**） | Turn1 direct tools |
 | **OpenAPI 拒绝** | enabled 但 0 tools 加载失败 | `ConfigIncompleteError`（`openapi_load_failed`）；检查 spec/认证/endpoint |
-| **OpenAPI 拒绝** | schema > **1200 tok**（非 `direct_fc`） | `ConfigIncompleteError`（`openapi_direct_budget_exceeded`）；Agent 设置减少 endpoint |
+| **OpenAPI 拒绝** | schema > `AGGREGATE_DIRECT_TOKEN_BUDGET`（非 `direct_fc`） | `ConfigIncompleteError`（`openapi_direct_budget_exceeded`）；Agent 设置减少 endpoint |
 
 **禁止模式（不得引入）**：
 
 1. **catalog_invoke / capability_invoke_tool** — RUNTIME 池 + Turn1 proxy gateway，schema 藏 catalog 一行摘要，准确性与 PTC 重叠且更差。
-2. **双 aggregate 阈值**（如 1200 catalog + 2700 PTC）— 制造灰色地带，维护与认知成本失控。
+2. **双 aggregate 阈值**（如 11,250 单服 + 15,000 聚合之外的第三档）— 制造灰色地带，维护与认知成本失控。
 3. **第四种调用范式** — 在 direct / PTC / skill_search 之外再加 proxy tool。
 
 **新增 MCP 集成前自问**：
@@ -212,6 +212,23 @@ class ToolLayer(IntEnum):
 - **特征**: 按需加载，只在用户明确说需要时才注入
 - **认知负载**: 50%（常驻负载减半）
 - **适用场景**: 低频使用的技能
+
+### 3.4 目录分配的真实规则（以 `catalog_display.py` 为准）
+
+上面的「核心/外围」是**设计意图**，实际分配由 `agent/skills/runtime/catalog_display.py::resolve_catalog_display_skills()` 决定，规则与 §3.1-3.3 的描述并不完全等价，改动前必须读这段：
+
+| 绑定技能总数 | 行为 |
+|---|---|
+| ≤ `SKILL_INLINE_THRESHOLD` (20) | 全部内联进 `<bound_skills>`，`always` 无效 |
+| > 20 且提供 `skill_configs` | 只内联 `is_core=true` 的（按名字排序，仍截断到 20） |
+| > 20 且无 `skill_configs` | `always` 全部先占位（无上限）→ 剩余名额填非 always，但被 `SKILL_CORE_MAX` (10) 二次截断 → 合计排序后截断到 20 |
+
+**由此产生的两个已知行为**（不是推测，是当前代码行为）：
+
+1. `always` 无上限。MCP 技能由 `core_generator._create_skill_metadata` 统一置为 `always=True`，所以 MCP 服务器越多，用户手写技能能拿到的目录名额越少；`always` 数量 ≥ 20 时用户技能完全不可见（但仍可经 `skill_search_tool` 检索并 `skill_select_tool` 加载）。
+2. 非 always 技能的 10 个截断导致阈值处断崖：20 个技能 → 可见 20；21 个技能 → 可见 10。10 这个值目前没有任何文档解释其来源与依据。
+
+**不变量**：目录只决定「模型能否看见」，不决定「能否被选中」。`skill_select_tool` 的白名单与 `skill_search_tool` 的索引都取自全量 `filtered_skills`。评估任何目录改动时，必须同时看**供给侧**（`filtered_skills`）与**接收侧**（`display_skills` → `<bound_skills>`），只看一侧会得出错误结论。
 
 ### 3.4 成本计算公式
 
@@ -445,10 +462,30 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 
 ### 10.2 竞品 MCP 懒加载：禁止抄（AI / Roadmap 必读）
 
-**Myrm 在此维度已领先。** 做竞品分析、写 repair roadmap、或 Cursor/Claude 类「deferred tool / catalog invoke」方案时：
+**⚠️ 事实更正（2026-10-19）**：本节原写「Myrm 在此维度已领先」，与代码事实不符。核实结果：
 
-- **不得**作为「优势借鉴」提议引入 catalog_invoke、capability_invoke、RUNTIME proxy 等第三路径
-- **应**深化现有栈：PTC、`skill_search_tool`、aggregate demote 阈值 tuning、OpenAPI→Skill 复用（若需要）
+- **Hermes-Agent** 有完整三桥 `tool_search` / `tool_describe` / `tool_call`（`tools/tool_search.py`，617 行），MCP 与插件工具默认延迟（`hermes_cli/config_defaults.py:2006-2041`）；
+- **OpenClaw** 有 `tool-search.ts` + `tool-catalog.ts`（824 行），默认开启（`src/agents/tool-search-config.ts:16-21`）；
+- **deepseek-harness** 有 `deferLoading` 字段进入 system prompt 组装（`packages/core/system-prompt/src/index.ts:642-646`）；
+- **Anthropic API** 官方提供 `defer_loading: true` + regex/BM25 搜索工具；
+- **Myrm** 的原生工具延迟机制（`UnifiedCapabilityDefer` + `invoke_deferred_tool`）已于提交 `e180085fe` 删除；现存只有技能级 `skill_search_tool`（且仅在 `hidden_skill_count > 0` 时挂载）。
+
+因此准确表述是：**我们目前只有「技能级检索 + PTC」，没有「工具级延迟加载」**。
+
+**这不改变禁令本身，但改变了理由与做法**：
+
+| 仍然禁止（不变） | 理由（已修正） |
+| --- | --- |
+| `catalog_invoke` / `capability_invoke` / RUNTIME proxy gateway | 这些是**盲调**（只给工具名 + `arguments: dict`，不把真实 schema 交给模型），准确性劣于 PTC。已被删除的 `invoke_deferred_tool` 正属此类（入参就是 `arguments: dict`），所以删除它**技术方向是对的** |
+| 双 aggregate 阈值 | 制造灰色地带，与本节无关 |
+| 第四种调用范式 | 若与 PTC 重叠则不该新增 |
+
+| 应当做（新） | 说明 |
+| --- | --- |
+| **「搜索 → 载入真实 schema → 直调」** | 这是 Hermes `tool_describe` 的形状，与盲调的区别是 **schema 真的进了上下文**。它与现有 Direct FC 的差别只是「schema 何时进入」，不是「有没有 schema」 |
+| **先补 >11.25K 真实服务器基准** | `PTC_OVERHEAD_MULTIPLIER=25` 的 11.25K 是**理论 crossover × 0.4**（`agent/_factory/mcp_routing.py:48-57`），不是实测；Anthropic 公开门槛是 >10K。没有实测就不该动架构 |
+
+**该不该做**：需要一次架构评审明确「恢复工具级延迟」是否修改 §2.5 铁律的适用范围。**在此之前不得动手**，但也不得再用「已领先」作为不做的理由。
 
 SSOT：`FRAMEWORK_DESIGN_PRINCIPLES.md` §7 · `TOOL_DESIGN_STRATEGY.md` §2.5 · CI `test_mcp_routing_two_outcomes.py`
 

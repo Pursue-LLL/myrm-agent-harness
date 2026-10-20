@@ -76,7 +76,7 @@ Harness 区分两类配置，避免「零 env」与「生产需要路径注入�
 ### 7.2 禁止从竞品抄入的模式
 
 - `catalog_invoke` / `capability_invoke_tool` / RUNTIME MCP 池 + Turn1 proxy gateway
-- 双 aggregate 阈值（如 1200 catalog + 2700 PTC 灰色地带）
+- 双 aggregate 阈值（如 11,250 单服 + 15,000 聚合之外的第三档灰色地带）
 - 「一个 invoke 工具代理所有 deferred MCP」——参数文档劣于 PTC 的 `/mcp/*.md` 渐进披露
 
 **CI 门禁**：`tests/architecture/test_mcp_routing_two_outcomes.py`（禁止上述文件与字段回归）。

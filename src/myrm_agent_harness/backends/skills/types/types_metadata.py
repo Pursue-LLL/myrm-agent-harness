@@ -129,7 +129,9 @@ class SkillMetadata:
     """
 
     always: bool = False
-    """If True, always included in skill_select_tool XML (get_metadata_summary), not SystemMessage."""
+    """Guaranteed a slot in the ``<bound_skills>`` catalog when the bound set exceeds the inline
+    threshold. Never injects the SKILL.md body, never enters SystemMessage, and is inert while the
+    bound set fits inline. See ``agent/skills/SKILL_SYSTEM.md`` §4.3."""
 
     model_invocable: bool = True
     """Whether the model can auto-select this skill via skill_select_tool.
