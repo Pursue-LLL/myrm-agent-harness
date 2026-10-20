@@ -32,6 +32,7 @@ import json
 MAX_RETRIES = 1
 RETRY_DELAY = 0.5
 TOTAL_TIMEOUT = 90
+TRACE_PREVIEW_CHARS = 2000
 
 
 def _generate_base_code() -> str:
@@ -48,6 +49,7 @@ class MCPError(Exception):
 MAX_RETRIES = {MAX_RETRIES}
 RETRY_DELAY = {RETRY_DELAY}
 TOTAL_TIMEOUT = {TOTAL_TIMEOUT}
+_TRACE_PREVIEW_CHARS = {TRACE_PREVIEW_CHARS}
 
 async def _retry_call(call_fn, skill: str, tool: str):
     """通用重试逻辑"""
@@ -339,9 +341,12 @@ async def _call(skill: str, tool: str, params: dict):
             raise MCPError(f"Connection: {{e}}", skill, tool, retryable=retry_safe)
 
     result = await _retry_call(do_call, skill, tool)
-    # 输出 JSON 调用标记供宿主做引用追踪；截断超长结果避免污染 stdout 预算。
+    # Citation trace for the host: keep a bounded preview and state the truncation
+    # explicitly, so a long result is not silently recorded as if it were complete.
     _preview = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
-    _data = {{"s": skill, "t": tool, "r": _preview[:2000]}}
+    if len(_preview) > _TRACE_PREVIEW_CHARS:
+        _preview = _preview[:_TRACE_PREVIEW_CHARS] + f"...[truncated from {{len(_preview)}} chars]"
+    _data = {{"s": skill, "t": tool, "r": _preview}}
     print(f"__MCP_DATA__{{json.dumps(_data, ensure_ascii=False)}}__END__", flush=True)
     return result
 '''

@@ -25,11 +25,16 @@ class PtcConfig(BaseModel):
 
     max_tool_calls: int = Field(default=50, ge=1, le=200)
     timeout_seconds: int = Field(default=300, ge=10, le=3600)
-    max_stdout_bytes: int = Field(default=50_000, ge=1024)
-    max_stderr_bytes: int = Field(default=10_000, ge=1024)
-    use_project_mode: bool = Field(default=True)
-    workspace_path: str | None = Field(default=None)
-    venv_path: str | None = Field(default=None)
+    max_output_chars: int = Field(
+        default=200_000,
+        ge=1024,
+        description=(
+            "Single hard ceiling for both stdout and stderr of one execution. "
+            "Defaults to the shared MAX_OUTPUT_CHARS so every executor applies the "
+            "same number; a second, different budget would make the visible result "
+            "depend on which layer truncated first."
+        ),
+    )
 
 
 class PtcRpcRequest(BaseModel):

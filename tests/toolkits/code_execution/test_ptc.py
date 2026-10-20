@@ -72,22 +72,12 @@ class TestPtcConfig:
         config = PtcConfig()
         assert config.max_tool_calls == 50
         assert config.timeout_seconds == 300
-        assert config.max_stdout_bytes == 50_000
-        assert config.max_stderr_bytes == 10_000
-        assert config.use_project_mode is True
-        assert config.workspace_path is None
-        assert config.venv_path is None
+        assert config.max_output_chars == 200_000
 
     def test_custom_values(self):
-        config = PtcConfig(
-            max_tool_calls=100,
-            timeout_seconds=60,
-            workspace_path="/tmp/ws",
-            venv_path="/tmp/.venv",
-        )
+        config = PtcConfig(max_tool_calls=100, timeout_seconds=60, max_output_chars=4096)
         assert config.max_tool_calls == 100
-        assert config.workspace_path == "/tmp/ws"
-        assert config.venv_path == "/tmp/.venv"
+        assert config.max_output_chars == 4096
 
     def test_validation_boundaries(self):
         with pytest.raises(ValidationError):
@@ -781,3 +771,53 @@ class TestPtcInjection:
         result = await inject_ptc_for_python_execution(context, executor, [mock_file_read])
         assert result.success
         assert "HAS_CUSTOM" in (result.stdout or "")
+
+
+class TestPtcOutputBudget:
+    """PtcConfig.max_output_chars must actually clamp PTC script output."""
+
+    def test_apply_output_budget_truncates_both_streams(self):
+        from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult as _R
+        from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (
+            _apply_output_budget,
+        )
+
+        result = _R(stdout="A" * 5000, stderr="B" * 5000)
+        clamped = _apply_output_budget(result, 1000)
+
+        assert len(clamped.stdout) < len(result.stdout)
+        assert len(clamped.stderr) < len(result.stderr)
+        assert "[Truncated" in clamped.stdout
+        assert "[Truncated" in clamped.stderr
+
+    def test_apply_output_budget_is_noop_below_limit(self):
+        from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult as _R
+        from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (
+            _apply_output_budget,
+        )
+
+        result = _R(stdout="short", stderr="")
+        assert _apply_output_budget(result, 1000) is result
+
+    @pytest.mark.asyncio
+    async def test_injected_script_output_respects_budget(self):
+        """End-to-end: the config value reaches the returned ExecutionResult."""
+        from myrm_agent_harness.toolkits.code_execution.executors.models import (
+            ExecutionContext,
+        )
+        from myrm_agent_harness.toolkits.code_execution.ptc import ptc_injection
+        from tests.toolkits.code_execution._executor_stub import InProcessExecutor
+
+        script = "print('X' * 2000)"
+        context = ExecutionContext(code=script, timeout=30)
+        executor = InProcessExecutor()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(
+                "myrm_agent_harness.toolkits.code_execution.ptc.models.PtcConfig",
+                lambda **kwargs: PtcConfig(max_output_chars=1024, **kwargs),
+            )
+            result = await ptc_injection.inject_ptc_for_python_execution(context, executor, [mock_file_read])
+
+        assert result.success
+        assert "[Truncated" in (result.stdout or "")

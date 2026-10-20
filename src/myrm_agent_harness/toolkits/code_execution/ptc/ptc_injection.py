@@ -134,6 +134,12 @@ async def inject_ptc_for_python_execution(
 
         result = await executor.execute(patched_context)
 
+        # Enforce the PTC-level output ceiling on the *script* output. The executor
+        # already clamps at MAX_OUTPUT_CHARS; applying the configured value here makes
+        # PtcConfig.max_output_chars the single knob for PTC runs instead of a field
+        # nothing reads.
+        result = _apply_output_budget(result, config.max_output_chars)
+
         if server.call_count > 0:
             logger.info("PTC session: %d tool calls dispatched", server.call_count)
             await _emit_ptc_trace(dispatcher, result.success)
@@ -146,6 +152,25 @@ async def inject_ptc_for_python_execution(
             import shutil
 
             shutil.rmtree(stub_dir, ignore_errors=True)
+
+
+def _apply_output_budget(result: ExecutionResult, max_chars: int) -> ExecutionResult:
+    """Clamp PTC stdout/stderr to the configured single budget.
+
+    Uses the shared ``truncate_output`` so PTC applies the same head+tail logic and
+    truncation marker as every other executor.
+    """
+    from dataclasses import replace
+
+    from myrm_agent_harness.toolkits.code_execution.executors.common.executor_utils import (
+        truncate_output,
+    )
+
+    stdout = truncate_output(result.stdout or "", max_chars)
+    stderr = truncate_output(result.stderr or "", max_chars)
+    if stdout == (result.stdout or "") and stderr == (result.stderr or ""):
+        return result
+    return replace(result, stdout=stdout, stderr=stderr)
 
 
 async def _emit_ptc_trace(dispatcher: PtcDispatcher, script_success: bool | None) -> None:
