@@ -22,6 +22,14 @@ the new full list is prepended to the new HumanMessage as an update the model re
 earlier lists. What the thread last delivered is read from the thread's own messages, so a
 compaction that drops the blocks makes the next turn deliver the list again. Dynamic bind
 list lives in messages[], never in tool schema (see meta_tools/skills/select/_ARCH.md).
+
+TWO ENTRY POINTS — do not confuse them (this module serves both, they are not alternatives):
+- ``ensure_skill_catalog_in_messages``: rebuilt history only (append/replace). Writes the
+  baseline. Calling it on a continued thread would rewrite Human_1.
+- ``deliver_bound_skills_catalog`` (agent/_internals/skill_catalog_turn.py): per-turn entry for
+  both rebuilt and continued threads. A continued thread must go through this one, which keeps
+  Human_1 byte-identical and puts drift on the new HumanMessage.
+Reading only the first function and concluding that the catalog is rewritten in place is wrong.
 """
 
 from __future__ import annotations
@@ -210,8 +218,9 @@ def ensure_skill_catalog_in_messages(
 ) -> None:
     """Strip catalog blocks from every HumanMessage and write the baseline on the first one.
 
-    For a conversation that is being (re)built from a history record; a continued thread is
-    never passed here, its baseline stays as it was.
+    **Rebuilt history only** (``append`` / ``replace``). A continued thread carries its baseline
+    already and must go through ``deliver_bound_skills_catalog`` instead: running this on a live
+    thread would rewrite ``Human_1`` and invalidate the provider cache for everything after it.
     """
     if not messages:
         return
