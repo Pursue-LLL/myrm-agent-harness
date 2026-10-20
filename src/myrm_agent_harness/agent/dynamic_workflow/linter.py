@@ -43,10 +43,7 @@ def _loop_can_exit(node: ast.While) -> bool:
     This deliberately errs toward flagging: a false positive only asks the model to
     rewrite the loop, while a false negative ships an unbounded script.
     """
-    for stmt in node.body:
-        if isinstance(stmt, ast.Break | ast.Return | ast.Raise):
-            return True
-    return False
+    return any(isinstance(stmt, ast.Break | ast.Return | ast.Raise) for stmt in node.body)
 
 
 def _loop_condition_is_never_updated(node: ast.While) -> bool:
