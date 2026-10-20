@@ -12,6 +12,7 @@ Tests cover:
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -60,6 +61,17 @@ class TestSandboxPolicy:
         p = SandboxPolicy()
         with pytest.raises(AttributeError):
             p.allow_network = False  # type: ignore[misc]
+
+    def test_is_writable_covers_listed_roots_and_their_children(self) -> None:
+        p = SandboxPolicy(writable_paths=("/workspace",))
+        assert p.is_writable("/workspace")
+        assert p.is_writable("/workspace/sub/dir")
+
+    def test_is_writable_rejects_siblings_and_unlisted_paths(self) -> None:
+        p = SandboxPolicy(writable_paths=("/workspace",))
+        assert not p.is_writable("/workspace-evil")
+        assert not p.is_writable("/other")
+        assert not SandboxPolicy().is_writable("/workspace")
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +157,27 @@ class TestBwrapProvider:
         assert "/extra" in bound_paths
 
     @patch("shutil.which", return_value="/usr/bin/bwrap")
+    def test_workdir_is_read_only_unless_policy_lists_it(self, _mock: object) -> None:
+        _, args = BwrapProvider().wrap_command("/bin/bash", (), "/workspace", SandboxPolicy(writable_paths=("/tmp",)))
+        flag_index = args.index("/workspace") - 1
+        assert args[flag_index] == "--ro-bind"
+        assert args[flag_index + 2] == "/workspace"
+
+    @patch("shutil.which", return_value="/usr/bin/bwrap")
+    def test_workdir_is_writable_when_policy_lists_it(self, _mock: object) -> None:
+        _, args = BwrapProvider().wrap_command(
+            "/bin/bash", (), "/workspace", SandboxPolicy(writable_paths=("/workspace",))
+        )
+        assert args[args.index("/workspace") - 1] == "--bind"
+
+    @patch("shutil.which", return_value="/usr/bin/bwrap")
+    def test_workdir_below_a_writable_root_is_writable(self, _mock: object) -> None:
+        _, args = BwrapProvider().wrap_command(
+            "/bin/bash", (), "/workspace/sub", SandboxPolicy(writable_paths=("/workspace",))
+        )
+        assert args[args.index("/workspace/sub") - 1] == "--bind"
+
+    @patch("shutil.which", return_value="/usr/bin/bwrap")
     def test_pid_namespace_isolation(self, _mock: object) -> None:
         provider = BwrapProvider()
         _, args = provider.wrap_command("/bin/bash", (), "/workspace", SandboxPolicy())
@@ -206,7 +239,7 @@ class TestSeatbeltProvider:
 
 
 class TestSBPLProfile:
-    def test_workspace_writable(self) -> None:
+    def test_workspace_is_readable_but_not_writable_by_default(self) -> None:
         profile = _generate_sbpl_profile(SandboxPolicy(), "/workspace")
         assert "(deny default)" in profile
         assert "(allow file-read-data)" in profile
@@ -214,7 +247,42 @@ class TestSBPLProfile:
 
         resolved = os.path.realpath("/workspace")
         assert f'(allow file-read-data (subpath "{resolved}"))' in profile
+        assert f'(allow file-write* (subpath "{resolved}"))' not in profile
+
+    def test_workspace_is_writable_when_policy_lists_it(self) -> None:
+        import os
+
+        resolved = os.path.realpath("/workspace")
+        profile = _generate_sbpl_profile(SandboxPolicy(writable_paths=("/workspace",)), "/workspace")
         assert f'(allow file-write* (subpath "{resolved}"))' in profile
+
+    def test_workspace_under_the_scratch_root_is_denied_after_the_scratch_allowance(self) -> None:
+        import os
+
+        work_dir = "/tmp/project"
+        real_tmp = os.path.realpath("/tmp")
+        deny = f'(deny file-write* (subpath "{os.path.realpath(work_dir)}"))'
+        profile = _generate_sbpl_profile(SandboxPolicy(), work_dir)
+        assert deny in profile
+        assert profile.index(f'(allow file-write* (subpath "{real_tmp}"))') < profile.index(deny)
+
+    def test_writable_path_below_a_denied_workspace_stays_writable(self) -> None:
+        import os
+
+        work_dir = "/tmp/project"
+        writable = "/tmp/project/out"
+        profile = _generate_sbpl_profile(SandboxPolicy(writable_paths=(writable,)), work_dir)
+        deny = f'(deny file-write* (subpath "{os.path.realpath(work_dir)}"))'
+        allow = f'(allow file-write* (subpath "{os.path.realpath(writable)}"))'
+        assert profile.index(deny) < profile.index(allow)
+
+    def test_listed_workspace_under_the_scratch_root_is_not_denied(self) -> None:
+        profile = _generate_sbpl_profile(SandboxPolicy(writable_paths=("/tmp/project",)), "/tmp/project")
+        assert "(deny file-write*" not in profile
+
+    def test_scratch_root_itself_is_never_denied(self) -> None:
+        profile = _generate_sbpl_profile(SandboxPolicy(), "/tmp")
+        assert "(deny file-write*" not in profile
 
     def test_custom_writable_paths(self) -> None:
         policy = SandboxPolicy(writable_paths=("/home/user/data",))
@@ -230,8 +298,18 @@ class TestSBPLProfile:
 
     def test_network_blocked(self) -> None:
         profile = _generate_sbpl_profile(SandboxPolicy(allow_network=False), "/workspace")
-        assert "block outbound network" in profile
-        assert "(allow network* (local udp) (local tcp))" in profile
+        assert "Block outbound network" in profile
+        # AF_UNIX must be allowed explicitly: (local tcp)/(local udp) do not cover it and
+        # PTC reaches the host over a unix socket.
+        assert "(allow network* (local udp) (local tcp) (local unix-socket))" in profile
+        # Egress needs an explicit deny; an allow-list alone does not close anything.
+        assert '(deny network* (remote ip "*:*"))' in profile
+        assert '(allow network* (remote ip "localhost:*"))' in profile
+
+    def test_network_allow_mode_grants_unix_sockets_implicitly(self) -> None:
+        profile = _generate_sbpl_profile(SandboxPolicy(allow_network=True), "/workspace")
+        assert "(allow network*)" in profile
+        assert '(deny network* (remote ip "*:*"))' not in profile
 
     def test_symlink_resolved(self) -> None:
         """Verify /tmp is resolved to /private/tmp on macOS."""
@@ -511,6 +589,30 @@ class TestAppContainerProvider:
         provider = AppContainerProvider()
         result = await provider.create_process("bash", ("-l",), "/tmp", SandboxPolicy(), {})
         assert result is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("writable", "expected_permission"),
+        [((), "RX"), (("{work}",), "F")],
+        ids=["read_only_workspace", "writable_workspace"],
+    )
+    async def test_workspace_acl_follows_the_policy(
+        self, tmp_path: Path, writable: tuple[str, ...], expected_permission: str
+    ) -> None:
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers import appcontainer
+
+        work = str(tmp_path)
+        policy = SandboxPolicy(writable_paths=tuple(path.format(work=work) for path in writable))
+        granted: dict[str, str] = {}
+
+        async def record_acl(path: str, _sid: str, permission: str, *, timeout: int = 30) -> bool:
+            granted[path] = permission
+            return True
+
+        with patch.object(appcontainer, "_set_acl", record_acl):
+            await appcontainer._apply_acls(policy, work, "S-1-15-2-test")
+
+        assert granted[work] == expected_permission
 
     def test_policy_fingerprint_deterministic(self) -> None:
         from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (

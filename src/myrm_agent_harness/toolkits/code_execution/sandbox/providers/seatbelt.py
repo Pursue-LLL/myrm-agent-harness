@@ -45,7 +45,8 @@ def _generate_sbpl_profile(policy: SandboxPolicy, work_dir: str) -> str:
     - Full process/signal/mach/sysctl for normal shell operation
     - Denies reading user directories by default
     - Explicitly allows reading Python runtime paths, /opt, and workspace
-    - Write access only to specified paths + work_dir + /tmp + /dev
+    - Write access only to ``policy.writable_paths`` + /tmp + /dev (the working directory is writable
+      only when the policy lists it, even when it lives under /tmp)
     - Optionally blocks network access
     """
     import sys
@@ -95,10 +96,12 @@ def _generate_sbpl_profile(policy: SandboxPolicy, work_dir: str) -> str:
         "",
         "; allow writing to /tmp",
         f'(allow file-write* (subpath "{real_tmp}"))',
-        "",
-        "; allow writing to workspace",
-        f'(allow file-write* (subpath "{real_work_dir}"))',
     ]
+
+    # A workspace that lives under /tmp must not inherit the scratch allowance. The rule precedes the
+    # writable paths, so a path the policy lists below the workspace stays writable.
+    if real_work_dir != real_tmp and not policy.is_writable(work_dir):
+        lines.append(f'(deny file-write* (subpath "{real_work_dir}"))')
 
     for path in policy.writable_paths:
         resolved = _resolve(path)
@@ -116,9 +119,16 @@ def _generate_sbpl_profile(policy: SandboxPolicy, work_dir: str) -> str:
         lines.extend(
             [
                 "",
-                "; block outbound network (loopback allowed)",
-                "(allow network* (local udp) (local tcp))",
+                "; Block outbound network. Seatbelt grants nothing implicitly under (deny default),",
+                "; so an allow-list alone is not a denial: any destination not matching these",
+                "; allowances would still be reachable through the process's inherited sockets.",
+                "; The explicit (deny network* (remote ip \"*:*\")) is what actually closes egress.",
+                "; AF_UNIX is NOT covered by (local tcp)/(local udp) — PTC talks to the host over a",
+                "; unix socket in $TMPDIR, so (local unix-socket) must be allowed or every in-script",
+                "; MCP call fails with EPERM.",
+                "(allow network* (local udp) (local tcp) (local unix-socket))",
                 '(allow network* (remote ip "localhost:*"))',
+                '(deny network* (remote ip "*:*"))',
             ]
         )
 
