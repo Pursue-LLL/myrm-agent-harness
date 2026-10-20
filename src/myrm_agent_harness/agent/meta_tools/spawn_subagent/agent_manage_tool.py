@@ -93,13 +93,13 @@ def create_subagent_control_tool(parent_agent: BaseAgent) -> BaseTool:
                 min_success_rate=0.0,
                 timeout=float(timeout),
             )
-            failures = result.get("failures") or []
-            results = result.get("results") or []
-            if results:
+            failures = result.get("failures")
+            results = result.get("results")
+            if isinstance(results, list) and results:
                 entry = results[0] if isinstance(results[0], dict) else {}
                 entry["success"] = True
                 return entry
-            if failures:
+            if isinstance(failures, list) and failures:
                 entry = failures[0] if isinstance(failures[0], dict) else {}
                 if entry.get("status") == SubAgentStatus.PENDING_APPROVAL.value:
                     return {

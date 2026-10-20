@@ -1,34 +1,32 @@
 """Delegate task meta-tool (multi-mode: single|batch|parallel|council|alternatives).
 
 [INPUT]
-- _delegate_budget (POS: Budget admission, policy enforcement, result caching, dynamic description)
+- _delegate_input (POS: LLM-facing args schema of delegate_task)
+- _delegate_single (POS: Single-mode execution: admission, spawn, verification, approval resume)
+- _delegate_budget (POS: Budget admission, policy enforcement, delegation call fingerprint, dynamic description)
 - _delegate_batch (POS: Batch and parallel delegation execution engine)
 - _delegate_cognitive (POS: Council and alternatives mode execution)
-- agent.sub_agents.types::SubagentCatalog, ControlScope, DelegateRole
+- agent.sub_agents.types::SubagentCatalog, DelegateRole
+- agent.sub_agents.spawn_prep::coerce_spawn_readonly (POS: readonly floor shared with Dynamic Workflow)
 - agent.base_agent::BaseAgent (POS: Base agent with streaming, token tracking, and artifacts)
 - langchain.tools::tool
-- pydantic::BaseModel, Field
 
 [OUTPUT]
 - create_delegate_task_tool: Unified delegate tool (mode=single|batch|parallel|council|alternatives)
 - update_delegate_task_description: Async description refresher for catalog roster injection
 
 [POS]
-Unified delegate_task LLM tool. Single/batch/parallel modes share spawn engine in _delegate_batch.py.
-Council/alternatives modes delegate to _delegate_cognitive.py for multi-expert orchestration.
-Budget admission, policy denial, result caching, and dynamic roster live in _delegate_budget.py.
+Unified delegate_task LLM tool: a router from `mode` to its executor. Single mode runs in _delegate_single.py,
+batch/parallel modes in _delegate_batch.py, council/alternatives modes in _delegate_cognitive.py.
+Budget admission, policy denial, the repeated-delegation fingerprint, and dynamic roster live in _delegate_budget.py.
 """
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
-from dataclasses import replace
 from typing import TYPE_CHECKING, Literal
-from uuid import uuid4
 
 from langchain.tools import tool
-from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
     TaskRequest,
@@ -37,26 +35,16 @@ from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
 )
 from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
     _build_dynamic_description,
-    _cache_key,
-    _compute_payload_hash,
-    _get_cached,
-    _normalize_role,
-    _policy_denied,
-    _put_cache,
 )
 from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_cognitive import (
     execute_cognitive_mode,
 )
-from myrm_agent_harness.agent.parallel.summary import (
-    inject_capacity_signal as _inject_capacity_signal,
-)
+from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_input import DelegateTaskInput
+from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_single import execute_single_delegation
 from myrm_agent_harness.agent.sub_agents.types import (
-    ControlScope,
     DelegateRole,
     SubagentCatalog,
-    SubAgentResult,
 )
-from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.runtime.cancellation import get_cancel_token
 
 if TYPE_CHECKING:
@@ -64,12 +52,10 @@ if TYPE_CHECKING:
 
     from myrm_agent_harness.agent.base_agent import BaseAgent
 
-logger = get_agent_logger(__name__)
-
 
 def create_delegate_task_tool(
     parent_agent: BaseAgent,
-    tool_registry_getter: Callable[[], list[object]],
+    tool_registry_getter: Callable[[], list[BaseTool]],
     catalog: SubagentCatalog,
     parent_type: str | None = None,
     allowed_types: list[str] | None = None,
@@ -87,97 +73,6 @@ def create_delegate_task_tool(
     Returns:
         delegate_task tool function.
     """
-
-    class DelegateTaskInput(BaseModel):
-        mode: Literal["single", "batch", "parallel", "council", "alternatives"] = Field(
-            default="single",
-            description=(
-                "Delegation mode: "
-                "'single' (one specialized subagent; requires agent_type + objective), "
-                "'batch' (concurrent tasks via tasks[]; supports optional race/tournament), "
-                "'parallel' (Swarm Fission map-reduce via tasks[]), "
-                "'council' (multi-expert cross-review + chair synthesis; requires expert_agent_types >= 2 + objective), "
-                "'alternatives' (N independent candidate solutions; requires expert_agent_types + objective)."
-            ),
-        )
-        agent_type: str | None = Field(
-            default=None,
-            description="(single mode) Target subagent type identifier from the Available agent types roster",
-        )
-        objective: str | None = Field(
-            default=None,
-            description="(single/council/alternatives mode) Clear, unambiguous description of the task objective",
-        )
-        context_files: list[str] = Field(
-            default_factory=list,
-            description="(single/batch mode) Optional workspace file paths relevant to the subagent task",
-        )
-        context: dict[str, object] | None = Field(
-            default=None,
-            description="Optional structured context data passed to the subagent",
-        )
-        wait: bool | None = Field(
-            default=None,
-            description="Whether to block for results. Defaults: single=false (async background), batch/parallel/council/alternatives=true (blocking).",
-        )
-        readonly: bool = Field(
-            default=False,
-            description="If true, enforces read-only execution (disallows file writes and shell commands)",
-        )
-        complexity_tier: str | None = Field(
-            default=None,
-            description="Optional model tier hint ('simple', 'standard', 'reasoning')",
-        )
-        role: DelegateRole = Field(
-            default=DelegateRole.LEAF,
-            description="Delegation hierarchy role ('leaf' cannot spawn further children)",
-        )
-        verifier_prompt: str | None = Field(
-            default=None,
-            description="Optional adversarial verification prompt (single mode, requires wait=true)",
-        )
-        verifier_agent_type: str | None = Field(
-            default=None,
-            description="Optional verifier agent type identifier (single mode)",
-        )
-        max_verification_rounds: int = Field(
-            default=2,
-            ge=1,
-            le=5,
-            description="Maximum verification retry rounds (1-5, default: 2)",
-        )
-        tasks: list[TaskRequest] | None = Field(
-            default=None,
-            description="(batch/parallel mode) List of task definitions to run concurrently",
-        )
-        race: bool = Field(
-            default=False,
-            description="(batch mode) Speculative execution: first successful result wins and cancels remaining workers",
-        )
-        tournament: bool = Field(
-            default=False,
-            description="(batch mode) Tournament execution: LLM judge evaluates and picks the best result",
-        )
-        judge_criteria: str | None = Field(
-            default=None,
-            description="(batch mode tournament) Custom evaluation criteria for the judge agent",
-        )
-        max_concurrent: int | None = Field(
-            default=None,
-            description="(batch mode) Max parallel workers (default: 3 for race, 1 otherwise)",
-        )
-        expert_agent_types: list[str] | None = Field(
-            default=None,
-            description="(council/alternatives mode) Expert agent type identifiers from catalog (min 2 for council)",
-        )
-        cross_review_rounds: int = Field(
-            default=1,
-            description="(council mode) Number of adversarial cross-review rounds between experts (1-3)",
-        )
-        chair_agent_type: str | None = Field(
-            default=None,
-            description="(council mode) Agent type for the synthesis chair (defaults to first expert)",
-        )
 
     _delegate_tool_holder: dict[str, BaseTool] = {}
 
@@ -205,13 +100,6 @@ def create_delegate_task_tool(
         chair_agent_type: str | None = None,
     ) -> dict[str, object]:
         """Delegate work to specialized subagents (mode=single|batch|parallel|council|alternatives)."""
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegation_pause_gate import (
-            is_delegation_paused,
-        )
-
-        parent_ctx = getattr(parent_agent, "_last_context", None) or {}
-        sid = str(parent_ctx.get("session_id", ""))
-
         if mode == "parallel":
             batch_tasks = tasks or []
             return execute_parallel_delegation(parent_agent, batch_tasks)
@@ -238,6 +126,7 @@ def create_delegate_task_tool(
         if mode in ("council", "alternatives"):
             from myrm_agent_harness.agent.sub_agents.spawn_prep import coerce_spawn_readonly
 
+            parent_ctx = getattr(parent_agent, "_last_context", None) or {}
             readonly = coerce_spawn_readonly(parent_agent, readonly)
             return await execute_cognitive_mode(
                 mode=mode,
@@ -252,344 +141,28 @@ def create_delegate_task_tool(
                 cross_review_rounds=cross_review_rounds,
                 chair_agent_type=chair_agent_type,
                 cancel_token=get_cancel_token(),
-                session_id=sid,
+                session_id=str(parent_ctx.get("session_id", "")),
                 allowed_types=allowed_types,
             )
 
-        if is_delegation_paused(sid):
-            return {
-                "success": False,
-                "error": "Delegation is paused for this session. Resume delegation from the subagent dashboard before spawning new workers.",
-                "session_id": sid,
-            }
-
-        if not agent_type or not objective:
-            return {
-                "success": False,
-                "error": "agent_type and objective are required for mode=single.",
-            }
-
-        single_wait = wait if wait is not None else False
-
-        if allowed_types is not None and agent_type not in allowed_types:
-            return {
-                "success": False,
-                "error": f"Agent type '{agent_type}' not allowed.",
-            }
-
-        if verifier_prompt and not single_wait:
-            return {
-                "success": False,
-                "error": "Adversarial verification requires wait=True. Please set wait=True or remove verifier_prompt.",
-            }
-
-        task = objective
-        if context_files:
-            task += "\n\nRelevant files/resources:\n" + "\n".join(f"- {f}" for f in context_files)
-
-        if context:
-            try:
-                context_str = json.dumps(context, ensure_ascii=False, indent=2)
-                task += f"\n\nAdditional Context Data:\n```json\n{context_str}\n```"
-            except Exception as e:
-                logger.warning("Failed to serialize context dict: %s", e)
-                task += f"\n\nAdditional Context Data:\n{context!s}"
-
-        requested_role = _normalize_role(role)
-
-        payload_hash = _compute_payload_hash(agent_type, task, requested_role.value, context)
-        history_hashes = list(parent_ctx.get("subagent_payload_hashes", []))
-        if history_hashes.count(payload_hash) >= 1:
-            logger.error(
-                "Payload Deadlock Prevented! Agent '%s' is repeating the exact same task. Hash: %s",
-                agent_type,
-                payload_hash[:8],
-            )
-            return {
-                "success": False,
-                "error": f"Safety interception: Detected meaningless repeated delegation loop. You are attempting to call '{agent_type}' with identical parameters (fingerprint: {payload_hash[:8]}). Reflect on the failure reason from the last call, modify the instructions or provide new context before retrying.",
-                "task_id": "deadlock-prevented",
-            }
-
-        history_hashes.append(payload_hash)
-        parent_ctx["subagent_payload_hashes"] = history_hashes
-
-        from myrm_agent_harness.agent.sub_agents.spawn_prep import coerce_spawn_readonly
-
-        effective_readonly = coerce_spawn_readonly(parent_agent, readonly)
-
-        sid = str(parent_ctx.get("session_id", ""))
-        key = _cache_key(
-            agent_type,
-            task,
-            context,
-            session_id=sid,
-            role=requested_role.value,
-            effective_readonly=effective_readonly,
-        )
-        cached = _get_cached(key)
-        if cached is not None:
-            return {
-                "success": True,
-                "result": cached,
-                "task_id": f"cached-{key}",
-                "cached": True,
-            }
-
-        task_id = str(uuid4())[:8]
-
-        config = await catalog.resolve(agent_type)
-        if not config:
-            return {
-                "success": False,
-                "error": f"Agent type '{agent_type}' not found in catalog.",
-            }
-
-        parent_manager = getattr(parent_agent, "_subagent_manager", None)
-        current_depth = int(getattr(parent_manager, "current_depth", 0))
-        allowed_type_set = frozenset(allowed_types) if allowed_types is not None else None
-
-        if requested_role == DelegateRole.ORCHESTRATOR:
-            if config.control_scope != ControlScope.ORCHESTRATOR:
-                return _policy_denied(
-                    reason="role_escalation_denied",
-                    requested_role=requested_role,
-                    effective_scope=config.control_scope,
-                    agent_type=agent_type,
-                    task_id=task_id,
-                    session_id=sid,
-                    details=(f"Agent type '{agent_type}' is not allowed to run as an orchestrator."),
-                )
-            if config.max_spawn_depth <= current_depth:
-                return _policy_denied(
-                    reason="max_spawn_depth_denied",
-                    requested_role=requested_role,
-                    effective_scope=config.control_scope,
-                    agent_type=agent_type,
-                    task_id=task_id,
-                    session_id=sid,
-                    details=(
-                        f"Agent type '{agent_type}' cannot orchestrate at depth {current_depth}; "
-                        f"max_spawn_depth={config.max_spawn_depth}."
-                    ),
-                )
-            config = replace(
-                config,
-                delegation_role=DelegateRole.ORCHESTRATOR,
-                delegation_catalog=catalog,
-                delegation_allowed_types=allowed_type_set,
-            )
-        else:
-            config = replace(
-                config,
-                control_scope=ControlScope.LEAF,
-                delegation_role=DelegateRole.LEAF,
-                delegation_catalog=None,
-                delegation_allowed_types=None,
-            )
-
-        from myrm_agent_harness.agent.sub_agents.spawn_prep import (
-            apply_readonly_to_config,
-            apply_spawn_workspace_isolation,
-            build_spawn_child_context,
-            derive_spawn_capability,
-            enforce_spawn_policy_on_config,
-            memory_isolation_scope,
-            resolve_delegate_parallel_write_batch,
-            subagent_capability_scope,
-        )
-
-        config = apply_readonly_to_config(config, effective_readonly)
-        config = enforce_spawn_policy_on_config(config)
-
-        cancel_token = get_cancel_token()
-
-        child_context = build_spawn_child_context(
-            parent_ctx=parent_ctx,
-            base_context=dict(context or {}),
-            payload_hashes=history_hashes,
-        )
-        workspace_prep = apply_spawn_workspace_isolation(
-            config=config,
-            child_context=child_context,
-            readonly=effective_readonly,
-            parallel_write_batch=resolve_delegate_parallel_write_batch(parent_agent),
-        )
-        config = workspace_prep.config
-        child_context = workspace_prep.child_context
-
-        derive_spawn_capability(
+        return await execute_single_delegation(
             parent_agent=parent_agent,
+            tool_registry_getter=tool_registry_getter,
+            catalog=catalog,
+            parent_type=parent_type,
+            allowed_types=allowed_types,
             agent_type=agent_type,
-            child_context=child_context,
-            readonly=effective_readonly,
+            objective=objective,
             context_files=context_files,
+            context=context,
+            wait=wait,
+            readonly=readonly,
+            complexity_tier=complexity_tier,
+            role=role,
+            verifier_prompt=verifier_prompt,
+            verifier_agent_type=verifier_agent_type,
+            max_verification_rounds=max_verification_rounds,
         )
-
-        logger.info(
-            "Spawning subagent: type=%s, task_id=%s, wait=%s, scope=%s",
-            agent_type,
-            task_id,
-            wait,
-            config.control_scope,
-        )
-
-        try:
-            with (
-                memory_isolation_scope(parent_agent=parent_agent, config=config),
-                subagent_capability_scope(child_context),
-            ):
-                if verifier_prompt and single_wait:
-                    logger.info(f"Running adversarial verification for subagent {task_id}")
-                    from myrm_agent_harness.agent.sub_agents.orchestrator import run_with_verification
-                    from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
-
-                    v_type = verifier_agent_type or agent_type
-                    v_config = await catalog.resolve(v_type)
-                    if not v_config:
-                        logger.warning(
-                            "Verifier agent type '%s' not found, falling back to worker type '%s'",
-                            v_type,
-                            agent_type,
-                        )
-                        v_type = agent_type
-                        v_config = config
-
-                    verifier_config = replace(v_config, workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
-
-                    result = await run_with_verification(
-                        manager=parent_manager,
-                        worker_type=agent_type,
-                        worker_config=config,
-                        worker_task=task,
-                        verifier_type=v_type,
-                        verifier_config=verifier_config,
-                        context=child_context,
-                        tool_registry_getter=tool_registry_getter,
-                        max_rounds=max_verification_rounds,
-                        verifier_task_template=verifier_prompt,
-                        cancel_token=cancel_token,
-                        task_id=task_id,
-                    )
-                else:
-                    result = await parent_agent._spawn_child(
-                        task_id=task_id,
-                        agent_type=agent_type,
-                        task_description=task,
-                        config=config,
-                        context=child_context,
-                        tool_registry_getter=tool_registry_getter,
-                        wait=single_wait,
-                        parent_type=parent_type,
-                        cancel_token=cancel_token,
-                        complexity_tier=complexity_tier,
-                    )
-
-                if isinstance(result, SubAgentResult):
-                    from myrm_agent_harness.agent.sub_agents.types import SubAgentStatus
-
-                    while result.status == SubAgentStatus.PENDING_APPROVAL:
-                        interrupt_payload: dict[str, object] = {
-                            "action_type": "subagent_approval",
-                            "subagent_task_id": task_id,
-                        }
-                        if result.payload and isinstance(result.payload, dict):
-                            interrupt_payload.update(result.payload)
-
-                            action_requests = result.payload.get("actionRequests", [])
-                            tool_calls: list[dict[str, object]] = []
-                            if not isinstance(action_requests, list):
-                                action_requests = []
-                            for req in action_requests:
-                                if isinstance(req, dict):
-                                    raw_args = req.get("args", {})
-                                    args: dict[str, object] = dict(raw_args) if isinstance(raw_args, dict) else {}
-                                    command_spans = req.get("command_spans")
-                                    if command_spans:
-                                        args["command_spans"] = command_spans
-                                    command_span_risks = req.get("command_span_risks")
-                                    if command_span_risks:
-                                        args["command_span_risks"] = command_span_risks
-                                    command_span_reasons = req.get("command_span_reasons")
-                                    if command_span_reasons:
-                                        args["command_span_reasons"] = command_span_reasons
-                                    tool_calls.append(
-                                        {
-                                            "name": req.get("action", "unknown"),
-                                            "args": args,
-                                        }
-                                    )
-                            if tool_calls:
-                                interrupt_payload["tool_calls"] = tool_calls
-
-                        else:
-                            interrupt_payload["payload"] = result.payload
-
-                        from langgraph.types import Command, interrupt
-
-                        decisions = interrupt(interrupt_payload)
-                        logger.info("Resuming subagent %s after UI approval", task_id)
-                        result = await parent_agent._spawn_child(
-                            task_id=task_id,
-                            agent_type=agent_type,
-                            task_description=task,
-                            config=config,
-                            context=child_context,
-                            tool_registry_getter=tool_registry_getter,
-                            wait=single_wait,
-                            parent_type=parent_type,
-                            cancel_token=cancel_token,
-                            resume_command=Command(resume=decisions),
-                            complexity_tier=complexity_tier,
-                        )
-
-                if isinstance(result, SubAgentResult):
-                    result_dict = result.to_dict()
-                    if single_wait:
-                        if result_dict.get("success"):
-                            _put_cache(key, result_dict.get("result", {}))
-                        return _inject_capacity_signal(result_dict, parent_agent)
-
-                if isinstance(result, dict) and wait and result.get("success"):
-                    _put_cache(key, result.get("result", {}))
-
-                final_result = result if isinstance(result, dict) else {"success": False, "error": str(result)}
-                return _inject_capacity_signal(final_result, parent_agent)
-
-        except TimeoutError:
-            timeout_msg = f"after {config.timeout_seconds}s" if config.timeout_seconds is not None else ""
-            logger.error("Subagent %s timed out %s", task_id, timeout_msg)
-            return {
-                "success": False,
-                "error": f"Timeout {timeout_msg}".strip(),
-                "task_id": task_id,
-            }
-        except Exception as e:
-            from langgraph.errors import GraphInterrupt
-
-            if isinstance(e, GraphInterrupt):
-                raise
-
-            from myrm_agent_harness.toolkits.llms.errors.classifier import (
-                ErrorKind,
-                classify_error,
-            )
-
-            error_kind = classify_error(e)
-            if error_kind == ErrorKind.FORMAT_ERROR:
-                logger.warning("Subagent %s failed due to FORMAT_ERROR: %s", task_id, e)
-                return {
-                    "success": False,
-                    "error": f"Subagent execution failed due to LLM output format validation error ({e}). Please provide simpler structured instructions and retry.",
-                    "task_id": task_id,
-                }
-
-            logger.error("Failed to spawn subagent %s: %s", task_id, e, exc_info=True)
-            return {
-                "success": False,
-                "error": f"{type(e).__name__}: {e}",
-                "task_id": task_id,
-            }
 
     _delegate_tool_holder["tool"] = delegate_task_func
     return delegate_task_func
@@ -609,12 +182,7 @@ async def update_delegate_task_description(
     delegate_tool.description = dynamic_desc
 
 
-from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (  # noqa: E402
-    BatchDelegateInput,
-)
-
 __all__ = [
-    "BatchDelegateInput",
     "TaskRequest",
     "create_delegate_task_tool",
     "update_delegate_task_description",

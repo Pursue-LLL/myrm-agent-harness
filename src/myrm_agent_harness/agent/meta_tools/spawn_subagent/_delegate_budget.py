@@ -1,4 +1,4 @@
-"""Budget admission, policy enforcement, result caching, and dynamic description for delegate_task.
+"""Budget admission, policy enforcement, call fingerprinting, and dynamic description for delegate_task.
 
 [INPUT]
 - sub_agents.types::ControlScope, DelegateRole, SubagentCatalog (POS: Subagent type definitions)
@@ -6,8 +6,7 @@
 - utils.token_economics (POS: Budget guard and cost engine)
 
 [OUTPUT]
-- _CachedResult, _cache_key, _get_cached, _put_cache: Result caching with TTL
-- _get_hashable_value, _compute_payload_hash: Payload fingerprinting (deadlock detection)
+- _get_hashable_value, _compute_payload_hash: Delegation call fingerprint (repeated-delegation loop detection)
 - _normalize_role: DelegateRole normalization
 - _BatchBudgetAdmission: Budget admission result
 - _emit_policy_denial_event, _policy_denied: Policy denial helpers
@@ -17,13 +16,13 @@
 - _build_dynamic_description: Dynamic tool description builder
 
 [POS]
-Budget, policy, caching, and description utilities for the delegate_task tool family.
+Budget, policy, fingerprint, and description utilities for the delegate_task tool family.
 """
 
 from __future__ import annotations
 
 import hashlib
-import time
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
@@ -48,57 +47,6 @@ if TYPE_CHECKING:
 
 logger = get_agent_logger(__name__)
 
-_CACHE_TTL_SECONDS = 60
-_CACHE_MAX_SIZE = 1000
-
-
-# ---------------------------------------------------------------------------
-# Result cache
-# ---------------------------------------------------------------------------
-
-
-class _CachedResult:
-    __slots__ = ("data", "timestamp")
-
-    def __init__(self, data: object, timestamp: float) -> None:
-        self.data = data
-        self.timestamp = timestamp
-
-
-_result_cache: dict[str, _CachedResult] = {}
-
-
-def _cache_key(
-    agent_type: str,
-    task: str,
-    context: dict[str, object] | None,
-    session_id: str = "",
-    role: str = DelegateRole.LEAF.value,
-    effective_readonly: bool = False,
-) -> str:
-    raw = f"{session_id}::{agent_type}::{role}::{int(effective_readonly)}::{task}::{sorted((context or {}).items())}"
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
-
-
-def _get_cached(key: str) -> object | None:
-    entry = _result_cache.get(key)
-    if entry and (time.time() - entry.timestamp) < _CACHE_TTL_SECONDS:
-        return entry.data
-    if entry:
-        del _result_cache[key]
-    return None
-
-
-def _put_cache(key: str, data: object) -> None:
-    now = time.time()
-    expired = [k for k, v in _result_cache.items() if (now - v.timestamp) > _CACHE_TTL_SECONDS]
-    for k in expired:
-        del _result_cache[k]
-    if len(_result_cache) >= _CACHE_MAX_SIZE:
-        oldest = min(_result_cache, key=lambda k: _result_cache[k].timestamp)
-        del _result_cache[oldest]
-    _result_cache[key] = _CachedResult(data, now)
-
 
 def _get_hashable_value(v: object) -> object:
     """Recursively ensure a value is JSON-serializable and order-independent."""
@@ -116,22 +64,40 @@ def _compute_payload_hash(
     task: str,
     role_value: str,
     context: dict[str, object] | None,
+    *,
+    effective_readonly: bool,
+    complexity_tier: str | None,
+    verifier_prompt: str | None,
+    verifier_agent_type: str | None,
+    max_verification_rounds: int,
 ) -> str:
-    """Compute a SHA-256 fingerprint for a delegation payload (deadlock detection)."""
-    import json as _json
+    """Fingerprint everything that decides how a delegation runs, for repeated-delegation loop detection.
 
+    Two calls that differ in any of these fields do different work (another sandbox, model tier or
+    verification), so they must not be mistaken for a repeat. The verifier fields only count when a
+    verification is requested: without ``verifier_prompt`` they have no effect.
+    """
     hashable_ctx = _get_hashable_value(context) if context else {}
-    payload_str = _json.dumps(
+    verification = (
+        [str(verifier_prompt).strip(), str(verifier_agent_type or "").strip(), max_verification_rounds]
+        if verifier_prompt
+        else None
+    )
+    payload_str = json.dumps(
         {
             "type": str(agent_type).strip(),
             "task": str(task).strip(),
             "role": role_value,
             "ctx": hashable_ctx,
+            "readonly": effective_readonly,
+            "tier": complexity_tier or None,
+            "verification": verification,
         },
         sort_keys=True,
         ensure_ascii=False,
     )
-    return hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
+    # Model output can carry lone surrogates; they must fingerprint instead of failing the delegation.
+    return hashlib.sha256(payload_str.encode("utf-8", errors="surrogatepass")).hexdigest()
 
 
 def _normalize_role(role: DelegateRole | str) -> DelegateRole:
@@ -262,12 +228,12 @@ def _estimate_prompt_tokens(task: TaskRequest) -> int:
 
 def get_budget_checker(parent_agent: BaseAgent) -> object | None:
     tracker = getattr(parent_agent, "token_tracker", None)
-    checker = getattr(tracker, "budget_checker", None)
+    checker: object | None = getattr(tracker, "budget_checker", None)
     if checker is not None and (
         callable(getattr(checker, "check_budget", None)) or callable(getattr(checker, "get_remaining_budget", None))
     ):
         return checker
-    parent_checker = getattr(parent_agent, "budget_checker", None)
+    parent_checker: object | None = getattr(parent_agent, "budget_checker", None)
     if parent_checker is not None and (
         callable(getattr(parent_checker, "check_budget", None))
         or callable(getattr(parent_checker, "get_remaining_budget", None))
