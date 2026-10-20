@@ -23,6 +23,7 @@ import os
 import signal
 import traceback
 from pathlib import Path
+from types import ModuleType
 
 from myrm_agent_harness.toolkits.code_execution.executors.base import (
     ExecutionContext,
@@ -33,6 +34,35 @@ from myrm_agent_harness.toolkits.code_execution.executors.common import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _kill_process_tree(process: asyncio.subprocess.Process, os_compat: ModuleType) -> None:
+    """Terminate the child's whole process group, escalating to SIGKILL.
+
+    Shared by the timeout and cancellation paths so both leave no orphaned
+    descendants behind. Never raises: cleanup failures must not mask the
+    original timeout/cancel outcome.
+    """
+    kill_group = getattr(os_compat, "kill_process_group", None)
+    try:
+        if process.returncode is not None:
+            return
+        if process.pid and kill_group:
+            kill_group(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=2)
+        except TimeoutError:
+            if process.pid and kill_group:
+                kill_group(process.pid, signal.SIGKILL)
+            else:
+                process.kill()
+            await process.wait()
+    except ProcessLookupError:
+        return
+    except Exception as e:  # noqa: BLE001 - cleanup must never raise
+        logger.warning("Process group cleanup failed: %s", e)
 
 
 async def run_python_subprocess(
@@ -120,7 +150,7 @@ async def run_python_subprocess(
 
         if sandbox_status.enabled:
             policy = SandboxPolicy(
-                writable_paths=(("/tmp",) if context and context.readonly_workspace else (work_dir_str,)),
+                writable_paths=(() if context and context.readonly_workspace else (work_dir_str,)),
                 allow_network=allow_network,
             )
             wrapped_cmd, wrapped_args = provider.wrap_command(
@@ -149,23 +179,17 @@ async def run_python_subprocess(
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=timeout)
         except TimeoutError:
-            if process.pid:
-                os_compat.kill_process_group(process.pid, signal.SIGTERM)
-            else:
-                process.terminate()
-            try:
-                await asyncio.wait_for(process.wait(), timeout=2)
-            except TimeoutError:
-                if process.pid:
-                    os_compat.kill_process_group(process.pid, signal.SIGKILL)
-                else:
-                    process.kill()
-                await process.wait()
+            await _kill_process_tree(process, os_compat)
             return ExecutionResult(
                 success=False,
                 error=f"Execution timed out after {timeout}s",
                 stderr="Timeout",
             )
+        except asyncio.CancelledError:
+            # Host task cancelled (user pressed Stop). Reap the process group before
+            # propagating, otherwise the sandboxed child and its workers keep running.
+            await _kill_process_tree(process, os_compat)
+            raise
 
         stdout = stdout_bytes.decode("utf-8", errors="replace")
         stderr = stderr_bytes.decode("utf-8", errors="replace")

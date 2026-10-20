@@ -484,7 +484,8 @@ async def test_ptc_batched_stub_passes_list_to_tool() -> None:
     executor = InProcessExecutor()
     result = await inject_ptc_for_python_execution(context, executor, [tool])
     assert result.success, result.stderr
-    assert '"success": true' in (result.stdout or "")
+    # The stub hands back the tool's native dict, so the script prints its repr.
+    assert "'success': True" in (result.stdout or "")
     assert "reply:q1" in (result.stdout or "")
     assert "reply:q2" in (result.stdout or "")
 

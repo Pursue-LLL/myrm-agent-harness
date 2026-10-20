@@ -95,6 +95,29 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_WORKFLOW_TIMEOUT_SECONDS = 1800
+"""Wall-clock budget for one orchestration script.
+
+Parsed from ``MYRM_WORKFLOW_TIMEOUT_SECONDS``; falls back to 30 minutes because a
+parallel spawn fan-out legitimately outlives the 60s single-command default.
+"""
+
+
+def _resolve_workflow_timeout() -> int:
+    """Resolve the orchestration wall-clock budget in seconds."""
+    import os
+
+    raw = os.environ.get("MYRM_WORKFLOW_TIMEOUT_SECONDS", "")
+    if raw:
+        try:
+            value = int(raw)
+        except ValueError:
+            logger.warning("Invalid MYRM_WORKFLOW_TIMEOUT_SECONDS=%r; using default", raw)
+        else:
+            if value > 0:
+                return value
+    return _WORKFLOW_TIMEOUT_SECONDS
+
 
 async def _build_available_types_hint(catalog: SubagentCatalog | None) -> str:
     """Build a dynamic hint listing available subagent types for the LLM.
@@ -513,8 +536,10 @@ async def run_dynamic_workflow_stream(
         code=script_code,
         original_code=script_code,
         session_id=workflow_id,
-        work_dir="/workspace",
+        work_dir=workspace_root,
+        workspace_root=workspace_root,
         allow_network=True,
+        timeout=_resolve_workflow_timeout(),
     )
     executor = create_executor()
 
@@ -590,6 +615,14 @@ async def run_dynamic_workflow_stream(
                 errors = merge_summary.get("workspace_merge_errors", [])
                 if isinstance(errors, list) and errors:
                     merge_error_note = "Workspace merge errors:\n" + "\n".join(str(item) for item in errors)
+        # Release the per-workflow executor (sandbox handles, Bash session). Without
+        # this, every workflow run leaves resources bound for the process lifetime.
+        close = getattr(executor, "close", None)
+        if close is not None:
+            try:
+                await close()
+            except Exception as exc:  # noqa: BLE001 - cleanup must not mask results
+                logger.warning("Workflow executor close failed: %s", exc)
 
     exec_status = "success"
     exec_message = "Workflow execution completed."
