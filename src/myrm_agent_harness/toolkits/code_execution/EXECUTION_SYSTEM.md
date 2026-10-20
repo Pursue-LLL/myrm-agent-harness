@@ -214,18 +214,20 @@ Python wrapper 在用户代码运行前注入一个 import 钩子，惰性拦截
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
 | `mode` | `LOCAL` | 执行模式（当前仅支持 LOCAL） |
-| `timeout_seconds` | 60 | 单次执行超时 |
-| `max_output_size` | 50000 | 输出最大字符数 |
+| `local.max_execution_time` | 60 | 单次执行超时（秒） |
+| `local.max_output_bytes` | 5 MiB | 输出缓冲上限，防止内存溢出 |
+| `local.max_memory_mb` | 2048 | 单次执行内存上限（0 = 禁用） |
+| `mcp_proxy.enabled` | `true` | MCP IPC 开关 |
 | `network` | `NetworkConfig()` | 网络访问配置 |
 
 ### NetworkConfig
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
-| `allow_network` | `true` | 是否允许网络访问 |
-| `allowed_hosts` | `None`（使用默认白名单） | 域名白名单 |
+| `allow_network` | `false` | 是否允许网络访问（默认关闭） |
+| `allowed_hosts` | `None` | `allow_network=true` 时生效：`None` = 内置默认白名单；空集合 = 不限制；非空 = 仅这些域名 |
 
-配置参数：`ExecutionConfig.network.allow_network`、`ExecutionConfig.network.allowed_hosts`
+配置参数：`ExecutionConfig.local.*`、`ExecutionConfig.mcp_proxy.*`、`ExecutionConfig.network.allow_network`、`ExecutionConfig.network.allowed_hosts`
 
 ---
 
