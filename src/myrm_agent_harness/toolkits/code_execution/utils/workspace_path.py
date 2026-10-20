@@ -52,16 +52,28 @@ class WorkspacePathResolver:
 
     # Cached resolved workspace root (avoid repeated detection)
     _cached_workspace_root: Path | None = None
+    _cache_key: tuple[str, str] | None = None
 
     @classmethod
     def reset_cache(cls) -> None:
         """Drop the memoized workspace root.
 
-        The value is resolved once per process, so anything that changes the
-        effective workspace (a new session, a test that chdir's, a tenant switch)
-        must call this or it will keep resolving against the first caller's root.
+        Explicit escape hatch for callers that need a hard reset (tenant switch,
+        test isolation). Ordinary changes are handled automatically through
+        :meth:`_current_cache_key`.
         """
         cls._cached_workspace_root = None
+        cls._cache_key = None
+
+    @classmethod
+    def _current_cache_key(cls) -> tuple[str, str]:
+        """Inputs that determine the resolved root.
+
+        The cache is keyed by them, so a new session that changes
+        ``WORKSPACE_ROOT`` or the current directory re-resolves instead of
+        inheriting the first caller's root for the rest of the process.
+        """
+        return (os.getenv("WORKSPACE_ROOT", ""), str(Path.cwd()))
 
     @staticmethod
     def resolve_workspace_root() -> Path:
@@ -79,9 +91,15 @@ class WorkspacePathResolver:
         Raises:
             WorkspaceResolutionError: If resolution fails with diagnostic info.
         """
-        # Return cached result if available
-        if WorkspacePathResolver._cached_workspace_root:
+        # Return cached result if available AND the resolution inputs are unchanged
+        cache_key = WorkspacePathResolver._current_cache_key()
+        if WorkspacePathResolver._cached_workspace_root and WorkspacePathResolver._cache_key == cache_key:
             return WorkspacePathResolver._cached_workspace_root
+
+        # Inputs changed (new session root or cwd): drop the stale entry.
+        if WorkspacePathResolver._cache_key is not None and WorkspacePathResolver._cache_key != cache_key:
+            WorkspacePathResolver._cached_workspace_root = None
+            WorkspacePathResolver._cache_key = None
 
         try:
             # 1. Check environment variable (highest priority)
@@ -90,6 +108,7 @@ class WorkspacePathResolver:
                 if workspace_path.exists():
                     logger.info(f" Workspace root from WORKSPACE_ROOT: {workspace_path}")
                     WorkspacePathResolver._cached_workspace_root = workspace_path
+                    WorkspacePathResolver._cache_key = cache_key
                     return workspace_path
                 else:
                     logger.warning(f" WORKSPACE_ROOT={workspace_env} does not exist, continuing resolution")
@@ -100,18 +119,21 @@ class WorkspacePathResolver:
                 if container_workspace.exists():
                     logger.info(f" Container workspace detected: {container_workspace}")
                     WorkspacePathResolver._cached_workspace_root = container_workspace
+                    WorkspacePathResolver._cache_key = cache_key
                     return container_workspace
 
             # 3. Detect project root from markers
             if project_root := WorkspacePathResolver._detect_project_root():
                 logger.info(f" Project root detected: {project_root}")
                 WorkspacePathResolver._cached_workspace_root = project_root
+                WorkspacePathResolver._cache_key = cache_key
                 return project_root
 
             # 4. Fallback to current working directory
             cwd = Path.cwd()
             logger.info(f" Using current directory as workspace: {cwd}")
             WorkspacePathResolver._cached_workspace_root = cwd
+            WorkspacePathResolver._cache_key = cache_key
             return cwd
 
         except Exception as e:
