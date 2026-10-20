@@ -299,16 +299,21 @@ class MCPIPCServer:
     def _consume_call_budget(self, session_id: str | None) -> str | None:
         """Account one tool call against the session budget.
 
+        Budgets are per session. A request without ``session_id`` has no bucket to
+        account against, so it is not charged (the caller is already constrained by
+        the authenticated socket and the read-only policy).
+
         Returns an error message when the budget is exhausted, else ``None``.
         """
-        key = session_id or "-"
-        used = self._session_calls.get(key, 0)
+        if not session_id:
+            return None
+        used = self._session_calls.get(session_id, 0)
         if used >= self._max_calls_per_session:
             return (
                 f"Session tool-call budget exhausted: {used}/{self._max_calls_per_session} "
                 "calls used. Summarise results and finish the script."
             )
-        self._session_calls[key] = used + 1
+        self._session_calls[session_id] = used + 1
         return None
 
     def _check_read_only_policy(self, request: MCPIPCRequest) -> str | None:
