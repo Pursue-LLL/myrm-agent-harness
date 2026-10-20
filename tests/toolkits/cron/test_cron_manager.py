@@ -304,7 +304,7 @@ class TestQueryMethods:
         result = await mgr.list_jobs("user-1", limit=10, offset=0)
         assert result == jobs
         mgr._store.list_jobs.assert_awaited_once_with(
-            user_id="user-1", name_filter=None, chat_id=None, limit=10, offset=0
+            user_id="user-1", name_filter=None, chat_id=None, project_id=None, limit=10, offset=0
         )
 
     @pytest.mark.asyncio

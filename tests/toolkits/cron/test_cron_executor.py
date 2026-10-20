@@ -816,6 +816,80 @@ class TestRunnerSkip:
         store.delete_job.assert_awaited_once_with("job-1")
 
 
+class TestRunnerDeferral:
+    """``JobResult.retry_at``: the run cannot succeed before that instant."""
+
+    @staticmethod
+    def _deferred(reason: str = "usage-limit", **overrides: object) -> tuple[JobResult, datetime]:
+        retry_at = datetime.now(UTC) + timedelta(hours=3)
+        return JobResult(success=False, error="limit", skip_reason=reason, retry_at=retry_at, **overrides), retry_at
+
+    @pytest.mark.asyncio
+    async def test_rearms_job_without_counting_a_failure(self) -> None:
+        executor, store, delivery = _make_executor()
+        job = _make_job(consecutive_failures=2)
+        result, retry_at = self._deferred()
+        runner = AsyncMock()
+        runner.run = AsyncMock(return_value=result)
+
+        await executor.run_and_record(job, runner)
+
+        saved_run = store.save_run.call_args[0][0]
+        assert saved_run.status == RunStatus.SKIPPED
+        assert saved_run.output == "usage-limit"
+        assert job.status == JobStatus.ACTIVE
+        assert job.next_run_at == retry_at
+        assert job.last_status == RunStatus.SKIPPED
+        assert job.consecutive_failures == 2
+        assert job.last_failure_alert_at is None
+        delivery.deliver.assert_not_awaited()
+        store.save_job.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("delete_after_run", [False, True])
+    async def test_one_shot_job_stays_alive(self, delete_after_run: bool) -> None:
+        executor, store, _ = _make_executor()
+        job = _make_job(schedule=_make_schedule(ScheduleKind.ONCE), delete_after_run=delete_after_run)
+        result, retry_at = self._deferred()
+        runner = AsyncMock()
+        runner.run = AsyncMock(return_value=result)
+
+        await executor.run_and_record(job, runner)
+
+        assert job.status == JobStatus.ACTIVE
+        assert job.next_run_at == retry_at
+        store.delete_job.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_takes_precedence_over_skipped_for_one_shot_jobs(self) -> None:
+        """A load-shed one-shot run is retried, not consumed like a no-content skip."""
+        executor, store, _ = _make_executor()
+        job = _make_job(schedule=_make_schedule(ScheduleKind.ONCE), delete_after_run=True)
+        result, retry_at = self._deferred("memory_pressure:high", skipped=True)
+        runner = AsyncMock()
+        runner.run = AsyncMock(return_value=result)
+
+        await executor.run_and_record(job, runner)
+
+        assert job.status == JobStatus.ACTIVE
+        assert job.next_run_at == retry_at
+        store.delete_job.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_job_deleted_during_run_is_not_resurrected(self) -> None:
+        executor, store, _ = _make_executor()
+        store.get_job = AsyncMock(return_value=None)
+        job = _make_job()
+        result, _ = self._deferred()
+        runner = AsyncMock()
+        runner.run = AsyncMock(return_value=result)
+
+        await executor.run_and_record(job, runner)
+
+        store.save_run.assert_awaited_once()
+        store.save_job.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # TracingContext injection in run_and_record
 # ---------------------------------------------------------------------------
@@ -1010,7 +1084,7 @@ class TestRunAndRecordTracing:
     @pytest.mark.asyncio
     async def test_circuit_break_pauses_job_and_marks_run_status(self) -> None:
         """When JobResult is circuit_broken, run status is CIRCUIT_BREAK and job is auto-paused."""
-        executor, store, delivery = _make_executor()
+        executor, store, _delivery = _make_executor()
         job = _make_job()
         runner = AsyncMock()
         runner.run = AsyncMock(
@@ -1031,5 +1105,3 @@ class TestRunAndRecordTracing:
         assert job.status == JobStatus.PAUSED
         assert job.next_run_at is None
         assert job.last_status == RunStatus.CIRCUIT_BREAK
-
-

@@ -53,25 +53,25 @@ class TestConnectorErrorClassification:
         assert "502" in msg
 
     def test_error_string_patterns(self) -> None:
-        cat, msg = classify_connector_error("Webhook returned 403: Forbidden")
+        cat, _ = classify_connector_error("Webhook returned 403: Forbidden")
         assert cat == ConnectorErrorCategory.AUTH_FAILURE
 
-        cat, msg = classify_connector_error("Webhook returned 502: Bad Gateway")
+        cat, _ = classify_connector_error("Webhook returned 502: Bad Gateway")
         assert cat == ConnectorErrorCategory.HTTP_SERVER_ERROR
 
-        cat, msg = classify_connector_error("ConnectTimeout: connection timed out after 10s")
+        cat, _ = classify_connector_error("ConnectTimeout: connection timed out after 10s")
         assert cat == ConnectorErrorCategory.TIMEOUT
 
-        cat, msg = classify_connector_error("Name or service not known (DNS failure)")
+        cat, _ = classify_connector_error("Name or service not known (DNS failure)")
         assert cat == ConnectorErrorCategory.NETWORK_UNREACHABLE
 
-        cat, msg = classify_connector_error("Invalid json response payload too large")
+        cat, _ = classify_connector_error("Invalid json response payload too large")
         assert cat == ConnectorErrorCategory.PAYLOAD_CONTRACT
 
-        cat, msg = classify_connector_error("Broken pipe on stdio socket")
+        cat, _ = classify_connector_error("Broken pipe on stdio socket")
         assert cat == ConnectorErrorCategory.PROCESS_ERROR
 
-        cat, msg = classify_connector_error("Unknown internal anomaly")
+        cat, _ = classify_connector_error("Unknown internal anomaly")
         assert cat == ConnectorErrorCategory.UNKNOWN
 
 
@@ -125,10 +125,10 @@ class TestStructuredAlertPayload:
         assert "token=" in redact_connector_url("https://example.com/?token=")
 
         # Classification with various exception types
-        class CustomNetworkErr(IOError):
+        class CustomNetworkError(IOError):
             pass
 
-        cat, msg = classify_connector_error(CustomNetworkErr("Connection reset by peer"))
+        cat, msg = classify_connector_error(CustomNetworkError("Connection reset by peer"))
         assert cat == ConnectorErrorCategory.NETWORK_UNREACHABLE
 
         # Empty / None error classifications

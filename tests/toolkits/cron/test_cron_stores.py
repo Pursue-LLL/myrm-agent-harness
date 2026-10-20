@@ -29,7 +29,7 @@ def _make_job(
     job_id: str = "j1",
     user_id: str = "u1",
     status: JobStatus = JobStatus.ACTIVE,
-    next_run_at: datetime | None | object = _SENTINEL,
+    next_run_at: datetime | object | None = _SENTINEL,
 ) -> CronJob:
     return CronJob(
         id=job_id,
