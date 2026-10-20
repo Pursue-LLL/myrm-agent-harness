@@ -55,7 +55,6 @@ _RUNTIME_SUBPACKAGES = (
     "diagnostics",
     "survival",
     "paths",
-    "artifacts",
     "deps",
 )
 
@@ -67,8 +66,7 @@ def test_runtime_root_has_no_flat_implementation_modules() -> None:
         p.name for p in _RUNTIME_ROOT.iterdir() if p.is_file() and p.suffix == ".py" and p.name != "__init__.py"
     )
     assert not forbidden, (
-        f"runtime/ root must not flat-spread modules: {forbidden}. "
-        "Move into diagnostics/, survival/, paths/, artifacts/, or deps/."
+        f"runtime/ root must not flat-spread modules: {forbidden}. Move into diagnostics/, survival/, paths/, or deps/."
     )
 
 
@@ -124,9 +122,17 @@ def test_install_guard_public_export() -> None:
 
 
 @pytest.mark.architecture
-def test_client_facade_still_at_package_root() -> None:
+def test_client_facade_is_gone_from_package_root() -> None:
+    """The SDK facade was removed: ``api/`` is the one public entry point.
+
+    A new ``client.py`` at the package root would reintroduce a second public
+    surface that no code imports, so its reappearance is treated as a regression.
+    """
     client_path = _PACKAGE_ROOT / "client.py"
-    assert client_path.is_file(), "SDK facade client.py must remain at package root."
+    assert not client_path.exists(), (
+        "client.py was removed on purpose (api/ is the public entry); "
+        "a new root-level SDK facade needs an explicit architecture decision."
+    )
 
 
 @pytest.mark.architecture

@@ -44,7 +44,7 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 
 - **框架-业务分离**：框架层不依赖业务层，通过 [自动化检测与修复](scripts/_ARCH.md) 保护架构完整性；`toolkits/` 禁止 import `agent/`（`tests/architecture/test_toolkits_agent_boundary.py`）；`toolkits/` 禁止 vendor 工具包/浅层 vendor 模块名（`tests/architecture/test_toolkits_vendor_boundary.py`；见 [toolkits/_ARCH.md](src/myrm_agent_harness/toolkits/_ARCH.md)、[TOOL_DESIGN_STRATEGY.md](src/myrm_agent_harness/agent/tool_management/TOOL_DESIGN_STRATEGY.md) §1.2）
 - **子智能体预算硬终止 (Subagent Budget Hard-Stop)**：基于 `TokenTracker` 和底层事件转发器实施严格预算审查拦截，杜绝无限自愈或死循环导致用户余额击穿。
-- **子智能体跨层异步审批 (Asynchronous Escalation)**：基于 LangGraph 原生 `NodeInterrupt` 的穿透式中断架构，实现自主体级高危操作前端 GUI 拦截。父子双图协同挂起，完全释放服务器并发资源，避免网关强制超时，并 100% 保护大模型前缀缓存。
+- **子智能体跨层异步审批 (Asynchronous Escalation)**：基于 LangGraph 原生 `NodeInterrupt` 的穿透式中断架构，实现自主体级高危操作前端 GUI 拦截。父子双图协同挂起，完全释放服务器并发资源，避免网关强制超时，并保持主对话前缀布局稳定以利于 Prompt Cache 命中。
 - **防宕机全双工终端流 (Safe Full-Duplex Terminal)**：从底层 PTY 拦截并流式下发数据，内置 10FPS 节流与 500KB 流量熔断阀门，物理阻绝 SSE 瀑布流 DDOS 攻击导致的浏览器白屏
 - **协议驱动**：3 个核心协议（`SandboxExecutor`, `StorageProvider`, `SkillBackend`）
 - **性能优先**：智能缓存（7x 加速）、异步 I/O、高效算法
@@ -59,7 +59,6 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 | **Core 层** | `myrm_agent_harness/core/`         | **框架无关基础能力层**。提供 security（安全检测/审计/防护）、config（LLM 配置）、events（事件类型/流式枚举）、hooks（Hook 类型定义/生命周期事件）、artifacts（工件类型/映射常量）。同时被 `agent/` 和 `toolkits/` 引用，消除二者间的耦合 |
 | **Public API** | `myrm_agent_harness/api/`       | **公开 API**。第三方框架与 server 的唯一推荐 import 路径（factory、Protocol、DTO）。详见 [DISTRIBUTION_SYSTEM.md](harness_packaging/DISTRIBUTION_SYSTEM.md) |
 | Agent 核心 | `myrm_agent_harness/agent/`         | BaseAgent / SkillAgent 运行时；模块导航见 [agent/_ARCH.md](src/myrm_agent_harness/agent/_ARCH.md) |
-| SDK 入口   | `myrm_agent_harness/client.py`      | SDK Facade — `AgentClient` 便利层；**PyPI 稳定契约**见 `api/`                                                                                                                                                          |
 | ACP 薄入口 | `myrm_agent_harness/agent/acp/`    | 独立 ACP Server 的 default factory 与 CLI 入口；完整 ACP runtime 在 `toolkits/acp/`                                                                                                                                                |
 | 后端抽象层 | `myrm_agent_harness/backends/`      | Profile / Secret / Skill 三类存储后端的 Protocol（Skill 另含 Storage 实现，Profile / Secret 的存储实现由宿主提供）；Skill 热重载失效信号持久化于 `MYRM_DATA_DIR/.skill_config_version`（server re-export）；公开扩展点见 `api/protocols`                                                                                                                      |
 | 基础设施层 | `myrm_agent_harness/infra/`         | 提供通用机制：消息投递持久化与死信重试（StorageProvider + 弹性机制 + Metrics）、链路追踪、增量状态监控                                                                                                                             |
@@ -304,6 +303,8 @@ agent/ (运行时核心层)
 | [HITL_SYSTEM.md](src/myrm_agent_harness/agent/security/HITL_SYSTEM.md) | HITL 审批 |
 | [SECURITY_SYSTEM.md](src/myrm_agent_harness/agent/security/SECURITY_SYSTEM.md) | Agent 安全引擎 |
 | [CONTEXT_ENGINEERING.md](src/myrm_agent_harness/agent/context_management/CONTEXT_ENGINEERING.md) | 上下文工程（行业理论） |
+| [PROMPT_CACHE_PLACEMENT.md](docs/PROMPT_CACHE_PLACEMENT.md) | Prompt Cache 动态内容放置 SSOT |
+| [PROMPT_CACHE_PRACTICE.md](src/myrm_agent_harness/agent/context_management/PROMPT_CACHE_PRACTICE.md) | Prompt Cache 框架实现实践 |
 | [ACP_SYSTEM.md](src/myrm_agent_harness/toolkits/acp/ACP_SYSTEM.md) | ACP 协议 |
 | [TRACE_STORAGE_SYSTEM.md](src/myrm_agent_harness/infra/tracing/TRACE_STORAGE_SYSTEM.md) | Trace 存储 |
 | [DISTRIBUTION_SYSTEM.md](harness_packaging/DISTRIBUTION_SYSTEM.md) | 分发构建 |

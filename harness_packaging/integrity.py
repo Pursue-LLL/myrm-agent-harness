@@ -40,9 +40,7 @@ def manifest_source_relpaths() -> tuple[str, ...]:
     """Return ``myrm_agent_harness/``-relative ``.py`` paths for manifest modules."""
     manifest = load_core_manifest()
     src_root = repo_root() / "src" / "myrm_agent_harness"
-    return tuple(
-        module_file_to_source_relpath(module_file, src_root) for module_file in manifest.module_paths
-    )
+    return tuple(module_file_to_source_relpath(module_file, src_root) for module_file in manifest.module_paths)
 
 
 def verify_manifest_imports() -> None:
@@ -63,6 +61,8 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
         "agent/skills/",
         frozenset(
             {
+                "autonomous_visualization",
+                "bundle_warmup",
                 "curator",
                 "history",
                 "market",
@@ -80,15 +80,19 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
         frozenset(
             {
                 "archive_checkpoint",
-                "infra",
-                "strategies",
-                "tracking",
+                "capability_matrix",
+                "desktop_repl",
                 "downshift",
-                "working_memory",
-                "auto_archive",
+                "infra",
                 "omni_reference",
                 "pinning",
+                "prefix_caching_ledger",
+                "scratchpad_promotion",
+                "strategies",
                 "title_recovery",
+                "tracking",
+                "two_stage_search_extract",
+                "working_memory",
             }
         ),
     ),
@@ -105,7 +109,6 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "_internal",
                 "agent_surface",
                 "governance",
-                "working_tree",
                 "external_providers",
                 "handoff",
                 "onboarding",
@@ -124,6 +127,7 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
         ),
     ),
 )
+
 
 def _file_has_public_marker(module_file: Path) -> bool:
     head = module_file.read_bytes()[:_MARKER_SCAN_BYTES].decode("utf-8", errors="ignore")
@@ -205,19 +209,12 @@ def _wheel_zip_entries(wheel_path: Path) -> tuple[str, ...]:
 
 
 def _forbidden_debug_entries(entries: tuple[str, ...]) -> tuple[str, ...]:
-    return tuple(
-        name
-        for name in entries
-        if name.endswith(_FORBIDDEN_DEBUG_SUFFIXES)
-    )
+    return tuple(name for name in entries if name.endswith(_FORBIDDEN_DEBUG_SUFFIXES))
 
 
 def _has_compiled_artifact(entries: tuple[str, ...], manifest_py: str) -> bool:
     prefix = _manifest_compiled_prefix(manifest_py)
-    return any(
-        name.startswith(prefix) and (name.endswith(".so") or name.endswith(".pyd"))
-        for name in entries
-    )
+    return any(name.startswith(prefix) and (name.endswith(".so") or name.endswith(".pyd")) for name in entries)
 
 
 def _read_wheel_entry_text(wheel_path: Path, entry_name: str) -> str | None:
@@ -238,8 +235,7 @@ def _core_wheel_platform_key_violations(wheel_path: Path) -> tuple[str, ...]:
         )
     if _UNKNOWN_PLATFORM_KEY_MARKER in init_text:
         return (
-            "Core wheel platform key is still 'unknown'; "
-            "rebuild with scripts/build_core.py / assemble_production.",
+            "Core wheel platform key is still 'unknown'; rebuild with scripts/build_core.py / assemble_production.",
         )
     return ()
 
@@ -275,9 +271,7 @@ def distribution_wheel_artifact_violations(
         violations.append(f"Debug mapping artifacts must not ship in wheel: {preview}{suffix}")
 
     if role is DistributionWheelRole.CORE:
-        missing_compiled = [
-            path for path in manifest_paths if not _has_compiled_artifact(entries, path)
-        ]
+        missing_compiled = [path for path in manifest_paths if not _has_compiled_artifact(entries, path)]
         if missing_compiled:
             preview = ", ".join(missing_compiled[:3])
             suffix = f" (+{len(missing_compiled) - 3} more)" if len(missing_compiled) > 3 else ""
@@ -299,8 +293,5 @@ def verify_distribution_wheel_artifact(
     if not violations:
         return
     joined = "\n  - ".join(violations)
-    msg = (
-        f"Distribution wheel artifact violations ({role.value}) in {wheel_path.name}:\n"
-        f"  - {joined}"
-    )
+    msg = f"Distribution wheel artifact violations ({role.value}) in {wheel_path.name}:\n  - {joined}"
     raise DistributionWheelArtifactError(msg)

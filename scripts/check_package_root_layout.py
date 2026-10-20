@@ -2,7 +2,7 @@
 """Validate Python package roots follow flat-layout rules (rule 5.1–5.3).
 
 Package roots may only contain:
-- __init__.py, client.py (SDK facade), py.typed (markers)
+- __init__.py, py.typed (markers)
 - _ARCH.md (module architecture doc)
 - subdirectories (domain subpackages)
 
@@ -36,7 +36,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_ROOT = _REPO_ROOT / "src" / "myrm_agent_harness"
 _DEFAULT_TESTS_ROOT = _REPO_ROOT / "tests"
 
-_ALLOWED_ROOT_PY = frozenset({"__init__.py", "client.py", "py.typed"})
+_ALLOWED_ROOT_PY = frozenset({"__init__.py", "py.typed"})
 _ALLOWED_TESTS_ROOT_PY = frozenset({"__init__.py", "conftest.py"})
 
 _FORBIDDEN_LEGACY_FLAT = (
@@ -153,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "Package root layout violations detected. "
             "Move implementation modules into domain subpackages; "
-            "keep only __init__.py and client.py at package roots.",
+            "keep only __init__.py at package roots.",
             file=sys.stderr,
         )
     if tests_violation is not None:
