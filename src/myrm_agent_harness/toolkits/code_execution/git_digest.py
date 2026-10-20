@@ -60,7 +60,7 @@ def _run_git_cmd(args: list[str], cwd: Path, timeout: float = 2.0) -> tuple[int,
     """Execute git subcommands safely with tight timeout."""
     try:
         proc = subprocess.run(
-            ["git", "-C", str(cwd)] + args,
+            ["git", "-C", str(cwd), *args],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -75,7 +75,7 @@ def _run_git_cmd(args: list[str], cwd: Path, timeout: float = 2.0) -> tuple[int,
 def _find_git_root(path: Path) -> Path | None:
     """Resolve git root directory traversing upwards if needed."""
     curr = path.resolve()
-    for parent in [curr] + list(curr.parents):
+    for parent in [curr, *curr.parents]:
         if (parent / ".git").exists():
             return parent
     return None

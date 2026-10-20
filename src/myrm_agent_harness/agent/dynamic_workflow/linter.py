@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import ClassVar
 
 from myrm_agent_harness.agent.dynamic_workflow.tools import (
@@ -25,7 +25,7 @@ from myrm_agent_harness.agent.dynamic_workflow.tools import (
 )
 
 
-class LintSeverity(str, Enum):
+class LintSeverity(StrEnum):
     """Severity classification for workflow script issues."""
 
     FATAL = "fatal"
@@ -89,9 +89,8 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
-            if alias.name == self._MYRM_TOOLS_MODULE:
-                if alias.asname:
-                    self.module_aliases.add(alias.asname)
+            if alias.name == self._MYRM_TOOLS_MODULE and alias.asname:
+                self.module_aliases.add(alias.asname)
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
@@ -160,9 +159,8 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
         if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
             if func.value.id in self.module_aliases and func.attr == "spawn_subagent":
                 return True
-        elif isinstance(func, ast.Name):
-            if self.imported_func_aliases.get(func.id) == "spawn_subagent":
-                return True
+        elif isinstance(func, ast.Name) and self.imported_func_aliases.get(func.id) == "spawn_subagent":
+            return True
         return False
 
     def visit_Call(self, node: ast.Call) -> None:
@@ -207,9 +205,13 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
 
     def _check_thread_pool_workers(self, node: ast.Call) -> None:
         for kw in node.keywords:
-            if kw.arg == "max_workers" and isinstance(kw.value, ast.Constant):
-                if isinstance(kw.value.value, int) and kw.value.value > DEFAULT_MAX_CONCURRENT_SPAWNS:
-                    self.issues.append(
+            if (
+                kw.arg == "max_workers"
+                and isinstance(kw.value, ast.Constant)
+                and isinstance(kw.value.value, int)
+                and kw.value.value > DEFAULT_MAX_CONCURRENT_SPAWNS
+            ):
+                self.issues.append(
                         LintIssue(
                             severity=LintSeverity.WARNING,
                             issue_code="EXCESSIVE_WORKERS",

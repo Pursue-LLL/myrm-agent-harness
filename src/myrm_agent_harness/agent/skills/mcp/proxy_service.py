@@ -43,8 +43,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# 缓存有效期（秒）
-CACHE_TTL_SECONDS = 600  # 10 分钟
+READ_ONLY_CACHE_TTL_SECONDS = 60
+"""Session-scoped cache lifetime for ``readOnlyHint`` tools.
+
+Short by design: the cache absorbs repeated identical lookups inside one script,
+it does not memoize across a conversation. A longer TTL makes status polling
+return stale data and lets one tenant observe another tenant's result. Mutating
+tools never enter this cache.
+"""
 
 
 def _resolve_mcp_input_schema(
@@ -104,12 +110,23 @@ class MCPSkillProxyService:
 
     def __init__(self) -> None:
         """初始化代理服务"""
-        self._cache: LRUCache[object] = LRUCache(maxsize=1000, ttl=CACHE_TTL_SECONDS, id="mcp_skill_cache")
+        self._cache: LRUCache[object] = LRUCache(
+            maxsize=1000,
+            ttl=READ_ONLY_CACHE_TTL_SECONDS,
+            id="mcp_skill_readonly_cache",
+        )
 
-    def _make_cache_key(self, skill_name: str, tool_name: str, params: dict[str, object]) -> str:
-        """生成缓存键
+    def _make_cache_key(
+        self,
+        session_id: str,
+        skill_name: str,
+        tool_name: str,
+        params: dict[str, object],
+    ) -> str:
+        """生成缓存键（必须含会话，避免跨租户/跨会话串数据）
 
         Args:
+            session_id: 调用方会话 ID
             skill_name: 技能名称
             tool_name: 工具名称
             params: 工具参数
@@ -120,7 +137,24 @@ class MCPSkillProxyService:
         # 将参数序列化为 JSON 并计算哈希
         params_json = json.dumps(params, sort_keys=True, ensure_ascii=False)
         params_hash = hashlib.md5(params_json.encode()).hexdigest()[:16]
-        return f"{skill_name}.{tool_name}:{params_hash}"
+        return f"{session_id}.{skill_name}.{tool_name}:{params_hash}"
+
+    @staticmethod
+    def _is_read_only_tool(skill_name: str, tool_name: str) -> bool:
+        """Return True only when the MCP server declared ``readOnlyHint``.
+
+        Fail-closed: an unknown tool is treated as mutating. Caching a write or a
+        status poll would either swallow the side effect or pin a stale value.
+        """
+        from myrm_agent_harness.core.security.tool_registry.registry import (
+            get_ptc_safety_metadata,
+        )
+
+        entry = get_ptc_safety_metadata(skill_name, tool_name)
+        if entry is None:
+            return False
+        safety, _annotations = entry
+        return safety.is_read_only
 
     def _canonical_cache_tool_name(self, skill_name: str, tool_name: str) -> str:
         """Resolve caller tool name to the MCP catalog name for cache keys."""
@@ -129,7 +163,7 @@ class MCPSkillProxyService:
         )
         from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 
-        skill_meta = skill_registry.get_skill(skill_name)
+        skill_meta = skill_registry.get_mcp_skill_for_ipc(skill_name)
         if skill_meta is None or skill_meta.mcp is None:
             return tool_name
         matched = resolve_mcp_tool_name(tool_name, skill_meta.mcp.tools)
@@ -142,19 +176,21 @@ class MCPSkillProxyService:
         params: dict[str, object],
         *,
         trace_id: str = "-",
+        session_id: str = "-",
     ) -> object:
         """调用 MCP 工具
 
         从 skill_registry 获取技能配置并调用对应的 MCP 工具。
         技能必须在 Agent 初始化时已通过 mcp_skill_generator 注册。
 
-        相同参数的调用会被缓存 10 分钟，避免重复调用浪费资源。
+        仅声明 ``readOnlyHint`` 的工具会在会话内短缓存；写操作每次都真实调用。
 
         Args:
             skill_name: 技能名称
             tool_name: 工具名称
             params: 工具参数
             trace_id: PTC 调用链追踪 ID
+            session_id: 调用方会话 ID（缓存隔离维度）
 
         Returns:
             工具返回结果
@@ -167,17 +203,19 @@ class MCPSkillProxyService:
         schema_entry: dict[str, object] | None = None
         from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 
-        skill_meta_for_schema = skill_registry.get_skill(skill_name)
+        skill_meta_for_schema = skill_registry.get_mcp_skill_for_ipc(skill_name)
         if skill_meta_for_schema and skill_meta_for_schema.mcp:
             schema_entry = skill_meta_for_schema.mcp.tool_schemas.get(matched_for_schema)
         input_schema = _resolve_mcp_input_schema(schema_entry) if isinstance(schema_entry, dict) else None
         cleaned_params = prepare_mcp_call_arguments(params, input_schema)
-        cache_tool_name = matched_for_schema
-        cache_key = self._make_cache_key(skill_name, cache_tool_name, cleaned_params)
-        cached_result = self._cache.get(cache_key)
-        if cached_result is not None:
-            logger.info(f"{log_prefix} Cache hit: {skill_name}.{tool_name}")
-            return cached_result
+
+        cache_key: str | None = None
+        if self._is_read_only_tool(skill_name, matched_for_schema):
+            cache_key = self._make_cache_key(session_id, skill_name, matched_for_schema, cleaned_params)
+            cached_result = self._cache.get(cache_key)
+            if cached_result is not None:
+                logger.debug(f"{log_prefix} Read-only cache hit: {skill_name}.{tool_name}")
+                return cached_result
 
         logger.info(f"{log_prefix} Invoking: {skill_name}.{tool_name}")
         logger.debug(f"{log_prefix} Params: {cleaned_params}")
@@ -186,7 +224,8 @@ class MCPSkillProxyService:
         result = await self._invoke_from_registry(skill_name, tool_name, cleaned_params)
         elapsed_ms = (time.monotonic() - t0) * 1000
 
-        self._cache.set(cache_key, result)
+        if cache_key is not None:
+            self._cache.set(cache_key, result)
 
         logger.info(f"{log_prefix} MCP {skill_name}.{tool_name} completed in {elapsed_ms:.0f}ms")
         return result
@@ -214,7 +253,7 @@ class MCPSkillProxyService:
         )
         from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 
-        skill_meta = skill_registry.get_skill(skill_name)
+        skill_meta = skill_registry.get_mcp_skill_for_ipc(skill_name)
         if not skill_meta:
             raise RuntimeError(f"Skill not found: {skill_name}")
 
@@ -304,8 +343,12 @@ class MCPSkillProxyService:
         mcp_config: list[MCPConfig] = []
         for cfg in mcp_config_raw:
             if isinstance(cfg, dict):
-                # 类型忽略：cfg 是 dict，但具体类型未知
-                mcp_config.append(MCPConfig(**cfg))  # type: ignore[arg-type]
+                cfg_copy = dict(cfg)
+                injected_headers = cfg_copy.pop("_injected_auth_headers", None)
+                instance = MCPConfig(**cfg_copy)  # type: ignore[arg-type]
+                if injected_headers is not None:
+                    object.__setattr__(instance, "_injected_auth_headers", injected_headers)
+                mcp_config.append(instance)
             elif isinstance(cfg, MCPConfig):
                 mcp_config.append(cfg)
         return mcp_config
@@ -431,7 +474,13 @@ class MCPInvokeResult(TypedDict, total=False):
     error: str
 
 
-async def handle_mcp_invoke(skill_name: str, tool_name: str, params: dict[str, object]) -> MCPInvokeResult:
+async def handle_mcp_invoke(
+    skill_name: str,
+    tool_name: str,
+    params: dict[str, object],
+    *,
+    session_id: str = "-",
+) -> MCPInvokeResult:
     """处理 MCP 工具调用（纯 Python，Web 框架无关）
 
     被 IPC Proxy 内部调用，也可供自定义集成使用。
@@ -440,13 +489,14 @@ async def handle_mcp_invoke(skill_name: str, tool_name: str, params: dict[str, o
         skill_name: 技能名称
         tool_name: 工具名称
         params: 工具参数
+        session_id: 调用方会话 ID（只读缓存隔离维度）
 
     Returns:
         MCPInvokeResult: {"success": True, "result": ...} 或 {"success": False, "error": "..."}
     """
     try:
         service = get_mcp_skill_proxy_service()
-        result = await service.invoke_tool(skill_name, tool_name, params)
+        result = await service.invoke_tool(skill_name, tool_name, params, session_id=session_id)
         return MCPInvokeResult(success=True, result=result)
     except Exception as e:
         error_msg = f"{type(e).__name__}: {e}"

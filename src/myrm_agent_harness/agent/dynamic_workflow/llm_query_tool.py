@@ -26,6 +26,7 @@ so no manual bookkeeping is needed here; the tool honors cancellation and budget
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -346,10 +347,8 @@ class LlmQueryBatchedTool(LlmQueryTool):
                 progress=progress,
                 level=level,
             )
-            try:
+            with contextlib.suppress(Exception):
                 self.event_queue.put_nowait(event)
-            except Exception:
-                pass
 
         _emit_stage(
             f"Running {total_prompts} parallel LLM sub-queries...",

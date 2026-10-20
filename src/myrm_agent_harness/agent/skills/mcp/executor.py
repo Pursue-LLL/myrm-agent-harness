@@ -132,6 +132,7 @@ class SkillExecutor:
             ipc_socket_path,
             session_id=session_id,
             workspace_root=workspace_root,
+            read_only_tools=self._collect_read_only_tools(identifier),
         )
         prepared_code = f"{ipc_client_code}\n\n# === User Code ===\n{python_code}"
 
@@ -269,6 +270,7 @@ class SkillExecutor:
         ipc_socket_path: str,
         session_id: str | None = None,
         workspace_root: str | None = None,
+        read_only_tools: frozenset[str] | None = None,
     ) -> str:
         """生成 MCP IPC 客户端代码
 
@@ -278,6 +280,7 @@ class SkillExecutor:
             ipc_socket_path: IPC Unix Socket 路径
             session_id: 当前会话 ID
             workspace_root: 沙箱挂载的工作目录
+            read_only_tools: 允许断连重试的 `skill.tool` 集合（仅 readOnlyHint）
 
         Returns:
             MCP 客户端代码字符串
@@ -288,7 +291,35 @@ class SkillExecutor:
             ipc_socket_path,
             session_id=session_id,
             workspace_root=workspace_root,
+            read_only_tools=read_only_tools,
         )
+
+    @staticmethod
+    def _collect_read_only_tools(skill_name: str) -> frozenset[str]:
+        """Collect `skill.tool` names the MCP server declared read-only.
+
+        Consumed by the generated client so connection-failure retries never
+        replay a mutating call. Unknown tools are excluded (fail-closed).
+        """
+        from myrm_agent_harness.agent.skills.mcp.builtin_registry import BUILTIN_SKILL_NAME
+        from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
+        from myrm_agent_harness.core.security.tool_registry.registry import (
+            get_ptc_safety_metadata,
+        )
+
+        if skill_name == BUILTIN_SKILL_NAME:
+            return frozenset()
+
+        skill_meta = skill_registry.get_mcp_skill_for_ipc(skill_name)
+        if not skill_meta or not skill_meta.mcp:
+            return frozenset()
+
+        read_only: set[str] = set()
+        for tool_name in skill_meta.mcp.tools:
+            entry = get_ptc_safety_metadata(skill_name, tool_name)
+            if entry is not None and entry[0].is_read_only:
+                read_only.add(f"{skill_name}.{tool_name}")
+        return frozenset(read_only)
 
 
 # 全局实例（使用默认 API 前缀）

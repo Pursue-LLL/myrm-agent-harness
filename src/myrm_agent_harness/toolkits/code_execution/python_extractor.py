@@ -239,11 +239,8 @@ def _detect_dynamic_ptc_import(tree: object) -> tuple[bool, str | None] | None:
             continue
         func = node.func
         is_dynamic = (
-            isinstance(func, ast.Name)
-            and func.id == "__import__"
-            or isinstance(func, ast.Attribute)
-            and func.attr == "import_module"
-        )
+            isinstance(func, ast.Name) and func.id == "__import__"
+        ) or (isinstance(func, ast.Attribute) and func.attr == "import_module")
         if not is_dynamic or not node.args:
             continue
         first = node.args[0]

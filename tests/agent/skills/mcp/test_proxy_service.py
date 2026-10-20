@@ -15,7 +15,7 @@ from myrm_agent_harness.agent.skills.mcp.proxy_service import (
 )
 from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
-from myrm_agent_harness.toolkits.mcp.config import MCPConfig
+from myrm_agent_harness.toolkits.mcp.config import MCPConfig, mcp_config_to_runtime_dict
 
 
 @pytest.fixture(autouse=True)
@@ -117,31 +117,66 @@ class TestMCPSkillProxyServiceParse:
 
 
 class TestMCPSkillProxyServiceInvoke:
-    def test_make_cache_key_stable(self) -> None:
+    def test_make_cache_key_isolated_by_session(self) -> None:
         service = MCPSkillProxyService()
-        key_a = service._make_cache_key("skill", "tool", {"a": 1})
-        key_b = service._make_cache_key("skill", "tool", {"a": 1})
+        key_a = service._make_cache_key("s1", "skill", "tool", {"a": 1})
+        key_b = service._make_cache_key("s1", "skill", "tool", {"a": 1})
+        key_c = service._make_cache_key("s2", "skill", "tool", {"a": 1})
         assert key_a == key_b
+        assert key_a != key_c, "cache keys must not be shared across sessions"
 
     @pytest.mark.asyncio
-    async def test_invoke_tool_cache_hit(self, mcp_skill_meta: SkillMetadata) -> None:
+    async def test_mutating_tool_is_never_cached(self, mcp_skill_meta: SkillMetadata) -> None:
+        """A write tool must hit the server every call; caching would swallow the effect."""
         service = MCPSkillProxyService()
         skill_registry.register(mcp_skill_meta)
-        cache_key = service._make_cache_key("mcp_test_skill", "ping", {})
-        service._cache.set(cache_key, "cached-value")
 
-        result = await service.invoke_tool("mcp_test_skill", "ping", {})
-        assert result == "cached-value"
+        mock_conn = MagicMock()
+        mock_conn.call = AsyncMock(return_value=({"type": "text", "text": "created"}, None))
+        mock_manager = MagicMock()
+        mock_manager.get_connection = AsyncMock(return_value=mock_conn)
+
+        with patch(
+            "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
+            AsyncMock(return_value=mock_manager),
+        ):
+            await service.invoke_tool("mcp_test_skill", "create_issue", {"title": "bug"}, session_id="s1")
+            await service.invoke_tool("mcp_test_skill", "create_issue", {"title": "bug"}, session_id="s1")
+
+        assert mock_conn.call.await_count == 2
 
     @pytest.mark.asyncio
-    async def test_invoke_tool_cache_hit_canonical_tool_name(self, mcp_skill_meta: SkillMetadata) -> None:
+    async def test_read_only_tool_is_cached_per_session(self, mcp_skill_meta: SkillMetadata) -> None:
+        """readOnlyHint tools may be memoized, but only inside their own session."""
+        from myrm_agent_harness.core.security.tool_registry.registry import (
+            register_ptc_safety_metadata,
+        )
+        from myrm_agent_harness.core.security.tool_registry.safety_table import SafetyMetadata
+
         service = MCPSkillProxyService()
         skill_registry.register(mcp_skill_meta)
-        cache_key = service._make_cache_key("mcp_test_skill", "create_issue", {"title": "bug"})
-        service._cache.set(cache_key, "cached-issue")
+        register_ptc_safety_metadata(
+            "mcp_test_skill",
+            "ping",
+            SafetyMetadata(is_read_only=True),
+            {"readOnlyHint": True},
+        )
 
-        result = await service.invoke_tool("mcp_test_skill", "create-issue", {"title": "bug"})
-        assert result == "cached-issue"
+        mock_conn = MagicMock()
+        mock_conn.call = AsyncMock(return_value=({"type": "text", "text": "pong"}, None))
+        mock_manager = MagicMock()
+        mock_manager.get_connection = AsyncMock(return_value=mock_conn)
+
+        with patch(
+            "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
+            AsyncMock(return_value=mock_manager),
+        ):
+            first = await service.invoke_tool("mcp_test_skill", "ping", {}, session_id="s1")
+            second = await service.invoke_tool("mcp_test_skill", "ping", {}, session_id="s1")
+            other = await service.invoke_tool("mcp_test_skill", "ping", {}, session_id="s2")
+
+        assert first == second == other == "pong"
+        assert mock_conn.call.await_count == 2, "same-session hit should reuse; another session must re-call"
 
     @pytest.mark.asyncio
     async def test_invoke_tool_validation_short_circuit(self, mcp_skill_meta: SkillMetadata) -> None:
@@ -199,6 +234,22 @@ class TestMCPSkillProxyServiceInvoke:
         mcp_skill_meta.mcp.config = [MCPConfig(name="test-server", type="stdio", command="echo")]
         configs_model = service._convert_skill_meta_config(mcp_skill_meta)
         assert configs_model[0].command == "echo"
+
+    def test_convert_skill_meta_config_keeps_injected_auth_headers(self, mcp_skill_meta: SkillMetadata) -> None:
+        """OAuth headers injected at connect time ride in the runtime dict and must survive the rebuild for PTC."""
+        source = MCPConfig(name="test-server", type="stdio", command="echo")
+        source._injected_auth_headers = {"Authorization": "Bearer tok"}  # type: ignore[attr-defined]
+        mcp_skill_meta.mcp.config = [mcp_config_to_runtime_dict(source)]
+
+        rebuilt = MCPSkillProxyService()._convert_skill_meta_config(mcp_skill_meta)[0]
+
+        assert rebuilt.command == "echo"
+        assert rebuilt._injected_auth_headers == {"Authorization": "Bearer tok"}  # type: ignore[attr-defined]
+
+    def test_convert_skill_meta_config_without_injected_headers_adds_none(self, mcp_skill_meta: SkillMetadata) -> None:
+        rebuilt = MCPSkillProxyService()._convert_skill_meta_config(mcp_skill_meta)[0]
+
+        assert not hasattr(rebuilt, "_injected_auth_headers")
 
     def test_convert_skill_meta_config_missing_raises(self) -> None:
         service = MCPSkillProxyService()

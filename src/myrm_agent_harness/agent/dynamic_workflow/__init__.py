@@ -40,12 +40,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from myrm_agent_harness.agent.dynamic_workflow.linter import (
-    LintIssue,
-    LintSeverity,
-    WorkflowLintReport,
-    lint_workflow_script,
-)
+from myrm_agent_harness.agent.dynamic_workflow.linter import lint_workflow_script
 from myrm_agent_harness.agent.dynamic_workflow.llm_query_tool import (
     LlmQueryBatchedTool,
     LlmQueryTool,
@@ -621,7 +616,7 @@ async def run_dynamic_workflow_stream(
         if close is not None:
             try:
                 await close()
-            except Exception as exc:  # noqa: BLE001 - cleanup must not mask results
+            except Exception as exc:
                 logger.warning("Workflow executor close failed: %s", exc)
 
     exec_status = "success"

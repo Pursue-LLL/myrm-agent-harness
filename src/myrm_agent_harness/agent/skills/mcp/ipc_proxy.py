@@ -223,7 +223,11 @@ class MCPIPCServer:
 
                     service = get_mcp_skill_proxy_service()
                     result = await service.invoke_tool(
-                        request.skill_name, request.tool_name, request.params, trace_id=tid
+                        request.skill_name,
+                        request.tool_name,
+                        request.params,
+                        trace_id=tid,
+                        session_id=request.session_id or "-",
                     )
             finally:
                 _ipc_call_context.reset(ctx_token)

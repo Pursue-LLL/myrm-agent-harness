@@ -126,7 +126,7 @@ def _probe_git_state(workspace: Path) -> tuple[str | None, bool | None]:
 def _probe_runtimes() -> list[str]:
     """Probe installed programming language runtimes and their major/minor versions."""
     detected: list[str] = []
-    for runtime_id, label, binaries in _CORE_RUNTIMES:
+    for _runtime_id, label, binaries in _CORE_RUNTIMES:
         for bin_name in binaries:
             if shutil.which(bin_name):
                 # Attempt to get version string quickly

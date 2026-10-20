@@ -249,6 +249,7 @@ def generate_ipc_client_code(
     socket_path: str,
     session_id: str | None = None,
     workspace_root: str | None = None,
+    read_only_tools: frozenset[str] | None = None,
 ) -> str:
     """生成 Unix Socket IPC 客户端代码。
 
@@ -256,6 +257,8 @@ def generate_ipc_client_code(
         socket_path: Unix Socket 路径。
         session_id: 当前会话 ID(用于 notify 等需要会话隔离的 builtin)。
         workspace_root: 沙箱内的工作目录(host 视角的绝对路径)。
+        read_only_tools: 声明 ``readOnlyHint`` 的 ``skill.tool`` 全名集合。只有这些
+            调用允许在网络中断后重试；写操作重放会造成重复副作用。
     """
     base = _generate_base_code()
     module_system = _generate_module_system()
@@ -263,6 +266,7 @@ def generate_ipc_client_code(
 
     session_literal = json.dumps(session_id) if session_id is not None else "None"
     workspace_literal = json.dumps(workspace_root) if workspace_root is not None else "None"
+    read_only_literal = json.dumps(sorted(read_only_tools or ()))
 
     return f'''
 import sys, types, json, asyncio, uuid
@@ -272,6 +276,7 @@ _SOCKET_PATH = "{socket_path}"
 _TRACE_ID = uuid.uuid4().hex
 _SESSION_ID = {session_literal}
 _WORKSPACE_ROOT = {workspace_literal}
+_READ_ONLY_TOOLS = frozenset({read_only_literal})
 
 {base}
 {module_system}
@@ -302,7 +307,10 @@ async def _ipc_request(skill: str, tool: str, params: dict):
         response = json.loads(resp_data.decode())
 
         if not response.get("success"):
-            raise MCPError(response.get("error", "Unknown error"), skill, tool)
+            _err = MCPError(response.get("error", "Unknown error"), skill, tool)
+            # 宿主已明确判定失败：重试无法改变结果，且写操作可能已产生副作用。
+            _err.retryable = False
+            raise _err
         return response.get("result")
     finally:
         writer.close()
@@ -310,15 +318,20 @@ async def _ipc_request(skill: str, tool: str, params: dict):
 
 async def _call(skill: str, tool: str, params: dict):
     """IPC 调用入口（带重试）"""
+    # 断连类错误可能发生在请求发出之后。只有只读工具能安全重放；
+    # 写操作重试会造成重复副作用（重复建单、重复发消息）。
+    retry_safe = f"{{skill}}.{{tool}}" in _READ_ONLY_TOOLS
+
     async def do_call():
         try:
             return await _ipc_request(skill, tool, params)
-        except (ConnectionError, FileNotFoundError, asyncio.IncompleteReadError) as e:
-            raise MCPError(f"Connection: {{e}}", skill, tool, retryable=True)
+        except (ConnectionError, BrokenPipeError, FileNotFoundError, asyncio.IncompleteReadError) as e:
+            raise MCPError(f"Connection: {{e}}", skill, tool, retryable=retry_safe)
 
     result = await _retry_call(do_call, skill, tool)
-    # 输出 JSON 格式的调用标记（含结果摘要），供 BashExecutor 解析
-    _data = {{"s": skill, "t": tool, "r": str(result)[:500]}}
+    # 输出 JSON 调用标记供宿主做引用追踪；截断超长结果避免污染 stdout 预算。
+    _preview = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
+    _data = {{"s": skill, "t": tool, "r": _preview[:2000]}}
     print(f"__MCP_DATA__{{json.dumps(_data, ensure_ascii=False)}}__END__", flush=True)
     return result
 '''
