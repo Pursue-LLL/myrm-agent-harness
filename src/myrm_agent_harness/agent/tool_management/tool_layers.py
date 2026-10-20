@@ -144,6 +144,16 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "wiki_apply_tool": ToolLayer.EXTENDED,
     # --- 工作记忆手边工作台 (enable_working_memory_tool 按需挂载) ---
     "working_memory_manage_tool": ToolLayer.EXTENDED,
+    # --- 共享计划看板 (sub-agent 共享 Todo store；按 sub-agent profile 挂载) ---
+    "manage_todo_plan": ToolLayer.EXTENDED,
+    "read_todo_hud": ToolLayer.EXTENDED,
+    # --- 会话多路复用 (inspect/instruct 兄弟会话；orchestrator profile 挂载) ---
+    "inspect_agent_session": ToolLayer.EXTENDED,
+    "instruct_agent": ToolLayer.EXTENDED,
+    # --- 边缘设备网格 (设备发现/命令派发/遥测；device-mesh profile 挂载) ---
+    "list_mesh_devices": ToolLayer.EXTENDED,
+    "dispatch_node_command": ToolLayer.EXTENDED,
+    "fetch_node_telemetry": ToolLayer.EXTENDED,
 }
 
 
