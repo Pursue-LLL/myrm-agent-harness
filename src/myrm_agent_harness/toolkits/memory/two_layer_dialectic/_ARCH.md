@@ -6,10 +6,11 @@
 
 ### 核心机制
 1. **Layer 1: Base Context 极简低频基础层**：
-   由 Session Summary 与 Peer Card 构成，依据 `context_cadence` 低频刷新。挂载于 User Message 尾部，保持 System Prompt 绝对冻结，100% 保护 KV Cache。
+   由 Session Summary 与 Peer Card 构成，依据 `context_cadence` 低频刷新。挂载于 User Message 尾部，保持 System Prompt 不变；缓存收益以提供商 `cache_read_*` 实测为准，不做命中率保证。
 2. **Layer 2: Dialectic Reasoning 辩证推理调和层**：
    在检测到历史记忆与当前指令冲突时，触发深浅可控的 1~3 遍辩证推理循环（Pass 0 审查 -> Pass 1 针对性综合 -> Pass 2 矛盾调和），直接在推理层自愈冲突。
-3. **三大正交调优旋钮**：
+3. **Live product path**: `agent/middlewares/memory_context/two_layer_context_middleware.py` (GeneralAgent) injects Layer 1 only; dialectic remains Lab/API.
+4. **三大正交调优旋钮**：
    - `context_cadence`：基础上下文刷新间隔轮次；
    - `dialectic_cadence`：辩证推理触发间隔轮次；
    - `dialectic_depth`：辩证推理深度（1~3 遍）；

@@ -90,7 +90,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP |
 | **Workspace** | `browser/`, `computer_use/`, `mobile_adb/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, mobile ADB, @-mention path suggest |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
-| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Job-like systems — see matrix below; `tasks/` = chat-bound async media queue ([TASK_QUEUE_SYSTEM.md](tasks/TASK_QUEUE_SYSTEM.md)) |
+| **Collaboration & Media** | `kanban/`, `tasks/`, `cron/`, `swarm/` | Job-like systems & Swarm coordination — see matrix below; `swarm/` = 多智能体蜂群协同与规则/风险确权引擎; `tasks/` = chat-bound async media queue ([TASK_QUEUE_SYSTEM.md](tasks/TASK_QUEUE_SYSTEM.md)) |
 
 ### Job-like module selection
 
@@ -175,6 +175,7 @@ Does your code need to import anything from agent/?
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image/video/tts generation and vision understanding (`llms/vision/`). |
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |
 | memory/ | Pluggable memory system — vector/relational/graph storage for AI agents; agent I/O in `memory/agent_surface/`. |
+| memory/ephemeral_delta/ | Session tail deltas + SQLite on `memory.db` for restart-safe recency (`sqlite_persistence.py`, `shared_store.py`, `notify.py`). |
 | openapi_bridge/ | OpenAPI Bridge — zero-code REST API integration via OpenAPI 3.x / Swagger 2.0 specs. |
 | retriever/ | Retrieval and reranking — multi-source document retrieval with scoring pipeline. |
 | storage/ | Storage abstraction layer — Protocol + local filesystem implementation. |

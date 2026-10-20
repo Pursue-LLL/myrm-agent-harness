@@ -89,7 +89,7 @@ OpenAPIServiceConfig (user config)
    reactive (on 401 response) token refresh using the bound refresh callback.
 
 8. **Turn1 direct budget**: When generated tool schemas exceed `AGGREGATE_DIRECT_TOKEN_BUDGET`
-   (1200 tokens, shared with MCP direct routing), `create_skill_agent` raises
+   (15,000 tokens, shared with MCP direct routing), `create_skill_agent` raises
    `ConfigIncompleteError` (`openapi_direct_budget_exceeded`). Reduce selected endpoints in
    Agent settings — no silent skip.
 

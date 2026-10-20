@@ -13,11 +13,11 @@ Harness test suite: unit, integration, architecture gates, and performance bench
 | `fixtures/` | 辅助 | 预留 harness-only 夹具目录 · [fixtures/_ARCH.md](fixtures/_ARCH.md) |
 | `examples/` | 辅助 | 非 shipping 参考实现 · [examples/_ARCH.md](examples/_ARCH.md) |
 | `mocks/` | 辅助 | 共享 in-memory backend mock · [mocks/_ARCH.md](mocks/_ARCH.md) |
-| `support/` | 辅助 | pytest teardown helpers（browser 进程树 cleanup）· [support/_ARCH.md](support/_ARCH.md) |
+| `support/` | 辅助 | pytest teardown helpers（browser 进程树 cleanup）与真实 MCP 传输测试辅助（live server / TLS PKI / launch-gate stub）· [support/_ARCH.md](support/_ARCH.md) |
 | `backends/` | 单元 | 存储后端（profiles/secrets/skills）· [backends/_ARCH.md](backends/_ARCH.md) |
 | `scripts/` | 单元 | `scripts/` 维护脚本单测（tool registry）· [scripts/_ARCH.md](scripts/_ARCH.md) |
 | `features/` | 单元 | Feature Flag 引擎 · [features/_ARCH.md](features/_ARCH.md) |
-| `performance/` | 性能 | 子进程 import 热点与 lazy-loading 回归（`performance` marker） |
+| `performance/` | 性能 | 子进程 import 热点与 lazy-loading 回归、MCP 并行连接守卫（`test_mcp_connect_perf.py`，真实 stdio 子进程；`mcp_connect_bench.py` 可对 HEAD 导出做同口径基线对比）（`performance` marker） |
 | `toolkits/` | 单元/集成 | 镜像 `src/.../toolkits/<name>/`；禁止空壳目录 · [toolkits/_ARCH.md](toolkits/_ARCH.md) |
 | `architecture/` | 门禁 | 边界与打包一致性检测 — 见 [architecture/_ARCH.md](architecture/_ARCH.md) |
 | `eval/` | 单元 | Eval 框架断言/runner/reporter · [eval/_ARCH.md](eval/_ARCH.md) |

@@ -17,6 +17,7 @@ Framework-level self-inspection and health-check protocol. Supports structured i
 | supply_chain.py | Core | Runtime dependency and supply chain security probe `check_supply_chain_health` (installed package scanning against offline advisories and OSV.dev). | ✅ |
 | protocols.py | Core | Provides HealthReport (with measured/expected/cause fields), DiagnosticProtocol, redact_health_report. | ✅ |
 | gateway_health.py | Core | Gateway runtime vitals probe (event loop lag, process RSS, asyncio task count), zero-payload redacted health DTO, and OTLP posture detection. Registered into `/health/doctor`. | ✅ |
+| `fleet_telemetry/` | Subpackage | 分布式机队六态健康遥测与模型上游配额耗尽诊断子包：五级探针自省流水线 (`FleetSixStateDiagnoser`) 与异常归因分类器 (`classify_provider_error`)。 | ✅ |
 
 ## Key Dependencies
 

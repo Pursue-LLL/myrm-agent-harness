@@ -14,7 +14,7 @@ Folder bind trust + side-channel execution control. Harness owns gate logic and 
 | `manifest.py` | Core | Pre-bind disclosure builder + `manifest_hash` | ✅ |
 | `gate.py` | Core | Side-channel block helpers（skills/rules/MCP spawn/repo prefix match） | ✅ |
 | `errors.py` | Core | `WorkspaceTrustBlockedError` for MCP spawn and side-channel blocks | ✅ |
-| `context.py` | Core | ContextVar：trust level + repo command prefixes | ✅ |
+| `context.py` | Core | ContextVar：trust level + workspace root + repo command prefixes | ✅ |
 | `protocol.py` | Core | `WorkspaceTrustLookup` protocol（server 注入） | ✅ |
 | `provider.py` | Core | Lookup registry；`resolve_workspace_trust_level`（unknown → RESTRICTED） | ✅ |
 | `runtime.py` | Core | `apply_workspace_trust_for_root` / `clear_workspace_trust_runtime`（run lifecycle） | ✅ |

@@ -80,6 +80,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `config/` | Unified config types export | [config/_ARCH.md](config/_ARCH.md) |
 | `context_management/` | Context pipeline, compression, cache | [CONTEXT_MANAGEMENT_SYSTEM.md](context_management/CONTEXT_MANAGEMENT_SYSTEM.md) |
 | `coordination/` | Subagent P2P mailbox (TeammateMailbox) | [coordination/_ARCH.md](coordination/_ARCH.md) |
+| `creator_mode/` | 自然语言创造模式预设合成器、沙盒防御校验与多端漫游网关 (Item 39) | - |
 | `dynamic_workflow/` | LLM-generated PTC orchestration scripts | [DYNAMIC_WORKFLOW_SYSTEM.md](dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md) |
 | `deep_research/` | Multi-phase deep research orchestrator | [DEEP_RESEARCH_SYSTEM.md](deep_research/DEEP_RESEARCH_SYSTEM.md) |
 | `orchestration/` | Control-plane signals + runtime hooks (not Action Tools) | [orchestration/_ARCH.md](orchestration/_ARCH.md) |

@@ -25,6 +25,7 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 - **Goal Drift Detection**: 每 5 轮调用廉价 LLM 评估最近工具调用与目标的相关性（0-10 分）。drift_score ≥ 3 注入 nudge 提醒；≥ 7 PAUSE Goal 等待人工审查。Fail-open：评估失败时默认允许继续。复用现有 `evaluate_semantic` 基础设施。
 - **Sandbox Boundary HITL**: LoopGuard 检测到连续 3 次 PERMISSION_DENIED 跨工具错误时，标记 `sandbox_boundary` 并在 continuation guard chain 中 PAUSE Goal，而非暴力 interrupt。用户收到通知后可决定是否授权或调整任务。
 - **Per-Todo Checkpoint**: `checkpoint_mode: "none" | "per_todo"` — opt-in 逐步确认模式。开启后，guard chain (step 6.5c) 在每个 todo 完成时自动 PAUSE Goal，等待用户确认后继续。通过对比 workspace todos.json 当前状态与 Goal.metadata `_checkpoint_completed_ids` 快照检测新完成的 todo。Resume 时 continuation prompt 注入用户确认信息，确保 Agent 知情继续。
+- **Provider-window WAIT**: 供应商额度耗尽且提供了重置时间点时，goal 停靠为 `WAIT` 直到该时间点；host（server 唤醒守护进程）按 `wait_resume_at` 精确续跑，用户也可手动「立即重试」。重置时间超过 24h 则 `PAUSED` 并通知用户。
 
 ## 文件清单
 
@@ -44,6 +45,7 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | continuation_drift.py | 核心 | Goal Drift Detection (step 6.5b) — LLM judge 评估轨迹偏离度，produce drift_nudge/drift_pause verdicts；`_parse_drift_score` 用 `parse_llm_json_object` 稳健解析 (fences/prose/尾逗号/裸换行) | ✅ |
 | continuation_git_drift.py | 核心 | Base Branch Drift & Safe Rebase Gate (step 6.5d) — 自动感知 upstream 分支落后提交并 safe rebase，冲突时 abort 现场保全升级暂停 | ✅ |
 | wait_background_bash.py | 核心 | 窄域 build/test/CI 白名单 + LoopGuard 窗口解析 background spawn；metadata `wait_on_background_job_id` 绑定 BSDL job_id；Server finish 时 exit_wait + `trigger_goal_stream_with_failure_policy` 闭环 | ✅ |
+| wait_provider_window.py | 核心 | 供应商额度窗口停靠：`park_goal_for_provider_window` 把 ACTIVE goal 置 `WAIT`（metadata `wait_kind=usage_limit` + `wait_resume_at`，`max_wait_seconds`=等待时长+`HOLD_MAX_S`，即 24h 宿主迟到容忍），重置时间超过 24h 或连续无进展停靠（`MAX_NO_PROGRESS_HOLDS`）时置 `PAUSED`（`pause_kind=usage_limit`）；`pause_goal_after_missed_wake` 处理宿主唤醒过晚；`PROVIDER_WINDOW_METADATA_KEYS` 在 `resume_goal` 时统一清理 | ✅ |
 | audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 todo_write 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令）+ budget wrap-up prompt | ✅ |
 | goal_interceptor.py | 核心 | Goal 拦截器：执行前发布 protected_paths / invariant snapshot；进度由主 Agent `todo_write` 负责 | ✅ |
 | invariant_snapshot.py | 核心 | Post-hoc tamper detection: SHA-256 snapshot of Goal protected_paths at activation; verify integrity before completion (bash_code_execute_tool bypass safety net). Pattern 解析走 `core.security.path.pattern`（与事前 InvariantValidator 同一引擎）；未命中任何文件的规则与空基线均告警。生命周期: goal_interceptor capture → continuation verify → manager clear | ✅ |

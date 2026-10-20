@@ -11,7 +11,7 @@ Unified Capability Discovery gateway. Indexes agent-bound searchable skills (MCP
 
 | Outcome | When |
 |---------|------|
-| **Direct FC Turn1** | Per-server schema ≤ threshold **and** aggregate direct pool ≤ `AGGREGATE_DIRECT_TOKEN_BUDGET` (1200 tok) |
+| **Direct FC Turn1** | Per-server schema ≤ `compute_direct_threshold()` (11,250 tok) **and** aggregate direct pool ≤ `AGGREGATE_DIRECT_TOKEN_BUDGET` (15,000 tok) |
 | **MCP PTC** | Per-server schema > threshold **or** aggregate overflow (largest servers demoted first) |
 
 **Forbidden**: catalog_invoke, capability_invoke_tool, RUNTIME-only MCP proxy gateways, or any third routing band between direct and PTC.

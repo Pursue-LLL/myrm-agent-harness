@@ -1,7 +1,7 @@
 # sandbox/
 
 ## Overview
-OS-level process sandbox for local/desktop execution.
+OS-level process sandbox for local/desktop execution. `SandboxPolicy.writable_paths` is the complete writable set besides the provider's scratch areas (such as `/tmp`): no provider grants the working directory implicitly, so an empty `writable_paths` yields a read-only workspace.
 
 ## File & Submodule Index
 

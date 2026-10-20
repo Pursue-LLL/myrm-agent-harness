@@ -8,7 +8,7 @@ SkillAgent factory assembly — MCP routing, surface mode, OpenAPI direct bind, 
 | File | Role | Description |
 |------|------|-------------|
 | `__init__.py` | Package | SkillAgent factory assembly package marker. |
-| `mcp_routing.py` | Core | **Direct FC** vs **MCP PTC** by per-server schema + aggregate budget (`AGGREGATE_DIRECT_TOKEN_BUDGET=15_000`). Clears MCP entries in `skill_registry` before routing. Returns `MCPRoutingResult(skills, direct_tools)`. |
+| `mcp_routing.py` | Core | **Direct FC** vs **MCP PTC** by per-server schema + aggregate budget (`AGGREGATE_DIRECT_TOKEN_BUDGET=15_000`). Connects to all MCP servers in parallel (`asyncio.gather`), serializes configs via `mcp_config_to_runtime_dict` SSOT, and clears active MCP entries in `skill_registry` before routing. Returns `MCPRoutingResult(skills, direct_tools)`. |
 | `mcp_surface.py` | Core | `MCPSurfaceMode`: `auto` \| `direct_fc`. `direct_fc` forces all MCP servers into direct Turn1 FC regardless of per-server or aggregate token thresholds. Legacy `catalog_invoke` profile values parse as `auto` with warning. |
 | `builder.py` | Core | Wires routing into `create_skill_agent`. Turn1 mount via `file_access_mode` (FileAccessMode SSOT). Clears MCP registry when `mcp_servers` is empty. Wires dedicated/fallback compactor LLM (`summarizer_llm`) into context pipeline middleware. OpenAPI direct bind raises `ConfigIncompleteError` when enabled services produce zero tools or schema exceeds aggregate budget. Maps the user-facing turn budget `spec.max_iterations` to `2 * max_iterations` LangGraph nodes (1 turn = model + tools nodes), aligned with subagent `max_turns * 2`. |
 

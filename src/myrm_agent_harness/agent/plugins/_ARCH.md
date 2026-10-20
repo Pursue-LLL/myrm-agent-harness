@@ -32,6 +32,10 @@ Client-specific data (agent profiles, workspace templates, entry agent) lives un
 | `exporter.py` | Core | `AgentPluginPacker.package_skill_as_plugin`: single-skill convenience wrapper over the bundle writer (skill keeps its real directory name). | ✅ |
 | `models.py` | Core | Shared dataclasses: `PluginCapabilityTier` (sandbox capability levels: read_only, fs_read, fs_write, network, shell_exec, destructive), `PluginSkill`, `PluginAgent`, `PluginMcpServer`, `PluginDiagnostic`, `PluginParseResult` (incl. `agents`, `workspace_files`, `aggregated_capabilities`, and non-skill `files`), `AgentPluginManifestMeta` (incl. validated `extensions`). | ✅ |
 | `integrity.py` | Core | `verify_plugin_packaging_integrity`, `verify_mcp_server_artifacts`, & `infer_server_capabilities` ensuring stdio servers verify referenced build artifacts/entrypoints and infer granular sandbox capability tiers at parse time (prevents subprocess crashes on unbuilt packages and enforces zero-trust permissions). | ✅ |
+| `dependency_sniffer.py` | Core | 沙箱隔离环境多模态依赖特征嗅探模块。 | ✅ |
+| `hot_reload_registry.py` | Core | 插件全生命周期状态机、事务级临时隔离构建与零重启热重载注册表模块。 | ✅ |
+| `intent_parser.py` | Core | 自然语言单句 Git 仓库插件安装意图解析与 SSRF 安全拦截模块。 | ✅ |
+| `security_auditor.py` | Core | 插件静态恶意代码审计与核心工具保留字防覆盖防护模块。 | ✅ |
 
 ## I/O
 

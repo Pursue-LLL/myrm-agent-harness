@@ -11,6 +11,7 @@ ContextVar-based request tracing primitives for log correlation. Provides trace_
 | `context.py` | Core | ContextVar storage for trace_id and session_id with token-based reset and resolve_current_trace_id fallback. | ✅ |
 | `log_filter.py` | Core | logging.Filter that reads TracingContext and injects fields into LogRecord. | ✅ |
 | `json_formatter.py` | Core | JSON log formatter with tracing fields and automatic secret redaction. | ✅ |
+| `causal/` | Subpackage | 因果链路 TraceSpan 树构建、单次任务全景时序追踪与无依赖 OTel 遥测降级桥接器 | ✅ |
 
 ## Key Dependencies
 

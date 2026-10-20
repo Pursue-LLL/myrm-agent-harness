@@ -28,11 +28,15 @@ cross-task data piping (inject referenced jobs' latest successful output), incre
 | situation.py | Core | Situation Report — pluggable context aggregator for heartbeat ticks. SituationSection Protocol + SituationReportBuilder (concurrent build, token budget, fault-tolerant) + SituationContext. | ✅ |
 | stores.py | Core | Built-in in-memory CronStore for development and testing. | ✅ |
 | triggers.py | Core | Trigger type definitions and security helpers. | ✅ |
-| types.py | Config | Cron job domain types. `JobType.REMINDER` for zero-LLM prompt delivery. JobResult supports `skipped` + `skip_reason`. **`CronJob.required_capabilities` + `CronJob.tools_allowed` + `CronJob.skill_ids`**; `CronJobPatch` supports `clear_tools_allowed` / `clear_skill_ids`. Agent jobs may bind **`workflow_template_id` + `workflow_template_args`** for pinned DW reruns (server runner passes through). | ✅ |
+| types.py | Config | Cron job domain types. `JobType.REMINDER` for zero-LLM prompt delivery. JobResult supports `skipped` + `skip_reason` and `retry_at` (re-arm the job at an instant without counting a failure). **`CronJob.required_capabilities` + `CronJob.tools_allowed` + `CronJob.skill_ids`**; `CronJobPatch` supports `clear_tools_allowed` / `clear_skill_ids`. Agent jobs may bind **`workflow_template_id` + `workflow_template_args`** for pinned DW reruns (server runner passes through). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
 | engine/ | Cron scheduling engine internals. |
+| `incident_protocols.py` | Core | Protocol contract for durable cron failure incidents ledger. | ✅ |
+| `incident_types.py` | Core | Incident domain types for cron reliability and signature dedup. | ✅ |
+| `incidents.py` | Core | Durable cron failure incidents with signature dedup and ack. | ✅ |
+| `manager_validation.py` | Core | Cron job validation and normalization helpers. — CronValidationMixin: _validate_create / _validate_schedule / _validate_context_from / | ✅ |
 
 ## Key Dependencies
 

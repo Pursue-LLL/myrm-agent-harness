@@ -30,6 +30,8 @@ Detailed design: [EVENT_LOG_SYSTEM.md](EVENT_LOG_SYSTEM.md)
 |-----------|-------------|
 | backends/ | Event log backends — built-in storage implementations (JSONL file: append, read, age-based cleanup, per-session removal). |
 | dataset_export/ | Export pipeline — convert traces to ShareGPT/Alpaca/OpenAI JSONL with PII redaction, quality filtering, and dedup. |
+| `durable_atomic_writer.py` | Core | Durable atomic writer with short-write defense, advisory locking, and fsync. | ✅ |
+| `torn_tail_repairer.py` | Core | Torn tail detection and self-repair engine for append-only event logs. | ✅ |
 
 ## Key Dependencies
 
