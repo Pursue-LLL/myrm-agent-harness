@@ -199,7 +199,7 @@ class BashExecutorPrepareMixin:
 
     def _inject_resilience_script(self, prepared_code: str) -> str:
         """Prepend the bash resilience init script if available."""
-        script_path = Path(__file__).parent / "scripts" / "resilience_init.sh"
+        script_path = Path(__file__).parent.parent / "scripts" / "resilience_init.sh"
         if not script_path.exists():
             return prepared_code
         try:

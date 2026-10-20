@@ -868,7 +868,26 @@ def test_validate_python_syntax_raises_bash_execution_error() -> None:
 def test_inject_resilience_script_prepends_when_present() -> None:
     bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
     result = bash_exec._inject_resilience_script("echo hi")
-    assert "echo hi" in result
+    assert "Resilience Init Script" in result
+    assert result.rstrip().endswith("echo hi")
+
+
+def test_prepare_mixin_uses_executor_socket_path_and_skips_started_proxy() -> None:
+    executor = _mock_code_executor()
+    executor.get_mcp_communication_config.return_value = MagicMock(socket_path="/tmp/executor.sock")
+    bash_exec = BashExecutor(executor, enable_skill_execution=False)
+    bash_exec._mcp_proxy_started = True
+
+    assert bash_exec._get_ipc_socket_path() == "/tmp/executor.sock"
+    # Already started: returns without touching the executor or starting a server.
+    import asyncio
+
+    asyncio.run(bash_exec._ensure_mcp_proxy_started())
+
+
+def test_detect_skill_from_import_statement() -> None:
+    bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
+    assert bash_exec._detect_skill_from_code("import skills.demo_skill") == "demo_skill"
 
 
 def test_rewrite_skill_paths_returns_detected_skill() -> None:
