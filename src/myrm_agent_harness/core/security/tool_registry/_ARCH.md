@@ -20,7 +20,6 @@ preserving the flat-module import surface for all consumers.
 | safety_table.py | Core | `SafetyMetadata` dataclass, `_FAIL_CLOSED_DEFAULTS` and the `TOOL_SAFETY_METADATA` opt-in whitelist (re-exported by `registry.py`); taint extractors are imported from `taint_extractors.py`. | ✅ |
 | taint_extractors.py | Core | Pure taint-label extractors for tool arguments — `sanitize_url_for_taint` / `taint_url_from_args` (scheme+host+path only), `taint_secret_file_from_args` (credential files named by any file-tool argument spelling, including the `paths` list `file_read_tool` actually sends and its `path:START-END` selector; template markers are judged on the file name only), `taint_secret_command_from_args`; wired into `TOOL_SAFETY_METADATA` as `taint_extractor` callbacks. | ✅ |
 | safety.py | Core | `check_safety_coverage()` — module-load warning when built-in tools (BUILTIN_TOOL_NAMES ∪ EXPLICIT_MCP_FALLBACK_TOOLS) lack TOOL_SAFETY_METADATA entries. Scope mirrors the CI governance gate. | ✅ |
-| `governance.py` | Core | Governance coverage declarations for built-in tools. — AUTO_APPROVE_REASONS: valid governance reason categories; AUTO_APPROVED_BUILTIN_TOOLS: built-in tool → governance approval reason; EXPLICIT_MCP_FALLBACK_TOOLS: tools that intentionally keep the mcp_invoke ASK baseline; DYNAMICALLY_RESOLVED_TOOL_NAMES: tools resolved by sub-action inside resolve_permission_type() (+1 more) | ✅ |
 
 ## Governance Coverage Declarations
 

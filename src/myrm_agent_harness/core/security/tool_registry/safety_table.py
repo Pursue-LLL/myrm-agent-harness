@@ -153,14 +153,4 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "refetch_historical_turn": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
     # stateful per-turn rate limiter + SSE push: not idempotent, not concurrency-safe
     "send_user_message_async": SafetyMetadata(),
-    # shared plan store (profile-mounted): HUD read is pure; plan writes are stateful
-    "read_todo_hud": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "manage_todo_plan": SafetyMetadata(),
-    # session multiplexer (profile-mounted): inspect is a cross-session read, instruct writes
-    "inspect_agent_session": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "instruct_agent": SafetyMetadata(),
-    # edge device mesh (profile-mounted): discovery/telemetry are reads, dispatch executes remotely
-    "list_mesh_devices": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "fetch_node_telemetry": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
-    "dispatch_node_command": SafetyMetadata(is_destructive=True),
 }

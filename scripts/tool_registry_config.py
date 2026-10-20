@@ -94,19 +94,6 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
         # Implemented and unit-tested under toolkits/memory/sovereign_migration,
         # deliberately not mounted on any agent profile yet.
         "create_sovereign_migration_tool",
-        # Mounted by sub-agent profiles (shared plan store), not by the general agent's
-        # get_meta_tools(): the plan HUD belongs to delegation, not to every turn.
-        "create_manage_todo_plan_tool",
-        "create_read_todo_hud_tool",
-        # Session multiplexer tools: only an orchestrator profile that owns sibling
-        # sessions should see inspect/instruct, so they are profile-mounted.
-        "create_inspect_agent_session_tool",
-        "create_instruct_agent_tool",
-        # Edge device mesh tools: device discovery/dispatch needs a registered mesh,
-        # which the default agent profile does not have.
-        "create_list_mesh_devices_tool",
-        "create_dispatch_node_command_tool",
-        "create_fetch_node_telemetry_tool",
     }
 )
 
