@@ -227,4 +227,4 @@ def test_call_budget_matches_track_two() -> None:
     )
     from myrm_agent_harness.toolkits.code_execution.ptc.models import PtcConfig
 
-    assert DEFAULT_MAX_CALLS_PER_SESSION == PtcConfig.model_fields["max_tool_calls"].default
+    assert PtcConfig.model_fields["max_tool_calls"].default == DEFAULT_MAX_CALLS_PER_SESSION
