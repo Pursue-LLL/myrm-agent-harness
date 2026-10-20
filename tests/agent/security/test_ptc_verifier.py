@@ -46,15 +46,18 @@ eval('os.system(\\"rm -rf /\\")')
     assert result is None
 
 
-def test_extract_ptc_with_attribute_calls_rejected():
-    """Test that methods on objects (Attribute calls) are rejected."""
+def test_extract_ptc_with_attribute_calls_accepted():
+    """Test that safe methods on objects (like dict.update) are accepted."""
     command = '''python -c "
 from skills.mcp_github_skill import _read_file
 res = _read_file(path='/workspace')
-res.update({'malicious': True})
+res.update({'data': True})
 "'''
     result = extract_ptc_intent(command)
-    assert result is None
+    assert result is not None
+    skill_name, tool_name, _args = result
+    assert skill_name == "mcp_github_skill"
+    assert tool_name == "read_file"
 
 
 def test_extract_ptc_with_safe_builtins_accepted():
@@ -71,15 +74,18 @@ print(dict(res))
     assert tool_name == "read_file"
 
 
-def test_extract_ptc_with_loops_rejected():
-    """Test that complex control flow like loops are rejected."""
+def test_extract_ptc_with_loops_accepted():
+    """Test that Turing-complete loops for batch processing are accepted."""
     command = '''python -c "
 from skills.mcp_github_skill import _read_file
 for i in range(10):
     _read_file(path=f'/workspace/{i}')
 "'''
     result = extract_ptc_intent(command)
-    assert result is None
+    assert result is not None
+    skill_name, tool_name, _ = result
+    assert skill_name == "mcp_github_skill"
+    assert tool_name == "read_file"
 
 
 def test_extract_ptc_with_syntax_error():

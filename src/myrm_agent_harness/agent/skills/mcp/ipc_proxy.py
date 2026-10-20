@@ -281,6 +281,16 @@ class MCPIPCServer:
                 logger.warning(f"{log_prefix} Blocked by read-only policy: {request.skill_name}.{request.tool_name}")
                 return MCPIPCResponse(success=False, error=policy_error).model_dump_json()
 
+            path_error = self._check_path_policy(request)
+            if path_error is not None:
+                logger.warning(f"{log_prefix} Blocked by path policy: {request.skill_name}.{request.tool_name} - {path_error}")
+                return MCPIPCResponse(success=False, error=path_error).model_dump_json()
+
+            scope_error = self._check_scope_gate(request)
+            if scope_error is not None:
+                logger.warning(f"{log_prefix} Blocked by agent scope gate: {request.skill_name}.{request.tool_name} - {scope_error}")
+                return MCPIPCResponse(success=False, error=scope_error).model_dump_json()
+
             logger.info(f"{log_prefix} Request: {request.skill_name}.{request.tool_name}")
 
             # Per-call context for builtin handlers (notify/...).
@@ -382,6 +392,56 @@ class MCPIPCServer:
             f"MCP tool '{request.skill_name}.{request.tool_name}' is blocked: the calling run "
             "is in a read-only sandbox. Only tools declaring readOnlyHint may run here."
         )
+
+    def _check_path_policy(self, request: MCPIPCRequest) -> str | None:
+        """Enforce workspace path policy on tool calls made from scripts."""
+        if not request.workspace_root or not isinstance(request.params, dict):
+            return None
+
+        path_keys = ("path", "file_path", "target", "destination", "filepath")
+        target_path = None
+        for k in path_keys:
+            val = request.params.get(k)
+            if isinstance(val, str) and val.strip():
+                target_path = val.strip()
+                break
+        if not target_path:
+            return None
+
+        from myrm_agent_harness.agent.security.checks import check_path_policy
+        from myrm_agent_harness.agent.security.types import PathPolicy, PermissionAction
+
+        action, reason = check_path_policy(target_path, PathPolicy(), request.workspace_root)
+        if action == PermissionAction.DENY:
+            return f"Path policy violation: {reason}"
+        return None
+
+    def _check_scope_gate(self, request: MCPIPCRequest) -> str | None:
+        """Enforce employee/agent-scoped MCP discovery gate policies."""
+        from myrm_agent_harness.agent.sub_agents.mcp_scope_gate.scope_gate import (
+            EmployeeScopedMcpDiscoveryGate,
+        )
+        from myrm_agent_harness.agent.sub_agents.mcp_scope_gate.types import (
+            EmployeeToolScopeViolationError,
+        )
+
+        agent_id = request.session_id
+        if not agent_id:
+            return None
+
+        gate = EmployeeScopedMcpDiscoveryGate.get_instance()
+        if not gate.get_policy(agent_id):
+            return None
+
+        server_name = request.skill_name
+        if server_name.startswith("mcp_") and server_name.endswith("_skill"):
+            server_name = server_name[4:-6]
+
+        try:
+            gate.verify_tool_invocation(agent_id, server_name, request.tool_name)
+        except EmployeeToolScopeViolationError as e:
+            return f"Agent scope violation: {e.reason}"
+        return None
 
 
 # 全局 IPC 服务端实例

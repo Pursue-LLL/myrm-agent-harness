@@ -451,7 +451,14 @@ async def evaluate_tool_batch(
                     extra_ctx["ptc_annotations"] = ptc_annotations
 
                 # Path Policy Enforcement for PTC
-                ptc_path = str(arguments.get("path", ""))
+                ptc_path = str(
+                    arguments.get("path")
+                    or arguments.get("file_path")
+                    or arguments.get("target")
+                    or arguments.get("destination")
+                    or arguments.get("filepath")
+                    or ""
+                )
                 if ptc_path and workspace_root:
                     path_action, path_reason = check_path_policy(ptc_path, config.path_policy, workspace_root)
                     if path_action == PermissionAction.DENY:

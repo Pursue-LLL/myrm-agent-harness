@@ -228,3 +228,51 @@ def test_call_budget_matches_track_two() -> None:
     from myrm_agent_harness.toolkits.code_execution.ptc.models import PtcConfig
 
     assert PtcConfig.model_fields["max_tool_calls"].default == DEFAULT_MAX_CALLS_PER_SESSION
+
+
+def test_ipc_path_policy_blocks_path_outside_workspace() -> None:
+    """Path policy must block path traversal outside the workspace in IPC calls."""
+    server = MCPIPCServer(default_ipc_socket_path())
+    body = _request_once(
+        server,
+        {
+            "skill_name": "__builtin__",
+            "tool_name": "notify",
+            "params": {"path": "/etc/passwd"},
+            "session_id": "s1",
+            "workspace_root": "/safe/workspace",
+        },
+    )
+    assert body["success"] is False
+    assert "path policy" in str(body["error"]).lower()
+
+
+def test_ipc_scope_gate_enforces_agent_allowlist() -> None:
+    """Agent scope gate must block unapproved MCP tools for restricted agents."""
+    from myrm_agent_harness.agent.sub_agents.mcp_scope_gate.scope_gate import (
+        EmployeeScopedMcpDiscoveryGate,
+    )
+    from myrm_agent_harness.agent.sub_agents.mcp_scope_gate.types import (
+        EmployeeToolScopePolicy,
+    )
+
+    gate = EmployeeScopedMcpDiscoveryGate.get_instance()
+    gate.register_policy(
+        EmployeeToolScopePolicy(
+            agent_id="restricted_agent",
+            allowed_mcp_servers=["12306"],
+        )
+    )
+
+    server = MCPIPCServer(default_ipc_socket_path())
+    body = _request_once(
+        server,
+        {
+            "skill_name": "mcp_github_skill",
+            "tool_name": "read_file",
+            "params": {},
+            "session_id": "restricted_agent",
+        },
+    )
+    assert body["success"] is False
+    assert "agent scope" in str(body["error"]).lower()
