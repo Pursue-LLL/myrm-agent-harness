@@ -4,7 +4,7 @@
 # Tighten caps with: check_file_line_limit.py --ratchet
 # Remove entries after splitting below 500 lines.
 myrm_agent_harness/agent/_internals/agent_runtime.py	801
-myrm_agent_harness/agent/_internals/run_lifecycle.py	749
+myrm_agent_harness/agent/_internals/run_lifecycle.py	709
 myrm_agent_harness/agent/base_agent.py	631
 myrm_agent_harness/agent/context_management/infra/schemas.py	715
 myrm_agent_harness/agent/context_management/pipeline/processors/cache_ttl_prune_processor.py	721
@@ -23,8 +23,7 @@ myrm_agent_harness/agent/meta_tools/file_ops/core/file_operation_service.py	649
 myrm_agent_harness/agent/meta_tools/file_ops/file_read_tool.py	507
 myrm_agent_harness/agent/middlewares/approval/_batch_decisions.py	697
 myrm_agent_harness/agent/middlewares/approval/batch_processor.py	1187
-myrm_agent_harness/agent/middlewares/completion/completion_guard.py	470
-myrm_agent_harness/agent/middlewares/context_pipeline/context_pipeline_middleware.py	533
+myrm_agent_harness/agent/middlewares/context_pipeline/context_pipeline_middleware.py	512
 myrm_agent_harness/agent/middlewares/tooling/_tool_guards.py	689
 myrm_agent_harness/agent/middlewares/tooling/_tool_helpers.py	599
 myrm_agent_harness/agent/security/guards/loop_guard/detectors.py	571
@@ -34,7 +33,6 @@ myrm_agent_harness/agent/skills/evolution/infra/integration.py	558
 myrm_agent_harness/agent/skills/evolution/pipeline/screener.py	625
 myrm_agent_harness/agent/skills/market/service.py	852
 myrm_agent_harness/agent/streaming/recovery/stream_recovery.py	772
-myrm_agent_harness/agent/streaming/recovery/stream_recovery_oneshot.py	673
 myrm_agent_harness/agent/streaming/stream_executor.py	623
 myrm_agent_harness/agent/sub_agents/event_forwarder.py	622
 myrm_agent_harness/agent/sub_agents/manager.py	604
@@ -69,7 +67,7 @@ myrm_agent_harness/toolkits/computer_use/perception/windows_ax.py	521
 myrm_agent_harness/toolkits/computer_use/session.py	595
 myrm_agent_harness/toolkits/cron/cron_agent_tools.py	870
 myrm_agent_harness/toolkits/cron/engine/executor.py	747
-myrm_agent_harness/toolkits/cron/manager.py	689
+myrm_agent_harness/toolkits/cron/manager.py	600
 myrm_agent_harness/toolkits/cron/types.py	506
 myrm_agent_harness/toolkits/kanban/_orchestrator_tools.py	575
 myrm_agent_harness/toolkits/kanban/dispatcher.py	687
@@ -77,7 +75,6 @@ myrm_agent_harness/toolkits/kanban/protocols.py	539
 myrm_agent_harness/toolkits/kanban/types.py	595
 myrm_agent_harness/toolkits/llms/adapters/chat_model/async_mixin.py	553
 myrm_agent_harness/toolkits/llms/adapters/chat_model/model.py	513
-myrm_agent_harness/toolkits/llms/adapters/chat_model/sync_mixin.py	535
 myrm_agent_harness/toolkits/llms/errors/classifier.py	714
 myrm_agent_harness/toolkits/llms/fallback/manager.py	609
 myrm_agent_harness/toolkits/llms/image/generator.py	557
@@ -94,17 +91,16 @@ myrm_agent_harness/toolkits/memory/strategies/extractor.py	1081
 myrm_agent_harness/toolkits/memory/strategies/pattern_discovery.py	510
 myrm_agent_harness/toolkits/memory/types.py	934
 myrm_agent_harness/toolkits/retriever/engine.py	583
-myrm_agent_harness/toolkits/vector/qdrant/store.py	444
 myrm_agent_harness/toolkits/web_fetch/engine/base.py	532
 myrm_agent_harness/toolkits/web_fetch/router/adaptive_router.py	657
 myrm_agent_harness/toolkits/web_fetch/router/domain_metrics.py	506
 myrm_agent_harness/toolkits/wiki/core/claims_contract.py	771
-myrm_agent_harness/toolkits/wiki/pipeline/corpus_dedup/store.py	535
+myrm_agent_harness/toolkits/wiki/pipeline/corpus_dedup/store.py	534
 myrm_agent_harness/toolkits/wiki/retrieval/query.py	928
 myrm_agent_harness/toolkits/wiki/wiki_agent_tools.py	628
 myrm_agent_harness/utils/context_format.py	564
 myrm_agent_harness/utils/text_utils.py	503
-myrm_agent_harness/utils/token_economics/tracker.py	582
+myrm_agent_harness/utils/token_economics/tracker.py	575
 myrm_agent_harness/utils/url_utils.py	505
 myrm_agent_harness/toolkits/wiki/core/structure.py	507
 myrm_agent_harness/toolkits/memory/strategies/merger.py	554
