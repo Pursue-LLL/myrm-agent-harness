@@ -48,12 +48,13 @@ from myrm_agent_harness.core.network.ipc_socket import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MAX_CALLS_PER_SESSION = 200
+DEFAULT_MAX_CALLS_PER_SESSION = 50
 """Per-session IPC tool-call budget.
 
 MCP PTC scripts loop over tools; without a ceiling a runaway script becomes an
-unbounded external-API amplifier. Track 2 RPC already caps at
-``PtcConfig.max_tool_calls``; this is the missing counterpart for Track 1.
+unbounded external-API amplifier. 50 matches ``PtcConfig.max_tool_calls`` so both
+PTC tracks share one number: measured orchestration scripts on this machine issue
+0-3 callsites, so the ceiling only ever catches a runaway loop.
 """
 
 

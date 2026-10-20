@@ -214,3 +214,17 @@ def test_read_only_scope_allows_read_only_mcp_tool() -> None:
     # The tool has no real MCP config registered, so dispatch fails on lookup;
     # what matters is that the policy gate let the call through.
     assert "read-only" not in str(body.get("error") or "").lower()
+
+
+def test_call_budget_matches_track_two() -> None:
+    """Both PTC tracks must expose one number, not two independent guesses.
+
+    A second, arbitrary ceiling makes the next reader ask why they differ and gives
+    one track a looser bound than the other for no stated reason.
+    """
+    from myrm_agent_harness.agent.skills.mcp.ipc_proxy import (
+        DEFAULT_MAX_CALLS_PER_SESSION,
+    )
+    from myrm_agent_harness.toolkits.code_execution.ptc.models import PtcConfig
+
+    assert DEFAULT_MAX_CALLS_PER_SESSION == PtcConfig.model_fields["max_tool_calls"].default

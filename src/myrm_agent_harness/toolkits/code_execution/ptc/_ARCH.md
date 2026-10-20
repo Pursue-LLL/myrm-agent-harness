@@ -50,7 +50,7 @@ Child Process ← myrm_tools.py (generated stubs for allowed tools only)
    | Socket mode | `0600` | `0600` |
    | Socket directory | shared `tempdir/myrm_ptc` (mode inherited) | private `myrm-agent-mcp-<pid>` with `0700` |
    | Request auth | per-process bearer token, constant-time compare | per-process bearer token, constant-time compare |
-   | Call budget | `PtcConfig.max_tool_calls` (50) on the server | `DEFAULT_MAX_CALLS_PER_SESSION` (200) per session |
+   | Call budget | `PtcConfig.max_tool_calls` (50) on the server | `DEFAULT_MAX_CALLS_PER_SESSION` (50) per session |
 2. **Length-prefixed binary protocol** — 4-byte big-endian length prefix + JSON body. Simple, fast, no framing ambiguity.
 3. **One connection per call** — Eliminates connection pooling complexity. UDS connect() is ~10μs locally.
 4. **Security-first** — Env scrubbing removes all secrets, recursive PTC blocked, terminal params filtered.
