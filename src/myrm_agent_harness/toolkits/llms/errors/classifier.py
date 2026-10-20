@@ -29,7 +29,36 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 
+from .classifier_patterns import (
+    _AUTH_RE,
+    _BILLING_RE,
+    _CLOUDFLARE_CHALLENGE_RE,
+    _DUPLICATE_TOOL_USE_ID_RE,
+    _IMAGE_TOO_LARGE_RE,
+    _LITELLM_INIT_BUG_RE,
+    _LONG_CONTEXT_TIER_RE,
+    _MEDIA_REJECTED_RE,
+    _MODEL_NOT_FOUND_RE,
+    _OVERFLOW_CN_KEYWORDS,
+    _OVERFLOW_COMPOUND_CHECKS,
+    _OVERFLOW_EXACT_RE,
+    _OVERLOADED_503_RE,
+    _OVERLOADED_RE,
+    _PAYLOAD_TOO_LARGE_RE,
+    _PROVIDER_FORMAT_400_RE,
+    _PROVIDER_POLICY_BLOCKED_RE,
+    _RATE_LIMIT_RE,
+    _REASONING_MANDATORY_RE,
+    _SAFETY_BLOCK_RE,
+    _THINKING_SIGNATURE_RE,
+    _TIMEOUT_RE,
+    _TLS_HARD_RE,
+    _TLS_TRANSPORT_RE,
+    _USAGE_LIMIT_PATTERNS,
+    _USAGE_LIMIT_TRANSIENT_SIGNALS,
+)
 from .error_types import FailoverReason
+from .provider_window import has_rejected_quota_window
 
 # ============================================================================
 # ErrorKind enum
@@ -106,6 +135,7 @@ _REASON_TO_ERROR_KIND: dict[FailoverReason, ErrorKind] = {
     FailoverReason.SESSION_EXPIRED: ErrorKind.AUTH,
     FailoverReason.SAFETY_BLOCK: ErrorKind.SAFETY_BLOCK,
     FailoverReason.THINKING_SIGNATURE: ErrorKind.FORMAT_ERROR,
+    FailoverReason.REASONING_MANDATORY: ErrorKind.FORMAT_ERROR,
     FailoverReason.DUPLICATE_TOOL_USE_ID: ErrorKind.FORMAT_ERROR,
     FailoverReason.IMAGE_TOO_LARGE: ErrorKind.FORMAT_ERROR,
     FailoverReason.MEDIA_REJECTED: ErrorKind.FORMAT_ERROR,
@@ -116,274 +146,6 @@ _REASON_TO_ERROR_KIND: dict[FailoverReason, ErrorKind] = {
     FailoverReason.MODEL_NOT_FOUND: ErrorKind.MODEL_NOT_FOUND,
     FailoverReason.UNKNOWN: ErrorKind.UNKNOWN,
 }
-
-# ============================================================================
-# Pattern definitions (module-level pre-compiled for performance)
-# ============================================================================
-
-_RATE_LIMIT_RE = re.compile(
-    r"\btpm\b|tokens per minute|rate.?limit|too many requests|\b429\b|throttl"
-    r"|resource.?exhausted|requests per (?:minute|hour|day)"
-    r"|rate increased too quickly|too many concurrent requests"
-    r"|servicequotaexceededexception",
-    re.IGNORECASE,
-)
-
-_OVERLOADED_RE = re.compile(
-    r"overloaded(?:_error)?|high.?demand|capacity.?(?:exceeded|full)"
-    r"|\b529\b|service.?unavailable|\b502\b|\b503\b|\b504\b",
-    re.IGNORECASE,
-)
-
-_OVERLOADED_503_RE = re.compile(
-    r"(?:service.?unavailable|503).*(?:overload|capacity|high.?demand)"
-    r"|(?:overload|capacity|high.?demand).*(?:service.?unavailable|503)",
-    re.IGNORECASE,
-)
-
-_BILLING_RE = re.compile(
-    r"billing|insufficient.?(?:balance|funds|credits|quota)|payment.?required|exceeded.?(?:plan|budget|quota)"
-    r"|credit.?balance|\b402\b|run out of credits|used all available credits|grok subscription"
-    r"|余额不足|额度不足|请充值|欠费|无可用资源包|account is deactivated|top up your credits",
-    re.IGNORECASE,
-)
-
-_AUTH_RE = re.compile(
-    r"invalid.?api.?key|incorrect api key|unauthorized|\b401\b|\b403\b"
-    r"|authentication|access.?denied|forbidden|permission.?(?:error|denied)"
-    r"|api.?key.?(?:revoked|invalid|deactivated|expired)|token.?(?:has )?expired",
-    re.IGNORECASE,
-)
-
-_TIMEOUT_RE = re.compile(
-    r"\btimeout\b|timed.?out|deadline.?exceeded|connection.?(?:error|reset|refused)"
-    r"|network.?(?:error|request failed)|fetch.?failed|socket.?hang.?up"
-    r"|\b499\b"
-    r"|server disconnected|unexpected eof|connection was closed",
-    re.IGNORECASE,
-)
-
-# Permanent TLS failure: the certificate/chain itself is rejected (fail-fast,
-# never retried). Checked AFTER the transient-transport rule so that weak-
-# network handshakes interrupted before any certificate verdict stay retryable.
-_TLS_HARD_RE = re.compile(
-    r"self.?signed|unable to get local issuer"
-    r"|unable to verify the first certificate"
-    r"|hostname (?:mismatch|doesn.?t match)|err_tls_cert_altname_invalid|altname"
-    r"|certificate (?:has )?expired|expired certificate"
-    r"|basic.?constraints|not marked critical"
-    r"|certificate verify failed",
-    re.IGNORECASE,
-)
-
-# Transient TLS transport trace: SSL/TLS/handshake wording with NO hard
-# signal. Covers Bun's mislabeled "unknown certificate verification error"
-# (reset mid-handshake, no certificate ever rejected) and Python SSLEOFError /
-# BrokenPipeError wordings that _TIMEOUT_RE misses ("unexpected_eof" with
-# underscores, "eof occurred in violation of protocol", "broken pipe").
-_TLS_TRANSPORT_RE = re.compile(
-    r"\bssl\b|\btls\b|handshake"
-    r"|unknown[ _]certificate[ _]verification|certificate verification error"
-    r"|cert\.? ?verify|ssl routines"
-    r"|unexpected.?eof|eof occurred in violation of protocol|broken pipe"
-    r"|wrong version number|bad record|decryption failed"
-    r"|ssl3_|tlsv1",
-    re.IGNORECASE,
-)
-
-_OVERFLOW_EXACT_RE = re.compile(
-    r"|".join(
-        [
-            r"request_too_large",
-            r"context[_ ]?length[_ ]?exceeded",
-            r"maximum context length",
-            r"(?:model[_ ]?)?context[_ ]?window[_ ]?exceeded",
-            r"exceeds?[_ ](?:the[_ ])?model.?s?[_ ]?(?:maximum[_ ])?context",
-            r"prompt is too long",
-            r"model token limit",
-            r"exceed context limit",
-            r"request exceeds the maximum size",
-            r"request size exceeds",
-            r"exceeds the max_model_len",
-            r"max_model_len",
-            r"maximum model length",
-            r"slot context",
-            r"n_ctx_slot",
-            r"exceeds the maximum number of input tokens",
-            r"token.?limit.?exceeded",
-            r"prompt exceeds max length",
-            r"tokens in request more than max tokens allowed",
-            r"total message size.*exceeds limit",
-            r"context size has been exceeded",
-            r"available context size",
-            r"input tokens exceed",
-        ]
-    ),
-    re.IGNORECASE,
-)
-
-_OVERFLOW_COMPOUND_CHECKS: list[tuple[re.Pattern[str], ...]] = [
-    (
-        re.compile(r"max_tokens", re.IGNORECASE),
-        re.compile(r"exceed", re.IGNORECASE),
-        re.compile(r"context", re.IGNORECASE),
-    ),
-    (
-        re.compile(r"input length", re.IGNORECASE),
-        re.compile(r"exceed", re.IGNORECASE),
-        re.compile(r"context", re.IGNORECASE),
-    ),
-    (re.compile(r"413", re.IGNORECASE), re.compile(r"too large", re.IGNORECASE)),
-]
-
-_OVERFLOW_CN_KEYWORDS = (
-    "上下文过长",
-    "上下文超出",
-    "上下文长度超",
-    "超出最大上下文",
-    "请压缩上下文",
-)
-
-_LITELLM_INIT_BUG_RE = re.compile(
-    r"BadRequestError\.__init__\(\).*missing.*required positional argument",
-    re.IGNORECASE,
-)
-
-_PROVIDER_FORMAT_400_RE = re.compile(
-    r"must be in JSON format|InvalidParameter.*(?:function|arguments)"
-    r"|schema validation error|invalid format|invalid json format|valid JSON",
-    re.IGNORECASE,
-)
-
-_MODEL_NOT_FOUND_RE = re.compile(
-    r"is not a valid model|invalid model|model not found|model_not_found"
-    r"|does not exist|no such model|unknown model|unsupported model"
-    r"|no endpoints found that support tool use"
-    r"|no available channel(?: for model)?",
-    re.IGNORECASE,
-)
-
-_USAGE_LIMIT_TRANSIENT_SIGNALS = [
-    "try again",
-    "retry",
-    "resets at",
-    "reset in",
-    "wait",
-    "requests remaining",
-    "periodic",
-    "window",
-]
-
-_USAGE_LIMIT_PATTERNS = ["usage limit", "quota", "limit exceeded", "key limit exceeded"]
-
-_SAFETY_BLOCK_RE = re.compile(
-    r"content_policy_violation|violating our usage policy|safety system"
-    r"|content filtered|responsible ai policy|safety block",
-    re.IGNORECASE,
-)
-
-_THINKING_SIGNATURE_RE = re.compile(
-    r"signature.*thinking|thinking.*signature",
-    re.IGNORECASE,
-)
-
-_DUPLICATE_TOOL_USE_ID_RE = re.compile(
-    r"tool_use.{0,40}(?:unique|duplicate|duplicat|must be)"
-    r"|duplicate.{0,40}tool_use"
-    r"|tool_call_id.{0,40}(?:unique|duplicate|duplicat|must be)"
-    r"|(?:unique|duplicate).{0,40}tool_call_id"
-    r"|messages\.\d+\.tool_calls\.\d+\.id",
-    re.IGNORECASE,
-)
-
-_IMAGE_TOO_LARGE_RE = re.compile(
-    r"image exceeds|image.{0,6}too.{0,3}large|image_too_large|image size exceeds"
-    r"|exceeds.+per.?image.+limit"
-    r"|image.?dimensions?.+exceed|dimensions?.+exceed.+(?:maximum|max|limit|allowed)"
-    r"|exceeds.+(?:maximum|max).+(?:allowed )?size.+\d+",
-    re.IGNORECASE,
-)
-
-_PAYLOAD_TOO_LARGE_RE = re.compile(
-    r"payload too large"
-    r"|request entity too large"
-    r"|request body too large"
-    r"|client intended to send too large body"
-    r"|body size exceeds"
-    r"|payload size exceeds"
-    r"|payload exceeds"
-    r"|request body exceeds"
-    r"|request size exceeds"
-    r"|entity too large"
-    r"|client_max_body_size"
-    r"|exceeded the maximum request size"
-    r"|exceeds.+maximum.+request.+size"
-    r"|maximum payload size exceeded"
-    r"|body exceeds size limit"
-    r"|request exceeds maximum.+size",
-    re.IGNORECASE,
-)
-
-_LONG_CONTEXT_TIER_RE = re.compile(
-    r"extra usage.+(?:required|needed).+long context",
-    re.IGNORECASE,
-)
-
-_MEDIA_REJECTED_RE = re.compile(
-    r"does not support (?:image|vision|multimodal|media)"
-    r"|(?:image|vision|multimodal|media).+(?:not supported|not available|unsupported)"
-    r"|cannot process (?:image|media|multimodal)"
-    r"|model does not have vision"
-    r"|content type.+image.+not supported"
-    r"|invalid content type.+image",
-    re.IGNORECASE,
-)
-
-_PROVIDER_POLICY_BLOCKED_RE = re.compile(
-    r"no endpoints available matching your (?:guardrail|data policy)"
-    r"|organization has been (?:disabled|suspended|blocked)"
-    r"|third[- ]party (?:client|app|application|integration|tool).*(?:not (?:permitted|allowed|supported|authorized)|disallowed|restricted)"
-    r"|(?:not (?:authorized|permitted|allowed|supported)|unauthorized).*(?:third[- ]party|external|direct api)"
-    r"|credential is not authorized for (?:direct )?(?:api|third[- ]party|client) access"
-    r"|subscription tier does not allow (?:external|api|tool)"
-    r"|claude (?:pro|max|team)? (?:subscription|account).*(?:not (?:permitted|allowed|supported)|requires? (?:extra|approved)|extra usage credits)"
-    r"|(?:extra )?usage credits required"
-    r"|only available (?:via|in) (?:claude code|official|claude\.ai)"
-    r"|blocked by (?:provider|anthropic) policy",
-    re.IGNORECASE,
-)
-
-_WAF_CHALLENGE_RE = re.compile(
-    r"challenges\.cloudflare\.com"
-    r"|cf-turnstile"
-    r"|cf-ray"
-    r"|cf_chl_opt"
-    r"|just a moment\.{3}"
-    r"|attention required!? \| cloudflare"
-    r"|error code:? (?:1020|1015|1006|1007|1008)"
-    r"|cloudflare-nginx"
-    r"|challenge-platform"
-    r"|verify you are human"
-    r"|checking your browser before accessing"
-    r"|ddos protection by cloudflare"
-    r"|x-amzn-waf-action"
-    r"|request blocked by (?:aws )?waf"
-    r"|blocked by administrative rules"
-    r"|akamaighost"
-    r"|access denied.*?permission to access"
-    r"|generated by cloudfront"
-    r"|blocked by web application firewall"
-    r"|waf block(?:ed)?"
-    r"|waf challenge"
-    r"|(?:ip|client) (?:address )?(?:is )?blocked"
-    r"|blocked by security policy"
-    r"|access denied by security"
-    r"|bot (?:traffic|detection|protection|challenge)"
-    r"|turnstile[-_ ]required",
-    re.IGNORECASE,
-)
-_CLOUDFLARE_CHALLENGE_RE = _WAF_CHALLENGE_RE
-
 
 # ============================================================================
 # Normalizer
@@ -449,17 +211,17 @@ def normalize_provider_error(error: Exception) -> NormalizedError:
         _types.append(str(direct_type).lower())
 
     if isinstance(body, dict):
-        if "code" in body and body["code"]:
+        if body.get("code"):
             _codes.append(str(body["code"]).lower())
-        if "type" in body and body["type"]:
+        if body.get("type"):
             _types.append(str(body["type"]).lower())
 
         _err_obj = body.get("error", {})
         if isinstance(_err_obj, dict):
             _body_msg = str(_err_obj.get("message") or "").lower()
-            if "code" in _err_obj and _err_obj["code"]:
+            if _err_obj.get("code"):
                 _codes.append(str(_err_obj["code"]).lower())
-            if "type" in _err_obj and _err_obj["type"]:
+            if _err_obj.get("type"):
                 _types.append(str(_err_obj["type"]).lower())
 
             _metadata = _err_obj.get("metadata", {})
@@ -472,9 +234,9 @@ def normalize_provider_error(error: Exception) -> NormalizedError:
                             _inner_err = _inner.get("error", {})
                             if isinstance(_inner_err, dict):
                                 _metadata_msg = str(_inner_err.get("message") or "").lower()
-                                if "code" in _inner_err and _inner_err["code"]:
+                                if _inner_err.get("code"):
                                     _codes.append(str(_inner_err["code"]).lower())
-                                if "type" in _inner_err and _inner_err["type"]:
+                                if _inner_err.get("type"):
                                     _types.append(str(_inner_err["type"]).lower())
                     except (json.JSONDecodeError, TypeError):
                         pass
@@ -493,9 +255,7 @@ def normalize_provider_error(error: Exception) -> NormalizedError:
 
     _codes_str = " ".join(_codes)
     _types_str = " ".join(_types)
-    combined_message = (
-        f"{_raw_msg} | {_body_msg} | {_codes_str} | {_types_str} | {_metadata_msg} | {_resp_text}"
-    )
+    combined_message = f"{_raw_msg} | {_body_msg} | {_codes_str} | {_types_str} | {_metadata_msg} | {_resp_text}"
     return NormalizedError(status_code=status_code, message=combined_message, body=body)
 
 
@@ -532,6 +292,10 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
     if normalized.status_code == 400 and _THINKING_SIGNATURE_RE.search(msg):
         return FailoverReason.THINKING_SIGNATURE
 
+    # 0a1. Mandatory reasoning constraint / reasoning_effort rejected (400) — must precede generic 400
+    if normalized.status_code == 400 and _REASONING_MANDATORY_RE.search(msg):
+        return FailoverReason.REASONING_MANDATORY
+
     # 0a2. Duplicate tool_use / tool_call_id — must precede generic 400
     if normalized.status_code == 400 and _DUPLICATE_TOOL_USE_ID_RE.search(msg):
         return FailoverReason.DUPLICATE_TOOL_USE_ID
@@ -549,7 +313,7 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
         return FailoverReason.LONG_CONTEXT_TIER
 
     # 1. Billing & Quota Exhaustion (highest priority to avoid retry loops)
-    if _BILLING_RE.search(msg) or _QUOTA_EXHAUSTED_RE.search(msg):
+    if _BILLING_RE.search(msg) or _QUOTA_EXHAUSTED_RE.search(msg) or has_rejected_quota_window(exc):
         return FailoverReason.BILLING
 
     # 2. Rate Limit
@@ -676,7 +440,8 @@ _QUOTA_EXHAUSTED_RE = re.compile(
     r"|daily limit exceeded"
     r"|per-day limit"
     r"|requests per day.*exhausted"
-    r"|usage limit reached"
+    r"|usage.?limit.?reached"
+    r"|enforced.?spend.?limit.?reached"
     r"|额度用尽|额度耗尽|账户欠费|超出每日限额",
     re.IGNORECASE,
 )
@@ -695,33 +460,6 @@ def is_quota_exhausted(exc: Exception) -> bool:
         return True
     reason = classify_failover_reason(exc)
     return reason == FailoverReason.BILLING
-
-
-def extract_retry_after(exc: Exception) -> float | None:
-    """Extract ``Retry-After`` seconds from an LLM exception's HTTP response.
-
-    Walks the exception chain looking for an HTTP response with a
-    ``Retry-After`` header.  Returns the value as a positive float, or
-    ``None`` if unavailable / unparseable.
-    """
-    current: Exception | None = exc
-    for _ in range(5):
-        if current is None:
-            break
-        response = getattr(current, "response", None)
-        if response is not None:
-            headers = getattr(response, "headers", None)
-            if headers is not None:
-                raw = headers.get("retry-after") or headers.get("Retry-After")
-                if raw is not None:
-                    try:
-                        value = float(raw)
-                        if value > 0:
-                            return value
-                    except (ValueError, TypeError):
-                        pass
-        current = getattr(current, "__cause__", None) or getattr(current, "__context__", None)
-    return None
 
 
 # ============================================================================
