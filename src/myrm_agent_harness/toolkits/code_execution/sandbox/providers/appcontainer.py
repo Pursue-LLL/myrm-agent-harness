@@ -33,8 +33,10 @@ import logging
 import os
 import shutil
 import sys
+from typing import TYPE_CHECKING
 
-if sys.platform == "win32":
+# ``TYPE_CHECKING`` keeps the Win32 annotations resolvable when mypy runs on another platform.
+if TYPE_CHECKING or sys.platform == "win32":
     import ctypes
     import ctypes.wintypes
 
@@ -54,7 +56,7 @@ def _get_win_build() -> int:
     """Get the Windows build number."""
     try:
         ver = sys.getwindowsversion()  # type: ignore[attr-defined]
-        return ver.build
+        return int(ver.build)
     except AttributeError:
         return 0
 
@@ -99,10 +101,13 @@ async def _apply_acls(policy: SandboxPolicy, work_dir: str, sid: str) -> tuple[b
     entries: list[tuple[str, str]] = []
     tasks: list[asyncio.Task[bool]] = []
 
-    for path in (*policy.writable_paths, work_dir):
+    grants = [(path, "F") for path in policy.writable_paths]
+    # The working directory must stay readable and runnable; it is writable only when the policy says so.
+    grants.append((work_dir, "F" if policy.is_writable(work_dir) else "RX"))
+    for path, permission in grants:
         if os.path.exists(path):
-            entries.append((path, "F"))
-            tasks.append(asyncio.create_task(_set_acl(path, sid, "F")))
+            entries.append((path, permission))
+            tasks.append(asyncio.create_task(_set_acl(path, sid, permission)))
 
     for path in policy.readable_paths:
         if os.path.exists(path):
@@ -317,7 +322,7 @@ class AppContainerProvider:
             )
 
             if not success:
-                err = ctypes.get_last_error()
+                err = ctypes.get_last_error()  # type: ignore[attr-defined]
                 raise OSError(f"CreateProcessW failed: error {err}")
 
             h_job = create_job_object(kernel32)
@@ -389,7 +394,7 @@ class AppContainerProcess:
         pid: int,
         stdin: asyncio.StreamWriter,
         stdout: asyncio.StreamReader,
-        kernel32: object,
+        kernel32: ctypes.CDLL,
         job_handle: object = None,
     ) -> None:
         self._handle = handle

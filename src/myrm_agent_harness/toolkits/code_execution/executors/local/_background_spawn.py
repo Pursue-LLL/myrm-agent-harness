@@ -3,12 +3,13 @@
 [INPUT]
 executors.base::ExecutionContext (POS: Code executor base classes)
 executors.models::AsyncProcessProtocol (POS: Data models for code execution)
+executors.execution_evidence::record_execution (POS: Proof that an agent command launched a process)
 code_execution.sandbox::detect_sandbox_provider (POS: Sandbox detection and wrapping)
 code_execution.security.validator::sanitize_env (POS: Environment sanitization)
 executors.local._background_pty_spawn::try_spawn_background_pty (POS: POSIX PTY spawn adapter)
 
 [OUTPUT]
-spawn_background_process: Spawn a sandboxed background process with full-duplex streams.
+spawn_background_process: Spawn a sandboxed background process with full-duplex streams. Unless the context is `harness_owned`, it runs under the agent's capability scope and records execution evidence.
 PTY-first on POSIX hosts without OS sandbox; falls back to PIPE via `_background_pty_spawn.py`.
 
 [POS]
@@ -29,6 +30,7 @@ from contextlib import suppress
 from pathlib import Path
 
 from myrm_agent_harness.toolkits.code_execution.executors.base import ExecutionContext
+from myrm_agent_harness.toolkits.code_execution.executors.execution_evidence import record_execution
 from myrm_agent_harness.toolkits.code_execution.executors.models import (
     AsyncProcessProtocol,
 )
@@ -78,11 +80,13 @@ async def spawn_background_process(
     resolve_work_dir: Callable[[str, Path | None], Path | None],
     setup_workspace: Callable[[str | None], None],
     venv_path: Path,
+    scope_context: Callable[[ExecutionContext], ExecutionContext],
 ) -> AsyncProcessProtocol:
     """Spawn a long-running background process with full-duplex streams.
 
     Uses OS-level sandboxing (e.g., bwrap) if available to isolate the process.
     Implements pristine environment sanitization and process tree killing.
+    Unless harness-owned, the process runs under the agent's capability scope and counts as execution evidence.
 
     Args:
         context: Execution context with code, args, env, etc.
@@ -90,6 +94,7 @@ async def spawn_background_process(
         resolve_work_dir: Callable to resolve abstract paths to local paths.
         setup_workspace: Callable to ensure workspace directory exists.
         venv_path: Path to the shared virtual environment.
+        scope_context: Narrows the context to the capability handle bound to the running agent.
 
     Returns:
         AsyncProcessProtocol wrapping the spawned subprocess.
@@ -106,6 +111,10 @@ async def spawn_background_process(
     from myrm_agent_harness.toolkits.code_execution.security.validator import (
         sanitize_env,
     )
+
+    if not context.harness_owned:
+        context = scope_context(context)
+        record_execution()
 
     workspace = Path(context.workspace_root) if context.workspace_root else current_workspace
     effective_cwd = resolve_work_dir(context.work_dir, workspace)
@@ -156,7 +165,7 @@ async def spawn_background_process(
 
     if sandbox_status.enabled:
         policy = SandboxPolicy(
-            writable_paths=(work_dir_str,),
+            writable_paths=() if context.readonly_workspace else (work_dir_str,),
             allow_network=context.allow_network,
         )
         wrapped_cmd, wrapped_args = provider.wrap_command(cmd, tuple(args), work_dir_str, policy)

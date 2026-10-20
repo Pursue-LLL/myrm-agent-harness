@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import PurePath
 from typing import Protocol, runtime_checkable
 
 
@@ -30,8 +31,9 @@ class SandboxMode(StrEnum):
 class SandboxPolicy:
     """Declarative sandbox restrictions applied at the OS level.
 
-    writable_paths: directories the sandboxed process may write to.
-                    All other paths are read-only or inaccessible.
+    writable_paths: directories the sandboxed process may write to, besides the provider's scratch
+                    areas such as ``/tmp``. Everything else, including the working directory unless
+                    it is listed here, is read-only or inaccessible.
     readable_paths: additional read-only bind-mounts (beyond default / ro-bind).
     allow_network:  whether outbound network is permitted.
     env_passthrough: env var names forwarded into the sandbox.
@@ -49,6 +51,11 @@ class SandboxPolicy:
         "SHELL",
         "TMPDIR",
     )
+
+    def is_writable(self, path: str) -> bool:
+        """Whether ``path`` lies inside one of ``writable_paths``."""
+        target = PurePath(path)
+        return any(target.is_relative_to(root) for root in self.writable_paths)
 
 
 @dataclass(frozen=True, slots=True)

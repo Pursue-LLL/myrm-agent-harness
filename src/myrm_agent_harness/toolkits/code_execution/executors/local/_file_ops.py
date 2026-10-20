@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from myrm_agent_harness.core.security.ocap import CapabilityAction, enforce_capability_access
 from myrm_agent_harness.infra.atomic_write import async_atomic_write
 from myrm_agent_harness.toolkits.code_execution.interceptor import (
     trigger_destructive_action_hook,
@@ -96,8 +97,6 @@ class LocalFileOpsMixin:
         middleware both ask before allowing the same write, so declining is the
         fail-closed direction for a surface that cannot ask.
         """
-        from myrm_agent_harness.core.security.ocap import CapabilityAction, enforce_capability_access
-
         enforce_capability_access(CapabilityAction.WRITE, resolved_path)
         if self._is_readonly(resolved_path):
             raise PermissionError(f"Write denied: path is read-only — {resolved_path}")
@@ -130,8 +129,6 @@ class LocalFileOpsMixin:
 
     async def read_file(self, path: str) -> str:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
-        from myrm_agent_harness.core.security.ocap import CapabilityAction, enforce_capability_access
-
         enforce_capability_access(CapabilityAction.READ, safe)
         self._log_context_file_access(safe, success=True)  # type: ignore[attr-defined]
         p = Path(safe)
@@ -148,8 +145,6 @@ class LocalFileOpsMixin:
 
     async def read_file_bytes(self, path: str) -> bytes:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
-        from myrm_agent_harness.core.security.ocap import CapabilityAction, enforce_capability_access
-
         enforce_capability_access(CapabilityAction.READ, safe)
         p = Path(safe)
         if not p.exists():
@@ -253,6 +248,7 @@ class LocalFileOpsMixin:
 
     async def mkdir(self, path: str) -> None:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        enforce_capability_access(CapabilityAction.WRITE, safe)
         Path(safe).mkdir(parents=True, exist_ok=True)
 
     async def list_files(self, path: str = ".", pattern: str = "*") -> list[str]:

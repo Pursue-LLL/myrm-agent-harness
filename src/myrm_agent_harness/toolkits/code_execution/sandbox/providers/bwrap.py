@@ -101,10 +101,15 @@ class BwrapProvider:
                 seen.add(path)
                 args.extend(["--ro-bind", path, path])
 
-        for path in (*policy.writable_paths, work_dir):
+        for path in policy.writable_paths:
             if path not in seen:
                 seen.add(path)
                 args.extend(["--bind", path, path])
+
+        # The working directory must exist inside the sandbox; it is writable only when the policy says so.
+        if work_dir not in seen:
+            seen.add(work_dir)
+            args.extend(["--bind" if policy.is_writable(work_dir) else "--ro-bind", work_dir, work_dir])
 
         for path in policy.readable_paths:
             if path not in seen:

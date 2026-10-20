@@ -124,6 +124,14 @@ class ExecutionContext:
     env: dict[str, str] | None = None
     mcp_config: list[MCPConfigItem] | None = None
     readonly_workspace: bool = False
+    harness_owned: bool = False
+    """True for a background process the harness owns and shares across agents (MCP stdio servers).
+
+    Such a process runs outside the running agent's capability scope and is not execution evidence: it
+    serves many agents, so it must not inherit the capability of whichever agent happened to start it.
+    Every other background process, notably the bash tool's ``run_in_background``, belongs to the agent
+    that started it, so omitting the flag keeps it bound by that agent's capability.
+    """
     additional_readonly_paths: tuple[str, ...] = ()
     """Extra read-only directories allowed for this command (command security whitelist).
 

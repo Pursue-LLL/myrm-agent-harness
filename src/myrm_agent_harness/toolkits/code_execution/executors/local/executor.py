@@ -25,10 +25,11 @@ import os
 import tempfile
 import time
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from pathlib import Path
-from types import TracebackType
 from typing import TYPE_CHECKING, Self
 
+from myrm_agent_harness.core.security.ocap import CapabilityAction, check_capability_access, enforce_capability_access
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
 from myrm_agent_harness.toolkits.code_execution.executors.base import (
     CodeExecutor,
@@ -44,6 +45,7 @@ from myrm_agent_harness.toolkits.code_execution.executors.common import (
     generate_wrapper_script,
     handle_execution_error,
 )
+from myrm_agent_harness.toolkits.code_execution.executors.execution_evidence import record_execution
 from myrm_agent_harness.toolkits.code_execution.executors.local._file_ops import (
     LocalFileOpsMixin,
 )
@@ -61,10 +63,7 @@ logger = logging.getLogger(__name__)
 
 
 from myrm_agent_harness.toolkits.code_execution.interceptor import (  # noqa: E402 — deferred import to avoid circular dependency
-    trigger_destructive_action_hook,
-)
-from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (  # noqa: E402
-    is_destructive_command,
+    trigger_bash_action_hook,
 )
 
 
@@ -137,6 +136,13 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         """
         return WorkspacePathResolver.to_local_path(work_dir, workspace_root)
 
+    @staticmethod
+    def _scoped_context(context: ExecutionContext) -> ExecutionContext:
+        """Make the workspace read-only for a run whose capability handle carries no WRITE."""
+        if context.readonly_workspace or check_capability_access(CapabilityAction.WRITE):
+            return context
+        return replace(context, readonly_workspace=True)
+
     @handle_execution_error("LocalExecutor")
     async def execute(self, context: ExecutionContext) -> ExecutionResult:
         """Execute Python code (stateless — each call runs in a fresh subprocess)."""
@@ -153,6 +159,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
                 detail="Python execution requires sandbox isolation, but provider is unavailable",
             )
 
+        context = self._scoped_context(context)
         start_time = time.time()
 
         self._helper.log_execution_start("LocalExecutor", "Python", context.code)
@@ -209,6 +216,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
                 (Path(context.workspace_root) if context.workspace_root else self._current_workspace),
             )
 
+            record_execution()
             result = await self._run_subprocess(
                 wrapper_path,
                 context.timeout or 300,
@@ -289,6 +297,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
                 detail="Bash execution requires sandbox isolation, but provider is unavailable",
             )
 
+        context = self._scoped_context(context)
         start_time = time.time()
         command = context.code
         validation_command = getattr(context, "original_code", command) or command
@@ -310,8 +319,6 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             additional_paths=self._venv_manager.command_whitelist_paths(context.additional_readonly_paths),
             allowed_hosts=effective_allowed_hosts,
         )
-
-        from myrm_agent_harness.core.security.ocap import CapabilityAction, enforce_capability_access
 
         enforce_capability_access(CapabilityAction.EXECUTE, str(effective_cwd))
 
@@ -344,13 +351,11 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             self.metrics.record(blocked_result, "bash")
             return blocked_result
 
-        # Trigger auto-snapshot hook if command is destructive
-        if is_destructive_command(command):
-            await trigger_destructive_action_hook(
-                workspace_path=(str(self._current_workspace) if self._current_workspace else "/tmp"),
-                action_type="bash",
-                payload={"command": command, "session_id": context.session_id},
-            )
+        await trigger_bash_action_hook(
+            workspace_path=(str(self._current_workspace) if self._current_workspace else "/tmp"),
+            command=command,
+            session_id=context.session_id,
+        )
 
         self._setup_workspace(str(effective_cwd) if effective_cwd else None)
 
@@ -363,17 +368,10 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             command=command,
         )
 
-        session_key = context.session_id or "default"
-        session = await self._get_or_create_bash_session(
-            session_key,
-            str(self._current_workspace) if self._current_workspace else "/tmp",
-            context.timeout or 300,
-            env,
-            allow_network=context.allow_network,
-            readonly_workspace=context.readonly_workspace,
-        )
+        session = await self._get_or_create_bash_session(context, env)
 
         timeout = context.timeout or self.config.local.max_execution_time
+        record_execution()
         session_result = await session.execute(command, timeout)
 
         execution_time = time.time() - start_time
@@ -399,16 +397,23 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
                 logger.info(f" [LocalExecutor] Bash stdout: {session_result.stdout}")
 
         from myrm_agent_harness.core.security.redact import redact_sensitive_text
+        from myrm_agent_harness.toolkits.code_execution.utils.stderr_filter import filter_stderr_text
 
         clean_stdout = redact_sensitive_text(session_result.stdout) if session_result.stdout else session_result.stdout
         clean_stderr = redact_sensitive_text(session_result.stderr) if session_result.stderr else session_result.stderr
+        error_detail = session_result.error
+
+        if clean_stderr:
+            filtered_stderr = filter_stderr_text(clean_stderr)
+            if filtered_stderr.has_critical_error and not error_detail:
+                error_detail = filtered_stderr.filtered_error_text or clean_stderr
 
         final_result = ExecutionResult(
             success=session_result.success,
             result=session_result.exit_code,
             stdout=clean_stdout,
             stderr=clean_stderr,
-            error=session_result.error,
+            error=error_detail,
             execution_time=execution_time,
             container_id=context.session_id,
             generated_files=generated_files,
@@ -423,6 +428,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             validate_command,
         )
 
+        context = self._scoped_context(context)
         command = context.code
         workspace = Path(context.workspace_root) if context.workspace_root else self._current_workspace
         effective_cwd = self._resolve_work_dir(context.work_dir, workspace)
@@ -442,8 +448,6 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             yield f"[ERROR] Command blocked: {validation_result.reason}\n"
             return
 
-        from myrm_agent_harness.core.security.ocap import CapabilityAction, enforce_capability_access
-
         enforce_capability_access(CapabilityAction.EXECUTE, str(effective_cwd))
 
         self._setup_workspace(str(effective_cwd) if effective_cwd else None)
@@ -454,25 +458,17 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             command=command,
         )
 
-        session_key = context.session_id or "default"
-        session = await self._get_or_create_bash_session(
-            session_key,
-            str(self._current_workspace) if self._current_workspace else "/tmp",
-            context.timeout or 300,
-            env,
-            allow_network=context.allow_network,
-            readonly_workspace=context.readonly_workspace,
-        )
+        session = await self._get_or_create_bash_session(context, env)
 
         timeout = context.timeout or self.config.local.max_execution_time
+        record_execution()
         async for chunk in session.execute_stream(command, timeout):
             yield chunk
 
     async def spawn_background_process(self, context: ExecutionContext) -> AsyncProcessProtocol:
         """Spawn a long-running background process with full-duplex streams.
 
-        Uses OS-level sandboxing (e.g., bwrap) if available to isolate the process.
-        Implements pristine environment sanitization and process tree killing.
+        Sandbox, environment isolation and process-tree handling live in ``_background_spawn``.
         """
         from myrm_agent_harness.toolkits.code_execution.executors.local._background_spawn import (
             spawn_background_process,
@@ -484,18 +480,17 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             resolve_work_dir=self._resolve_work_dir,
             setup_workspace=self._setup_workspace,
             venv_path=self._venv_manager.get_venv_path(),
+            scope_context=self._scoped_context,
         )
 
     async def _get_or_create_bash_session(
-        self,
-        session_key: str,
-        workspace_path: str,
-        timeout: int,
-        env: dict[str, str],
-        allow_network: bool = True,
-        readonly_workspace: bool = False,
+        self, context: ExecutionContext, env: dict[str, str]
     ) -> "LocalPersistentSession":
-        """Get existing healthy session or create a new one."""
+        """Get the healthy persistent shell for this context or start one.
+
+        A shell's sandbox is fixed when it starts, so a read-only run keeps its own shell and never
+        reuses the writable run's under the same session id.
+        """
         from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
             SandboxPolicy,
         )
@@ -504,6 +499,8 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             SessionConfig,
         )
 
+        session_key = f"{context.session_id or 'default'}{'_readonly' if context.readonly_workspace else ''}"
+        workspace_path = str(self._current_workspace) if self._current_workspace else "/tmp"
         if session_key in self._bash_sessions:
             session = self._bash_sessions[session_key]
             if session.is_alive:
@@ -542,14 +539,14 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         config = SessionConfig(
             session_id=session_key,
             work_dir=workspace_path,
-            timeout=timeout,
+            timeout=context.timeout or 300,
             env=env,
             max_memory_mb=self.config.local.max_memory_mb,
         )
 
         sandbox_policy = SandboxPolicy(
-            writable_paths=("/tmp",) if readonly_workspace else (workspace_path,),
-            allow_network=allow_network,
+            writable_paths=() if context.readonly_workspace else (workspace_path,),
+            allow_network=context.allow_network,
         )
 
         session = LocalPersistentSession(config, sandbox_policy=sandbox_policy)
@@ -756,7 +753,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        exc_tb: object,
     ) -> None:
         """Async context manager exit: clean up sessions."""
         await self.cleanup_bash_sessions()

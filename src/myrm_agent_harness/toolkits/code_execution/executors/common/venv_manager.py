@@ -6,7 +6,7 @@ Manages shared virtual environment creation, initialization, and pip command rew
 - toolkits.code_execution.config::ExecutionConfig (POS: Code execution configuration layer. Defines execution modes, network policies, and runtime settings for the Agent-in-Sandbox architecture.)
 
 [OUTPUT]
-- VenvManager: Shared virtual environment manager.
+- VenvManager: Shared virtual environment manager (lazy create, pip rewrite, crash-safe discard).
 
 [POS]
 Virtual environment management service.
@@ -14,6 +14,7 @@ Virtual environment management service.
 
 import asyncio
 import logging
+import shutil
 import sys
 from pathlib import Path
 
@@ -72,6 +73,31 @@ class VenvManager:
         paths = [venv_path] if venv_path.exists() else []
         paths.extend(Path(p) for p in extra_readonly_paths)
         return paths or None
+
+    def discard(self) -> bool:
+        """Remove the shared venv so the next use rebuilds it from an empty interpreter.
+
+        The directory is renamed before it is deleted. The rename is atomic, so a crash
+        mid-delete cannot leave a half-deleted venv that still looks usable; the trash
+        left by such a crash is cleared on the next call. Only call this while no
+        process is using the venv: a live process keeps its cached interpreter path.
+
+        Returns:
+            True if a venv existed and was removed.
+        """
+        venv_path = self.get_venv_path()
+        trash = venv_path.with_name(f"{venv_path.name}.discarding")
+        shutil.rmtree(trash, ignore_errors=True)
+
+        self._python_executable = None
+        self._venv_initialized = False
+        if not venv_path.exists():
+            return False
+
+        venv_path.rename(trash)
+        shutil.rmtree(trash, ignore_errors=True)
+        logger.warning(" [VenvManager] Discarded shared venv: %s", venv_path)
+        return True
 
     async def get_python_executable(self) -> str:
         """Return the Python executable path, creating the venv if needed."""
