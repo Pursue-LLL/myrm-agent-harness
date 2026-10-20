@@ -35,6 +35,17 @@ _read_file(path='/workspace')
     assert result is None
 
 
+def test_extract_ptc_with_network_import_rejected():
+    """Third-party network imports like requests are rejected from Fast-Path Auto-Approve."""
+    command = '''python -c "
+from skills.mcp_github_skill import read_file
+import requests
+read_file(path='/workspace')
+"'''
+    result = extract_ptc_intent(command)
+    assert result is None
+
+
 def test_extract_ptc_with_malicious_calls_rejected():
     """Test that calling anything other than allowed builtins and imported tools is rejected."""
     command = '''python -c "
@@ -212,6 +223,20 @@ _process(data='test')
     assert result is not None
     skill_name, _tool_name, _ = result
     assert skill_name == "custom_skill"
+
+
+def test_extract_ptc_with_alias_import():
+    """Test that alias import ('import read_file as rf') correctly extracts tool and args."""
+    command = '''python -c "
+from skills.mcp_github_skill import read_file as rf
+rf(path='/workspace/alias_path')
+"'''
+    result = extract_ptc_intent(command)
+    assert result is not None
+    skill_name, tool_name, args = result
+    assert skill_name == "mcp_github_skill"
+    assert tool_name == "read_file"
+    assert args == {"path": "/workspace/alias_path"}
 
 
 class TestPTCSafetyMetadataRegistry:
