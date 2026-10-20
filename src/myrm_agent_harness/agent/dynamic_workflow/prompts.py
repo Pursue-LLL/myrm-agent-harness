@@ -31,7 +31,7 @@ It contains six functions:
    Prefer handover_state.relevant_files and result over re-reading files when a downstream stage builds on an earlier stage.
    verification_mode options:
    - "none" (default): Fast, direct sub-agent execution without verification.
-   - "adversarial": Standard worker + verifier retry loop (result includes [Verification: PASS/FAIL]).
+   - "adversarial": Standard worker + verifier retry loop (result ends with [Verification: PASS] or [Verification: FAIL ...]; [Verification: INCOMPLETE ...] with status "blocked" means the verifier reached no conclusive verdict, so the output is unverified rather than proven wrong).
    - "auditor_blind": Strips worker's self-praising narrative so the verifier inspects only objective facts and diffs, with automatic workspace mutation self-healing revert.
    - "multi_skeptic": Spawns 3 independent skeptic verifiers in parallel and applies a 2/3 majority vote with Fail-Closed protection against sandbox crashes.
 

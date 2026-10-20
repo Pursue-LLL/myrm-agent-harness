@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from myrm_agent_harness.agent.security.types import PermissionAction, PermissionRule, SecurityConfig
+from myrm_agent_harness.agent.sub_agents.spawn_capability import derive_spawn_capability
 from myrm_agent_harness.agent.sub_agents.spawn_prep import (
     apply_readonly_to_config,
     apply_spawn_workspace_isolation,
@@ -18,13 +19,14 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
     WorkspacePolicy,
 )
+from myrm_agent_harness.core.security.ocap import capability_scope
 
 
 def test_apply_readonly_promotes_read_only_sandbox() -> None:
     config = SubagentConfig(system_prompt="base")
     updated = apply_readonly_to_config(config, True)
     assert updated.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX
-    assert "write_file" in updated.disallowed_tools
+    assert {"file_write_tool", "file_edit_tool", "bash_code_execute_tool"} <= updated.disallowed_tools
 
 
 def test_coerce_spawn_readonly_respects_explicit_true() -> None:
@@ -50,6 +52,16 @@ def test_coerce_spawn_readonly_without_security_config() -> None:
     assert coerce_spawn_readonly(parent, False) is False
 
 
+def test_coerce_spawn_readonly_floor_when_running_under_a_read_only_handle() -> None:
+    spawner = SimpleNamespace(_last_context={"workspace_path": "/tmp/workspace"})
+    read_only_handle = derive_spawn_capability(parent_agent=spawner, agent_type="explorer", readonly=True)
+    parent = SimpleNamespace(config=None)
+
+    with capability_scope(read_only_handle):
+        assert coerce_spawn_readonly(parent, False) is True
+    assert coerce_spawn_readonly(parent, False) is False
+
+
 def test_apply_readonly_false_passthrough() -> None:
     config = SubagentConfig(system_prompt="base")
     assert apply_readonly_to_config(config, False) is config
@@ -63,17 +75,14 @@ def test_build_child_context_from_parent_agent_non_dict() -> None:
     assert build_child_context_from_parent_agent(object()) == {}
 
 
-def test_build_spawn_child_context_merges_payload_hashes() -> None:
+def test_build_spawn_child_context_takes_parent_fields_and_payload_hashes() -> None:
     from myrm_agent_harness.agent.sub_agents.spawn_prep import build_spawn_child_context
 
     child = build_spawn_child_context(
-        parent_ctx={"workspace_path": "/tmp/ws"},
-        base_context={"session_id": "s1"},
-        payload_hashes={"h1": "abc"},
+        parent_ctx={"workspace_path": "/tmp/ws", "session_id": "s1", "agent_id": "not-inherited"},
+        payload_hashes=["h1"],
     )
-    assert child["workspace_path"] == "/tmp/ws"
-    assert child["session_id"] == "s1"
-    assert child["subagent_payload_hashes"] == {"h1": "abc"}
+    assert child == {"workspace_path": "/tmp/ws", "session_id": "s1", "subagent_payload_hashes": ["h1"]}
 
 
 def test_resolve_delegate_parallel_write_batch() -> None:
@@ -82,12 +91,7 @@ def test_resolve_delegate_parallel_write_batch() -> None:
     )
 
     assert resolve_delegate_parallel_write_batch(SimpleNamespace()) is False
-    assert (
-        resolve_delegate_parallel_write_batch(
-            SimpleNamespace(_parallel_write_batch_active=True)
-        )
-        is True
-    )
+    assert resolve_delegate_parallel_write_batch(SimpleNamespace(_parallel_write_batch_active=True)) is True
 
 
 def test_build_child_context_from_parent_agent_copies_keys() -> None:

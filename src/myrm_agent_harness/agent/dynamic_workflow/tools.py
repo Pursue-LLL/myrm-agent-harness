@@ -3,12 +3,13 @@
 [INPUT]
 - base_agent::BaseAgent (POS: Parent agent with _spawn_child capability)
 - agent.sub_agents.orchestrator::run_with_verification (POS: Adversarial worker+verifier retry loop)
+- agent.sub_agents.verifier_selection::resolve_verifier (POS: Verifier choice shared with the delegate path; refuses a verifier that cannot run commands)
 - agent.sub_agents.spawn_prep (POS: Shared spawn prep SSOT with delegate path)
 - core.security.path::coerce_filesystem_path (POS: Runtime path coercion for workspace journal sidecar)
 - dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache)
 - dynamic_workflow.spawn_cache::SpawnCacheParams (POS: Cache fingerprint)
 - agent.skills.mcp.progress_payload::build_workflow_stage_event (POS: Shared notify field SSOT)
-- sub_agents.types::SubagentCatalog, SubagentConfig, WorkspacePolicy, SubAgentResult (POS: Agent configuration, workspace isolation, and structured spawn result SSOT)
+- sub_agents.types::SubagentCatalog, SubagentConfig, SubAgentResult (POS: Agent configuration, workspace isolation, and structured spawn result SSOT)
 - utils.runtime.cancellation::CancellationToken
 
 [OUTPUT]
@@ -33,7 +34,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import replace
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -159,7 +159,7 @@ class SpawnSubagentInput(BaseModel):
     task_description: str = Field(..., description="The prompt/task for the sub-agent to execute.")
     readonly: bool = Field(
         default=False,
-        description="If true, sub-agent cannot write files or run bash commands. Use for analysis-only tasks.",
+        description="If true: no file writes, no bash, no MCP tools unless marked read-only. For analysis-only tasks.",
     )
     verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = Field(
         default="none",
@@ -298,10 +298,7 @@ class SpawnSubagentTool(BaseTool):
                 "error": guard_error,
             }
 
-        from myrm_agent_harness.agent.sub_agents.types import (
-            SubagentConfig,
-            WorkspacePolicy,
-        )
+        from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 
         config = None
         if self.catalog:
@@ -317,6 +314,7 @@ class SpawnSubagentTool(BaseTool):
                 model_resolver=parent_resolver,
             )
 
+        verifier_fallback = config
         config = apply_readonly_to_config(config, readonly)
         config = enforce_spawn_policy_on_config(config)
 
@@ -377,16 +375,15 @@ class SpawnSubagentTool(BaseTool):
                             from myrm_agent_harness.agent.sub_agents.orchestrator import (
                                 run_with_verification,
                             )
+                            from myrm_agent_harness.agent.sub_agents.verifier_selection import resolve_verifier
 
-                            v_type = verifier_agent_type or agent_type
-                            verifier_config = config
-                            if self.catalog:
-                                resolved_verifier = await cast("SubagentCatalog", self.catalog).resolve(v_type)
-                                if resolved_verifier is not None:
-                                    verifier_config = resolved_verifier
-                            verifier_config = replace(
-                                verifier_config,
-                                workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX,
+                            registry_getter = cast("Callable[[], list[BaseTool]]", self.tool_registry_getter)
+                            v_type, verifier_config = await resolve_verifier(
+                                cast("SubagentCatalog | None", self.catalog),
+                                verifier_agent_type,
+                                agent_type,
+                                verifier_fallback,
+                                registry_getter(),
                             )
 
                             v_mode_param: Literal["adversarial", "auditor_blind", "multi_skeptic"] = (
@@ -407,10 +404,7 @@ class SpawnSubagentTool(BaseTool):
                                 verifier_type=v_type,
                                 verifier_config=verifier_config,
                                 context=child_context,
-                                tool_registry_getter=cast(
-                                    "Callable[[], list[BaseTool]]",
-                                    self.tool_registry_getter,
-                                ),
+                                tool_registry_getter=registry_getter,
                                 max_rounds=max_verification_rounds,
                                 cancel_token=cast("CancellationToken | None", self.cancel_token),
                                 task_id=task_id,
@@ -644,7 +638,7 @@ class HumanAskTool(BaseTool):
         timeout_sec = max(5, min(timeout_seconds, 1800))
 
         # 1. Emit human_gate status event to frontend SSE
-        gate_event = {
+        gate_event: dict[str, object] = {
             "type": "status",
             "messageId": self.message_id,
             "data": {
@@ -688,7 +682,7 @@ class HumanAskTool(BaseTool):
             logger.error("HumanAskTool error: %s", exc, exc_info=True)
 
         # 3. Emit resolved status event to frontend SSE
-        resolved_event = {
+        resolved_event: dict[str, object] = {
             "type": "status",
             "messageId": self.message_id,
             "data": {
@@ -762,13 +756,11 @@ class SteerChildTool(BaseTool):
             }
         try:
             if config_overlay is not None:
-                steered = self.parent_agent.steer_child(  # type: ignore[call-arg]
-                    task_id, message, config_overlay=config_overlay
-                )
+                steered = self.parent_agent.steer_child(task_id, message, config_overlay=config_overlay)
             else:
-                steered = self.parent_agent.steer_child(task_id, message)  # type: ignore[call-arg]
+                steered = self.parent_agent.steer_child(task_id, message)
         except TypeError:
-            steered = self.parent_agent.steer_child(task_id, message)  # type: ignore[call-arg]
+            steered = self.parent_agent.steer_child(task_id, message)
         if steered:
             return {
                 "success": True,
