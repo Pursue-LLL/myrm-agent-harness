@@ -18,9 +18,9 @@ MCP Skill Generator - MCP-to-Skill conversion with progressive disclosure.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
-from typing import Any
 
 from langchain_core.tools import BaseTool
 
@@ -32,13 +32,20 @@ from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import (
 )
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
 from myrm_agent_harness.toolkits.mcp import MCPConfig
+from myrm_agent_harness.toolkits.mcp.config import mcp_config_to_runtime_dict
 
 logger = logging.getLogger(__name__)
 
-# JSON schema values are inherently untyped; Any is intentional here.
-type JsonDict = dict[str, Any]
+type JsonDict = dict[str, object]
 
 USAGE_GUIDE_TOOL_THRESHOLD = 3
+
+
+def _text_field(schema: JsonDict, key: str, default: str) -> str:
+    """Return the string stored under *key* in a tool schema, or *default* when it is absent or not a string."""
+    value = schema.get(key)
+    return value if isinstance(value, str) else default
+
 
 SKILL_USAGE_TEMPLATE = """
 ## Usage Guide (Must Follow)
@@ -123,12 +130,15 @@ class MCPSkillGenerator:
         config_desc_map = {cfg.name: cfg.description for cfg in mcp_configs if cfg.description}
         manager = await get_mcp_connection_manager()
 
+        conn_results = await asyncio.gather(
+            *(manager.get_connection([cfg]) for cfg in mcp_configs),
+            return_exceptions=True,
+        )
+
         skills: list[SkillMetadata] = []
-        for cfg in mcp_configs:
-            try:
-                conn = await manager.get_connection([cfg])
-            except Exception as e:
-                logger.warning("MCP skill gen: server '%s' connect failed: %s", cfg.name, e)
+        for cfg, conn in zip(mcp_configs, conn_results, strict=True):
+            if isinstance(conn, BaseException):
+                logger.warning("MCP skill gen: server '%s' connect failed: %s", cfg.name, conn)
                 continue
 
             server_tools = conn.tools_by_server.get(cfg.name) or next(
@@ -140,6 +150,8 @@ class MCPSkillGenerator:
 
             instructions = conn.instructions_by_server.get(cfg.name)
             skill = self._create_skill_metadata(cfg.name, server_tools, config_desc_map.get(cfg.name, ""), instructions)
+            if skill.mcp is not None:
+                skill.mcp.config = [mcp_config_to_runtime_dict(cfg)]
             skills.append(skill)
             logger.warning("Generated MCP skill: %s (%d tool(s))", skill.name, len(server_tools))
 
@@ -296,7 +308,7 @@ class MCPSkillGenerator:
         lines = []
         for tool_name in tools:
             schema = tool_schemas.get(tool_name, {})
-            desc = schema.get("description", "No description available")
+            desc = _text_field(schema, "description", "No description available")
             from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
                 mcp_tool_short_name,
             )
@@ -321,7 +333,7 @@ class MCPSkillGenerator:
         schema: JsonDict,
     ) -> str:
         """Build detailed tool documentation (Level 3)."""
-        tool_desc = schema.get("description", "No description available")
+        tool_desc = _text_field(schema, "description", "No description available")
         input_schema = normalize_input_schema(schema.get("inputSchema"))
         params_section = build_params_section(input_schema)
         from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
@@ -347,11 +359,14 @@ class MCPSkillGenerator:
 
         Returns empty string if no parameters.
         """
-        if not isinstance(input_schema, dict) or "properties" not in input_schema:
+        if not isinstance(input_schema, dict):
             return ""
 
-        properties = input_schema.get("properties", {})
-        required = input_schema.get("required", [])
+        properties = input_schema.get("properties")
+        if not isinstance(properties, dict):
+            return ""
+        required = input_schema.get("required")
+        required_names = required if isinstance(required, list) else []
 
         lines: list[str] = []
         for name, info in properties.items():
@@ -359,7 +374,7 @@ class MCPSkillGenerator:
                 continue
             ptype = info.get("type", "any")
             pdesc = info.get("description", "")
-            req_tag = " **(required)**" if name in required else ""
+            req_tag = " **(required)**" if name in required_names else ""
 
             hints: list[str] = []
             if "enum" in info:
@@ -427,6 +442,13 @@ class MCPSkillGenerator:
 
         mcp_data = MCPSkillData(server=server_name, tools=tool_names, config=[], tool_schemas=tool_schemas)
 
+        # always=True keeps every MCP server visible in the <bound_skills> catalog while the
+        # bound set fits inline, and pins it into the catalog's always-priority band once the set
+        # exceeds SKILL_INLINE_THRESHOLD. MCP servers are opaque to the model (nothing in the
+        # prompt says a given integration exists), so dropping them to search-only discovery
+        # costs a skill_search_tool round trip before the model can even know they exist.
+        # Cost: they consume the always band unconditionally, which is why a large MCP fleet can
+        # crowd user-authored skills out of the catalog. See catalog_display.resolve_catalog_display_skills.
         return SkillMetadata(name=skill_name, description=skill_description, mcp=mcp_data, always=True)
 
 

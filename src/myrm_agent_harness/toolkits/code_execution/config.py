@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 
 def _default_ipc_socket_path() -> str:
     """Deferred import keeps the execution config free of agent-layer imports."""
-    from myrm_agent_harness.agent.skills.mcp.ipc_socket import default_ipc_socket_path
+    from myrm_agent_harness.core.network.ipc_socket import default_ipc_socket_path
 
     return default_ipc_socket_path()
 
