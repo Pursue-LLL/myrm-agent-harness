@@ -13,7 +13,7 @@ Analytics and presentation layer in omni-agent cross-examination subsystem elimi
 from __future__ import annotations
 
 import re
-from typing import Mapping, Sequence
+from collections.abc import Sequence
 
 from .cross_exam_types import (
     AgentExecutionOutput,

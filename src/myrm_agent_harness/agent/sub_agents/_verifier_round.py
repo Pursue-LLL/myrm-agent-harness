@@ -1,16 +1,20 @@
 """Single-round verifier spawn and verify_worker_output entry point.
 
 [INPUT]
+- agent.sub_agents._verification_parsing::VerificationVerdict, _parse_verdict, _emit_verification_verdict (POS: Shared verification parsing for sub_agents verifier rounds and delegate verification.)
+- agent.sub_agents._workspace_diff::take_workspace_snapshot, diff_snapshots, revert_workspace_mutations (POS: Workspace diff for adversarial verification — stat-based, no git dependency.)
 - agent.sub_agents.result_output::answer_text (POS: Subagent result payload (answer text, or a dict carrying isolation merge metadata).)
+- agent.sub_agents.types::SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
 - agent.orchestration.signals.catalog::SUBMIT_VERDICT_SIGNAL (POS: SSOT for control-plane signal names)
-- agent.sub_agents._verification_parsing::VerificationVerdict, _parse_verdict, _emit_verification_verdict
-- agent.sub_agents._workspace_diff::take_workspace_snapshot, diff_snapshots
-- agent.sub_agents.types::SubagentConfig, SubAgentResult, SubAgentStatus
-- toolkits.code_execution.executors (POS: ReadonlyExecutorProxy for verifier sandbox)
+- agent.orchestration.signals.verifier::create_submit_verdict_tool (POS: Verifier sub-agents bind ``submit_verdict`` to emit a structured ``VerificationVerdict``.)
+- agent.sub_agents.spawn_capability::derive_verifier_capability (POS: The only producer of subagent capability handles.)
+- agent.sub_agents.checkpointer::delete_subagent_checkpoint (POS: Releases the checkpoint thread of a verifier abandoned while paused for approval.)
+- core.security.ocap::AttenuationError, capability_scope (POS: Foundational zero-trust Object-Capability primitives for Myrm Agent Harness.)
+- toolkits.code_execution.executors.execution_evidence::track_execution (POS: Lets a caller that must not trust a model's claim of having run something (the verifier's PASS gate) ask whether the executor really launched a process.)
 
 [OUTPUT]
-- verify_worker_output: Verify existing worker output without re-running worker
-- _execute_verifier_round: Internal single-round verifier spawn
+- verify_worker_output: Verify existing worker output without re-running worker (``None`` = inconclusive round)
+- _execute_verifier_round: Internal single-round verifier spawn (``None`` = verifier failed, paused for approval, or PASS without execution evidence)
 
 [POS]
 Verifier-only round execution used by Cron post-run delivery assurance and orchestration.
@@ -38,12 +42,17 @@ from myrm_agent_harness.agent.sub_agents._workspace_diff import (
     revert_workspace_mutations,
     take_workspace_snapshot,
 )
+from myrm_agent_harness.agent.sub_agents.checkpointer import delete_subagent_checkpoint
 from myrm_agent_harness.agent.sub_agents.result_output import answer_text
+from myrm_agent_harness.agent.sub_agents.spawn_capability import derive_verifier_capability
 from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
     SubAgentResult,
     SubAgentStatus,
+    WorkspacePolicy,
 )
+from myrm_agent_harness.core.security.ocap import AttenuationError, capability_scope
+from myrm_agent_harness.toolkits.code_execution.executors.execution_evidence import track_execution
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -60,27 +69,15 @@ def _build_verifier_tool_registry_getter(
     tool_registry_getter: Callable[[], list[BaseTool]],
     context: dict[str, object],
 ) -> Callable[[], list[BaseTool]]:
+    """Parent tools plus ``submit_verdict``. ``filter_tools`` drops side-effect MCP tools for the
+    READ_ONLY_SANDBOX verifier configs all callers pass."""
+
     def verifier_tool_registry_getter() -> list[BaseTool]:
-        base_tools = tool_registry_getter()
-        safe_tools = []
-        for t in base_tools:
-            is_readonly = getattr(t, "readonly", None)
-            if is_readonly is None:
-                metadata = getattr(t, "metadata", {}) or {}
-                is_readonly = metadata.get("readonly", None)
-
-            is_mcp = getattr(t, "is_mcp", False) or (getattr(t, "metadata", {}) or {}).get("is_mcp", False)
-            if is_mcp and not is_readonly:
-                continue
-
-            safe_tools.append(t)
-
         from myrm_agent_harness.agent.orchestration.signals.verifier import (
             create_submit_verdict_tool,
         )
 
-        safe_tools.append(create_submit_verdict_tool(context))
-        return safe_tools
+        return [*tool_registry_getter(), create_submit_verdict_tool(context)]
 
     return verifier_tool_registry_getter
 
@@ -101,18 +98,12 @@ async def _execute_verifier_round(
     cancel_token: CancellationToken | None = None,
     auditor_blind: bool = False,
 ) -> VerificationVerdict | None:
-    """Spawn a verifier subagent for an existing worker output and return the parsed verdict."""
-    from myrm_agent_harness.agent.skills.evolution.execution.executor_context import (
-        ExecutorContextManager,
-    )
-    from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
-    from myrm_agent_harness.toolkits.code_execution.executors.base import (
-        get_executor,
-    )
-    from myrm_agent_harness.toolkits.code_execution.executors.readonly_proxy import (
-        ReadonlyExecutorProxy,
-    )
+    """Spawn a verifier subagent for an existing worker output and return the parsed verdict.
 
+    Returns ``None`` when the round is inconclusive: the verifier failed to complete, or it granted
+    PASS without ever launching a process (no execution evidence). A ``None`` round emits no verdict
+    event and never counts as a FAIL.
+    """
     # Unique verifier id: parallel delegated tasks on the same manager must not
     # collide on a fixed-format id (they all run as framework-internal nodes).
     verifier_task_id = f"verify-check-{round_num}-{verifier_type}-{uuid.uuid4().hex[:8]}"
@@ -130,10 +121,11 @@ async def _execute_verifier_round(
         "Verify the following work output by strictly applying your verification protocol.\n\n"
         "CRITICAL RULES:\n"
         "1. Do NOT just read the code and guess if it works. You MUST write and execute test scripts "
-        "(via run_bash or python_execute) or run curl/ping to physically verify the output.\n"
+        "(via your bash tool) or run curl/ping to physically verify the output. "
+        "The workspace is read-only for you, so keep scripts and scratch output under /tmp.\n"
         "2. You MUST include the actual execution logs (STDOUT/STDERR) from your tests in your final response.\n"
-        "3. A 'PASS' verdict without execution evidence will be REJECTED by the system. "
-        "The system tracks your execution at the OS level, so you cannot fake it by just writing 'STDOUT'.\n\n"
+        "3. A 'PASS' verdict without execution evidence will be REJECTED by the system, "
+        "which records whether you actually ran commands.\n\n"
     )
 
     if workspace_diff:
@@ -174,7 +166,6 @@ async def _execute_verifier_round(
     round_verifier_config = dataclasses.replace(
         verifier_config,
         tools=(*verifier_config.tools, SUBMIT_VERDICT_SIGNAL) if verifier_config.tools else (),
-        description=f"独立审查中... [轮次 {round_num}/{max_rounds}]",
         display_name=f"Adversarial Verifier ({round_num}/{max_rounds})",
     )
 
@@ -186,33 +177,36 @@ async def _execute_verifier_round(
         " [blind]" if auditor_blind else "",
     )
 
-    verifier_tool_registry_getter = _build_verifier_tool_registry_getter(tool_registry_getter, context)
+    # The verdict sink is per round: parallel skeptics must not overwrite each other's verdict.
+    round_context = dict(context)
+    verifier_tool_registry_getter = _build_verifier_tool_registry_getter(tool_registry_getter, round_context)
 
-    current_executor = get_executor()
-    use_readonly = round_verifier_config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX
-
-    proxy_executor: ReadonlyExecutorProxy | None = None
-    if current_executor and use_readonly:
-        proxy_executor = ReadonlyExecutorProxy(current_executor)
-    elif not current_executor and use_readonly:
-        logger.warning("[verification] No current executor found, cannot apply READ_ONLY_SANDBOX")
+    verifier_handle = None
+    if round_verifier_config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX:
+        try:
+            verifier_handle = derive_verifier_capability(verifier_type)
+        except AttenuationError as exc:
+            logger.warning("[verification] Round %d — verifier capability denied: %s", round_num, exc)
+            return None
+    handle_scope = capability_scope(verifier_handle) if verifier_handle is not None else contextlib.nullcontext()
 
     audit_pre_snapshot: dict[str, tuple[float, int]] = {}
     if workspace_path and isinstance(workspace_path, str):
         try:
             audit_pre_snapshot = take_workspace_snapshot(workspace_path)
         except Exception as exc:
-            logger.debug("[verification] Audit pre-snapshot failed: %s", exc)
+            logger.warning(
+                "[verification] Audit pre-snapshot failed; this verifier round runs without mutation revert: %s", exc
+            )
 
-    ctx_mgr = ExecutorContextManager(proxy_executor) if proxy_executor else contextlib.nullcontext()
     try:
-        with ctx_mgr:
+        with track_execution() as evidence, handle_scope:
             verifier_result = await manager.spawn_child(
                 task_id=verifier_task_id,
                 agent_type=verifier_type,
                 task_description=verifier_task_desc,
                 config=round_verifier_config,
-                context=context,
+                context=round_context,
                 tool_registry_getter=verifier_tool_registry_getter,
                 wait=True,
                 cancel_token=cancel_token,
@@ -232,10 +226,6 @@ async def _execute_verifier_round(
             except Exception as exc:
                 logger.warning("[verification] Mutation restore failed: %s", exc)
 
-    tracked_executor = proxy_executor or current_executor
-    if tracked_executor:
-        context["_verifier_has_executed_code"] = getattr(tracked_executor, "has_executed_code", False)
-
     if isinstance(verifier_result, dict):
         verifier_result = SubAgentResult(
             success=bool(verifier_result.get("success", False)),
@@ -246,8 +236,15 @@ async def _execute_verifier_round(
             status=SubAgentStatus.COMPLETED,
             internal=True,
         )
-    elif verifier_result is not None:
+    else:
         verifier_result.internal = True
+
+    if verifier_result.status == SubAgentStatus.PENDING_APPROVAL:
+        # The verifier is an internal node the user never sees, so nobody can answer its pause. Grading the empty
+        # output it has produced so far would turn a verifier that did not finish into a FAIL for the worker.
+        logger.warning("[verification] Round %d — verifier is waiting for approval; round inconclusive", round_num)
+        await delete_subagent_checkpoint(verifier_task_id)
+        return None
 
     if not verifier_result.success:
         logger.warning(
@@ -257,7 +254,7 @@ async def _execute_verifier_round(
         )
         return None
 
-    verdict = context.get("_verifier_verdict")
+    verdict = round_context.get("_verifier_verdict")
     if isinstance(verdict, VerificationVerdict):
         logger.info(
             "[verification] Round %d — Tool Calling Verdict=%s confidence=%s summary=%s",
@@ -276,26 +273,16 @@ async def _execute_verifier_round(
             verdict.summary,
         )
 
-    has_executed = context.get("_verifier_has_executed_code", False)
-    if verdict.passed and not has_executed:
+    if verdict.passed and not evidence.executed:
+        # A PASS nobody ran anything for says nothing about the worker's output, so the round is
+        # inconclusive (same outcome as a verifier that never finished) rather than a FAIL that would
+        # push the worker into pointless rework.
         logger.warning(
-            "[verification] Round %d — Verifier granted PASS but did not execute any code. Rejecting verdict.",
+            "[verification] Round %d — verifier granted PASS without launching any process; "
+            "verdict discarded as inconclusive.",
             round_num,
         )
-        msg = (
-            "FAIL: Validation rejected. System detected that you did not execute any code. "
-            "You MUST use bash or python tools to run tests and observe actual STDOUT/STDERR "
-            "before granting a PASS."
-        )
-        verdict = dataclasses.replace(
-            verdict,
-            passed=False,
-            summary=msg,
-            raw=f"{verdict.raw}\n\n{msg}",
-        )
-
-    context.pop("_verifier_verdict", None)
-    context.pop("_verifier_has_executed_code", None)
+        return None
 
     await _emit_verification_verdict(
         verdict=verdict,
@@ -320,9 +307,13 @@ async def verify_worker_output(
     tool_registry_getter: Callable[[], list[BaseTool]],
     verifier_task_template: str = "",
     auditor_blind: bool = False,
-) -> VerificationVerdict:
-    """Verify an existing worker output without re-running the worker."""
-    verdict = await _execute_verifier_round(
+) -> VerificationVerdict | None:
+    """Verify an existing worker output without re-running the worker.
+
+    Returns ``None`` when the round is inconclusive (see ``_execute_verifier_round``): callers must
+    not read that as a failed verification.
+    """
+    return await _execute_verifier_round(
         manager,
         worker_output=worker_output,
         worker_type=worker_type,
@@ -335,12 +326,3 @@ async def verify_worker_output(
         verifier_task_template=verifier_task_template,
         auditor_blind=auditor_blind,
     )
-    if verdict is None:
-        return VerificationVerdict(
-            passed=False,
-            summary="Verifier subagent failed to complete",
-            confidence="LOW",
-            findings=[],
-            raw="",
-        )
-    return verdict

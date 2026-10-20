@@ -13,7 +13,7 @@ Execution coordination layer in omni-agent cross-examination subsystem.
 from __future__ import annotations
 
 import time
-from typing import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 from .consensus_delta_highlighter import ConsensusDeltaHighlighter
 from .cross_exam_types import (
@@ -140,7 +140,7 @@ class SplitCrossExaminationEngine:
             rec_parts.append(f"Accepted baseline: {'; '.join(consensus.common_ground_facts[:2])}.")
         if divergences:
             rec_parts.append(
-                f"Resolved trade-off: prioritize safety guardrails before maximum implementation throughput."
+                "Resolved trade-off: prioritize safety guardrails before maximum implementation throughput."
             )
 
         synthesized = " ".join(rec_parts)

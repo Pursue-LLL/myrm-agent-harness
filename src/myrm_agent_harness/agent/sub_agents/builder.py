@@ -7,10 +7,12 @@ Pure functions and utilities used by SubagentManager to prepare child agents.
 - utils.token_economics.tracker::TokenTracker (POS: LLM call metadata tracker. ContextVar-based request-level tracking supporting both streaming and non-streaming modes.)
 - agent.types::AgentRuntimeConfig (POS: Agent core runtime type definitions. Defines completion status, run statistics, quote attachments, workspace bindings, and runtime specs.)
 - agent.sub_agents.types::DelegationCapabilityManifest (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
+- core.security.tool_registry::resolve_safety_metadata (POS: tool safety metadata incl. MCP readOnlyHint, fail-closed for unknown tools)
+- toolkits.mcp.config::is_mcp_tool_name (POS: ``mcp__{server}__{tool}`` name recognition)
 
 [OUTPUT]
 - build_parent_delegatable_toolkit: Parent tools eligible for L3 child ⊆ parent delegation.
-- filter_tools: Apply tool safety isolation after catalog admission.
+- filter_tools: Apply tool safety isolation after catalog admission; READ_ONLY_SANDBOX configs also drop MCP tools that do not declare `readOnlyHint`.
 - resolve_llm: Resolve child LLM with optional complexity-tier routing.
 - truncate_result: Truncate text to approximate token limit (4 chars per token).
 - merge_child_stats: Merge child agent's token usage into the parent tracker.
@@ -26,12 +28,14 @@ from typing import TYPE_CHECKING, cast
 
 from langchain_core.tools import BaseTool
 
+from myrm_agent_harness.core.security.tool_registry import resolve_safety_metadata
+from myrm_agent_harness.toolkits.mcp.config import is_mcp_tool_name
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .budget import DelegationBudgetState
 from .checkpointer import get_subagent_checkpointer
 from .delegation_policy import get_effective_leaf_blocked_tools
-from .types import DELEGATION_CAPABILITY_MANIFEST, SubagentConfig
+from .types import DELEGATION_CAPABILITY_MANIFEST, SubagentConfig, WorkspacePolicy
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
@@ -87,16 +91,27 @@ def build_parent_delegatable_toolkit(parent_agent: BaseAgent) -> list[BaseTool]:
     return list(by_name.values())
 
 
+def _is_side_effect_mcp_tool(tool_name: str) -> bool:
+    """True for an MCP tool its server did not annotate as read-only.
+
+    Same classification as the approval fast-path: MCP defaults are pessimistic, so an unannotated tool
+    counts as one that may change external state.
+    """
+    return is_mcp_tool_name(tool_name) and not resolve_safety_metadata(tool_name).is_read_only
+
+
 def filter_tools(config: SubagentConfig, parent_tools: list[BaseTool]) -> list[BaseTool]:
     """Apply tool safety isolation (L1-L3; L0 is enforced by delegate_task).
 
     L1: DelegationCapabilityManifest.leaf_blocked_tools (always blocked)
-    L2: config.tools (allowlist) + config.disallowed_tools (blocklist)
+    L2: config.tools (allowlist) + config.disallowed_tools (blocklist); a READ_ONLY_SANDBOX config
+        also drops every MCP tool not annotated read-only
     L3: child ⊆ parent intersection
     """
     parent_tool_names = {t.name for t in parent_tools}
     leaf_blocked_tools = get_effective_leaf_blocked_tools(DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools)
     blocked = leaf_blocked_tools | config.disallowed_tools
+    read_only_sandbox = config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX
 
     blocked_by_l1: list[str] = []
     blocked_by_l2: list[str] = []
@@ -108,7 +123,9 @@ def filter_tools(config: SubagentConfig, parent_tools: list[BaseTool]) -> list[B
             else:
                 blocked_by_l2.append(tool.name)
             continue
-        if config.tools and tool.name not in config.tools:
+        if (config.tools and tool.name not in config.tools) or (
+            read_only_sandbox and _is_side_effect_mcp_tool(tool.name)
+        ):
             blocked_by_l2.append(tool.name)
             continue
         filtered.append(tool)

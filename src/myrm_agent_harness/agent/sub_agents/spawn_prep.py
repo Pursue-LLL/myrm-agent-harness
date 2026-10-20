@@ -3,13 +3,15 @@
 [INPUT]
 - sub_agents.types::SubagentConfig, ControlScope, MemoryIsolationPolicy, WorkspacePolicy
 - agent.security.engine::disabled_permissions (POS: global permission deny probe for readonly floor)
+- sub_agents.spawn_capability::parent_capability_handle (POS: the handle the running (delegating) agent is bound to, if any)
+- core.security.ocap::CapabilityAction (POS: capability vocabulary: READ, WRITE, EXECUTE)
 - workspace_coordination.policy::apply_parallel_write_isolation
 - workspace_coordination.merge.merge_metadata::strip_merge_transient_inner_keys (POS: merge metadata key SSOT)
 
 [OUTPUT]
-- coerce_spawn_readonly: parent Security Profile file_write deny → readonly floor
-- apply_readonly_to_config: readonly sandbox policy + mutating tool blocks
-- build_spawn_child_context: workspace/session context fields
+- coerce_spawn_readonly: parent Security Profile file_write deny or a parent handle without WRITE → readonly floor
+- apply_readonly_to_config: READ_ONLY_SANDBOX policy + native mutating tool blocks (side-effect MCP tools are dropped by builder.filter_tools)
+- build_spawn_child_context: the child's runtime context, taken only from the parent's workspace/session fields
 - apply_spawn_workspace_isolation: parallel writer ISOLATED_COPY promotion
 - sanitize_spawn_result_for_store / spawn_result_for_store_after_merge: JSON-safe durable cache rows
 - merge_candidate_from_spawn_dict: detect pending ISOLATED_COPY merge metadata
@@ -22,13 +24,12 @@ Single SSOT for spawn prep so delegate_task_tool and SpawnSubagentTool stay alig
 from __future__ import annotations
 
 import logging
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
-from uuid import uuid4
+from typing import TYPE_CHECKING, Protocol, cast
 
+from myrm_agent_harness.agent.sub_agents.spawn_capability import parent_capability_handle
 from myrm_agent_harness.agent.sub_agents.types import (
     ControlScope,
     MemoryIsolationPolicy,
@@ -41,20 +42,26 @@ from myrm_agent_harness.agent.workspace_coordination.merge.merge_metadata import
 from myrm_agent_harness.agent.workspace_coordination.policy import (
     apply_parallel_write_isolation,
 )
+from myrm_agent_harness.core.security.ocap import CapabilityAction
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.core.security.ocap.types import CapabilityHandle
+    from contextvars import Token
+
+    from myrm_agent_harness.toolkits.memory.ephemeral import EphemeralMemoryManager
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
 logger = logging.getLogger(__name__)
 
-_READONLY_BLOCKED_TOOLS = frozenset(
-    {
-        "write_file",
-        "execute_terminal_command",
-        "bash_run_command",
-        "git_commit",
-    }
-)
+
+class _CollaborativeMemoryHost(Protocol):
+    """Parent agent that lazily owns the memory view its collaborative subagents share."""
+
+    _collaborative_memory: EphemeralMemoryManager
+
+
+# Native workspace mutators. MCP tools with side effects are dropped by ``builder.filter_tools``
+# for every READ_ONLY_SANDBOX config, so they need no entry here.
+_READONLY_BLOCKED_TOOLS = frozenset({"file_write_tool", "file_edit_tool", "bash_code_execute_tool"})
 _READONLY_HINT = (
     "\n\n[READONLY MODE] You are in read-only mode. You can only read and analyze — "
     "do NOT attempt file writes, terminal commands, or git commits."
@@ -79,8 +86,15 @@ class SpawnWorkspacePrep:
 
 
 def coerce_spawn_readonly(parent_agent: object, readonly: bool) -> bool:
-    """Force readonly when the parent Security Profile globally denies file_write."""
+    """Force readonly when the parent cannot write itself.
+
+    That is the case when its Security Profile globally denies file_write or when it runs under a
+    capability handle without WRITE, so a read-only subagent cannot hand write access to its children.
+    """
     if readonly:
+        return True
+    parent_handle = parent_capability_handle()
+    if parent_handle is not None and CapabilityAction.WRITE not in parent_handle.actions:
         return True
     agent_config = getattr(parent_agent, "config", None)
     security_config = getattr(agent_config, "security_config", None)
@@ -124,16 +138,16 @@ def enforce_spawn_policy_on_config(config: SubagentConfig) -> SubagentConfig:
 def build_spawn_child_context(
     *,
     parent_ctx: dict[str, object],
-    base_context: dict[str, object] | None = None,
     payload_hashes: list[str] | None = None,
 ) -> dict[str, object]:
-    """Merge delegate/DW child context with parent workspace/session fields."""
-    child_context: dict[str, object] = dict(base_context or {})
+    """The child's runtime context: the parent's workspace/session fields and nothing the model supplied.
+
+    Model-supplied ``context`` reaches the child as task text only. As runtime context it would let the
+    model pick the workspace the child's executor binds to and the internal keys the merge pipeline reads.
+    """
+    child_context: dict[str, object] = {key: parent_ctx[key] for key in _PARENT_CONTEXT_KEYS if key in parent_ctx}
     if payload_hashes is not None:
         child_context["subagent_payload_hashes"] = payload_hashes
-    for key in _PARENT_CONTEXT_KEYS:
-        if key in parent_ctx and key not in child_context:
-            child_context[key] = parent_ctx[key]
     return child_context
 
 
@@ -174,7 +188,7 @@ def memory_isolation_scope(
     config: SubagentConfig,
 ) -> Iterator[None]:
     """Set ephemeral/collaborative/read-only memory ContextVar for spawn lifetime."""
-    reset_token: object | None = None
+    reset_token: Token[MemoryManager | None] | None = None
     try:
         from myrm_agent_harness.agent.skill_agent.context import (
             _memory_manager_var,
@@ -188,9 +202,10 @@ def memory_isolation_scope(
         global_mem = get_memory_manager()
         if global_mem:
             if config.memory_isolation == MemoryIsolationPolicy.COLLABORATIVE_SESSION:
-                if not hasattr(parent_agent, "_collaborative_memory"):
-                    parent_agent._collaborative_memory = EphemeralMemoryManager(global_mem)
-                reset_token = _memory_manager_var.set(parent_agent._collaborative_memory)
+                host = cast("_CollaborativeMemoryHost", parent_agent)
+                if not hasattr(host, "_collaborative_memory"):
+                    host._collaborative_memory = EphemeralMemoryManager(global_mem)
+                reset_token = _memory_manager_var.set(host._collaborative_memory)
             elif config.memory_isolation == MemoryIsolationPolicy.READ_ONLY_GLOBAL:
                 reset_token = _memory_manager_var.set(ReadOnlyMemoryView(global_mem))
             else:
@@ -234,81 +249,3 @@ def spawn_result_for_store_after_merge(result: dict[str, object]) -> dict[str, o
     if result.get("workspace_merge_status") == "merged":
         out["workspace_merge_status"] = "merged"
     return out
-
-
-def derive_spawn_capability(
-    *,
-    parent_agent: object,
-    agent_type: str,
-    child_context: dict[str, object],
-    readonly: bool,
-    context_files: list[str] | None = None,
-    ttl_seconds: float = 300.0,
-) -> CapabilityHandle:
-    """Generate cryptographically signed, attenuated CapabilityHandle for child execution.
-
-    ``agent_type`` is the delegated target resolved by the caller. ``SubagentConfig``
-    carries the resolved settings but not the type id, so the subject must be passed
-    in explicitly rather than read off the config.
-    """
-    from myrm_agent_harness.core.security.ocap import (
-        CapabilityAction,
-        CapabilityHandle,
-        ResourceScope,
-        get_default_capability_registry,
-        sign_capability_handle,
-    )
-
-    workspace_path = str(child_context.get("workspace_path", "") or "")
-    paths: list[str] = []
-    if workspace_path:
-        paths.append(f"{workspace_path.rstrip('/')}/**")
-    if context_files:
-        for f in context_files:
-            clean_f = str(f).strip()
-            if clean_f:
-                paths.append(clean_f if clean_f.startswith("/") else f"{workspace_path}/{clean_f}")
-
-    if readonly:
-        actions = frozenset({CapabilityAction.READ})
-    else:
-        actions = frozenset({CapabilityAction.READ, CapabilityAction.WRITE, CapabilityAction.EXECUTE})
-
-    now = time.monotonic()
-    parent_ctx = getattr(parent_agent, "_last_context", None) or {}
-    parent_handle = parent_ctx.get("active_capability_handle")
-    parent_id = getattr(parent_handle, "handle_id", None) if parent_handle else None
-
-    scope = ResourceScope(paths=tuple(paths))
-    handle = CapabilityHandle(
-        handle_id=f"cap-sub-{uuid4().hex[:10]}",
-        issuer_id="parent_agent",
-        subject_id=agent_type,
-        scope=scope,
-        actions=actions,
-        issued_at=now,
-        expires_at=now + max(10.0, ttl_seconds),
-        parent_handle_id=parent_id,
-    )
-    sig = sign_capability_handle(handle)
-    signed_handle = replace(handle, signature=sig)
-
-    registry = get_default_capability_registry()
-    registry.register(signed_handle)
-    child_context["active_capability_handle"] = signed_handle
-    return signed_handle
-
-
-@contextmanager
-def subagent_capability_scope(child_context: dict[str, object] | None) -> Iterator[None]:
-    """Scoped binding of child's active capability handle to ContextVar."""
-    handle: object | None = None
-    if isinstance(child_context, dict):
-        handle = child_context.get("active_capability_handle")
-
-    from myrm_agent_harness.core.security.ocap import capability_scope
-    from myrm_agent_harness.core.security.ocap.types import CapabilityHandle
-
-    cap_handle = handle if isinstance(handle, CapabilityHandle) else None
-    with capability_scope(cap_handle):
-        yield

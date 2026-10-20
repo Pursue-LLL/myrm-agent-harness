@@ -20,12 +20,12 @@ Domain contract layer for Item 314 OmniAgentUnifiedDispatcherAndSplitCrossExamin
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Mapping, Sequence
+from enum import StrEnum
 
 
-class AgentRoleTarget(str, Enum):
+class AgentRoleTarget(StrEnum):
     """Specialized agent roles available in the omni-agent ecosystem."""
 
     CODING_SPECIALIST = "coding_specialist"       # Deep implementation, refactoring, unit tests
@@ -35,7 +35,7 @@ class AgentRoleTarget(str, Enum):
     ARCHITECT_PLANNER = "architect_planner"       # High-level architecture, trade-off analysis
 
 
-class IntentCategory(str, Enum):
+class IntentCategory(StrEnum):
     """Broad classification of query intent."""
 
     DEVELOPMENT_ENGINEERING = "development_engineering"
@@ -45,7 +45,7 @@ class IntentCategory(str, Enum):
     GENERAL_QUICK_COMMAND = "general_quick_command"
 
 
-class AdoptionChoice(str, Enum):
+class AdoptionChoice(StrEnum):
     """Adoption resolution mode."""
 
     LEAD_AGENT = "lead_agent"

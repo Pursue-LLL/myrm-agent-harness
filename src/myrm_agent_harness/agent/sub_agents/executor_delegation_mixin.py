@@ -20,6 +20,8 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from .types import DELEGATION_CAPABILITY_MANIFEST, DelegateRole, SubagentConfig
 
 if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
     from myrm_agent_harness.agent.base_agent import BaseAgent
 
 logger = get_agent_logger(__name__)
@@ -52,7 +54,7 @@ class SubagentExecutorDelegationMixin:
             update_delegate_task_description,
         )
 
-        def child_tool_registry_getter() -> list[object]:
+        def child_tool_registry_getter() -> list[BaseTool]:
             return list(child_agent._cached_tools or child_agent.user_tools)
 
         allowed_types = sorted(config.delegation_allowed_types) if config.delegation_allowed_types is not None else None

@@ -34,7 +34,11 @@ from myrm_agent_harness.utils.runtime.steering import SteeringToken
 from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
 
 from .executor_attempt_mixin import SubagentExecutorAttemptMixin
-from .executor_helpers import _cascade_cancel_descendants, _compact_error_message, read_partial_output
+from .executor_helpers import (
+    _cascade_cancel_descendants,
+    _compact_error_message,
+    read_partial_output,
+)
 from .types import (
     SubagentBudgetExceededError,
     SubagentConfig,
@@ -69,7 +73,9 @@ async def _apply_immediate_isolated_sync_back(
     )
 
     child_path = Path(str(context.get("workspace_path", "")))
-    parent_path = Path(str(isolated_parent_ws or context.get("_isolated_parent_workspace", "")))
+    parent_path = Path(
+        str(isolated_parent_ws or context.get("_isolated_parent_workspace", ""))
+    )
     try:
         await apply_isolated_sync_back_with_snapshots(
             child_workspace=child_path,
@@ -85,7 +91,11 @@ async def _apply_immediate_isolated_sync_back(
             exc,
         )
         record_workspace_merge_failure(f"{result.task_id}: {exc}")
-        extra: dict[str, object] = dict(result.result) if isinstance(result.result, dict) else {"text": result.result}
+        extra: dict[str, object] = (
+            dict(result.result)
+            if isinstance(result.result, dict)
+            else {"text": result.result}
+        )
         extra["workspace_merge_status"] = "error"
         extra["workspace_merge_error"] = str(exc)
         return dc_replace(result, result=extra)
@@ -194,7 +204,9 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
             await fire_hook(HookEvent.SUBAGENT_STOP, payload)
             return outcome
 
-        async def finish_failed(status: SubAgentStatus, error: str, partial: str = "") -> SubAgentResult:
+        async def finish_failed(
+            status: SubAgentStatus, error: str, partial: str = ""
+        ) -> SubAgentResult:
             """Close the run with an unsuccessful outcome: failure, timeout, budget or cancellation."""
             now = time.time()
             return await close_run(
@@ -247,12 +259,18 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                                 from dataclasses import replace as dc_replace
 
                                 extra: dict[str, object] = (
-                                    dict(result.result) if isinstance(result.result, dict) else {"text": result.result}
+                                    dict(result.result)
+                                    if isinstance(result.result, dict)
+                                    else {"text": result.result}
                                 )
                                 extra["_workspace_sync_back"] = sync_back_fn
-                                extra["_isolated_child_workspace"] = str(context.get("workspace_path", ""))
+                                extra["_isolated_child_workspace"] = str(
+                                    context.get("workspace_path", "")
+                                )
                                 if isolated_parent_ws:
-                                    extra["_isolated_parent_workspace"] = isolated_parent_ws
+                                    extra["_isolated_parent_workspace"] = (
+                                        isolated_parent_ws
+                                    )
                                 result = dc_replace(result, result=extra)
                             else:
                                 result = await _apply_immediate_isolated_sync_back(
@@ -265,14 +283,20 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                     return result
                 except TimeoutError as timeout_exc:
                     retries_left -= 1
-                    logger.warning("[subagent:%s] Timeout, retries_left=%d", task_id, retries_left)
+                    logger.warning(
+                        "[subagent:%s] Timeout, retries_left=%d", task_id, retries_left
+                    )
                     if retries_left > 0:
                         await asyncio.sleep(backoff_seconds)
                         backoff_seconds *= 2
                         continue
                     return await finish_failed(
                         SubAgentStatus.TIMED_OUT,
-                        f"Timeout after {config.timeout_seconds}s" if config.timeout_seconds is not None else "Timeout",
+                        (
+                            f"Timeout after {config.timeout_seconds}s"
+                            if config.timeout_seconds is not None
+                            else "Timeout"
+                        ),
                         read_partial_output(timeout_exc, partial_budget),
                     )
                 except MyrmLLMError as llm_exc:
@@ -312,7 +336,9 @@ class SubagentExecutorRetryMixin(SubagentExecutorAttemptMixin):
                         continue
                     return await finish_failed(
                         SubAgentStatus.FAILED,
-                        _compact_error_message(f"{type(error).__name__}: {error}", config.max_error_chars),
+                        _compact_error_message(
+                            f"{type(error).__name__}: {error}", config.max_error_chars
+                        ),
                         read_partial_output(error, partial_budget),
                     )
 

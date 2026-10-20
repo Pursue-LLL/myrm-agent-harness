@@ -14,7 +14,7 @@ Main entry facade coordinating intelligent intent dispatch, concurrent multi-age
 
 from __future__ import annotations
 
-from typing import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 from .consensus_delta_highlighter import ConsensusDeltaHighlighter
 from .cross_exam_types import (

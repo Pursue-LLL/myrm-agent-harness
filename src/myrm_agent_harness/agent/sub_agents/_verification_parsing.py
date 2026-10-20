@@ -37,35 +37,23 @@ class VerificationVerdict:
 
 
 def _parse_verdict(raw_result: str) -> VerificationVerdict:
-    """Extract the verification verdict from a Verifier agent's output."""
-    data = parse_llm_json_object(raw_result, require_key="verdict")
+    """Extract the verification verdict from a Verifier agent's output.
 
-    def _enforce_evidence(passed: bool, summary: str, raw: str) -> tuple[bool, str]:
-        if not passed:
-            return passed, summary
-        upper = raw.upper()
-        if "STDOUT" not in upper and "STDERR" not in upper and "EXECUTION" not in upper and "TRACEBACK" not in upper:
-            return False, (
-                "FAIL: Validation rejected. You must provide actual execution log "
-                "evidence (STDOUT/STDERR/EXECUTION) to grant a PASS."
-            )
-        return passed, summary
+    Pure parsing: whether a PASS is backed by real execution is decided from the executor's
+    execution evidence in the verifier round, never from words in the verifier's text.
+    """
+    data = parse_llm_json_object(raw_result, require_key="verdict")
 
     if data is not None:
         try:
             verdict_str = str(data.get("verdict", "")).strip().upper()
-            passed = verdict_str == "PASS"
-            summary = str(data.get("summary", ""))
-
-            passed, summary = _enforce_evidence(passed, summary, raw_result)
-
             findings_raw = data.get("findings", [])
             findings: list[dict[str, str]] = []
             if isinstance(findings_raw, list):
                 findings = [{k: str(v) for k, v in item.items()} for item in findings_raw if isinstance(item, dict)]
             return VerificationVerdict(
-                passed=passed,
-                summary=summary,
+                passed=verdict_str == "PASS",
+                summary=str(data.get("summary", "")),
                 confidence=str(data.get("confidence", "UNKNOWN")),
                 findings=findings,
                 raw=raw_result,
@@ -75,10 +63,9 @@ def _parse_verdict(raw_result: str) -> VerificationVerdict:
 
     upper = raw_result.upper()
     if '"VERDICT": "PASS"' in upper or '"VERDICT":"PASS"' in upper:
-        passed, summary = _enforce_evidence(True, "JSON parse failed; keyword PASS detected", raw_result)
         return VerificationVerdict(
-            passed=passed,
-            summary=summary,
+            passed=True,
+            summary="JSON parse failed; keyword PASS detected",
             confidence="LOW",
             findings=[],
             raw=raw_result,
