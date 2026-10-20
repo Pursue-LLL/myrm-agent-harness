@@ -2,7 +2,7 @@
 
 import pytest
 
-from myrm_agent_harness.agent.file_snapshot.external_effect_detector import detect_external_effects
+from myrm_agent_harness.toolkits.code_execution.security.external_effect_detector import detect_external_effects
 
 
 class TestDetectExternalEffects:
@@ -217,3 +217,75 @@ class TestDetectExternalEffects:
     def test_sudo_container(self) -> None:
         cmd = "sudo docker rm -f container_name"
         assert "container_cloud" in detect_external_effects(cmd)
+
+    # ---- Published code ----
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "git push",
+            "git push origin main",
+            "git push --force-with-lease origin feature",
+            "git -C repo push --tags",
+            "cd repo && git push origin main",
+            "npm publish",
+            "pnpm publish --access public",
+            "cargo publish",
+            "twine upload dist/*",
+            "gh pr create --fill",
+            "gh release create v1.0.0",
+        ],
+    )
+    def test_publish_commands(self, cmd: str) -> None:
+        assert detect_external_effects(cmd) == ["publish"]
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "git pull",
+            "git status",
+            "git commit -m 'fix push handler'",
+            'git commit -m "document git push flow"',
+            "git log --oneline",
+            "npm run publish-docs",
+            "gh pr view 12",
+        ],
+    )
+    def test_publish_lookalikes_are_not_effects(self, cmd: str) -> None:
+        assert detect_external_effects(cmd) == []
+
+    # ---- Words that are not the command ----
+
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "grep -r docker .",
+            "pip install docker",
+            "cd docker",
+            "echo aws",
+            "echo 'git push'",
+            "cat notes.txt | grep psql",
+            "curl https://example.com -o out.txt && echo 'curl -X POST'",
+            "python - <<EOF\nimport os\nEOF",
+        ],
+    )
+    def test_argument_words_are_not_effects(self, cmd: str) -> None:
+        assert detect_external_effects(cmd) == []
+
+    def test_heredoc_body_lines_are_data_not_commands(self) -> None:
+        cmd = "cat > deploy.sh <<'EOF'\ndocker run -d nginx\nkubectl apply -f app.yaml\nEOF\nchmod +x deploy.sh"
+        assert detect_external_effects(cmd) == []
+
+    def test_command_after_heredoc_is_still_detected(self) -> None:
+        cmd = "cat > note.txt <<EOF\nhello\nEOF\ndocker rm -f web"
+        assert detect_external_effects(cmd) == ["container_cloud"]
+
+    def test_pipe_into_heredoc_client(self) -> None:
+        assert detect_external_effects("psql <<SQL\nDROP TABLE users;\nSQL") == ["database"]
+
+    def test_here_string_is_not_a_heredoc(self) -> None:
+        assert detect_external_effects('cat <<<"hello"\ndocker rm -f web\nhello') == ["container_cloud"]
+
+    def test_categories_are_returned_in_stable_order(self) -> None:
+        cmd = "git push && curl -X POST https://api.com && docker rm x && psql -c 'VACUUM'"
+        assert detect_external_effects(cmd) == ["database", "container_cloud", "network_mutation", "publish"]

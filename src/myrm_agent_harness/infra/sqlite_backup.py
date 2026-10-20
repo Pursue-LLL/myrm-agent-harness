@@ -15,6 +15,7 @@ Usage::
 
 [OUTPUT]
 - SQLiteBackupManager: Hot-backup, verify, restore, quarantine for SQLite databases.
+- hot_copy_database: Online page-wise copy of a live database to a standalone file.
 - BackupRecord: Immutable metadata for a single backup snapshot.
 - RestoreResult: Outcome of a restore operation.
 - SnapshotVerificationResult: Integrity verification outcome.
@@ -61,6 +62,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "SQLiteBackupManager",
+    "hot_copy_database",
     "BackupRecord",
     "RestoreResult",
     "SnapshotVerificationResult",
@@ -69,6 +71,23 @@ __all__ = [
     "_pragma_integrity_check",
     "_pragma_schema_version",
 ]
+
+
+def hot_copy_database(src_path: str | Path, dst_path: str | Path) -> None:
+    """Copy a live SQLite database page-wise through the online backup API.
+
+    Readers and writers of the source stay unblocked; the destination is a
+    consistent single-file image (no WAL/SHM siblings).
+    """
+    src = sqlite3.connect(str(src_path), timeout=10.0)
+    try:
+        dst = sqlite3.connect(str(dst_path))
+        try:
+            src.backup(dst, pages=_BACKUP_PAGE_BATCH)
+        finally:
+            dst.close()
+    finally:
+        src.close()
 
 
 class SQLiteBackupManager:
@@ -131,15 +150,7 @@ class SQLiteBackupManager:
             logger.info("[SQLiteBackup] Removed %d abandoned temporary backup files", swept)
 
         with _discard_on_failure(tmp_path):
-            src = sqlite3.connect(str(self._db_path), timeout=10.0)
-            try:
-                dst = sqlite3.connect(str(tmp_path))
-                try:
-                    src.backup(dst, pages=_BACKUP_PAGE_BATCH)
-                finally:
-                    dst.close()
-            finally:
-                src.close()
+            hot_copy_database(self._db_path, tmp_path)
             _require_backup_image(tmp_path)
             qc = _pragma_quick_check(tmp_path)
             if qc != "ok":
