@@ -21,6 +21,8 @@ Agent-in-Sandbox 模式下，子进程通过 Unix Socket 与 Agent 主进程通�
 - MCPIPCRequest / MCPIPCResponse: Wire types.
 - MCPIPCServer: Unix Socket server; routes requests to BuiltinToolRegistry or MCPSkillProxyService.
 - start_mcp_ipc_server / stop_mcp_ipc_server: Lifecycle helpers.
+- get_mcp_trace_nonce: Accessor for the marker nonce the host uses to authenticate
+  in-script call markers on stdout.
 
 [POS]
 PTC IPC backbone. Hosts the Unix-Socket server, wire schemas, and the per-call
@@ -126,6 +128,17 @@ class MCPIPCServer:
         self._max_calls_per_session = max_calls_per_session
         self._session_calls: dict[str, int] = {}
         self.auth_token: str = secrets.token_urlsafe(32)
+        self.trace_nonce: str = secrets.token_hex(16)
+        """Nonce that authenticates in-script call markers on stdout.
+
+        The generated client stamps every call marker with it. The host only accepts
+        markers carrying this exact value, so text returned by a tool — a web page, an
+        API payload — cannot forge a citation or truncate a genuine marker by embedding
+        the marker delimiters. Rotated per server instance, i.e. per process. Callers
+        obtain this value through ``get_mcp_trace_nonce`` rather than reading the server
+        object, so a stopped server degrades to "no markers trusted" instead of stale
+        acceptance.
+        """
 
     async def start(self) -> None:
         """启动 IPC 服务端"""
@@ -380,3 +393,17 @@ async def stop_mcp_ipc_server() -> None:
 def get_mcp_ipc_server() -> MCPIPCServer | None:
     """获取全局 MCP IPC 服务端实例"""
     return _ipc_server
+
+
+def get_mcp_trace_nonce() -> str | None:
+    """Return the live marker nonce, or None when no IPC server is running.
+
+    The host uses this to authenticate in-script call markers. Returning None once the
+    server is gone makes marker parsing fail closed: output from a previous process can no
+    longer be replayed into ``sources``, and a stopped server means no citation metadata
+    rather than trusting an old nonce.
+    """
+    server = _ipc_server
+    if server is None or not server._running:
+        return None
+    return server.trace_nonce

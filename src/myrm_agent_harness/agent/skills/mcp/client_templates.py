@@ -254,6 +254,7 @@ def generate_ipc_client_code(
     read_only_tools: frozenset[str] | None = None,
     auth_token: str | None = None,
     readonly_workspace: bool = False,
+    trace_nonce: str | None = None,
 ) -> str:
     """生成 Unix Socket IPC 客户端代码。
 
@@ -265,6 +266,9 @@ def generate_ipc_client_code(
             调用允许在网络中断后重试；写操作重放会造成重复副作用。
         auth_token: 服务端下发的进程内 bearer token，缺失时服务端会拒绝请求。
         readonly_workspace: 调用方是否在只读沙箱中运行；服务端据此拒绝写类 MCP 工具。
+        trace_nonce: 服务端下发的标记 nonce。宿主只接受带该 nonce 的调用标记，
+            因此工具返回的文本无法伪造引用或截断真实标记。缺失时客户端不输出标记
+            （宁可不产生元数据，也不产生不可信的元数据）。
     """
     base = _generate_base_code()
     module_system = _generate_module_system()
@@ -275,9 +279,10 @@ def generate_ipc_client_code(
     read_only_literal = json.dumps(sorted(read_only_tools or ()))
     token_literal = json.dumps(auth_token) if auth_token is not None else "None"
     readonly_literal = "True" if readonly_workspace else "False"
+    nonce_literal = json.dumps(trace_nonce) if trace_nonce is not None else "None"
 
     return f'''
-import sys, types, json, asyncio, uuid
+import sys, types, json, asyncio, uuid, base64
 
 # IPC 配置
 _SOCKET_PATH = "{socket_path}"
@@ -287,6 +292,7 @@ _WORKSPACE_ROOT = {workspace_literal}
 _READ_ONLY_TOOLS = frozenset({read_only_literal})
 _AUTH_TOKEN = {token_literal}
 _READONLY_WORKSPACE = {readonly_literal}
+_TRACE_NONCE = {nonce_literal}
 
 {base}
 {module_system}
@@ -341,12 +347,17 @@ async def _call(skill: str, tool: str, params: dict):
             raise MCPError(f"Connection: {{e}}", skill, tool, retryable=retry_safe)
 
     result = await _retry_call(do_call, skill, tool)
-    # Citation trace for the host: keep a bounded preview and state the truncation
-    # explicitly, so a long result is not silently recorded as if it were complete.
-    _preview = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
-    if len(_preview) > _TRACE_PREVIEW_CHARS:
-        _preview = _preview[:_TRACE_PREVIEW_CHARS] + f"...[truncated from {{len(_preview)}} chars]"
-    _data = {{"s": skill, "t": tool, "r": _preview}}
-    print(f"__MCP_DATA__{{json.dumps(_data, ensure_ascii=False)}}__END__", flush=True)
+    # Citation trace for the host. Two properties matter:
+    # 1. The payload is base64 so no tool result can contain the marker delimiters and
+    #    silently truncate or swallow the real marker.
+    # 2. The marker carries the host-issued nonce, so text returned by a tool cannot forge
+    #    a citation by embedding the delimiters itself.
+    if _TRACE_NONCE:
+        _preview = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
+        if len(_preview) > _TRACE_PREVIEW_CHARS:
+            _preview = _preview[:_TRACE_PREVIEW_CHARS] + f"...[truncated from {{len(_preview)}} chars]"
+        _data = {{"s": skill, "t": tool, "r": _preview}}
+        _payload = base64.b64encode(json.dumps(_data, ensure_ascii=False).encode()).decode()
+        print(f"__MCP_DATA__{{_TRACE_NONCE}}{{_payload}}__END__{{_TRACE_NONCE}}", flush=True)
     return result
 '''

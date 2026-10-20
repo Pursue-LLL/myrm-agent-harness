@@ -299,7 +299,20 @@ class SkillExecutor:
             read_only_tools=read_only_tools,
             auth_token=self._resolve_ipc_auth_token(),
             readonly_workspace=readonly_workspace,
+            trace_nonce=self._resolve_trace_nonce(),
         )
+
+    @staticmethod
+    def _resolve_trace_nonce() -> str | None:
+        """Read the marker nonce from the running IPC server.
+
+        Returns ``None`` when no server is up. The client then omits call markers, so a
+        run without a live token source produces no citation metadata instead of
+        metadata the host cannot authenticate.
+        """
+        from myrm_agent_harness.agent.skills.mcp.ipc_proxy import get_mcp_trace_nonce
+
+        return get_mcp_trace_nonce()
 
     @staticmethod
     def _resolve_ipc_auth_token() -> str | None:
