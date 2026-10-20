@@ -14,3 +14,4 @@ The application declares where each category lives (`layout`: category → paths
 | `layout.py` | Core | `resolve_layout`: validates the declared layout and settles ownership (deepest path wins, database journals, `OTHER` remainder, clashes go to the first category in enum order and are logged). Pure path logic, no measuring. |
 | `walker.py` | Core | `measure_tree`: apparent bytes and regular-file count of one tree with `os.scandir`, leaving out the paths other categories own. Unreadable entries count as empty. |
 | `inspector.py` | Core | `StorageGovernanceInspector`: measures every category of the resolved layout and assembles the report with disk usage. |
+| `snapshot_manager.py` | Core | Snapshot manager for Agent persistent state storage governance. — StateSnapshotManager (create, list, restore, delete snapshots) | ✅ |

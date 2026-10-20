@@ -18,6 +18,7 @@ Executors module for Agent-in-Sandbox mode.
 |-----------|-------------|
 | common/ | Common executor components. |
 | local/ | Local executor module with native pathlib I/O and atomic write overrides. |
+| `readonly_proxy.py` | Core | Read-only executor proxy for Adversarial Sandbox Verifier. — ReadonlyExecutorProxy: Executor middleware that enforces read-only access and tracks execution. | ✅ |
 
 ## Key Dependencies
 

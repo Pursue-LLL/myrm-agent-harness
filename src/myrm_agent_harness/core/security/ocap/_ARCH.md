@@ -13,6 +13,7 @@ Object-Capability (OCap) primitives for subagent confinement. The production pro
 | `attenuation.py` | Core | One-way capability attenuation pipeline (`attenuate_capability`, `validate_scope_subset`) and the shared path-boundary test (`_is_path_subscope`: lexical match verified against realpath, symlinked aliases resolved by physical containment). | ✅ |
 | `context.py` | Core | Async-safe ContextVar management (`capability_scope`, `get_current_capability`). | ✅ |
 | `guard.py` | Core | Execution-layer enforcement guard (`check_capability_access`, `enforce_capability_access`) for the local file and shell executors. | ✅ |
+| `registry.py` | Core | Concurrent sharded capability registry with instant cascading revocation. — CapabilityRegistry: Thread-safe, sharded O(1) lifecycle and revocation registry; get_default_capability_registry: Global thread-safe singleton getter | ✅ |
 
 ## Architectural Invariants
 1. **Fail-Closed When Bound**: A bound handle that is expired, unsigned, out of scope or lacking the action denies the operation. EXECUTE is checked against the working directory only; the command text is bounded by the executor's command validator, not by the handle. With no handle bound (the top-level agent), operations are unconstrained.

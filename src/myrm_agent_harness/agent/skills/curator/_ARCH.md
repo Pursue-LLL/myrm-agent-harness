@@ -17,6 +17,7 @@ Performs stateless sweeps: evaluates skills against CuratorConfig thresholds, ap
 | Submodule | Description |
 |-----------|-------------|
 | consolidation/ | Skill consolidation (umbrella merge). See [consolidation/_ARCH.md](consolidation/_ARCH.md). |
+| `self_dismantling_curator_engine.py` | Core | Performs self-distillation sweeps over memory and skill artifacts. — SelfDismantlingCuratorEngine: Performs self-distillation sweeps over memory and skill artifacts. | ✅ |
 
 ## Key Dependencies
 

@@ -31,7 +31,6 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | session_tree.py | Core | Merge gateway + ACTIVE_SUBAGENTS rows (incl. strong `COMPLETED_SUBAGENT_RESULTS` terminal history); match REST uuid against `chat_` / `chat_chat_` session ids; registry cancel-all helper. | ✅ |
 | notifications.py | Core | Push-based notification formatting for subagent completion events and active subagent context injection. | ✅ |
 | strategic_advisor_schema.py | Core | Declarative 4-section schema specification for bundled strategic advisor subagents (`StrategicAdvisorySchema`, read-only safety guard `validate_strategic_readonly_safety`, and prompt compilation `compile_strategic_advisor_prompt`). | ✅ |
-| role_chain_schema.py | Core | Declarative subagent role chain presets and prompt guidance compiler (`RoleChainPreset`, `RoleChainStage`, golden presets `implement_review_fix`, `clarify_scout_worker`, `watchdog_guard`, `editorial_publish`, and `compile_role_chain_guidance` with max review rounds cap). | ✅ |
 | SUBAGENT_NOTIFICATION_STRATEGY.md | L2 | Cache-safe subagent notification delivery (SSE + wakeup user message) | — |
 | orchestrator.py | Core | Subagent composition patterns — chain, batch, alternatives (text compare; deferred isolated workspaces discarded), and `run_council` (multi-expert cross-review). Delegates verification to `_orchestrator_verification` and council to `_orchestrator_council`. | ✅ |
 | spawn_prep.py | Core | Shared spawn prep SSOT (coerce_spawn_readonly floor incl. read-only parent handle, readonly, isolation, child context built from the parent's authoritative fields only, sanitize store via merge_metadata). | ✅ |
@@ -108,6 +107,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | `graph_triage/` | 图工程自适应适用性评估门禁与并发 Token 预算熔断套件（对标 Graph Engineering 行业实践与成本失控治理规范，提供单步/探索对话/纯时序流水线/多路重型并行启发式准入评估门禁 `GraphApplicabilityTriageGate`、扇出前置 Token 预估与硬上限预算熔断器 `PredictiveBudgetGuard`、以及基于剩余预算的动态自适应并发节流与危急状态提前局部优雅归约引擎 `ElasticConcurrencyReducer`）。 |
 | `orthogonal_reviewer/` | 正交双视角审查门禁与零偏见盲审子代理（对标 Codex 双审查子代理实践，彻底终结大模型自我合理化偏见；提供注入完整设计意图的 Reviewer A、物理隔离历史 CoT 纯看 Diff 与契约的盲态 Reviewer B、以及缺陷语义去重、严重度裁决与定向自动修复闭环仲裁器 `OrthogonalReviewArbiter`）。 |
 | `live_transcript/` | 子 Agent 实时透明 Live Transcript 轨迹流、后台委派任务持久化恢复账本、单次命令绑定 Smart Approvals 与 /deny 交互反馈、以及 MoA 角色细粒度推理强度动态分配套件（对标 Hermes v0.19 委托透明与持久化体系，消除多 Agent 协作盲区与后台任务丢失风险）。 |
+| `dag_plan.py` | Core | DAG plan schemas for sub-agent orchestration (not main-agent progress). — PlanStep, Plan: sub-agent DAG plan models with dependency resolution; GraphPatch, GraphPatchResult: declarative graph mutation DTOs for mid-run graph compiler gate | ✅ |
 
 
 
