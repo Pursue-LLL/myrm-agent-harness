@@ -94,12 +94,6 @@ def test_readme_does_not_overstate_test_count() -> None:
             "DockerOperations",
         ),
         (
-            "Firecracker",
-            None,
-            Path("src") / "myrm_control_plane" / "infra" / "compute" / "firecracker" / "runtime.py",
-            "FirecrackerRuntime",
-        ),
-        (
             "Fly.io",
             None,
             Path("src") / "myrm_control_plane" / "infra" / "compute" / "flyio" / "flyio_runtime.py",
@@ -120,7 +114,7 @@ def test_readme_sandbox_modes_have_code_support(
         path = HARNESS_ROOT / harness_relative
     else:
         if CONTROL_PLANE_ROOT is None or monorepo_relative is None:
-            pytest.skip("Docker/Firecracker/Fly.io sandbox modes live in myrm-control-plane (monorepo only)")
+            pytest.skip("Docker/Fly.io sandbox modes live in myrm-control-plane (monorepo only)")
         path = CONTROL_PLANE_ROOT / monorepo_relative
 
     assert path.exists(), f"Missing implementation file for sandbox mode '{label}': {path}"
