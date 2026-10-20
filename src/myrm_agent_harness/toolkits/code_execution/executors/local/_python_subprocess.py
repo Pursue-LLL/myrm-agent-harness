@@ -61,7 +61,7 @@ async def _kill_process_tree(process: asyncio.subprocess.Process, os_compat: Mod
             await process.wait()
     except ProcessLookupError:
         return
-    except Exception as e:  # noqa: BLE001 - cleanup must never raise
+    except Exception as e:
         logger.warning("Process group cleanup failed: %s", e)
 
 
