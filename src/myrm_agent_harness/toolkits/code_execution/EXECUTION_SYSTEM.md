@@ -432,7 +432,7 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 | 蚂蚁灵光 | 架构未公开（无云电脑披露） |
 | **Myrm** | **每用户 Agent 专用云电脑（agent-in-sandbox）** |
 
-**结论**：2026 年 Personal Agent 的标准架构是 **harness 跑在云电脑内**，本地设备只是客户端（聊天入口、审批、看屏幕）；平台侧只有控制面（创建 / 回收 / 计费 / 网关 / 恢复），不跑 agent loop。逐项证据（官方文档 / 媒体）见 `temp-docs/temp-task-context/cloud_hosted_personal_agent_runtime_research_20261019.md` §1、§15。
+**结论**：2026 年 Personal Agent 的标准架构是 **harness 跑在云电脑内**，本地设备只是客户端（聊天入口、审批、看屏幕）；平台侧只有控制面（创建 / 回收 / 计费 / 网关 / 恢复），不跑 agent loop。逐项证据（官方文档 / 媒体）由维护者的竞品核验记录承载，不随本仓库分发。
 
 **差异化优势**：本地模式（SQLite）与开源产品层自托管（主流云端 Personal Agent 均不支持）、结构化数据管理（SQL + 向量库）、无外部凭据。
 
@@ -440,26 +440,27 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 - [RisingWave](https://risingwave.com/blog/stateful-sandboxes-for-ai-agents)：Stateful sandbox 需要嵌入式数据库
 - [PingCAP](https://www.pingcap.com/blog/local-first-rag-using-sqlite-ai-agent-memory-openclaw/)：local-first + zero-ops 嵌入式数据库是 2026 趋势
 - [Fly.io: Code And Let Live](https://fly.io/blog/code-and-let-live)（Annie Ruygt）："we're calling it: ephemeral sandboxes are obsolete"、"They don't want containers. They don't want 'sandboxes'. They want computers." — 推出 Sprites（持久化 Firecracker microVM + 100GB ext4 + Checkpoint/Restore），专为 per-user 持久化 Agent 场景设计
-- E2B 支持暂停持久化：`pause` 同时保留文件系统与内存，paused 无限期保留（无 TTL）；约束是 Pro 连续运行上限 24h（Hobby 1h）需一次 pause、pause ≈4s/GiB（官方 [Sandbox persistence](https://e2b.dev/docs/sandbox/persistence)）
 - 沙箱内 SQLite + 嵌入式 Qdrant 的方案与 Sprites 的 stateful sandbox 理念高度一致
 
 ### 云电脑供给（2026-10）
 
-> 完整调研与来源（含逐项核验与修正记录）见 `temp-docs/temp-task-context/cloud_hosted_personal_agent_runtime_research_20261019.md` §16–§18。
+> 完整调研与来源（含逐项核验与修正记录）由维护者的竞品核验记录承载，不随本仓库分发。
 
-**Agent 专用云电脑的底层供给双档分流**（官方 2026-10 价格，规格对齐）：
+**SaaS 最终选型：Fly Sprites 作为唯一云供给**（E2B 支持已移除；Machines 仅作为 Sprites 适配完成前的过渡实现，随后删除）。
 
-| 档位 | 供给 | 适用 | 关键数据 |
-|------|------|------|----------|
-| 默认 / 低活跃 | **Fly Sprites** | 大多数个人用户 | 空闲不计 compute 费；warm 为内存冻结（100–500ms，进程续跑），cold 为进程重启（1–2s）；4C8G 满负荷 ≈ $0.329/h |
-| always-on | **Fly Machines** | 高活跃 / 常驻任务 | performance-2x（2C4G）$66/月；performance-4x（4C8G）$132/月 |
+**企业私有化**：Kubernetes Deployment + PVC（RuntimeClass gVisor/Kata）为默认数据面；备选 Docker+gVisor / Firecracker。**本地**：OS 进程沙箱（sandbox-exec / bwrap / AppContainer）。两者都不使用 Sprites。
 
-- **成本交叉点**：同规格下约 **13 小时/天**（4C8G：Sprites $0.329/h vs Machines $132/月）。低于该值 Sprites 更省，高于该值 Machines 更省。存储另计：Sprites 冷存储 $0.02/GB-月，Machines 卷 $0.15/GB-月。
-- **E2B 为第二后端**（任务 / 溢出 / 不可信第三方代码）：pause 保留内存 + 文件系统、paused 无限期保留；约束是 Pro 连续运行 24h（Hobby 1h）需一次 pause，pause ≈4s/GiB。
-- **淘汰 Modal**：默认寿命 5 分钟、最长 24 小时，不适合常驻个人云电脑。
-- **不接外部任务沙箱作为主路径**：一台用户沙箱已覆盖隔离、执行、持久化；仅三类触发例外（不可信第三方代码、GPU、大规模并行溢出）。
+| 项 | 方案 |
+|----|------|
+| 云供给 | **Fly Sprites**：8 vCPU、100GB ext4、内存按负载自动伸缩 |
+| 休眠 | 空闲约 30s 自动进入 warm（内存冻结，100–500ms）→ cold（进程重启，1–2s）；空闲不计 compute 费 |
+| 常驻 | Service 随开机 / 崩溃 / cold wake 自动拉起；请求命中 Sprite URL 自动唤醒 |
+| 计费 | CPU $0.0385/CPU-h；RAM $0.021875/GB-h；热存储 ≈$0.50/GB-月；冷存储 $0.02/GB-月（空闲仅计存储） |
+| 迁移状态 | 当前 `flyio` 适配器仍是 Machines（`auto_stop = "stop"`）；Sprites 适配为 P0，完成后删除 Machines 代码 |
+
+- **不采用 Modal**：默认寿命 5 分钟、最长 24 小时，不适合常驻个人云电脑。
+- **不接外部任务沙箱**：一台用户云电脑已覆盖隔离、执行、持久化；不可信第三方代码、GPU、大规模并行等场景在 Sprites 内以进程级隔离处理，必要时再评估独立供给。
 - **终态**：自建 Firecracker / K8s，掌握成本与体验上限。
-- **落地现状**：控制平面 `flyio` 后端当前使用 Machines（`auto_stop = "stop"`），Sprites 迁移为 P1；E2B 后端适配已存在。
 
 ## Bash Execution Resilience & Command Rewriting
 
