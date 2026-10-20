@@ -92,6 +92,15 @@ def _write_profile(tmp_path: Path, *, allow_network: bool) -> str:
     return str(path)
 
 
+def _free_port() -> int:
+    """Pick a loopback port nothing else is listening on."""
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    return port
+
+
 _CONNECT_SCRIPT = """
 import socket, sys
 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -154,6 +163,57 @@ class TestEgressBlocked:
         content = Path(profile).read_text(encoding="utf-8")
         assert "(allow network*)" in content
         assert '(deny network* (remote ip "*:*"))' not in content
+
+
+class TestLoopbackPreserved:
+    """Sealing egress must not sever loopback.
+
+    A blanket deny wins over an earlier allow in SBPL, so the loopback grant has to be
+    repeated after the deny. Without this regression test the first fix silently broke
+    localhost access while looking correct in the profile text.
+    """
+
+    def test_loopback_tcp_still_reachable(self, tmp_path: Path) -> None:
+        port = _free_port()
+        server = socket.socket()
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(("127.0.0.1", port))
+        server.listen(5)
+        server.settimeout(15)
+
+        def serve() -> None:
+            try:
+                while True:
+                    conn, _ = server.accept()
+                    conn.close()
+            except OSError:
+                pass
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        try:
+            script = tmp_path / "loopback.py"
+            script.write_text(
+                "import socket, sys\n"
+                "s = socket.socket()\n"
+                "s.settimeout(3)\n"
+                "try:\n"
+                "    s.connect(('127.0.0.1', int(sys.argv[1])))\n"
+                "    print('LOOPBACK_OK')\n"
+                "except OSError as exc:\n"
+                "    print(f'LOOPBACK_BLOCKED {type(exc).__name__}')\n"
+                "finally:\n"
+                "    s.close()\n",
+                encoding="utf-8",
+            )
+            profile = _write_profile(tmp_path, allow_network=False)
+
+            proc = _run_in_sandbox(profile, script, str(port))
+
+            assert "LOOPBACK_OK" in proc.stdout
+        finally:
+            server.close()
+            thread.join(timeout=5)
 
 
 class TestWorkspaceWritesUnaffected:

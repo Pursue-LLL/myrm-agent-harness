@@ -298,15 +298,17 @@ class TestSBPLProfile:
 
     def test_network_blocked(self) -> None:
         profile = _generate_sbpl_profile(SandboxPolicy(allow_network=False), "/workspace")
-        assert "Block outbound network" in profile
+        assert "Block egress" in profile
         # AF_UNIX must be allowed explicitly: (local tcp)/(local udp) do not cover it and
         # PTC reaches the host over a unix socket.
         assert "(allow network* (local udp) (local tcp) (local unix-socket))" in profile
         # Egress needs an explicit deny; an allow-list alone does not close anything.
         assert '(deny network* (remote ip "*:*"))' in profile
-        assert '(allow network* (remote ip "localhost:*"))' in profile
+        # Loopback must be granted again AFTER the blanket deny: a later deny wins.
+        deny_index = profile.index('(deny network* (remote ip "*:*"))')
+        assert '(allow network* (remote ip "localhost:*"))' in profile[deny_index:]
 
-    def test_network_allow_mode_grants_unix_sockets_implicitly(self) -> None:
+    def test_network_allow_mode_grants_everything(self) -> None:
         profile = _generate_sbpl_profile(SandboxPolicy(allow_network=True), "/workspace")
         assert "(allow network*)" in profile
         assert '(deny network* (remote ip "*:*"))' not in profile

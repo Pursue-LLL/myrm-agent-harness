@@ -119,16 +119,22 @@ def _generate_sbpl_profile(policy: SandboxPolicy, work_dir: str) -> str:
         lines.extend(
             [
                 "",
-                "; Block outbound network. Seatbelt grants nothing implicitly under (deny default),",
-                "; so an allow-list alone is not a denial: any destination not matching these",
-                "; allowances would still be reachable through the process's inherited sockets.",
-                "; The explicit (deny network* (remote ip \"*:*\")) is what actually closes egress.",
-                "; AF_UNIX is NOT covered by (local tcp)/(local udp) — PTC talks to the host over a",
-                "; unix socket in $TMPDIR, so (local unix-socket) must be allowed or every in-script",
-                "; MCP call fails with EPERM.",
+                "; Block egress. Two facts about SBPL drive this ordering, both verified against",
+                "; /usr/bin/sandbox-exec on this platform:",
+                ";   1. (deny default) alone does NOT block outbound connections — an allow-list of",
+                ";      local/loopback rules leaves every external destination reachable.",
+                ";   2. A later deny wins over an earlier allow, so a blanket",
+                ";      (deny network* (remote ip \"*:*\")) also severs loopback. Re-allowing",
+                ";      loopback AFTER the blanket deny is what keeps localhost working while",
+                ";      closing egress.",
+                "; AF_UNIX is not covered by (local tcp)/(local udp): PTC reaches the host over a",
+                "; unix socket in $TMPDIR, so (local unix-socket) must be present or every",
+                "; in-script MCP call fails with EPERM.",
                 "(allow network* (local udp) (local tcp) (local unix-socket))",
+                "; loopback must be granted twice: once before the blanket deny and once after it.",
                 '(allow network* (remote ip "localhost:*"))',
                 '(deny network* (remote ip "*:*"))',
+                '(allow network* (remote ip "localhost:*"))',
             ]
         )
 
