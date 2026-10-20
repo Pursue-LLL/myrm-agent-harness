@@ -34,7 +34,7 @@ import logging
 import os
 import secrets
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -42,7 +42,6 @@ from pydantic import BaseModel
 from myrm_agent_harness.agent.skills.mcp.ipc_socket import (
     SOCKET_DIR_MODE,
     SOCKET_FILE_MODE,
-    default_ipc_socket_path,
 )
 
 logger = logging.getLogger(__name__)

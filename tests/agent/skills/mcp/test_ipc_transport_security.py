@@ -22,8 +22,8 @@ import pytest
 
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Unix socket semantics")
 
-from myrm_agent_harness.agent.skills.mcp.ipc_proxy import MCPIPCServer  # noqa: E402
-from myrm_agent_harness.agent.skills.mcp.ipc_socket import default_ipc_socket_path  # noqa: E402
+from myrm_agent_harness.agent.skills.mcp.ipc_proxy import MCPIPCServer
+from myrm_agent_harness.agent.skills.mcp.ipc_socket import default_ipc_socket_path
 
 
 def _stats(path: str) -> os.stat_result:
