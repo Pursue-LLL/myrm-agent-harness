@@ -787,7 +787,7 @@ class TestRunSubagent:
 
         config = SubagentConfig(system_prompt="s", timeout_seconds=60)
         object.__setattr__(config, "timeout_seconds", 0.05)
-        with patch.object(SubagentManager, "_run_subagent_inner", slow_inner):
+        with patch.object(SubagentManager, "_run_subagent_core", slow_inner):
             result = await mgr._run_subagent(
                 task_id="t1",
                 agent_type="worker",
@@ -809,7 +809,7 @@ class TestRunSubagent:
             return expected
 
         config = SubagentConfig(system_prompt="s", timeout_seconds=60)
-        with patch.object(SubagentManager, "_run_subagent_inner", fast_inner):
+        with patch.object(SubagentManager, "_run_subagent_core", fast_inner):
             result = await mgr._run_subagent(
                 task_id="t1",
                 agent_type="worker",
@@ -831,7 +831,7 @@ class TestRunSubagent:
             return expected
 
         config = SubagentConfig(system_prompt="s", timeout_seconds=None)
-        with patch.object(SubagentManager, "_run_subagent_inner", fast_inner):
+        with patch.object(SubagentManager, "_run_subagent_core", fast_inner):
             result = await mgr._run_subagent(
                 task_id="t1",
                 agent_type="worker",
@@ -954,30 +954,6 @@ class TestCancelChildStrategies:
 
         assert result is True
         assert mgr._cancel_flags.get("t1") is True
-
-
-class TestRunSubagentInner:
-    """Tests for _run_subagent_inner — workspace policy dispatching."""
-
-    @pytest.mark.asyncio
-    async def test_delegates_to_core(self):
-        mgr = _make_manager()
-        expected = _ok("t1")
-
-        async def mock_core(self, *args, **kwargs):
-            return expected
-
-        with patch.object(SubagentManager, "_run_subagent_core", mock_core):
-            result = await mgr._run_subagent_inner(
-                task_id="t1",
-                agent_type="worker",
-                task_description="test",
-                config=SubagentConfig(system_prompt="s"),
-                context={},
-                tool_registry_getter=lambda: [],
-            )
-
-        assert result.success
 
 
 class TestEmitGlobalSubagentEvent:
