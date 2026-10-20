@@ -239,12 +239,14 @@ async def run_dynamic_workflow_stream(
         cancel_token=cancel_token,
         event_queue=notify_queue,
         message_id=message_id,
+        store=store,
     )
     llm_query_batched_tool = LlmQueryBatchedTool(
         parent_agent=parent_agent,
         cancel_token=cancel_token,
         event_queue=notify_queue,
         message_id=message_id,
+        store=store,
     )
 
     yield {

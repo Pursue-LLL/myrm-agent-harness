@@ -81,6 +81,16 @@ class WorkflowEventStore:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS llm_query_cache (
+                    query_hash TEXT PRIMARY KEY,
+                    result TEXT NOT NULL,
+                    model TEXT NOT NULL DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
             columns = {row[1] for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()}
             if "spawn_params_json" not in columns:
                 conn.execute("ALTER TABLE subagent_events ADD COLUMN spawn_params_json TEXT NOT NULL DEFAULT ''")
@@ -266,6 +276,40 @@ class WorkflowEventStore:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         except Exception:
             pass
+
+    def get_cached_llm_query(self, query_hash: str) -> str | None:
+        """Return a durably persisted ``llm_query`` answer, if any.
+
+        Durable replay previously covered ``spawn_subagent`` only, so a script that
+        timed out after paying for hundreds of ``llm_query`` calls re-issued and
+        re-billed every one of them on retry.
+        """
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT result FROM llm_query_cache WHERE query_hash = ?",
+                (query_hash,),
+            ).fetchone()
+        if row is None:
+            return None
+        value = row[0]
+        return str(value) if value is not None else None
+
+    def save_llm_query(
+        self,
+        query_hash: str,
+        result: str,
+        *,
+        model: str,
+    ) -> None:
+        """Persist one completed ``llm_query`` answer keyed by its request hash."""
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO llm_query_cache (query_hash, result, model)
+                VALUES (?, ?, ?)
+                """,
+                (query_hash, result, model),
+            )
 
     def save_orchestration_script(self, workflow_id: str, script_code: str) -> None:
         """Persist generated orchestration script for approval resume."""

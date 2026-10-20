@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
+import json
 import logging
 import time
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -156,6 +158,9 @@ class LlmQueryTool(BaseTool):
     cancel_token: object | None = None
     event_queue: asyncio.Queue[dict[str, object]] | None = None
     message_id: str | None = None
+    store: object | None = None
+    """Durable event store. When set, completed answers are replayed on retry so a
+    timed-out workflow does not re-bill the same prompts."""
 
     def _run(
         self,
@@ -247,6 +252,11 @@ class LlmQueryTool(BaseTool):
             model_name = _extract_model_name(llm)
         messages = _build_messages(prompt, system)
 
+        cache_key = _llm_query_cache_key(prompt, system, model_name, max_tokens, temperature)
+        cached = self._read_cache(cache_key)
+        if cached is not None:
+            return {"success": True, "result": cached, "model": model_name or "", "cached": True}
+
         invoke_kwargs: dict[str, Any] = {}
         if max_tokens is not None:
             invoke_kwargs["max_tokens"] = max_tokens
@@ -261,7 +271,59 @@ class LlmQueryTool(BaseTool):
             return {"success": False, "error": f"{type(exc).__name__}: {exc}"}
 
         content = extract_answer_text(response)
+        self._write_cache(cache_key, content, model_name or "")
         return {"success": True, "result": content, "model": model_name or ""}
+
+    def _read_cache(self, cache_key: str) -> str | None:
+        """Return a durable answer for an identical request, if one exists."""
+        if self.store is None:
+            return None
+        getter = getattr(self.store, "get_cached_llm_query", None)
+        if getter is None:
+            return None
+        try:
+            return getter(cache_key)
+        except Exception as exc:
+            logger.warning("llm_query cache read failed: %s", exc)
+            return None
+
+    def _write_cache(self, cache_key: str, content: str, model_name: str) -> None:
+        """Persist an answer so a retry of the same script does not re-bill it."""
+        if self.store is None:
+            return
+        saver = getattr(self.store, "save_llm_query", None)
+        if saver is None:
+            return
+        try:
+            saver(cache_key, content, model=model_name)
+        except Exception as exc:
+            logger.warning("llm_query cache write failed: %s", exc)
+
+
+def _llm_query_cache_key(
+    prompt: str,
+    system: str | None,
+    model_name: str | None,
+    max_tokens: int | None,
+    temperature: float | None,
+) -> str:
+    """Hash everything that determines the answer.
+
+    Sampling parameters are part of the key: the same prompt at temperature 0 and
+    temperature 1 are different requests and must not share a cached answer.
+    """
+    payload = json.dumps(
+        {
+            "prompt": prompt,
+            "system": system or "",
+            "model": model_name or "",
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 class LlmQueryBatchedTool(LlmQueryTool):
