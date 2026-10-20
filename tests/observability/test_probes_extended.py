@@ -539,9 +539,12 @@ class TestCheckQdrantHealth:
         ):
             report = await check_qdrant_health()
             assert report.status == "fail"
-            # The raw exception is for the log; the user-facing text names neither the backend nor the error.
-            assert "refused" not in report.detail
-            assert "qdrant" not in f"{report.message} {report.detail} {report.fix_suggestion}".lower()
+            # Contract (see vector_probe's header and BUG-HARNESS-2026-10-15-004): `detail` is the
+            # technical field a host shows on demand, so it carries the raw exception; `message` and
+            # `fix_suggestion` are the user-facing wording and name neither the backend nor the error.
+            assert "refused" in report.detail
+            assert "refused" not in f"{report.message} {report.fix_suggestion}".lower()
+            assert "qdrant" not in f"{report.message} {report.fix_suggestion}".lower()
             assert "refused" in caplog.text
 
 
