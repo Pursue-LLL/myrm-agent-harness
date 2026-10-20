@@ -39,7 +39,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from myrm_agent_harness.agent.skills.mcp.ipc_socket import (
+from myrm_agent_harness.core.network.ipc_socket import (
     SOCKET_DIR_MODE,
     SOCKET_FILE_MODE,
 )
@@ -85,6 +85,13 @@ class MCPIPCRequest(BaseModel):
     trace_id: str = ""
     session_id: str | None = None
     workspace_root: str | None = None
+    readonly_workspace: bool = False
+    """True when the caller runs under a read-only capability handle.
+
+    Sent explicitly instead of relying on the capability ContextVar: the IPC
+    handler runs in the server's asyncio task, which captured the ContextVar at
+    server-start time, so it cannot observe the calling run's handle.
+    """
     auth_token: str | None = None
     """Per-process bearer token; the server rejects requests that omit or fake it."""
 
@@ -230,6 +237,11 @@ class MCPIPCServer:
                 logger.warning(f"{log_prefix} Session budget exhausted: {request.session_id}")
                 return MCPIPCResponse(success=False, error=budget_error).model_dump_json()
 
+            policy_error = self._check_read_only_policy(request)
+            if policy_error is not None:
+                logger.warning(f"{log_prefix} Blocked by read-only policy: {request.skill_name}.{request.tool_name}")
+                return MCPIPCResponse(success=False, error=policy_error).model_dump_json()
+
             logger.info(f"{log_prefix} Request: {request.skill_name}.{request.tool_name}")
 
             # Per-call context for builtin handlers (notify/...).
@@ -298,6 +310,34 @@ class MCPIPCServer:
             )
         self._session_calls[key] = used + 1
         return None
+
+    def _check_read_only_policy(self, request: MCPIPCRequest) -> str | None:
+        """Enforce the caller's read-only scope on MCP calls made from scripts.
+
+        The direct Function-Calling path drops or blocks non-read-only MCP tools
+        inside a read-only sandbox. Scripts bypassed that filtering entirely, so a
+        read-only verifier could still mutate external state through PTC. This is
+        the enforcement point for that path.
+
+        Returns an error message when blocked, else ``None``.
+        """
+        from myrm_agent_harness.agent.skills.mcp.builtin_registry import BUILTIN_SKILL_NAME
+
+        # Builtins (notify) do not touch external state.
+        if not request.readonly_workspace or request.skill_name == BUILTIN_SKILL_NAME:
+            return None
+
+        from myrm_agent_harness.core.security.tool_registry.registry import (
+            get_ptc_safety_metadata,
+        )
+
+        entry = get_ptc_safety_metadata(request.skill_name, request.tool_name)
+        if entry is not None and entry[0].is_read_only:
+            return None
+        return (
+            f"MCP tool '{request.skill_name}.{request.tool_name}' is blocked: the calling run "
+            "is in a read-only sandbox. Only tools declaring readOnlyHint may run here."
+        )
 
 
 # 全局 IPC 服务端实例

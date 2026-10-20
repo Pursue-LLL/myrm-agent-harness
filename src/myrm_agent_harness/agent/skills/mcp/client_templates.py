@@ -251,6 +251,7 @@ def generate_ipc_client_code(
     workspace_root: str | None = None,
     read_only_tools: frozenset[str] | None = None,
     auth_token: str | None = None,
+    readonly_workspace: bool = False,
 ) -> str:
     """生成 Unix Socket IPC 客户端代码。
 
@@ -261,6 +262,7 @@ def generate_ipc_client_code(
         read_only_tools: 声明 ``readOnlyHint`` 的 ``skill.tool`` 全名集合。只有这些
             调用允许在网络中断后重试；写操作重放会造成重复副作用。
         auth_token: 服务端下发的进程内 bearer token，缺失时服务端会拒绝请求。
+        readonly_workspace: 调用方是否在只读沙箱中运行；服务端据此拒绝写类 MCP 工具。
     """
     base = _generate_base_code()
     module_system = _generate_module_system()
@@ -270,6 +272,7 @@ def generate_ipc_client_code(
     workspace_literal = json.dumps(workspace_root) if workspace_root is not None else "None"
     read_only_literal = json.dumps(sorted(read_only_tools or ()))
     token_literal = json.dumps(auth_token) if auth_token is not None else "None"
+    readonly_literal = "True" if readonly_workspace else "False"
 
     return f'''
 import sys, types, json, asyncio, uuid
@@ -281,6 +284,7 @@ _SESSION_ID = {session_literal}
 _WORKSPACE_ROOT = {workspace_literal}
 _READ_ONLY_TOOLS = frozenset({read_only_literal})
 _AUTH_TOKEN = {token_literal}
+_READONLY_WORKSPACE = {readonly_literal}
 
 {base}
 {module_system}
@@ -296,6 +300,7 @@ async def _ipc_request(skill: str, tool: str, params: dict):
         "session_id": _SESSION_ID,
         "workspace_root": _WORKSPACE_ROOT,
         "auth_token": _AUTH_TOKEN,
+        "readonly_workspace": _READONLY_WORKSPACE,
     }}
 
     data = json.dumps(request).encode()

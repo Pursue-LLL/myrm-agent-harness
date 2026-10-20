@@ -23,7 +23,7 @@ import pytest
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Unix socket semantics")
 
 from myrm_agent_harness.agent.skills.mcp.ipc_proxy import MCPIPCServer
-from myrm_agent_harness.agent.skills.mcp.ipc_socket import default_ipc_socket_path
+from myrm_agent_harness.core.network.ipc_socket import default_ipc_socket_path
 
 
 def _stats(path: str) -> os.stat_result:
@@ -140,3 +140,77 @@ def test_call_budget_is_enforced_per_session() -> None:
     assert responses[1]["success"] is True
     assert responses[2]["success"] is False
     assert "budget" in str(responses[2]["error"]).lower()
+
+
+def _request_once(server: MCPIPCServer, body: dict[str, object]) -> dict[str, object]:
+    async def _run() -> dict[str, object]:
+        await server.start()
+        try:
+            payload = json.dumps({**body, "auth_token": server.auth_token}).encode()
+            reader, writer = await asyncio.open_unix_connection(server.socket_path)
+            writer.write(len(payload).to_bytes(4, "big") + payload)
+            await writer.drain()
+            size = int.from_bytes(await reader.readexactly(4), "big")
+            result = json.loads(await reader.readexactly(size))
+            writer.close()
+            await writer.wait_closed()
+            return result
+        finally:
+            await server.stop()
+
+    return asyncio.run(_run())
+
+
+def _register_mcp_tool(*, read_only: bool) -> None:
+    from myrm_agent_harness.core.security.tool_registry.registry import (
+        register_ptc_safety_metadata,
+    )
+    from myrm_agent_harness.core.security.tool_registry.safety_table import SafetyMetadata
+
+    register_ptc_safety_metadata(
+        "mcp_demo_skill",
+        "create-record",
+        SafetyMetadata(is_read_only=read_only),
+        {"readOnlyHint": read_only},
+    )
+
+
+def test_read_only_scope_blocks_mutating_mcp_tool() -> None:
+    """A read-only verifier must not mutate external state through a script."""
+    _register_mcp_tool(read_only=False)
+    server = MCPIPCServer(default_ipc_socket_path())
+
+    body = _request_once(
+        server,
+        {
+            "skill_name": "mcp_demo_skill",
+            "tool_name": "create-record",
+            "params": {},
+            "session_id": "s1",
+            "readonly_workspace": True,
+        },
+    )
+
+    assert body["success"] is False
+    assert "read-only" in str(body["error"]).lower()
+
+
+def test_read_only_scope_allows_read_only_mcp_tool() -> None:
+    """readOnlyHint tools remain usable inside a read-only sandbox."""
+    _register_mcp_tool(read_only=True)
+    server = MCPIPCServer(default_ipc_socket_path())
+
+    body = _request_once(
+        server,
+        {
+            "skill_name": "mcp_demo_skill",
+            "tool_name": "create-record",
+            "params": {},
+            "session_id": "s1",
+            "readonly_workspace": True,
+        },
+    )
+
+    # The tool has no real MCP config registered, so dispatch fails on lookup;
+    # what matters is that the policy gate let the call through.
+    assert "read-only" not in str(body.get("error") or "").lower()

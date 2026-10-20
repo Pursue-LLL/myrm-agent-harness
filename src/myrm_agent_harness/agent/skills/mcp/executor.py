@@ -87,6 +87,7 @@ class SkillExecutor:
         ipc_socket_path: str,
         session_id: str | None = None,
         workspace_root: str | None = None,
+        readonly_workspace: bool = False,
     ) -> SkillExecutionContext:
         """准备代码执行
 
@@ -101,6 +102,7 @@ class SkillExecutor:
             ipc_socket_path: IPC Unix Socket 路径
             session_id: 当前会话 ID（用于 builtin 会话上下文）
             workspace_root: 沙箱挂载的工作目录（host 视角的绝对路径）
+            readonly_workspace: 调用方是否处于只读沙箱；IPC 服务端据此拒绝写类 MCP 工具
 
         Returns:
             SkillExecutionContext 包含预处理后的代码
@@ -133,6 +135,7 @@ class SkillExecutor:
             session_id=session_id,
             workspace_root=workspace_root,
             read_only_tools=self._collect_read_only_tools(identifier),
+            readonly_workspace=readonly_workspace,
         )
         prepared_code = f"{ipc_client_code}\n\n# === User Code ===\n{python_code}"
 
@@ -271,6 +274,7 @@ class SkillExecutor:
         session_id: str | None = None,
         workspace_root: str | None = None,
         read_only_tools: frozenset[str] | None = None,
+        readonly_workspace: bool = False,
     ) -> str:
         """生成 MCP IPC 客户端代码
 
@@ -281,6 +285,7 @@ class SkillExecutor:
             session_id: 当前会话 ID
             workspace_root: 沙箱挂载的工作目录
             read_only_tools: 允许断连重试的 `skill.tool` 集合（仅 readOnlyHint）
+            readonly_workspace: 调用方是否处于只读沙箱
 
         Returns:
             MCP 客户端代码字符串
@@ -293,6 +298,7 @@ class SkillExecutor:
             workspace_root=workspace_root,
             read_only_tools=read_only_tools,
             auth_token=self._resolve_ipc_auth_token(),
+            readonly_workspace=readonly_workspace,
         )
 
     @staticmethod

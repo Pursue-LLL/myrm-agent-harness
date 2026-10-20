@@ -79,6 +79,7 @@ class BashExecutorExecuteMixin:
             command,
             session_id=session_id,
             workspace_root=workspace_root_str,
+            readonly_workspace=self._is_read_only_scope(),
         )
 
         if not use_python_execution:
