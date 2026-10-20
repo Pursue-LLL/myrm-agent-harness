@@ -1,3 +1,24 @@
+"""myrm_agent_harness/agent/sub_agents/graph_triage/types.py
+
+[INPUT]
+- enum
+- pydantic
+
+[OUTPUT]
+- TaskComplexityCategory
+- TriageVerdict
+- BudgetStatus
+- TriageFeatureVector
+- GraphTriageDecision
+- BudgetCapConfig
+- ExecutionSpendState
+- PartialNodeOutput
+- PartialReduceReport
+
+[POS]
+myrm_agent_harness/agent/sub_agents/graph_triage/types.py
+"""
+
 from enum import StrEnum
 
 from pydantic import BaseModel, Field

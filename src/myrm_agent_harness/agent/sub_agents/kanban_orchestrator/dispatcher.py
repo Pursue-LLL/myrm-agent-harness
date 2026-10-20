@@ -1,4 +1,17 @@
-"""Kanban Card Lifecycle Dispatcher with Card-Scoped Sandboxes and Auto-Unblock Cascades."""
+"""Kanban Card Lifecycle Dispatcher with Card-Scoped Sandboxes and Auto-Unblock Cascades.
+
+[INPUT]
+- __future__
+- time
+- uuid
+
+[OUTPUT]
+- KanbanCardLifecycleDispatcher
+
+[POS]
+Kanban Card Lifecycle Dispatcher with Card-Scoped Sandboxes and Auto-Unblock Cascades.
+
+"""
 
 from __future__ import annotations
 

@@ -1,3 +1,16 @@
+"""myrm_agent_harness/agent/sub_agents/orthogonal_reviewer/intent_reviewer.py
+
+[INPUT]
+- time
+- uuid
+
+[OUTPUT]
+- IntentAlignmentReviewer
+
+[POS]
+myrm_agent_harness/agent/sub_agents/orthogonal_reviewer/intent_reviewer.py
+"""
+
 import time
 import uuid
 

@@ -1,3 +1,23 @@
+"""myrm_agent_harness/agent/sub_agents/fleet_router/types.py
+
+[INPUT]
+- enum
+- pydantic
+
+[OUTPUT]
+- GatewayStatus
+- GatewayPlatform
+- GatewayTelemetry
+- GatewayNode
+- FleetProfile
+- OfflineBufferedCommand
+- CrossGatewayArtifactEnvelope
+- FleetTopologySnapshot
+
+[POS]
+myrm_agent_harness/agent/sub_agents/fleet_router/types.py
+"""
+
 from enum import StrEnum
 
 from pydantic import BaseModel, Field

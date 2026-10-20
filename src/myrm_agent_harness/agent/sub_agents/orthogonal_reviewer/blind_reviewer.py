@@ -1,3 +1,17 @@
+"""myrm_agent_harness/agent/sub_agents/orthogonal_reviewer/blind_reviewer.py
+
+[INPUT]
+- re
+- time
+- uuid
+
+[OUTPUT]
+- BlindCleanContextReviewer
+
+[POS]
+myrm_agent_harness/agent/sub_agents/orthogonal_reviewer/blind_reviewer.py
+"""
+
 import re
 import time
 import uuid

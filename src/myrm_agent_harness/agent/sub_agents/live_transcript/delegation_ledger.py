@@ -3,6 +3,20 @@
 
 Provides crash-resilient storage, status lifecycle tracking, and orphan task
 recovery for background delegated subagents, guaranteeing task durability.
+
+[INPUT]
+- json
+- os
+- tempfile
+- time
+- threading
+- typing
+
+[OUTPUT]
+- PersistentDelegationLedger
+
+[POS]
+Persistent Delegation Ledger.
 """
 
 import json

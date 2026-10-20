@@ -3,6 +3,20 @@
 
 Emits human-readable structured telemetry for delegated subagents,
 eliminating black-box wait times and enabling real-time UI tree rendering.
+
+[INPUT]
+- time
+- typing
+- threading
+- types
+
+[OUTPUT]
+- TranscriptSubscriber
+- MAX_PAYLOAD_STRING_LEN
+- SubagentLiveTranscriptEmitter
+
+[POS]
+Subagent Live Transcript Emitter.
 """
 
 import time

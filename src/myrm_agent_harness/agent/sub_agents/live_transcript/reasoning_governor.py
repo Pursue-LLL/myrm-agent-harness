@@ -4,6 +4,19 @@
 Dynamically allocates reasoning intensity (low, medium, max, ultra) and token
 budgets across different Mixture-of-Agents (MoA) roles to optimize output quality
 while keeping token consumption strictly governed.
+
+[INPUT]
+- threading
+- typing
+- types
+
+[OUTPUT]
+- ROLE_EFFORT_MAP
+- EFFORT_TOKEN_BUDGETS
+- MoAReasoningEffortGovernor
+
+[POS]
+MoA Reasoning Effort Governor.
 """
 
 from threading import Lock

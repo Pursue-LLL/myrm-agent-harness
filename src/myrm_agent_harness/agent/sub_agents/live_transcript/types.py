@@ -2,6 +2,26 @@
 """Data types for Subagent Live Transcript, Persistent Delegation, and Smart Approvals.
 
 Aligned with Hermes v0.19 delegation transparency, persistent ledger, and MoA reasoning.
+
+[INPUT]
+- enum
+- typing
+- pydantic
+
+[OUTPUT]
+- JsonPrimitive
+- JsonValue
+- TranscriptEventKind
+- TaskDelegationStatus
+- ReasoningEffortLevel
+- ApprovalDecision
+- SubagentTranscriptEvent
+- DelegationTaskRecord
+- SmartApprovalRequest
+- SmartApprovalResolution
+
+[POS]
+Data types for Subagent Live Transcript, Persistent Delegation, and Smart Approvals.
 """
 
 from enum import Enum

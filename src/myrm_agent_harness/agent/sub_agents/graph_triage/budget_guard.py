@@ -1,3 +1,15 @@
+"""myrm_agent_harness/agent/sub_agents/graph_triage/budget_guard.py
+
+[INPUT]
+- (none — 标准库与内建依赖)
+
+[OUTPUT]
+- PredictiveBudgetGuard
+
+[POS]
+myrm_agent_harness/agent/sub_agents/graph_triage/budget_guard.py
+"""
+
 from myrm_agent_harness.agent.sub_agents.graph_triage.types import (
     BudgetCapConfig,
     BudgetStatus,

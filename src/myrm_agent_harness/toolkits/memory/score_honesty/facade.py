@@ -2,6 +2,16 @@
 
 Provides an intuitive, high-level API for evaluating candidates, computing
 score breakdowns, applying dual-threshold gates, and diagnosing divergence.
+
+[INPUT]
+- __future__
+- collections
+
+[OUTPUT]
+- RetrievalScoreHonestySuite
+
+[POS]
+Facade suite for retrieval score honesty and raw vs ranking calibration.
 """
 
 from __future__ import annotations

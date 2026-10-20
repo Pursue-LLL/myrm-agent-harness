@@ -1,4 +1,25 @@
-"""Type definitions and domain models for Multi-Agent Kanban Orchestrator and Card Lifecycle Dispatcher."""
+"""Type definitions and domain models for Multi-Agent Kanban Orchestrator and Card Lifecycle Dispatcher.
+
+[INPUT]
+- __future__
+- enum
+- pydantic
+
+[OUTPUT]
+- KanbanLaneEnum
+- CardPriorityEnum
+- CardArtifactDTO
+- KanbanCardDTO
+- KanbanBoardStateDTO
+- KanbanDependencyCycleError
+- KanbanCardNotFoundError
+- InvalidKanbanTransitionError
+- KanbanBlockedCardError
+
+[POS]
+Type definitions and domain models for Multi-Agent Kanban Orchestrator and Card Lifecycle Dispatcher.
+
+"""
 
 from __future__ import annotations
 

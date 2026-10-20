@@ -1,3 +1,15 @@
+"""myrm_agent_harness/agent/sub_agents/fleet_router/__init__.py
+
+[INPUT]
+- (none — 标准库与内建依赖)
+
+[OUTPUT]
+- (模块级副作用与注册)
+
+[POS]
+myrm_agent_harness/agent/sub_agents/fleet_router/__init__.py
+"""
+
 from myrm_agent_harness.agent.sub_agents.fleet_router.artifact_relay import (
     CrossGatewayArtifactRelayService,
 )

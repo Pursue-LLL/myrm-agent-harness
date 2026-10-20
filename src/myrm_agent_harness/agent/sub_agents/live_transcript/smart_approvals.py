@@ -3,6 +3,21 @@
 
 Provides isolated single-command review, risk scoring, custom deny rules,
 and interactive /deny feedback remediation to keep subagents safe and aligned.
+
+[INPUT]
+- hashlib
+- re
+- time
+- threading
+- typing
+- types
+
+[OUTPUT]
+- HIGH_RISK_PATTERNS
+- SmartApprovalGate
+
+[POS]
+Smart Approvals Gate.
 """
 
 import hashlib

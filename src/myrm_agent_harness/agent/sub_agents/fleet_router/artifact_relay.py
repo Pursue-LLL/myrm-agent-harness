@@ -1,3 +1,17 @@
+"""myrm_agent_harness/agent/sub_agents/fleet_router/artifact_relay.py
+
+[INPUT]
+- hashlib
+- time
+- uuid
+
+[OUTPUT]
+- CrossGatewayArtifactRelayService
+
+[POS]
+myrm_agent_harness/agent/sub_agents/fleet_router/artifact_relay.py
+"""
+
 import hashlib
 import time
 import uuid

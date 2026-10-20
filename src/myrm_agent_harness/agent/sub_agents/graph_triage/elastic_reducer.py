@@ -1,3 +1,15 @@
+"""myrm_agent_harness/agent/sub_agents/graph_triage/elastic_reducer.py
+
+[INPUT]
+- (none — 标准库与内建依赖)
+
+[OUTPUT]
+- ElasticConcurrencyReducer
+
+[POS]
+myrm_agent_harness/agent/sub_agents/graph_triage/elastic_reducer.py
+"""
+
 from myrm_agent_harness.agent.sub_agents.graph_triage.types import (
     BudgetStatus,
     ExecutionSpendState,

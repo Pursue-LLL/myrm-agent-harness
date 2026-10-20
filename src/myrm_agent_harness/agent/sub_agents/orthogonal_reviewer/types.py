@@ -1,3 +1,22 @@
+"""myrm_agent_harness/agent/sub_agents/orthogonal_reviewer/types.py
+
+[INPUT]
+- enum
+- pydantic
+
+[OUTPUT]
+- ReviewerPerspective
+- FindingSeverity
+- FindingCategory
+- ArbitrationStatus
+- ReviewFinding
+- ReviewerReport
+- ArbitrationVerdict
+
+[POS]
+myrm_agent_harness/agent/sub_agents/orthogonal_reviewer/types.py
+"""
+
 from enum import StrEnum
 
 from pydantic import BaseModel, Field

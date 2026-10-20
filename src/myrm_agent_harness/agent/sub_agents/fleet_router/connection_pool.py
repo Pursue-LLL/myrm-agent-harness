@@ -1,3 +1,20 @@
+"""myrm_agent_harness/agent/sub_agents/fleet_router/connection_pool.py
+
+[INPUT]
+- time
+- uuid
+
+[OUTPUT]
+- FleetRouterError
+- GatewayNotFoundError
+- GatewayOfflineError
+- DuplicateGatewayError
+- MultiGatewayConnectionPool
+
+[POS]
+myrm_agent_harness/agent/sub_agents/fleet_router/connection_pool.py
+"""
+
 import time
 import uuid
 

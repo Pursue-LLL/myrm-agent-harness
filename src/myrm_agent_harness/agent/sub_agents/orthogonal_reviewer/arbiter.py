@@ -1,3 +1,15 @@
+"""myrm_agent_harness/agent/sub_agents/orthogonal_reviewer/arbiter.py
+
+[INPUT]
+- (none — 标准库与内建依赖)
+
+[OUTPUT]
+- OrthogonalReviewArbiter
+
+[POS]
+myrm_agent_harness/agent/sub_agents/orthogonal_reviewer/arbiter.py
+"""
+
 from myrm_agent_harness.agent.sub_agents.orthogonal_reviewer.blind_reviewer import (
     BlindCleanContextReviewer,
 )

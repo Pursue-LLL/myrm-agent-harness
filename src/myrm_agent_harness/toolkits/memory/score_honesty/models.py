@@ -3,6 +3,22 @@
 Provides strongly-typed schemas for separating raw semantic vector similarity
 from multi-stage pipeline ranking scores, preventing threshold corruption and
 enabling white-box explainability.
+
+[INPUT]
+- __future__
+- enum
+- pydantic
+
+[OUTPUT]
+- RejectionStage
+- ScoreBreakdown
+- DualThresholdConfig
+- ThresholdEvaluationVerdict
+- HonestScoredCandidate
+- ScoreHonestyStats
+
+[POS]
+Score honesty and raw vs ranking models.
 """
 
 from __future__ import annotations

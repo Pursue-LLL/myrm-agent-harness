@@ -1,3 +1,15 @@
+"""myrm_agent_harness/agent/sub_agents/graph_triage/triage_gate.py
+
+[INPUT]
+- re
+
+[OUTPUT]
+- GraphApplicabilityTriageGate
+
+[POS]
+myrm_agent_harness/agent/sub_agents/graph_triage/triage_gate.py
+"""
+
 import re
 
 from myrm_agent_harness.agent.sub_agents.graph_triage.types import (

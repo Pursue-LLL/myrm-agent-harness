@@ -2,6 +2,16 @@
 
 Evaluates raw vector similarity and multi-stage composite ranking scores
 independently, preventing threshold corruption and computing attribution breakdowns.
+
+[INPUT]
+- __future__
+- collections
+
+[OUTPUT]
+- ScoreHonestyPipeline
+
+[POS]
+Core score honesty and dual-threshold processing pipeline.
 """
 
 from __future__ import annotations

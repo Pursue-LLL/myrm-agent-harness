@@ -2,6 +2,15 @@
 
 Physical interception, ephemeral AES-GCM vault isolation, and human release card support
 for inbound emails, messages, and webhooks containing OTPs, reset links, or credentials.
+
+[INPUT]
+- __future__
+
+[OUTPUT]
+- (模块级副作用与注册)
+
+[POS]
+Inbound Zero-Trust Quarantine & Redaction Gate Suite.
 """
 
 from __future__ import annotations

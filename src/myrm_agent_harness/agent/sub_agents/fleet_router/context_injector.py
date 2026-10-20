@@ -1,3 +1,15 @@
+"""myrm_agent_harness/agent/sub_agents/fleet_router/context_injector.py
+
+[INPUT]
+- (none — 标准库与内建依赖)
+
+[OUTPUT]
+- HostGatewayContextInjector
+
+[POS]
+myrm_agent_harness/agent/sub_agents/fleet_router/context_injector.py
+"""
+
 
 from myrm_agent_harness.agent.sub_agents.fleet_router.connection_pool import (
     MultiGatewayConnectionPool,

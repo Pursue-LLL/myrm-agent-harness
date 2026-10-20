@@ -1,4 +1,15 @@
-"""DAG dependency calculation and topological analysis for Multi-Agent Kanban Orchestrator."""
+"""DAG dependency calculation and topological analysis for Multi-Agent Kanban Orchestrator.
+
+[INPUT]
+- __future__
+
+[OUTPUT]
+- KanbanTaskDagEngine
+
+[POS]
+DAG dependency calculation and topological analysis for Multi-Agent Kanban Orchestrator.
+
+"""
 
 from __future__ import annotations
 
