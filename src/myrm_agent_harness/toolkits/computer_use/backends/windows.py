@@ -46,22 +46,7 @@ _MODIFIER_TO_PYAUTOGUI: dict[ModifierKey, str] = {
 }
 
 
-def _load_pyautogui() -> object:
-    """Import ``pyautogui`` inside a call so a host without it gets an ActionResult, not a crash.
-
-    The dependency is declared for win32 only, yet this backend is importable everywhere (the
-    pointer guard is unit-tested on any platform). Importing at call sites instead of at module
-    level keeps ``import WindowsBackend`` working, and keeping the import inside each method's
-    ``try`` turns a missing optional dependency into ``ActionResult(success=False)``.
-    """
-    import pyautogui
-
-    return pyautogui
-
-
 class WindowsBackend:
-    """Windows screen I/O via mss + pyautogui + ctypes."""
-
     def __init__(self) -> None:
         self._screen_info: ScreenInfo | None = None
         self._excluded_capture_titles: frozenset[str] = frozenset()
@@ -119,7 +104,7 @@ class WindowsBackend:
 
         pyautogui_keys: list[str] = []
         try:
-            pyautogui = _load_pyautogui()
+            import pyautogui
             pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
             for key in pyautogui_keys:
                 await asyncio.to_thread(pyautogui.keyDown, key)
@@ -141,7 +126,7 @@ class WindowsBackend:
         """Type text — ASCII via pyautogui.write(), non-ASCII via clipboard paste (Ctrl+V)."""
         try:
             if text.isascii():
-                pyautogui = _load_pyautogui()
+                import pyautogui
 
                 interval = delay_ms / 1000.0
                 for i in range(0, len(text), chunk_size):
@@ -170,7 +155,7 @@ class WindowsBackend:
 
         try:
             if secret_text.isascii():
-                pyautogui = _load_pyautogui()
+                import pyautogui
 
                 interval = 12 / 1000.0
                 # pyautogui.write calls OS APIs directly, no subprocess arguments exposed
@@ -183,7 +168,7 @@ class WindowsBackend:
 
     async def _paste_text(self, text: str) -> None:
         """Type non-ASCII text via clipboard paste (Ctrl+V), preserving original clipboard."""
-        pyautogui = _load_pyautogui()
+        import pyautogui
 
         saved = await asyncio.to_thread(_get_clipboard)
         await asyncio.to_thread(_set_clipboard, text)
@@ -195,7 +180,7 @@ class WindowsBackend:
 
     async def key(self, keys: str) -> ActionResult:
         try:
-            pyautogui = _load_pyautogui()
+            import pyautogui
             parts = [k.strip() for k in keys.split("+")]
             if len(parts) > 1:
                 await asyncio.to_thread(pyautogui.hotkey, *parts)
@@ -210,7 +195,7 @@ class WindowsBackend:
             return occluded
 
         try:
-            pyautogui = _load_pyautogui()
+            import pyautogui
             await asyncio.to_thread(pyautogui.moveTo, x, y)
             return ActionResult(success=True)
         except Exception as e:
@@ -229,7 +214,7 @@ class WindowsBackend:
 
         pyautogui_keys: list[str] = []
         try:
-            pyautogui = _load_pyautogui()
+            import pyautogui
             pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
             await asyncio.to_thread(pyautogui.moveTo, x, y)
             for key in pyautogui_keys:
@@ -261,7 +246,7 @@ class WindowsBackend:
 
         pyautogui_keys: list[str] = []
         try:
-            pyautogui = _load_pyautogui()
+            import pyautogui
             pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
             for key in pyautogui_keys:
                 await asyncio.to_thread(pyautogui.keyDown, key)
@@ -294,7 +279,7 @@ class WindowsBackend:
         return self._screen_info
 
     def screen_context(self) -> ScreenContext:
-        pyautogui = _load_pyautogui()
+        import pyautogui
 
         pos = pyautogui.position()
         return ScreenContext(
@@ -413,7 +398,7 @@ def _detect_screen_info() -> tuple[int, int, float]:
         return width, height, dpi_scale
     except Exception:
         # Absolute fallback
-        pyautogui = _load_pyautogui()
+        import pyautogui
 
         size = pyautogui.size()
         return size.width, size.height, 1.0
