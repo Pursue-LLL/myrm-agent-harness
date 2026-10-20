@@ -48,7 +48,11 @@ def extract_python_from_bash(command: str) -> str | None:
     if code is not None:
         return code
 
-    if SKILL_IMPORT_RE.search(command) or TOOLS_IMPORT_RE.search(command):
+    if (
+        SKILL_IMPORT_RE.search(command)
+        or TOOLS_IMPORT_RE.search(command)
+        or _IMPORT_STYLE_SKILL_RE.search(command)
+    ):
         if _looks_like_shell_wrapper(command):
             return None
         return command
@@ -150,6 +154,109 @@ def validate_python_syntax(code: str) -> str | None:
 
 SKILL_IMPORT_RE = re.compile(r"from\s+(?:skills\.)?([\w]+_skill)(?:\.\w+)?\s+import")
 TOOLS_IMPORT_RE = re.compile(r"(?:from\s+tools\.\w+\s+import|import\s+tools\.)")
+
+_IMPORT_STYLE_SKILL_RE = re.compile(
+    r"(?:^\s*import\s+(?:skills\.)?[\w]+_skill\b)"
+    r"|(?:import_module\s*\(\s*['\"]skills\.[\w]+_skill['\"])"
+    r"|(?:__import__\s*\(\s*['\"](?:skills\.)?[\w]+_skill['\"])",
+    re.MULTILINE,
+)
+"""Bare ``import skills.x_skill`` / dynamic import statements for raw-Python extraction.
+
+``SKILL_IMPORT_RE`` only covers ``from ... import``, so a bare-module import used
+as raw shell input was never recognized as Python and never reached PTC.
+"""
+
+_SKILL_MODULE_MARKER = "_skill"
+_TOOLS_MODULE = "tools"
+_SKILLS_PACKAGE = "skills"
+
+
+def detect_ptc_imports(code: str) -> tuple[bool, str | None] | None:
+    """Detect PTC imports in Python source using AST.
+
+    Regex matching only covers ``from x import y``; it silently misses
+    ``import skills.foo_skill``, ``import skills.foo_skill as s``, and dynamic
+    ``importlib.import_module`` / ``__import__`` forms, which made PTC routing
+    fail-open for perfectly valid scripts. AST covers every static form.
+
+    Returns:
+        ``(True, skill_name)`` for an MCP skill import, ``(True, "__builtin__")``
+        for ``tools.*``, ``(False, None)`` when the code parses but imports
+        nothing PTC-related, or ``None`` when the source is not parseable so the
+        caller can fall back to regex heuristics.
+    """
+    import ast
+
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return None
+
+    skill_name: str | None = None
+    builtin_found = False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                parts = alias.name.split(".")
+                if parts[0] == _TOOLS_MODULE:
+                    builtin_found = True
+                elif parts[0] == _SKILLS_PACKAGE and len(parts) > 1 and parts[1].endswith(_SKILL_MODULE_MARKER):
+                    skill_name = skill_name or parts[1]
+                elif parts[0].endswith(_SKILL_MODULE_MARKER):
+                    skill_name = skill_name or parts[0]
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            parts = node.module.split(".")
+            if parts[0] == _TOOLS_MODULE:
+                builtin_found = True
+            elif parts[0] == _SKILLS_PACKAGE and len(parts) > 1 and parts[1].endswith(_SKILL_MODULE_MARKER):
+                skill_name = skill_name or parts[1]
+            elif parts[0].endswith(_SKILL_MODULE_MARKER):
+                skill_name = skill_name or parts[0]
+
+    if skill_name:
+        return True, skill_name
+    if builtin_found:
+        return True, "__builtin__"
+
+    dynamic = _detect_dynamic_ptc_import(tree)
+    if dynamic is not None:
+        return dynamic
+    return False, None
+
+
+def _detect_dynamic_ptc_import(tree: object) -> tuple[bool, str | None] | None:
+    """Detect ``importlib.import_module("skills.x_skill")`` / ``__import__(...)``.
+
+    Only literal first arguments are inspected: a computed module name cannot be
+    resolved statically, and guessing would route non-PTC code into the sandbox.
+    """
+    import ast
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        is_dynamic = (
+            isinstance(func, ast.Name)
+            and func.id == "__import__"
+            or isinstance(func, ast.Attribute)
+            and func.attr == "import_module"
+        )
+        if not is_dynamic or not node.args:
+            continue
+        first = node.args[0]
+        if not isinstance(first, ast.Constant) or not isinstance(first.value, str):
+            continue
+        parts = first.value.split(".")
+        if parts[0] == _TOOLS_MODULE:
+            return True, "__builtin__"
+        if parts[0] == _SKILLS_PACKAGE and len(parts) > 1 and parts[1].endswith(_SKILL_MODULE_MARKER):
+            return True, parts[1]
+        if parts[0].endswith(_SKILL_MODULE_MARKER):
+            return True, parts[0]
+    return None
 
 # ---------------------------------------------------------------------------
 # Internal helpers

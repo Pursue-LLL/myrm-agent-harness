@@ -30,6 +30,9 @@ from myrm_agent_harness.toolkits.code_execution.python_extractor import (
 from myrm_agent_harness.toolkits.code_execution.python_extractor import (
     TOOLS_IMPORT_RE as TOOLS_IMPORT_PATTERN,
 )
+from myrm_agent_harness.toolkits.code_execution.python_extractor import (
+    detect_ptc_imports,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +163,7 @@ class SkillExecutor:
     def _detect_ptc_in_code(self, code: str) -> tuple[bool, str | None]:
         """检测代码中是否包含 PTC 调用
 
-        优先检测 MCP 技能，再检测内置工具。
+        优先用 AST 精确判定所有 import 形式，语法错误时回退到正则。
 
         Args:
             code: Python 代码
@@ -168,6 +171,13 @@ class SkillExecutor:
         Returns:
             (is_ptc, identifier) - 是否是 PTC 调用，MCP 技能名或 "__builtin__"
         """
+        detected = detect_ptc_imports(code)
+        if detected is not None:
+            return detected
+        return self._detect_ptc_by_regex(code)
+
+    def _detect_ptc_by_regex(self, code: str) -> tuple[bool, str | None]:
+        """正则回退：仅在代码无法解析成 AST（语法错误、片段代码）时使用。"""
         skill_match = SKILL_NAME_PATTERN.search(code)
         if skill_match:
             return True, skill_match.group(1)
@@ -214,7 +224,7 @@ class SkillExecutor:
         """
         from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 
-        skill_meta = skill_registry.get_skill(skill_name)
+        skill_meta = skill_registry.get_mcp_skill_for_ipc(skill_name)
         if not skill_meta or not skill_meta.is_mcp_skill or not skill_meta.mcp:
             return None
 
