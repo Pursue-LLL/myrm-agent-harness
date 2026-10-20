@@ -41,7 +41,16 @@ Child Process ← myrm_tools.py (generated stubs for allowed tools only)
 
 ## Key Design Decisions
 
-1. **UDS default, TCP fallback** — UDS provides zero-TCP-handshake latency and filesystem-based auth (chmod 600). TCP for Windows only. The socket lives in a per-PID private directory and the server mints a per-process bearer token compared in constant time; a request without the token is rejected. Track 1 (MCP PTC) applies the same pair — 0600 socket plus a per-session call budget — in `agent/skills/mcp/ipc_proxy.py`.
+1. **UDS default, TCP fallback** — UDS provides zero-TCP-handshake latency and filesystem-based auth (chmod 600). TCP for Windows only. The server mints a per-process bearer token compared in constant time; a request without it is rejected.
+
+   **Track comparison** (they are separate transports; do not assume one's protections cover the other):
+
+   | | Track 2 — this dir (`rpc_server.py`) | Track 1 — `agent/skills/mcp/ipc_proxy.py` |
+   |---|---|---|
+   | Socket mode | `0600` | `0600` |
+   | Socket directory | shared `tempdir/myrm_ptc` (mode inherited) | private `myrm-agent-mcp-<pid>` with `0700` |
+   | Request auth | per-process bearer token, constant-time compare | per-process bearer token, constant-time compare |
+   | Call budget | `PtcConfig.max_tool_calls` (50) on the server | `DEFAULT_MAX_CALLS_PER_SESSION` (200) per session |
 2. **Length-prefixed binary protocol** — 4-byte big-endian length prefix + JSON body. Simple, fast, no framing ambiguity.
 3. **One connection per call** — Eliminates connection pooling complexity. UDS connect() is ~10μs locally.
 4. **Security-first** — Env scrubbing removes all secrets, recursive PTC blocked, terminal params filtered.

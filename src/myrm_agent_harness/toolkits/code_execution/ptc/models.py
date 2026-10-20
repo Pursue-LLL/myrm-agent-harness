@@ -42,6 +42,8 @@ class PtcRpcRequest(BaseModel):
 
     tool: str
     args: dict[str, object]
+    auth_token: str | None = None
+    """Per-process bearer token minted by the server; required for dispatch."""
 
 
 class PtcRpcResponse(BaseModel):

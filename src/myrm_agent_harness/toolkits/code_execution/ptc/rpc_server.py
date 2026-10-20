@@ -17,9 +17,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hmac
 import json
 import logging
 import os
+import secrets
 import struct
 import sys
 import tempfile
@@ -61,6 +63,7 @@ class PtcRpcServer:
         self._use_tcp = sys.platform == "win32"
         self._call_count = 0
         self._active_connections: set[asyncio.Task[None]] = set()
+        self.auth_token: str = secrets.token_urlsafe(32)
 
     @property
     def socket_path(self) -> str:
@@ -91,8 +94,12 @@ class PtcRpcServer:
                 self._tcp_port = sockets[0].getsockname()[1]
             logger.debug("PTC RPC server listening on TCP port %d", self._tcp_port)
         else:
-            socket_dir = Path(tempfile.gettempdir()) / "myrm_ptc"
-            socket_dir.mkdir(parents=True, exist_ok=True)
+            # Private per-PID directory: another local user must not be able to
+            # pre-create or connect to this socket.
+            socket_dir = Path(tempfile.gettempdir()) / f"myrm_ptc-{os.getpid()}"
+            socket_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            with contextlib.suppress(OSError):
+                os.chmod(socket_dir, 0o700)
             self._socket_path = str(socket_dir / f"ptc_{os.getpid()}_{id(self)}.sock")
             if Path(self._socket_path).exists():
                 Path(self._socket_path).unlink()
@@ -126,6 +133,7 @@ class PtcRpcServer:
         else:
             env["_MYRM_PTC_SOCKET"] = self._socket_path
         env["_MYRM_PTC_TIMEOUT"] = str(self._config.timeout_seconds)
+        env["_MYRM_PTC_TOKEN"] = self.auth_token
         return env
 
     async def _handle_connection(
@@ -174,6 +182,13 @@ class PtcRpcServer:
                 return
 
             self._call_count += 1
+            if not self._authorize(request.auth_token):
+                logger.warning("PTC RPC request rejected: invalid or missing auth token")
+                await self._send_response(
+                    writer,
+                    PtcRpcResponse(error="Unauthorized: invalid or missing auth token"),
+                )
+                return
             response = await self._dispatcher.dispatch(request)
             await self._send_response(writer, response)
 
@@ -210,3 +225,9 @@ class PtcRpcServer:
         header = struct.pack("!I", len(payload))
         writer.write(header + payload)
         await writer.drain()
+
+    def _authorize(self, token: str | None) -> bool:
+        """Constant-time bearer-token check for child-process requests."""
+        if not token:
+            return False
+        return hmac.compare_digest(token, self.auth_token)

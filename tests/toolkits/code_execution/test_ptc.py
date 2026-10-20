@@ -375,7 +375,7 @@ class TestPtcRpcServer:
         await server.start()
 
         try:
-            req = PtcRpcRequest(tool="mock_file_read", args={"path": "/a/b"})
+            req = PtcRpcRequest(tool="mock_file_read", args={"path": "/a/b"}, auth_token=server.auth_token)
             payload = req.model_dump_json().encode("utf-8")
             header = struct.pack("!I", len(payload))
 
@@ -406,7 +406,9 @@ class TestPtcRpcServer:
 
         try:
             for i in range(3):
-                req = PtcRpcRequest(tool="mock_file_read", args={"path": f"/{i}"})
+                req = PtcRpcRequest(
+                    tool="mock_file_read", args={"path": f"/{i}"}, auth_token=server.auth_token
+                )
                 payload = req.model_dump_json().encode("utf-8")
                 header = struct.pack("!I", len(payload))
 
@@ -451,7 +453,9 @@ class TestPtcRpcServer:
         server._use_tcp = True
         await server.start()
         try:
-            req = PtcRpcRequest(tool="mock_file_read", args={"path": "/tcp"})
+            req = PtcRpcRequest(
+                tool="mock_file_read", args={"path": "/tcp"}, auth_token=server.auth_token
+            )
             payload = req.model_dump_json().encode("utf-8")
             header = struct.pack("!I", len(payload))
 
@@ -821,3 +825,77 @@ class TestPtcOutputBudget:
 
         assert result.success
         assert "[Truncated" in (result.stdout or "")
+
+
+class TestPtcRpcTransportSecurity:
+    """Track 2 transport must be authenticated like Track 1, and owner-only."""
+
+    @pytest.mark.asyncio
+    async def test_request_without_token_is_rejected(self):
+        dispatcher = PtcDispatcher([mock_file_read])
+        server = PtcRpcServer(PtcConfig(timeout_seconds=10), dispatcher)
+        await server.start()
+        try:
+            req = PtcRpcRequest(tool="mock_file_read", args={"path": "/x"})
+            payload = req.model_dump_json().encode("utf-8")
+            reader, writer = await asyncio.open_unix_connection(server.socket_path)
+            writer.write(struct.pack("!I", len(payload)) + payload)
+            await writer.drain()
+            resp_len = struct.unpack("!I", await reader.readexactly(4))[0]
+            resp = json.loads(await reader.readexactly(resp_len))
+            writer.close()
+            await writer.wait_closed()
+        finally:
+            await server.stop()
+
+        assert resp["error"] is not None
+        assert "unauthorized" in resp["error"].lower()
+        assert dispatcher.records == [], "an unauthenticated request must never reach a tool"
+
+    @pytest.mark.asyncio
+    async def test_request_with_wrong_token_is_rejected(self):
+        dispatcher = PtcDispatcher([mock_file_read])
+        server = PtcRpcServer(PtcConfig(timeout_seconds=10), dispatcher)
+        await server.start()
+        try:
+            req = PtcRpcRequest(tool="mock_file_read", args={"path": "/x"}, auth_token="wrong")
+            payload = req.model_dump_json().encode("utf-8")
+            reader, writer = await asyncio.open_unix_connection(server.socket_path)
+            writer.write(struct.pack("!I", len(payload)) + payload)
+            await writer.drain()
+            resp_len = struct.unpack("!I", await reader.readexactly(4))[0]
+            resp = json.loads(await reader.readexactly(resp_len))
+            writer.close()
+            await writer.wait_closed()
+        finally:
+            await server.stop()
+
+        assert "unauthorized" in resp["error"].lower()
+        assert dispatcher.records == []
+
+    @pytest.mark.asyncio
+    async def test_socket_dir_and_file_are_owner_only(self):
+        import stat as stat_mod
+
+        dispatcher = PtcDispatcher([mock_file_read])
+        server = PtcRpcServer(PtcConfig(timeout_seconds=10), dispatcher)
+        await server.start()
+        try:
+            from pathlib import Path as _Path
+
+            sock_mode = stat_mod.S_IMODE(_Path(server.socket_path).stat().st_mode)
+            dir_mode = stat_mod.S_IMODE(_Path(server.socket_path).parent.stat().st_mode)
+            assert sock_mode == 0o600
+            assert dir_mode == 0o700
+        finally:
+            await server.stop()
+
+    @pytest.mark.asyncio
+    async def test_child_env_carries_the_token(self):
+        dispatcher = PtcDispatcher([mock_file_read])
+        server = PtcRpcServer(PtcConfig(timeout_seconds=10), dispatcher)
+        await server.start()
+        try:
+            assert server.get_child_env()["_MYRM_PTC_TOKEN"] == server.auth_token
+        finally:
+            await server.stop()
