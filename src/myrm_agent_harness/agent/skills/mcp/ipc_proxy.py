@@ -88,6 +88,8 @@ class MCPIPCRequest(BaseModel):
     params: dict[str, object]
     trace_id: str = ""
     session_id: str | None = None
+    agent_id: str | None = None
+    """Agent identity for MCP scope-gate policy lookup; distinct from session_id."""
     workspace_root: str | None = None
     readonly_workspace: bool = False
     """True when the caller runs under a read-only capability handle.
@@ -269,7 +271,9 @@ class MCPIPCServer:
 
             if not self._authorize(request.auth_token):
                 logger.warning(f"{log_prefix} Rejected unauthorized IPC request")
-                return MCPIPCResponse(success=False, error="Unauthorized: invalid or missing auth token").model_dump_json()
+                return MCPIPCResponse(
+                    success=False, error="Unauthorized: invalid or missing auth token"
+                ).model_dump_json()
 
             budget_error = self._consume_call_budget(request.session_id)
             if budget_error is not None:
@@ -283,12 +287,16 @@ class MCPIPCServer:
 
             path_error = self._check_path_policy(request)
             if path_error is not None:
-                logger.warning(f"{log_prefix} Blocked by path policy: {request.skill_name}.{request.tool_name} - {path_error}")
+                logger.warning(
+                    f"{log_prefix} Blocked by path policy: {request.skill_name}.{request.tool_name} - {path_error}"
+                )
                 return MCPIPCResponse(success=False, error=path_error).model_dump_json()
 
             scope_error = self._check_scope_gate(request)
             if scope_error is not None:
-                logger.warning(f"{log_prefix} Blocked by agent scope gate: {request.skill_name}.{request.tool_name} - {scope_error}")
+                logger.warning(
+                    f"{log_prefix} Blocked by agent scope gate: {request.skill_name}.{request.tool_name} - {scope_error}"
+                )
                 return MCPIPCResponse(success=False, error=scope_error).model_dump_json()
 
             logger.info(f"{log_prefix} Request: {request.skill_name}.{request.tool_name}")
@@ -425,7 +433,7 @@ class MCPIPCServer:
             EmployeeToolScopeViolationError,
         )
 
-        agent_id = request.session_id
+        agent_id = request.agent_id
         if not agent_id:
             return None
 

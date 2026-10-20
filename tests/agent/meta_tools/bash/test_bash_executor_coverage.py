@@ -404,6 +404,8 @@ async def test_spawn_background_registers_process() -> None:
 
     assert info.pid == 4242
     mock_registry.return_value.register.assert_awaited_once()
+    spawned_context = executor.spawn_background_process.await_args.args[0]
+    assert spawned_context.harness_owned is False
 
 
 def test_build_execution_context_merges_env() -> None:
@@ -826,6 +828,8 @@ async def test_ensure_mcp_proxy_start_failure_raises_runtime_error() -> None:
 
 
 def test_prepare_execution_skill_path_when_enabled() -> None:
+    from myrm_agent_harness.agent.middlewares._session_context import set_agent_id
+
     executor = _mock_code_executor()
     skill_executor = MagicMock()
     skill_executor.detect_skill_in_command.return_value = (True, "demo")
@@ -836,11 +840,16 @@ def test_prepare_execution_skill_path_when_enabled() -> None:
     bash_exec = BashExecutor(executor, enable_skill_execution=True)
     bash_exec._skill_executor = skill_executor
 
-    use_py, code, mcp_items = bash_exec._prepare_execution("run skill", session_id="s1", workspace_root="/ws")
+    set_agent_id("agent-42")
+    try:
+        use_py, code, mcp_items = bash_exec._prepare_execution("run skill", session_id="s1", workspace_root="/ws")
+    finally:
+        set_agent_id("")
 
     assert use_py is True
     assert code == "print('skill')"
     assert mcp_items is not None
+    assert skill_executor.prepare_for_execution.call_args.kwargs["agent_id"] == "agent-42"
 
 
 def test_prepare_execution_python_c_sets_transform_hint() -> None:

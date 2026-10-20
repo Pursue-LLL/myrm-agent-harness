@@ -86,6 +86,7 @@ class SkillExecutor:
         command: str,
         ipc_socket_path: str,
         session_id: str | None = None,
+        agent_id: str | None = None,
         workspace_root: str | None = None,
         readonly_workspace: bool = False,
     ) -> SkillExecutionContext:
@@ -101,6 +102,7 @@ class SkillExecutor:
             command: Bash 命令（如 python -c "..."）
             ipc_socket_path: IPC Unix Socket 路径
             session_id: 当前会话 ID（用于 builtin 会话上下文）
+            agent_id: 当前 Agent ID（用于 MCP scope-gate 策略匹配）
             workspace_root: 沙箱挂载的工作目录（host 视角的绝对路径）
             readonly_workspace: 调用方是否处于只读沙箱；IPC 服务端据此拒绝写类 MCP 工具
 
@@ -133,6 +135,7 @@ class SkillExecutor:
         ipc_client_code = self._generate_mcp_client_code(
             ipc_socket_path,
             session_id=session_id,
+            agent_id=agent_id,
             workspace_root=workspace_root,
             read_only_tools=self._collect_read_only_tools(identifier),
             readonly_workspace=readonly_workspace,
@@ -272,6 +275,7 @@ class SkillExecutor:
         self,
         ipc_socket_path: str,
         session_id: str | None = None,
+        agent_id: str | None = None,
         workspace_root: str | None = None,
         read_only_tools: frozenset[str] | None = None,
         readonly_workspace: bool = False,
@@ -283,6 +287,7 @@ class SkillExecutor:
         Args:
             ipc_socket_path: IPC Unix Socket 路径
             session_id: 当前会话 ID
+            agent_id: 当前 Agent ID（用于 MCP scope-gate 策略匹配）
             workspace_root: 沙箱挂载的工作目录
             read_only_tools: 允许断连重试的 `skill.tool` 集合（仅 readOnlyHint）
             readonly_workspace: 调用方是否处于只读沙箱
@@ -295,6 +300,7 @@ class SkillExecutor:
         return generate_ipc_client_code(
             ipc_socket_path,
             session_id=session_id,
+            agent_id=agent_id,
             workspace_root=workspace_root,
             read_only_tools=read_only_tools,
             auth_token=self._resolve_ipc_auth_token(),

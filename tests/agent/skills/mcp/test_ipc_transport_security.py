@@ -247,6 +247,17 @@ def test_ipc_path_policy_blocks_path_outside_workspace() -> None:
     assert "path policy" in str(body["error"]).lower()
 
 
+def test_ipc_client_carries_agent_id_separately_from_session_id() -> None:
+    """Agent scope policies are keyed by agent_id, not by the user/chat session id."""
+    from myrm_agent_harness.agent.skills.mcp.client_templates import generate_ipc_client_code
+
+    code = generate_ipc_client_code("/tmp/agent.sock", session_id="user-1_chat-1", agent_id="restricted_agent")
+
+    assert '_AGENT_ID = "restricted_agent"' in code
+    assert '_SESSION_ID = "user-1_chat-1"' in code
+    assert '"agent_id": _AGENT_ID' in code
+
+
 def test_ipc_scope_gate_enforces_agent_allowlist() -> None:
     """Agent scope gate must block unapproved MCP tools for restricted agents."""
     from myrm_agent_harness.agent.sub_agents.mcp_scope_gate.scope_gate import (
@@ -271,7 +282,8 @@ def test_ipc_scope_gate_enforces_agent_allowlist() -> None:
             "skill_name": "mcp_github_skill",
             "tool_name": "read_file",
             "params": {},
-            "session_id": "restricted_agent",
+            "session_id": "user-1_chat-1",
+            "agent_id": "restricted_agent",
         },
     )
     assert body["success"] is False

@@ -125,10 +125,13 @@ class BashExecutorPrepareMixin:
                 ipc_socket_path = self._get_ipc_socket_path()
                 logger.info(f" [MCP] Using IPC mode (socket: {ipc_socket_path})")
 
+                from myrm_agent_harness.agent.middlewares._session_context import get_agent_id
+
                 skill_context = self._skill_executor.prepare_for_execution(
                     command=command,
                     ipc_socket_path=ipc_socket_path,
                     session_id=session_id,
+                    agent_id=get_agent_id() or None,
                     workspace_root=workspace_root,
                     readonly_workspace=readonly_workspace,
                 )
