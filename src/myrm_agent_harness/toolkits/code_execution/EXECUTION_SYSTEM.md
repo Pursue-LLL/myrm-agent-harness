@@ -448,7 +448,7 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 
 **SaaS 最终选型：Fly Sprites 作为唯一云供给**（E2B 支持已移除；Machines 仅作为 Sprites 适配完成前的过渡实现，随后删除）。
 
-**企业私有化**：单 VM Docker Compose（CP + PostgreSQL + Redis + 每用户 Docker 沙箱）为默认数据面；不采用 K8s/Helm。**本地**：OS 进程沙箱（sandbox-exec / bwrap / AppContainer）。两者都不使用 Sprites。
+**企业私有化**：单 VM Docker Compose（CP + PostgreSQL + Redis + 每用户 Docker 沙箱）。**本地**：OS 进程沙箱（sandbox-exec / bwrap / AppContainer）。两者都不使用 Sprites。
 
 | 项 | 方案 |
 |----|------|
@@ -460,7 +460,7 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 
 - **不采用 Modal**：默认寿命 5 分钟、最长 24 小时，不适合常驻个人云电脑。
 - **不接外部任务沙箱**：一台用户云电脑已覆盖隔离、执行、持久化；不可信第三方代码、GPU、大规模并行等场景在 Sprites 内以进程级隔离处理，必要时再评估独立供给。
-- **终态**：自建 Firecracker / K8s，掌握成本与体验上限。
+- **终态**：自建 Firecracker / microVM 平台，掌握成本与体验上限。
 
 ## Bash Execution Resilience & Command Rewriting
 
