@@ -41,6 +41,7 @@ class FailoverReason(Enum):
     OVERLOADED = "overloaded"  # Service overloaded/high demand
     TIMEOUT = "timeout"  # Network timeout or service unavailable
     THINKING_SIGNATURE = "thinking_signature"  # Anthropic thinking block signature invalid (retryable after strip)
+    REASONING_MANDATORY = "reasoning_mandatory"  # Provider rejects reasoning disable/level (retryable with floor effort, cache preserved)
     DUPLICATE_TOOL_USE_ID = "duplicate_tool_use_id"  # Duplicate tool_use / tool_call_id (retryable after sanitize)
     IMAGE_TOO_LARGE = "image_too_large"  # Per-image size limit exceeded (retryable after shrink)
     MEDIA_REJECTED = "media_rejected"  # Model does not support multimodal input (retryable after strip)
@@ -88,7 +89,7 @@ class ProbePolicy:
     enabled: bool
     interval_ms: int
     max_attempts: int
-    cooldown_ms: int
+    cooldown_ms: int | float
 
 
 # ============================================================================
@@ -101,6 +102,7 @@ _REASON_TO_RECOVERABILITY: dict[FailoverReason, RecoverabilityLevel] = {
     FailoverReason.OVERLOADED: RecoverabilityLevel.TRANSIENT,
     FailoverReason.TIMEOUT: RecoverabilityLevel.TRANSIENT,
     FailoverReason.THINKING_SIGNATURE: RecoverabilityLevel.TRANSIENT,
+    FailoverReason.REASONING_MANDATORY: RecoverabilityLevel.TRANSIENT,
     FailoverReason.DUPLICATE_TOOL_USE_ID: RecoverabilityLevel.TRANSIENT,
     FailoverReason.IMAGE_TOO_LARGE: RecoverabilityLevel.TRANSIENT,
     FailoverReason.MEDIA_REJECTED: RecoverabilityLevel.TRANSIENT,
@@ -175,6 +177,12 @@ _REASON_TO_PROBE_POLICY: dict[FailoverReason, ProbePolicy] = {
         interval_ms=0,
         max_attempts=0,
         cooldown_ms=0,  # One-shot recovery via _handle_thinking_signature
+    ),
+    FailoverReason.REASONING_MANDATORY: ProbePolicy(
+        enabled=False,
+        interval_ms=0,
+        max_attempts=0,
+        cooldown_ms=0,  # One-shot recovery via _handle_reasoning_mandatory
     ),
     FailoverReason.DUPLICATE_TOOL_USE_ID: ProbePolicy(
         enabled=False,
