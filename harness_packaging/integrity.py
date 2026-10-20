@@ -123,6 +123,9 @@ _PARENT_WATCH_ZONES: tuple[tuple[str, frozenset[str]], ...] = (
                 "private_notebook",
                 "score_honesty",
                 "two_layer_dialectic",
+                # Deep-research evidence tree: shipped as readable source, consumed by
+                # agent/deep_research (not part of the compiled core).
+                "working_tree",
             }
         ),
     ),
