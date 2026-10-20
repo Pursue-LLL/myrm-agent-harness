@@ -71,7 +71,7 @@ SSE events (message / message_end / status)
 | `spawn_cache.py` | Cache SSOT | `SpawnCacheParams` fingerprint for durable replay. |
 | `tools.py` | PTC Tools | `SpawnSubagentTool` (WorkflowRunGuard, cache fingerprint, ISOLATED_COPY + merge, `verification_mode` support for standard, `auditor_blind`, and `multi_skeptic` verification patterns) / `NotifyProgressTool` / `HumanAskTool` (Mid-Run Human-in-the-Loop Gate via PhaseWaiter / ask_gate) / `SteerChildTool` (`myrm_tools.steer_child` 运行时向子智能体注入引导修正指令). |
 | `llm_query_tool.py` | PTC Tools | `LlmQueryTool` / `LlmQueryBatchedTool` — 轻量 LLM 直调原语（无子 agent）；批量保序、异常隔离、共享预算熔断（token 记账由 adapter 层统一处理），且整批共享一次模型解析；响应提取复用 `utils.chat_utils::extract_answer_text`（兼容 str / Anthropic block list / 内联 think 剥离 / reasoning 模型 content 空时回退 reasoning_content）；接入 `event_queue` 实时派发 `llm_query_batched` 步进百分比阶段事件并具备 `cancel_token` 级联安全熔断。 |
-| `notify_stream.py` | Streaming | `iter_notify_events_while_task_runs` concurrently drains the notify queue while PTC execution runs; honors `cancel_token` cancellation. |
+| `notify_stream.py` | Streaming | `iter_notify_events_while_task_runs` concurrently drains the notify queue while PTC execution runs. Cancellation is polled every 200ms in addition to event arrival: a bare queue wait blocks for as long as the script stays silent, so compute-only or blocked-I/O scripts could not be stopped. |
 | `topology_pruner/` | Submodule | 模型能力感知自适应编排拓扑修剪与折叠子系统（DSH 架构自适应范式）：根据模型阶梯（Tier 1/2/3）与任务复杂度折叠多 Agent 拓扑为单 Agent 深度推理直接执行。详见 [topology_pruner/_ARCH.md](topology_pruner/_ARCH.md)。 |
 | `_ARCH.md` | Doc | This architecture document. |
 

@@ -25,7 +25,7 @@ MCP Skills — Agent-layer MCP skill transformation.
 | ipc_proxy.py | Core | Provides MCPIPCRequest/Response/Server, `IPCCallContext` + `get_ipc_call_context` (ContextVar) so builtin handlers can read per-call session metadata. Mints `auth_token` (bearer, checked constant-time) and `trace_nonce` (marker authentication); `get_mcp_trace_nonce()` fails closed once the server stops. | ✅ |
 | tool_name_utils.py | Core | resolve_mcp_tool_name — canonical MCP tool name matching (_/- aliases, server prefix strip). | ✅ |
 | schema_doc_utils.py | Core | JSON Schema constraint extraction and markdown rendering for MCP tool documentation (params section, call examples). | ✅ |
-| proxy_service.py | Core | MCPSkillProxyService with warm-pool invoke, `skill_registry.get_mcp_skill_for_ipc` lookup, full `MCPConfig` + `_injected_auth_headers` restoration, required-arg probe validation, LRU cache, and `parse_mcp_result` (unwrap security envelope + JSON parse for PTC consumers). | ✅ |
+| proxy_service.py | Core | MCPSkillProxyService with warm-pool invoke, `skill_registry.get_mcp_skill_for_ipc` lookup, full `MCPConfig` + `_injected_auth_headers` restoration, required-arg probe validation, read-only session cache (only tools declaring `readOnlyHint`, keyed by session, 60s TTL; mutating tools never cached), and `parse_mcp_result` (unwrap security envelope + JSON parse for PTC consumers). | ✅ |
 
 ## Key Dependencies
 
