@@ -110,7 +110,14 @@ class TestTokenTracker:
         assert tr.call_count == 1
         assert len(tr.pending_events) == 1
         assert tr.pending_events[0]["call_index"] == 1
-        assert tr.pending_events[0]["usage"] == tr.usage.to_dict()
+        # The pending event carries the whole usage snapshot plus the cache economics
+        # the SSE consumer renders (hit rate / net savings / effective-cache gate), so
+        # the token counters must match exactly and the extra keys must be present.
+        event_usage = tr.pending_events[0]["usage"]
+        assert isinstance(event_usage, dict)
+        for field, value in tr.usage.to_dict().items():
+            assert event_usage[field] == value
+        assert {"cache_hit_rate", "net_savings_usd", "has_effective_cache"} <= set(event_usage)
 
         tr.record({"prompt_tokens": 2, "completion_tokens": 0, "total_tokens": 2})
         assert tr.call_count == 2
