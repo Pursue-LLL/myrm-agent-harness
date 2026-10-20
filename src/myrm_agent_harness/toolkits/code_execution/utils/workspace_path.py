@@ -53,6 +53,16 @@ class WorkspacePathResolver:
     # Cached resolved workspace root (avoid repeated detection)
     _cached_workspace_root: Path | None = None
 
+    @classmethod
+    def reset_cache(cls) -> None:
+        """Drop the memoized workspace root.
+
+        The value is resolved once per process, so anything that changes the
+        effective workspace (a new session, a test that chdir's, a tenant switch)
+        must call this or it will keep resolving against the first caller's root.
+        """
+        cls._cached_workspace_root = None
+
     @staticmethod
     def resolve_workspace_root() -> Path:
         """Intelligently resolve workspace root directory.
