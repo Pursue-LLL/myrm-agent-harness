@@ -13,6 +13,21 @@ from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 _CURTAIN = ["Privacy Curtain"]
 _OVERLAY_HWND = 9001
 
+
+@pytest.fixture(autouse=True)
+def _stub_pyautogui():
+    """Supply the optional Windows-only pointer library.
+
+    ``pyautogui`` is declared for win32 only, but this guard must be verified on whatever
+    platform the suite runs on: the backend imports it inside each call, so a stub in
+    ``sys.modules`` is enough to exercise the real pointer path.
+    """
+    stub = MagicMock()
+    for name in ("click", "moveTo", "scroll", "hscroll", "drag", "keyDown", "keyUp", "press", "hotkey", "write"):
+        setattr(stub, name, MagicMock())
+    with patch.dict("sys.modules", {"pyautogui": stub}):
+        yield
+
 _PointerCall = Callable[[win_mod.WindowsBackend], Coroutine[object, object, ActionResult]]
 
 _POINTER_ACTIONS: dict[str, _PointerCall] = {

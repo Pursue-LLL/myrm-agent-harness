@@ -46,6 +46,19 @@ _MODIFIER_TO_PYAUTOGUI: dict[ModifierKey, str] = {
 }
 
 
+def _load_pyautogui() -> object:
+    """Import ``pyautogui`` inside a call so a host without it gets an ActionResult, not a crash.
+
+    The dependency is declared for win32 only, yet this backend is importable everywhere (the
+    pointer guard is unit-tested on any platform). Importing at call sites instead of at module
+    level keeps ``import WindowsBackend`` working, and keeping the import inside each method's
+    ``try`` turns a missing optional dependency into ``ActionResult(success=False)``.
+    """
+    import pyautogui
+
+    return pyautogui
+
+
 class WindowsBackend:
     """Windows screen I/O via mss + pyautogui + ctypes."""
 
@@ -103,10 +116,11 @@ class WindowsBackend:
     ) -> ActionResult:
         if (occluded := self._pointer_occluded()) is not None:
             return occluded
-        import pyautogui
 
-        pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
+        pyautogui_keys: list[str] = []
         try:
+            pyautogui = _load_pyautogui()
+            pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
             for key in pyautogui_keys:
                 await asyncio.to_thread(pyautogui.keyDown, key)
             await asyncio.to_thread(
@@ -127,7 +141,7 @@ class WindowsBackend:
         """Type text — ASCII via pyautogui.write(), non-ASCII via clipboard paste (Ctrl+V)."""
         try:
             if text.isascii():
-                import pyautogui
+                pyautogui = _load_pyautogui()
 
                 interval = delay_ms / 1000.0
                 for i in range(0, len(text), chunk_size):
@@ -156,7 +170,7 @@ class WindowsBackend:
 
         try:
             if secret_text.isascii():
-                import pyautogui
+                pyautogui = _load_pyautogui()
 
                 interval = 12 / 1000.0
                 # pyautogui.write calls OS APIs directly, no subprocess arguments exposed
@@ -169,7 +183,7 @@ class WindowsBackend:
 
     async def _paste_text(self, text: str) -> None:
         """Type non-ASCII text via clipboard paste (Ctrl+V), preserving original clipboard."""
-        import pyautogui
+        pyautogui = _load_pyautogui()
 
         saved = await asyncio.to_thread(_get_clipboard)
         await asyncio.to_thread(_set_clipboard, text)
@@ -180,9 +194,8 @@ class WindowsBackend:
             await asyncio.to_thread(_set_clipboard, saved)
 
     async def key(self, keys: str) -> ActionResult:
-        import pyautogui
-
         try:
+            pyautogui = _load_pyautogui()
             parts = [k.strip() for k in keys.split("+")]
             if len(parts) > 1:
                 await asyncio.to_thread(pyautogui.hotkey, *parts)
@@ -195,9 +208,9 @@ class WindowsBackend:
     async def mouse_move(self, x: int, y: int) -> ActionResult:
         if (occluded := self._pointer_occluded()) is not None:
             return occluded
-        import pyautogui
 
         try:
+            pyautogui = _load_pyautogui()
             await asyncio.to_thread(pyautogui.moveTo, x, y)
             return ActionResult(success=True)
         except Exception as e:
@@ -213,10 +226,11 @@ class WindowsBackend:
     ) -> ActionResult:
         if (occluded := self._pointer_occluded()) is not None:
             return occluded
-        import pyautogui
 
-        pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
+        pyautogui_keys: list[str] = []
         try:
+            pyautogui = _load_pyautogui()
+            pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
             await asyncio.to_thread(pyautogui.moveTo, x, y)
             for key in pyautogui_keys:
                 await asyncio.to_thread(pyautogui.keyDown, key)
@@ -244,10 +258,11 @@ class WindowsBackend:
     ) -> ActionResult:
         if (occluded := self._pointer_occluded()) is not None:
             return occluded
-        import pyautogui
 
-        pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
+        pyautogui_keys: list[str] = []
         try:
+            pyautogui = _load_pyautogui()
+            pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
             for key in pyautogui_keys:
                 await asyncio.to_thread(pyautogui.keyDown, key)
 
@@ -279,7 +294,7 @@ class WindowsBackend:
         return self._screen_info
 
     def screen_context(self) -> ScreenContext:
-        import pyautogui
+        pyautogui = _load_pyautogui()
 
         pos = pyautogui.position()
         return ScreenContext(
@@ -398,7 +413,7 @@ def _detect_screen_info() -> tuple[int, int, float]:
         return width, height, dpi_scale
     except Exception:
         # Absolute fallback
-        import pyautogui
+        pyautogui = _load_pyautogui()
 
         size = pyautogui.size()
         return size.width, size.height, 1.0

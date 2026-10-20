@@ -183,7 +183,7 @@ _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "memory_save_tool": 720,
     "memory_search_tool": 156,
     "send_user_message_async_tool": 94,
-    "skill_select_tool": 240,
+    "skill_select_tool": 283,
     "web_fetch_tool": 148,
     "web_search_tool": 1174,
     "working_memory_manage_tool": 52,
@@ -241,7 +241,7 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
         layer_totals["CORE"] + layer_totals["HIGH_PRIORITY"] + layer_totals["EXTENDED"] + layer_totals["EXTERNAL"]
         == description_tokens
     )
-    assert layer_totals["HIGH_PRIORITY"] == 2649
+    assert layer_totals["HIGH_PRIORITY"] == 2692
     assert layer_totals["EXTERNAL"] == 94
     # Holds on any host: both sides derive from the same per-host descriptions.
     assert description_tokens == measured[_BASH_TOOL_NAME] + sum(_DOC_TURN1_TOOL_TOKENS.values())

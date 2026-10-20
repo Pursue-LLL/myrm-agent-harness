@@ -87,9 +87,9 @@
 | 13 | **memory_search_tool** | **156** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 统一检索（corpus ACL 与 policy 一致；默认仅 memory corpus） | enable_memory |
 | 14 | **memory_save_tool** | **720** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 写入长期记忆（EN core；wiki/approval 动态段；保留原有关键 guardrail 短语） | enable_memory |
 | 15 | **memory_manage_tool** | **359** (EN) / **422** (ZH) | 同上 | 更新/删除/纠正/评分；correct→knowledge only（preserves history）；update→措辞微调；instruction→category=rule；**user-locked rule 不可 update/delete** | enable_memory |
-| 16 | **skill_select_tool** | **240** (EN) / **278** (ZH) | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 字节稳定静态 rules，按 locale 选 EN/ZH 常量；bound catalog 在首条 HumanMessage `<bound_skills>` | skill_backend present |
+| 16 | **skill_select_tool** | **283** (EN) / **326** (ZH) | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 字节稳定静态 rules，按 locale 选 EN/ZH 常量；bound catalog 在首条 HumanMessage `<bound_skills>`，漂移以 `<bound_skills_update>` 尾段下发 | skill_backend present |
 
-**HIGH_PRIORITY 描述小计（Turn1，EN 描述）**：**2,649 tokens**（5 工具；web_search + memory×3 + skill_select；默认 memory_search 仅 memory corpus）
+**HIGH_PRIORITY 描述小计（Turn1，EN 描述）**：**2,692 tokens**（5 工具；web_search + memory×3 + skill_select；默认 memory_search 仅 memory corpus）
 
 ---
 
