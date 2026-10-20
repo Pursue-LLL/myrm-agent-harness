@@ -4,6 +4,7 @@ Uses pypdfium2 to generate minimal PDF fixtures in-memory,
 then exercises text, hybrid, and image strategies with ablation filtering.
 """
 
+import asyncio
 import base64
 import io
 import tempfile
@@ -225,7 +226,7 @@ class TestExtractPdfContent:
 
             with patch(
                 "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._extract_embedded_images_sync",
-                return_value=mock_images,
+                return_value=(mock_images, False),
             ):
                 config = PDFExtractConfig(extract_embedded_images=True)
                 result = await extract_pdf_content(str(pdf_path), config)
@@ -246,7 +247,7 @@ class TestExtractPdfContent:
         try:
             with patch(
                 "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._extract_embedded_images_sync",
-                return_value=[],
+                return_value=([], False),
             ):
                 config = PDFExtractConfig(extract_embedded_images=True)
                 result = await extract_pdf_content(str(pdf_path), config)
@@ -255,6 +256,93 @@ class TestExtractPdfContent:
             assert result.image_trace == {}
         finally:
             pdf_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_image_trace_marks_truncation_when_ceiling_hit(self):
+        """A capped scan reports ``truncated`` so consumers can disclose the shortfall."""
+        pdf_path = _make_text_pdf()
+        try:
+            valid_img = Image.new("RGB", (200, 200), color="white")
+            draw = ImageDraw.Draw(valid_img)
+            draw.rectangle([0, 0, 100, 200], fill="green")
+            draw.rectangle([100, 0, 200, 200], fill="yellow")
+            buf = io.BytesIO()
+            valid_img.save(buf, format="PNG")
+            valid_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+            with patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._extract_embedded_images_sync",
+                return_value=([PDFImageContent(data=valid_b64)], True),
+            ):
+                config = PDFExtractConfig(extract_embedded_images=True)
+                result = await extract_pdf_content(str(pdf_path), config)
+
+            assert result.image_trace["truncated"] is True
+        finally:
+            pdf_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_image_trace_omits_truncation_when_not_capped(self):
+        """An uncapped scan must not advertise truncation."""
+        pdf_path = _make_text_pdf()
+        try:
+            valid_img = Image.new("RGB", (200, 200), color="white")
+            draw = ImageDraw.Draw(valid_img)
+            draw.rectangle([0, 0, 100, 200], fill="purple")
+            draw.rectangle([100, 0, 200, 200], fill="orange")
+            buf = io.BytesIO()
+            valid_img.save(buf, format="PNG")
+            valid_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+            with patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._extract_embedded_images_sync",
+                return_value=([PDFImageContent(data=valid_b64)], False),
+            ):
+                config = PDFExtractConfig(extract_embedded_images=True)
+                result = await extract_pdf_content(str(pdf_path), config)
+
+            assert "truncated" not in result.image_trace
+        finally:
+            pdf_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_concurrent_extractions_do_not_share_truncation_state(self):
+        """The truncation flag must travel with the result, not live on the module.
+
+        A module-global set inside the worker thread and read after ``await`` is visible to
+        every concurrent extraction: one document's capped scan can be cleared by another's
+        uncapped scan, silently dropping the notice. The returned tuple cannot leak that way.
+        """
+        capped_path = _make_text_pdf()
+        uncapped_path = _make_text_pdf()
+        try:
+            valid_img = Image.new("RGB", (200, 200), color="white")
+            draw = ImageDraw.Draw(valid_img)
+            draw.rectangle([0, 0, 100, 200], fill="teal")
+            draw.rectangle([100, 0, 200, 200], fill="maroon")
+            buf = io.BytesIO()
+            valid_img.save(buf, format="PNG")
+            valid_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+            def _scan_by_path(file_path: str, *_args: object, **_kwargs: object) -> tuple[list[PDFImageContent], bool]:
+                # Deterministic per document, so the assertion holds however the tasks interleave.
+                return ([PDFImageContent(data=valid_b64)], file_path == str(capped_path))
+
+            with patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._extract_embedded_images_sync",
+                side_effect=_scan_by_path,
+            ):
+                config = PDFExtractConfig(extract_embedded_images=True)
+                capped, uncapped = await asyncio.gather(
+                    extract_pdf_content(str(capped_path), config),
+                    extract_pdf_content(str(uncapped_path), config),
+                )
+
+            assert capped.image_trace.get("truncated") is True
+            assert "truncated" not in uncapped.image_trace
+        finally:
+            capped_path.unlink(missing_ok=True)
+            uncapped_path.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -351,7 +439,7 @@ class TestBranchCoverage:
         )
 
         with patch.dict("sys.modules", {"pdfplumber": None}):
-            result = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
+            result, _truncated = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
         assert result == []
 
     @pytest.mark.asyncio
@@ -444,7 +532,7 @@ class TestBranchCoverage:
         )
 
         with patch("pdfplumber.open", side_effect=RuntimeError("corrupt PDF")):
-            result = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
+            result, _truncated = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
         assert result == []
 
     def test_embedded_images_valid_bbox_extraction(self):
@@ -473,7 +561,7 @@ class TestBranchCoverage:
         mock_pdf.__len__ = MagicMock(return_value=1)
 
         with patch("pdfplumber.open", return_value=mock_pdf):
-            result = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
+            result, _truncated = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
 
         assert len(result) == 1
         decoded = base64.b64decode(result[0].data)
@@ -501,7 +589,7 @@ class TestBranchCoverage:
         mock_pdf.__len__ = MagicMock(return_value=1)
 
         with patch("pdfplumber.open", return_value=mock_pdf):
-            result = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
+            result, _truncated = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
 
         assert len(result) == 0
 
@@ -526,7 +614,7 @@ class TestBranchCoverage:
         mock_pdf.__len__ = MagicMock(return_value=1)
 
         with patch("pdfplumber.open", return_value=mock_pdf):
-            result = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
+            result, _truncated = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
 
         assert len(result) == 0
 
@@ -549,7 +637,7 @@ class TestBranchCoverage:
         mock_pdf.__len__ = MagicMock(return_value=1)
 
         with patch("pdfplumber.open", return_value=mock_pdf):
-            result = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
+            result, _truncated = _extract_embedded_images_sync("/fake.pdf", max_pages=5)
 
         assert len(result) == 0
 
@@ -582,9 +670,111 @@ class TestBranchCoverage:
         mock_pdf.__len__ = MagicMock(return_value=5)
 
         with patch("pdfplumber.open", return_value=mock_pdf):
-            result = _extract_embedded_images_sync("/fake.pdf", max_pages=2)
+            result, _truncated = _extract_embedded_images_sync("/fake.pdf", max_pages=2)
 
         assert len(result) == 2
+
+    def test_embedded_images_max_images_ceiling_sets_truncated(self):
+        """Hitting ``max_images`` stops early and reports truncation."""
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
+            _extract_embedded_images_sync,
+        )
+
+        pil_img = Image.new("RGB", (100, 100), color="green")
+        mock_rendered = MagicMock()
+        mock_rendered.original = pil_img
+        mock_cropped = MagicMock()
+        mock_cropped.to_image.return_value = mock_rendered
+
+        def make_page():
+            p = MagicMock()
+            p.images = [{"x0": 0, "top": 0, "x1": 100, "bottom": 100}]
+            p.crop.return_value = mock_cropped
+            return p
+
+        mock_pdf = MagicMock()
+        mock_pdf.pages = [make_page() for _ in range(5)]
+        mock_pdf.__enter__ = MagicMock(return_value=mock_pdf)
+        mock_pdf.__exit__ = MagicMock(return_value=False)
+        mock_pdf.__len__ = MagicMock(return_value=5)
+
+        with patch("pdfplumber.open", return_value=mock_pdf):
+            result, truncated = _extract_embedded_images_sync("/fake.pdf", max_pages=5, max_images=2)
+
+        assert len(result) == 2
+        assert truncated is True
+
+    def test_embedded_images_degenerate_tail_does_not_report_truncation(self):
+        """A sub-40px artifact after the ceiling must not claim a shortfall.
+
+        The size filters skip decorative objects (sprites, watermark fragments) before the
+        ceiling check, so a document that delivered every deliverable figure reports no
+        truncation even when an undeliverable artifact happens to follow the last one.
+        """
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
+            _extract_embedded_images_sync,
+        )
+
+        pil_img = Image.new("RGB", (100, 100), color="green")
+        mock_rendered = MagicMock()
+        mock_rendered.original = pil_img
+        mock_cropped = MagicMock()
+        mock_cropped.to_image.return_value = mock_rendered
+
+        def make_page(size: int):
+            p = MagicMock()
+            p.images = [{"x0": 0, "top": 0, "x1": size, "bottom": size}]
+            p.crop.return_value = mock_cropped
+            return p
+
+        # Two deliverable figures at the ceiling, then one 10x10 decorative object.
+        mock_pdf = MagicMock()
+        mock_pdf.pages = [make_page(100), make_page(100), make_page(10)]
+        mock_pdf.__enter__ = MagicMock(return_value=mock_pdf)
+        mock_pdf.__exit__ = MagicMock(return_value=False)
+        mock_pdf.__len__ = MagicMock(return_value=3)
+
+        with patch("pdfplumber.open", return_value=mock_pdf):
+            result, truncated = _extract_embedded_images_sync("/fake.pdf", max_pages=5, max_images=2)
+
+        assert len(result) == 2
+        assert truncated is False
+
+    def test_embedded_images_without_ceiling_reports_no_truncation(self):
+        """An unbounded scan over fewer images than the ceiling reports no truncation."""
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
+            _extract_embedded_images_sync,
+        )
+
+        pil_img = Image.new("RGB", (100, 100), color="green")
+        mock_rendered = MagicMock()
+        mock_rendered.original = pil_img
+        mock_cropped = MagicMock()
+        mock_cropped.to_image.return_value = mock_rendered
+
+        def make_page():
+            p = MagicMock()
+            p.images = [{"x0": 0, "top": 0, "x1": 100, "bottom": 100}]
+            p.crop.return_value = mock_cropped
+            return p
+
+        mock_pdf = MagicMock()
+        mock_pdf.pages = [make_page() for _ in range(2)]
+        mock_pdf.__enter__ = MagicMock(return_value=mock_pdf)
+        mock_pdf.__exit__ = MagicMock(return_value=False)
+        mock_pdf.__len__ = MagicMock(return_value=2)
+
+        with patch("pdfplumber.open", return_value=mock_pdf):
+            result, truncated = _extract_embedded_images_sync("/fake.pdf", max_pages=5, max_images=10)
+
+        assert len(result) == 2
+        assert truncated is False
 
 
 # ---------------------------------------------------------------------------
