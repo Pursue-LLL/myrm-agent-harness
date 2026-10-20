@@ -34,7 +34,7 @@ system_prompt: |
   Be helpful and accurate.
 config:
   timeout_seconds: 60
-  concurrency_limit: 5
+  concurrency_limit: 6
   max_turns: 10
   max_retries: 2
   retry_backoff_seconds: 1.5
@@ -85,7 +85,8 @@ class TestSubagentConfigLoader:
         assert config.tools == ("web_search_tool", "web_fetch_tool")
         assert "test agent" in config.system_prompt.lower()
         assert config.timeout_seconds == 60
-        assert config.concurrency_limit == 5
+        # 6 is not a legacy default, so the migrator leaves an explicit value alone.
+        assert config.concurrency_limit == 6
         assert config.max_turns == 10
         assert config.max_retries == 2
         assert config.retry_backoff_seconds == 1.5
@@ -105,7 +106,7 @@ class TestSubagentConfigLoader:
         assert config.description == "Minimal agent with defaults"
         assert config.tools == ()
         assert config.timeout_seconds is None  # default: no wall-clock timeout
-        assert config.concurrency_limit == 5  # default
+        assert config.concurrency_limit == 10  # migrator lifts the legacy 5 to the scaled tier
         assert config.max_spawn_depth == 0  # default
 
     def test_load_nonexistent_file(self, temp_config_dir):
@@ -593,7 +594,9 @@ class TestDeepAuditYamlIntegration:
 
         assert config is not None
         assert config.timeout_seconds == 600
-        assert config.concurrency_limit == 5
+        # deep-audit.yaml still carries the legacy default (5); the config migrator lifts
+        # legacy defaults to the scaled tier, so what reaches the runtime is 10.
+        assert config.concurrency_limit == 10
         assert config.max_turns == 30
         assert config.budget_tokens == 500000
         assert config.max_result_tokens == 16000

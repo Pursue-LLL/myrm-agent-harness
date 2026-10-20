@@ -6,6 +6,7 @@ Supports directory-level batch loading and graceful error handling.
 [INPUT]
 - agent.tool_management.tool_layers::is_registered_action_tool (POS: Tool layer priority registry. Defines CORE/HIGH_PRIORITY/EXTENDED/EXTERNAL four-tier tool priorities used by ToolRegistry for ordering.)
 - agent.types::SubagentConfig (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
+- .strategic_advisor_schema::StrategicAdvisorySchema, compile_strategic_advisor_prompt, validate_strategic_readonly_safety (POS: 4-section schema and compiler for strategic advisor subagents)
 
 [OUTPUT]
 - SubagentConfigLoader: YAML configuration loader with typed enum validation and Action Tool SSOT checks.
@@ -24,11 +25,19 @@ from pathlib import Path
 from typing import Literal, cast
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from myrm_agent_harness.agent.tool_management.tool_layers import is_registered_action_tool
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
+from .strategic_advisor_schema import (
+    StrategicAdvisorySchema,
+    StrategicIdentitySchema,
+    StrategicOutputProtocolSchema,
+    StrategicScopeSchema,
+    compile_strategic_advisor_prompt,
+    validate_strategic_readonly_safety,
+)
 from .types import (
     CancellationStrategy,
     ControlScope,
@@ -75,17 +84,25 @@ class SubagentConfigSchema(BaseModel):
     """Pydantic schema for validating YAML subagent configuration.
 
     Provides strict validation beyond SubagentConfig dataclass.
+    Supports both traditional subagent configs and 4-section strategic advisor schemas.
     """
 
     name: str = Field(min_length=1, max_length=100)
-    description: str = Field(min_length=1, max_length=500)
+    description: str = Field(default="", max_length=1000)
     display_name: str = Field(default="", max_length=200)
     theme_color: str = Field(default="", max_length=20, pattern=r"^(|blue|green|purple|orange|pink|cyan|amber|red)$")
     model: str | None = Field(default=None, max_length=200)
     tools: list[str] = Field(default_factory=list)
     disallowed_tools: list[str] = Field(default_factory=list)
-    system_prompt: str = Field(min_length=10)
-    config: dict[str, object]
+    system_prompt: str = Field(default="")
+    config: dict[str, object] = Field(default_factory=dict)
+
+    # 4-section strategic advisor schema fields
+    identity: StrategicIdentitySchema | None = None
+    scope: StrategicScopeSchema | None = None
+    advisory_principles: list[str] | None = None
+    output_protocol: StrategicOutputProtocolSchema | None = None
+    advisory: StrategicAdvisorySchema | None = None
 
     @field_validator("name")
     @classmethod
@@ -108,6 +125,48 @@ class SubagentConfigSchema(BaseModel):
         if len(v) > _MAX_SYSTEM_PROMPT_LENGTH:
             raise ValueError(f"System prompt too long: {len(v)} > {_MAX_SYSTEM_PROMPT_LENGTH}")
         return v
+
+    @model_validator(mode="after")
+    def validate_and_compile_advisory(self) -> SubagentConfigSchema:
+        has_advisory_fields = (
+            self.advisory is not None
+            or self.identity is not None
+            or self.advisory_principles is not None
+        )
+        if has_advisory_fields:
+            if self.advisory is None:
+                if self.identity is None:
+                    raise ValueError("Strategic advisor requires 'identity' section with role and description")
+                if not self.advisory_principles:
+                    raise ValueError("Strategic advisor requires 'advisory_principles' with at least 1 principle")
+                scope = self.scope or StrategicScopeSchema()
+                output_proto = self.output_protocol or StrategicOutputProtocolSchema()
+                self.advisory = StrategicAdvisorySchema(
+                    identity=self.identity,
+                    scope=scope,
+                    advisory_principles=self.advisory_principles,
+                    output_protocol=output_proto,
+                )
+
+            if not self.description and self.advisory.identity.description:
+                self.description = self.advisory.identity.description
+
+            if not self.tools and self.advisory.scope.tools:
+                self.tools = list(self.advisory.scope.tools)
+            if not self.disallowed_tools and self.advisory.scope.disallowed_tools:
+                self.disallowed_tools = list(self.advisory.scope.disallowed_tools)
+
+            validate_strategic_readonly_safety(self.advisory.scope, self.tools)
+
+            if not self.system_prompt:
+                self.system_prompt = compile_strategic_advisor_prompt(self.advisory)
+
+        if not self.system_prompt or len(self.system_prompt.strip()) < 10:
+            raise ValueError("system_prompt must be at least 10 characters")
+        if not self.description:
+            raise ValueError("description is required and must not be empty")
+
+        return self
 
 
 class SubagentConfigLoader:
@@ -218,6 +277,16 @@ class SubagentConfigLoader:
                 raise ValueError("Invalid context_mode value. Allowed: isolated, fork")
             context_mode = cast(Literal["isolated", "fork"], context_mode_raw)
 
+            from .budget_scaling import ConfigUpgradeMigrator
+
+            migrated_dict, migration_result = ConfigUpgradeMigrator.migrate_config_dict(config_dict)
+            if migration_result.migrated:
+                logger.info(
+                    "Subagent config '%s' automatically upgraded quotas: %s",
+                    validated.name,
+                    ", ".join(migration_result.reasons),
+                )
+
             subagent_config = SubagentConfig(
                 system_prompt=validated.system_prompt,
                 tools=tuple(validated.tools),
@@ -226,26 +295,30 @@ class SubagentConfigLoader:
                 display_name=validated.display_name,
                 theme_color=validated.theme_color,
                 model=validated.model,
-                timeout_seconds=config_dict.get("timeout_seconds"),
-                concurrency_limit=config_dict.get("concurrency_limit", 5),
-                max_turns=config_dict.get("max_turns", 25),
-                max_retries=config_dict.get("max_retries", 3),
-                retry_backoff_seconds=config_dict.get("retry_backoff_seconds", 2.0),
-                max_spawn_depth=config_dict.get("max_spawn_depth", 0),
-                budget_tokens=config_dict.get("budget_tokens"),
-                max_cost_usd=config_dict.get("max_cost_usd"),
-                max_result_tokens=config_dict.get("max_result_tokens"),
-                max_children_per_agent=int(config_dict.get("max_children_per_agent", 5)),
-                max_descendants_per_run=int(config_dict.get("max_descendants_per_run", 20)),
-                max_batch_size=int(config_dict.get("max_batch_size", 5)),
+                timeout_seconds=migrated_dict.get("timeout_seconds"),
+                concurrency_limit=int(cast(int | str, migrated_dict.get("concurrency_limit", 10))),
+                max_turns=int(cast(int | str, migrated_dict.get("max_turns", 250))),
+                max_retries=int(cast(int | str, migrated_dict.get("max_retries", 3))),
+                retry_backoff_seconds=float(cast(float | str, migrated_dict.get("retry_backoff_seconds", 2.0))),
+                max_spawn_depth=int(cast(int | str, migrated_dict.get("max_spawn_depth", 0))),
+                budget_tokens=migrated_dict.get("budget_tokens"),
+                max_cost_usd=migrated_dict.get("max_cost_usd"),
+                max_result_tokens=migrated_dict.get("max_result_tokens"),
+                max_children_per_agent=int(cast(int | str, migrated_dict.get("max_children_per_agent", 10))),
+                max_descendants_per_run=int(cast(int | str, migrated_dict.get("max_descendants_per_run", 50))),
+                max_batch_size=int(cast(int | str, migrated_dict.get("max_batch_size", 10))),
                 auto_vault_threshold=auto_vault_threshold,
                 cancellation_strategy=cancellation_strategy,
-                graceful_cancel_timeout_seconds=float(config_dict.get("graceful_cancel_timeout_seconds", 5.0)),
+                graceful_cancel_timeout_seconds=float(
+                    cast(float | str, migrated_dict.get("graceful_cancel_timeout_seconds", 5.0))
+                ),
                 memory_isolation=memory_isolation,
                 control_scope=control_scope,
                 workspace_policy=workspace_policy,
                 context_mode=context_mode,
-                max_fork_tokens=config_dict.get("max_fork_tokens"),
+                max_fork_tokens=migrated_dict.get("max_fork_tokens"),
+                is_advisory=validated.advisory is not None,
+                advisory_schema=validated.advisory.model_dump() if validated.advisory is not None else None,
             )
 
             logger.info("Loaded subagent config '%s' from %s", validated.name, file_path)

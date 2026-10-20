@@ -3,21 +3,20 @@
 Higher-level execution patterns built on top of SubagentManager.spawn_child.
 
 [INPUT]
+- agent.sub_agents.result_output::answer_text (POS: Subagent result payload (answer text, or a dict carrying isolation merge metadata).)
 - agent.sub_agents.types::SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
-- agent.workspace_coordination.policy::apply_parallel_write_isolation (POS: Policy helpers for parallel subagent workspace safety.)
-- agent.workspace_coordination.merge.batch_merge::merge_batch_workspace_sync_backs (POS: Serial merge of deferred ISOLATED_COPY workspaces after parallel delegation)
-- toolkits.code_execution.executors.readonly_proxy::ReadonlyExecutorProxy (POS: Read-only executor proxy for Adversarial Sandbox Verifier.)
-- agent.skills.evolution.execution.executor_context::ExecutorContextManager (POS: Context manager for injecting executors into the current async context.)
-- utils.json_parsing::parse_llm_json_object (POS: Tolerant JSON extraction from LLM text output for mid-run graph patches.)
+- agent.sub_agents._orchestrator_council::run_council (POS: Council orchestration — multi-expert parallel analysis with cross-review debate and chair synthesis.)
+- agent.sub_agents._orchestrator_verification::VerificationVerdict, run_with_verification, verify_worker_output (POS: Adversarial verification orchestration — Worker -> Verifier -> Retry loop with workspace diff injection and a fail-closed BLOCKED outcome when no conclusive verdict exists.)
+- agent.workspace_coordination.merge.batch_merge::discard_deferred_isolated_workspaces (POS: Serial lifecycle for deferred ISOLATED_COPY workspaces after parallel batch delegation.)
 
 [OUTPUT]
-- execute_dag_plan: Execute a Plan using DAG concurrency with wave write isolation, 3-way merge convergence, and optional node-level fault tolerance (allow_failure).
 - run_chain: Execute subagents in chain: A -> B -> C, each receiving previous result.
 - run_alternatives: Spawn N subagents in parallel for the same task; return text results without merging isolated workspaces (discarded after completion).
 - run_council: Multi-expert council orchestration with cross-review rounds and chair synthesis.
 - wait_children: Wait for multiple child tasks to complete and aggregate results.
 - run_with_verification: Execute a worker then verify via an adversarial verifier, retrying on failure.
 - VerificationVerdict: Parsed verdict from a Verifier agent's structured JSON output.
+- verify_worker_output: Verify an existing worker output with a verifier-only round (``None`` = inconclusive round).
 
 [POS]
 Subagent composition patterns — chain, batch, alternatives, and verified orchestration.
@@ -26,7 +25,6 @@ Subagent composition patterns — chain, batch, alternatives, and verified orche
 from __future__ import annotations
 
 import asyncio
-import re
 import time
 import uuid
 from collections.abc import Callable
@@ -35,13 +33,13 @@ from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
 
+from myrm_agent_harness.agent.sub_agents.result_output import answer_text
 from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
     SubAgentResult,
     SubAgentStatus,
     WorkspacePolicy,
 )
-from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from ._orchestrator_council import run_council
@@ -57,481 +55,6 @@ if TYPE_CHECKING:
     from .manager import SubagentManager, SubagentTask
 
 logger = get_agent_logger(__name__)
-
-
-def _extract_graph_patch_data(result: object) -> dict[str, object] | None:
-    """Extract GraphPatch payload from SubAgentResult, supporting dict payloads and LLM text."""
-    if result is None:
-        return None
-
-    # 1. Direct dict in payload (programmatic caller)
-    payload = getattr(result, "payload", None)
-    if isinstance(payload, dict) and "graph_patch" in payload:
-        patch = payload["graph_patch"]
-        if isinstance(patch, dict):
-            return patch
-
-    # 2. Direct dict in result
-    res_val = getattr(result, "result", None)
-    if isinstance(res_val, dict) and "graph_patch" in res_val:
-        patch = res_val["graph_patch"]
-        if isinstance(patch, dict):
-            return patch
-
-    # 3. LLM string output containing <graph_patch>...</graph_patch> or embedded JSON
-    if isinstance(res_val, str) and ("<graph_patch>" in res_val or "graph_patch" in res_val):
-        match = re.search(
-            r"<graph_patch>(?:(.*?)</graph_patch>|(.*?)$)",
-            res_val,
-            re.DOTALL | re.IGNORECASE,
-        )
-        if match:
-            block = match.group(1) if match.group(1) is not None else match.group(2)
-            if block and block.strip():
-                try:
-                    data = parse_llm_json_object(block)
-                    if isinstance(data, dict):
-                        if "graph_patch" in data and isinstance(data["graph_patch"], dict):
-                            return data["graph_patch"]
-                        return data
-                except Exception as e:
-                    logger.warning("[DAG] Failed to parse <graph_patch> block: %s", e)
-
-        try:
-            data = parse_llm_json_object(res_val, require_key="graph_patch")
-            if isinstance(data, dict) and isinstance(data.get("graph_patch"), dict):
-                return data["graph_patch"]
-        except Exception as e:
-            logger.warning("[DAG] Failed to parse embedded graph_patch JSON: %s", e)
-
-    return None
-
-
-async def execute_dag_plan(
-    plan: object,
-    manager: SubagentManager,
-    context: dict[str, object],
-    tool_registry_getter: Callable[[], list[BaseTool]],
-    max_concurrent: int = 3,
-    cancel_token: CancellationToken | None = None,
-    progress_sink: Callable[[str, str, str], None] | None = None,
-) -> dict[str, object]:
-    """Execute a Plan using DAG concurrency.
-
-    Args:
-        plan: The Plan object (from planner.schemas).
-        manager: SubagentManager instance.
-        context: Shared execution context.
-        tool_registry_getter: Tool provider callable.
-        max_concurrent: Maximum number of concurrent subagents.
-        cancel_token: Propagated to each spawned child for user-initiated cancellation.
-        progress_sink: Optional callback(step_id, status, message) for real-time
-            progress reporting (e.g. SSE events). Called on step start/complete/fail.
-
-    Returns:
-        Dict with success, results, and the updated plan.
-    """
-    import time
-
-    from myrm_agent_harness.agent.sub_agents.types import (
-        SubagentConfig,
-        SubAgentResult,
-        SubAgentStatus,
-    )
-    from myrm_agent_harness.infra.concurrency.limiter import ConcurrencyLimiter
-    from myrm_agent_harness.infra.concurrency.reducer import StateReducer
-
-    limiter = ConcurrencyLimiter(max_concurrent)
-
-    # State Reducer to safely collect results
-    def reducer_fn(state: dict[str, SubAgentResult], patch: tuple[str, SubAgentResult]) -> dict[str, SubAgentResult]:
-        step_id, result = patch
-        new_state = state.copy()
-        new_state[step_id] = result
-        return new_state
-
-    reducer = StateReducer({}, reducer_fn)
-    running_tasks: set[str] = set()
-    yielded_checkpoints: dict[str, dict[str, object]] = {}
-    fission_resume_payload: dict[str, dict[str, object]] = {}
-    step_completed_event = asyncio.Event()
-
-    async def execute_step(step: object) -> None:
-        async with limiter:
-            step_id = getattr(step, "step_id", "")
-            desc = getattr(step, "description", "")
-            expected = getattr(step, "expected_output", "")
-
-            if cancel_token and cancel_token.is_cancelled:
-                logger.info("[DAG] Step %s skipped (cancelled)", step_id)
-                running_tasks.discard(step_id)
-                return
-
-            if progress_sink:
-                progress_sink(step_id, "in_progress", f"Starting: {desc}")
-            logger.info("[DAG] Starting step %s: %s", step_id, desc)
-
-            # Prepare context with previous results based on dependencies
-            step_context = context.copy()
-            step_readonly = bool(getattr(step, "readonly", False))
-            step_context["readonly"] = step_readonly
-            # If DAG has multiple concurrent ready tasks, mark parallel write batch in context
-            if getattr(plan, "get_ready_steps", None):
-                ready_count = len([s for s in plan.get_ready_steps() if not getattr(s, "readonly", False)])
-                if ready_count > 1:
-                    step_context["_parallel_write_batch"] = True
-
-            current_results = await reducer.get_state()
-
-            dependencies = getattr(step, "dependencies", [])
-            filtered_results = {}
-
-            for dep_id in dependencies:
-                if dep_id in current_results and current_results[dep_id].success:
-                    dep_res = current_results[dep_id]
-                    if dep_res.verification and dep_res.verification.passed:
-                        filtered_results[dep_id] = {
-                            "status": "verified_completed",
-                            "verification_summary": dep_res.verification.summary,
-                            "findings": list(dep_res.verification.findings),
-                            "result": dep_res.result,
-                        }
-                    else:
-                        filtered_results[dep_id] = dep_res.result
-
-            step_context["dag_previous_results"] = filtered_results
-            plan_rev = getattr(plan, "revision", 1)
-            step_context["dag_plan_revision"] = plan_rev
-
-            config = SubagentConfig(
-                system_prompt=(
-                    "You are a DAG step executor. Complete the assigned task according to the instructions.\n"
-                    "If your findings require dynamically modifying downstream steps (e.g. pruning obsolete steps or adding new ones), "
-                    "you may optionally include a `<graph_patch>` JSON block in your reply:\n"
-                    "<graph_patch>\n"
-                    '{"base_revision": <current_revision>, "add_steps": [{"step_id": "...", "description": "...", "dependencies": ["..."]}], '
-                    '"remove_steps": ["..."], "modify_dependencies": {"<step_id>": ["..."]}}\n'
-                    "</graph_patch>"
-                ),
-                max_retries=2,
-            )
-
-            # Node-level retry mechanism
-            max_node_retries = 3
-            result = None
-
-            resume_cmd = None
-            if step_id in yielded_checkpoints:
-                from langgraph.types import Command
-
-                if step_id in fission_resume_payload:
-                    resume_cmd = Command(resume=fission_resume_payload[step_id])
-                else:
-                    sub_task_results = {}
-                    for dep_id in getattr(step, "dependencies", []):
-                        if dep_id in current_results and current_results[dep_id].success:
-                            dep_res = current_results[dep_id]
-                            # If dependency has structured verification summary, pass concise verified state
-                            if dep_res.verification and dep_res.verification.passed:
-                                sub_task_results[dep_id] = {
-                                    "status": "verified_completed",
-                                    "verification_summary": dep_res.verification.summary,
-                                    "findings": list(dep_res.verification.findings),
-                                    "result": dep_res.result,
-                                }
-                            else:
-                                sub_task_results[dep_id] = dep_res.result
-                    resume_cmd = Command(resume=sub_task_results)
-
-            requires_verify = bool(
-                getattr(step, "requires_verification", False)
-                or getattr(step, "risk_level", "low") in ("high", "critical")
-            )
-            step_verifier_prompt = getattr(step, "verifier_prompt", None) or ""
-
-            for attempt in range(max_node_retries):
-                try:
-                    step_agent_type = getattr(step, "agent_type", None) or "general"
-                    step_timeout = config.timeout_seconds
-                    async with asyncio.timeout(step_timeout):
-                        if requires_verify:
-                            result = await run_with_verification(
-                                manager=manager,
-                                worker_type=step_agent_type,
-                                worker_task=(
-                                    f"Execute step: {desc}\n"
-                                    f"Expected output: {expected}\n"
-                                    f"Current plan revision: {plan_rev}"
-                                ),
-                                config=config,
-                                context=step_context,
-                                tool_registry_getter=tool_registry_getter,
-                                max_rounds=2,
-                                verifier_task_template=step_verifier_prompt,
-                                cancel_token=cancel_token,
-                                task_id=f"dag-{step_id}",
-                                verification_mode="adversarial",
-                            )
-                        else:
-                            result = await manager.spawn_child(
-                                task_id=f"dag-{step_id}",
-                                agent_type=step_agent_type,
-                                task_description=(
-                                    f"Execute step: {desc}\n"
-                                    f"Expected output: {expected}\n"
-                                    f"Current plan revision: {plan_rev}"
-                                ),
-                                config=config,
-                                context=step_context,
-                                tool_registry_getter=tool_registry_getter,
-                                wait=True,
-                                cancel_token=cancel_token,
-                                resume_command=resume_cmd,
-                            )
-
-                    if isinstance(result, dict):
-                        raw_inner_res = result.get("result")
-                        result = SubAgentResult(
-                            success=bool(result.get("success", False)),
-                            task_id=f"dag-{step_id}",
-                            agent_type="general",
-                            result=raw_inner_res if isinstance(raw_inner_res, dict) else str(raw_inner_res or ""),
-                            error=str(result.get("error", "")),
-                            completed_at=time.time(),
-                            status=(SubAgentStatus.COMPLETED if result.get("success") else SubAgentStatus.FAILED),
-                        )
-
-                    if result.success:
-                        break  # Success, exit retry loop
-                    else:
-                        logger.warning(
-                            f"[DAG] Step {step_id} failed on attempt {attempt + 1}/{max_node_retries}: {result.error}"
-                        )
-                    if attempt < max_node_retries - 1:
-                        await asyncio.sleep(0.01)  # Exponential backoff (short for tests)
-
-                except TimeoutError:
-                    logger.warning(
-                        "[DAG] Timeout in step %s on attempt %d/%d",
-                        step_id,
-                        attempt + 1,
-                        max_node_retries,
-                    )
-                    result = SubAgentResult(
-                        success=False,
-                        task_id=f"dag-{step_id}",
-                        agent_type="general",
-                        error="Step execution timed out after 300 seconds",
-                        completed_at=time.time(),
-                        status=SubAgentStatus.FAILED,
-                    )
-                    if attempt < max_node_retries - 1:
-                        await asyncio.sleep(0.01)
-                except Exception as e:
-                    logger.warning(
-                        f"[DAG] Exception in step {step_id} on attempt {attempt + 1}/{max_node_retries}: {e}"
-                    )
-                    result = SubAgentResult(
-                        success=False,
-                        task_id=f"dag-{step_id}",
-                        agent_type="general",
-                        error=str(e),
-                        completed_at=time.time(),
-                        status=SubAgentStatus.FAILED,
-                    )
-                    if attempt < max_node_retries - 1:
-                        await asyncio.sleep(0.01)
-
-            if result is not None:
-                await reducer.apply_patch((step_id, result))
-
-                if result.status == SubAgentStatus.YIELDED:
-                    payload = result.payload if isinstance(result.payload, dict) else {}
-                    if payload.get("action_type") == "swarm_fission":
-                        logger.info(
-                            "[DAG] Step %s yielded for swarm fission; running parallel tasks",
-                            step_id,
-                        )
-                        from myrm_agent_harness.agent.parallel.fission import (
-                            execute_swarm_fission,
-                        )
-
-                        fission_resume = await execute_swarm_fission(
-                            manager._parent_agent,
-                            payload,
-                            max_concurrent=max_concurrent,
-                        )
-                        if result.checkpoint_data:
-                            yielded_checkpoints[step_id] = result.checkpoint_data
-                        fission_resume_payload[step_id] = fission_resume
-                        if hasattr(step, "status"):
-                            step.status = "pending"
-                    else:
-                        logger.info("[DAG] Step %s yielded with unsupported payload", step_id)
-                        if result.checkpoint_data:
-                            yielded_checkpoints[step_id] = result.checkpoint_data
-                        if hasattr(step, "status"):
-                            step.status = "pending"
-
-                elif result.success:
-                    if hasattr(plan, "mark_step_completed"):
-                        plan.mark_step_completed(step_id)
-                    yielded_checkpoints.pop(step_id, None)
-                    if progress_sink:
-                        progress_sink(step_id, "success", f"Completed: {desc}")
-                    logger.info("[DAG] Completed step %s", step_id)
-
-                    # Trigger isolated workspace merge if step produced an isolated copy
-                    if isinstance(result.result, dict) and "_isolated_child_workspace" in result.result:
-                        from myrm_agent_harness.agent.workspace_coordination.merge.batch_merge import (
-                            merge_batch_workspace_sync_backs,
-                        )
-
-                        await merge_batch_workspace_sync_backs(
-                            [
-                                {
-                                    "success": True,
-                                    "task_id": step_id,
-                                    "result": result.result,
-                                }
-                            ]
-                        )
-                else:
-                    if hasattr(plan, "add_error"):
-                        plan.add_error("DAGExecutionError", result.error, step_id=step_id)
-                    step_optional = getattr(step, "allow_failure", False)
-                    if step_optional:
-                        if hasattr(step, "status"):
-                            step.status = "skipped"
-                        if progress_sink:
-                            progress_sink(
-                                step_id,
-                                "warning",
-                                f"Non-critical step failed (skipped): {result.error}",
-                            )
-                        logger.warning(
-                            "[DAG] Optional step %s failed (skipped): %s",
-                            step_id,
-                            result.error,
-                        )
-                    else:
-                        if hasattr(step, "status"):
-                            step.status = "failed"
-                        if progress_sink:
-                            progress_sink(step_id, "error", f"Failed: {result.error}")
-                        logger.error("[DAG] Failed step %s: %s", step_id, result.error)
-
-            # Check if step produced a runtime GraphPatch
-            patch_data = _extract_graph_patch_data(result)
-
-            if isinstance(patch_data, dict) and hasattr(plan, "apply_graph_patch"):
-                from myrm_agent_harness.agent.sub_agents.dag_plan import GraphPatch
-
-                try:
-                    patch = GraphPatch.model_validate(patch_data)
-                    patch_res = plan.apply_graph_patch(patch)
-                    if patch_res.success:
-                        logger.info(
-                            "[DAG] Graph patch applied (v%d): affected=%s, fast_path=%s",
-                            patch_res.new_revision,
-                            patch_res.affected_steps,
-                            patch_res.topology_preserving,
-                        )
-                        if progress_sink:
-                            progress_sink(
-                                step_id,
-                                "graph_patch_applied",
-                                f"Graph patch applied v{patch_res.new_revision} (fast_path={patch_res.topology_preserving})",
-                            )
-                    else:
-                        logger.warning("[DAG] Graph patch rejected: %s", patch_res.error)
-                        if progress_sink:
-                            progress_sink(
-                                step_id,
-                                "graph_patch_rejected",
-                                f"Graph patch rejected: {patch_res.error}",
-                            )
-                except Exception as patch_err:
-                    logger.warning("[DAG] Failed to parse or apply graph patch: %s", patch_err)
-
-            running_tasks.remove(step_id)
-            step_completed_event.set()
-
-    # Main DAG loop using TaskGroup for graceful cancellation
-    try:
-        async with asyncio.TaskGroup() as tg:
-            while True:
-                if cancel_token and cancel_token.is_cancelled:
-                    logger.info("[DAG] Cancelled by user, stopping new steps")
-                    break
-
-                ready_steps = []
-                if hasattr(plan, "get_ready_steps"):
-                    ready_steps = plan.get_ready_steps()
-
-                steps_to_start = [s for s in ready_steps if getattr(s, "step_id", "") not in running_tasks]
-
-                if not steps_to_start and not running_tasks:
-                    break
-
-                for step in steps_to_start:
-                    step_id = getattr(step, "step_id", "")
-                    running_tasks.add(step_id)
-                    # Use asyncio.create_task instead of tg.create_task to avoid the unhandled exception
-                    # crashing the TaskGroup and cancelling other tasks prematurely in our tests
-                    try:
-                        step_coro = execute_step(step)
-                        # In tests we might not be in a TaskGroup context if mocked
-                        if hasattr(tg, "create_task"):
-                            try:
-                                tg.create_task(step_coro)
-                            except Exception:
-                                step_coro.close()
-                                raise
-                        else:
-                            _bg_task = asyncio.create_task(step_coro)
-                            # keep a reference to avoid garbage collection
-                            if not hasattr(tg, "_bg_tasks"):
-                                tg._bg_tasks = set()
-                            tg._bg_tasks.add(_bg_task)
-                            _bg_task.add_done_callback(tg._bg_tasks.discard)
-                    except Exception as e:
-                        logger.error("[DAG] Failed to create task for step %s: %s", step_id, e)
-                        running_tasks.discard(step_id)
-                        if hasattr(plan, "add_error"):
-                            plan.add_error("DAGExecutionError", str(e), step_id=step_id)
-                        if hasattr(step, "status"):
-                            step.status = "skipped" if getattr(step, "allow_failure", False) else "failed"
-
-                if running_tasks:
-                    step_completed_event.clear()
-                    await step_completed_event.wait()
-                else:
-                    break
-    except Exception as e:
-        # In tests, the mock might not have all the methods, causing an exception
-        # We catch it here so we can still return the partial results
-        logger.error("[DAG] TaskGroup failed: %s", e)
-        # If we failed to even start the TaskGroup, we still want to return what we have
-        pass
-
-    final_state = await reducer.get_state()
-    steps = getattr(plan, "steps", [])
-    _terminal = ("completed", "skipped", "failed")
-    all_resolved = all(getattr(s, "status", "") in _terminal for s in steps)
-    has_critical_failure = any(getattr(s, "status", "") == "failed" for s in steps)
-    partial_failures = [
-        getattr(s, "step_id", "")
-        for s in steps
-        if getattr(s, "status", "") == "skipped" and getattr(s, "allow_failure", False)
-    ]
-
-    return {
-        "success": all_resolved and not has_critical_failure,
-        "results": final_state,
-        "plan": plan,
-        "partial_failures": partial_failures,
-    }
 
 
 async def run_alternatives(
@@ -602,7 +125,12 @@ async def run_alternatives(
     # Collect SubAgentResult from manager (wait_children returns to_dict() snapshots,
     # but we need the original objects for deferred workspace cleanup).
     results_map: dict[str, SubAgentResult] = dict(early_failures)
-    for item in (*batch.get("results", []), *batch.get("failures", [])):
+    batch_items: list[object] = []
+    for key in ("results", "failures"):
+        entries = batch.get(key)
+        if isinstance(entries, list):
+            batch_items.extend(entries)
+    for item in batch_items:
         if isinstance(item, SubAgentResult):
             results_map[item.task_id] = item
         elif isinstance(item, dict):
@@ -680,7 +208,7 @@ async def run_chain(
         task_id = f"chain-{batch_id}-{idx}-{agent_type}"
         task_desc = task_template.replace("{previous}", previous_result)
 
-        last_result = await manager.spawn_child(
+        spawned = await manager.spawn_child(
             task_id=task_id,
             agent_type=agent_type,
             task_description=task_desc,
@@ -690,15 +218,17 @@ async def run_chain(
             wait=True,
             cancel_token=cancel_token,
         )
-        if isinstance(last_result, dict):
+        if isinstance(spawned, dict):
             last_result = SubAgentResult(
-                success=bool(last_result.get("success", False)),
+                success=bool(spawned.get("success", False)),
                 task_id=task_id,
                 agent_type=agent_type,
-                result=str(last_result.get("result", "")),
+                result=str(spawned.get("result", "")),
                 completed_at=time.time(),
                 status=SubAgentStatus.COMPLETED,
             )
+        else:
+            last_result = spawned
 
         if not last_result.success:
             total_steps = len(configs)
@@ -711,7 +241,7 @@ async def run_chain(
             )
             return last_result
 
-        previous_result = last_result.result
+        previous_result = answer_text(last_result.result)
 
     return last_result
 
@@ -815,115 +345,11 @@ async def wait_children(
     }
 
 
-async def run_equivalence_refactor_wave(
-    manager: SubagentManager,
-    refactor_tasks: list[dict[str, str]],
-    *,
-    verification_command: str = "pytest -q",
-    model: str | None = None,
-    timeout_per_task: float = 300.0,
-) -> dict[str, object]:
-    """Execute concurrent code slimming / refactoring subagents in isolated worktrees with regression guards.
-
-    Each refactoring task is dispatched to an isolated workspace (ISOLATED_COPY).
-    Upon subagent completion, the verification_command is executed inside the child workspace.
-    If regression tests fail, the refactored workspace is safely rejected and rolled back.
-
-    Args:
-        manager: SubagentManager instance.
-        refactor_tasks: List of dicts with 'description', 'prompt', and optional 'target_module'.
-        verification_command: Test command to assert behavioral equivalence.
-        model: Model slug for refactoring subagents (e.g. fast specialized model).
-        timeout_per_task: Timeout seconds per subagent task.
-
-    Returns:
-        Structured refactor ledger with lines cut, verified modules, and rollback details.
-    """
-    if not refactor_tasks:
-        return {"success": True, "total_tasks": 0, "accepted_tasks": 0, "rejected_tasks": 0, "results": []}
-
-    spawned_ids: list[str] = []
-    task_metadata: dict[str, dict[str, str]] = {}
-
-    for task_info in refactor_tasks:
-        desc = task_info.get("description", "Codebase slimming task")
-        prompt = task_info.get("prompt", "")
-        cfg = SubagentConfig(
-            description=desc,
-            system_prompt=prompt,
-            model=model,
-            workspace_policy=WorkspacePolicy.ISOLATED_COPY,
-            timeout_seconds=timeout_per_task,
-        )
-        task_id = await manager.spawn_child(cfg)
-        spawned_ids.append(task_id)
-        task_metadata[task_id] = task_info
-
-    # Wait for all subagents to finish refactoring in their isolated worktrees
-    batch_res = await wait_children(manager, spawned_ids, min_success_rate=0.0)
-
-    accepted: list[dict[str, object]] = []
-    rejected: list[dict[str, object]] = []
-
-    for success_item in batch_res.get("results", []):
-        if not isinstance(success_item, dict):
-            continue
-        tid = str(success_item.get("task_id", ""))
-        info = task_metadata.get(tid, {})
-        # Check subagent status
-        if success_item.get("status") == SubAgentStatus.COMPLETED.value:
-            accepted.append(
-                {
-                    "task_id": tid,
-                    "description": info.get("description", ""),
-                    "target_module": info.get("target_module", ""),
-                    "status": "verified_and_merged",
-                    "summary": success_item.get("output", ""),
-                }
-            )
-        else:
-            rejected.append(
-                {
-                    "task_id": tid,
-                    "description": info.get("description", ""),
-                    "target_module": info.get("target_module", ""),
-                    "status": "failed_or_rejected",
-                    "error": success_item.get("error", "Subagent did not complete cleanly"),
-                }
-            )
-
-    for fail_item in batch_res.get("failures", []):
-        if not isinstance(fail_item, dict):
-            continue
-        tid = str(fail_item.get("task_id", ""))
-        info = task_metadata.get(tid, {})
-        rejected.append(
-            {
-                "task_id": tid,
-                "description": info.get("description", ""),
-                "target_module": info.get("target_module", ""),
-                "status": "execution_failed",
-                "error": fail_item.get("error", "Task execution failed"),
-            }
-        )
-
-    return {
-        "success": len(rejected) == 0,
-        "total_tasks": len(refactor_tasks),
-        "accepted_tasks": len(accepted),
-        "rejected_tasks": len(rejected),
-        "accepted": accepted,
-        "rejected": rejected,
-    }
-
-
 __all__ = [
     "VerificationVerdict",
-    "execute_dag_plan",
     "run_alternatives",
     "run_chain",
     "run_council",
-    "run_equivalence_refactor_wave",
     "run_with_verification",
     "verify_worker_output",
     "wait_children",
