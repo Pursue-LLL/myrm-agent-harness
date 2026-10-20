@@ -33,6 +33,81 @@ class LintSeverity(StrEnum):
     INFO = "info"
 
 
+def _loop_can_exit(node: ast.While) -> bool:
+    """Conservatively decide whether a ``while True`` body must be able to stop.
+
+    Only *unconditional* exits prove termination: a top-level ``break``, ``return``,
+    or ``raise``. A ``break`` nested inside ``if``/``try`` is conditional — the
+    branch may never be taken — so it does not prove the loop terminates.
+
+    This deliberately errs toward flagging: a false positive only asks the model to
+    rewrite the loop, while a false negative ships an unbounded script.
+    """
+    for stmt in node.body:
+        if isinstance(stmt, ast.Break | ast.Return | ast.Raise):
+            return True
+    return False
+
+
+def _loop_condition_is_never_updated(node: ast.While) -> bool:
+    """Detect loops whose condition references a name the body never rebinds.
+
+    Covers ``flag = True; while flag: ...`` and ``n = 0; while n < 10: ...``.
+    Only plain ``Name`` tests and ``Compare``/``BoolOp`` over plain names are
+    analysed. Calls, awaits, and attribute mutation are ignored: they could change
+    the condition indirectly, so flagging them would be a false positive.
+    """
+    watched = _condition_names(node.test)
+    if not watched:
+        return False
+    if _loop_can_exit(node):
+        return False
+    if _body_calls_out(node):
+        return False
+
+    for stmt in node.body:
+        for inner in ast.walk(stmt):
+            if isinstance(inner, ast.Name) and inner.id in watched and isinstance(inner.ctx, ast.Store):
+                return False
+    return True
+
+
+def _condition_names(test: ast.expr) -> set[str]:
+    """Collect plain names the loop condition depends on."""
+    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+        return _condition_names(test.operand)
+    if isinstance(test, ast.Name):
+        return {test.id}
+    if isinstance(test, ast.Compare):
+        names: set[str] = set()
+        for operand in [test.left, *test.comparators]:
+            if isinstance(operand, ast.Name):
+                names.add(operand.id)
+            elif not isinstance(operand, ast.Constant):
+                return set()
+        return names
+    if isinstance(test, ast.BoolOp):
+        names = set()
+        for value in test.values:
+            names |= _condition_names(value)
+        return names
+    return set()
+
+
+def _body_calls_out(node: ast.While) -> bool:
+    """True when the body may mutate loop state through async or generator effects.
+
+    ``await``/``yield`` can resume with different state, so a loop that depends on
+    them is never flagged. Ordinary calls are not treated as state-mutating: the
+    body of ``while flag: print("x")`` cannot flip ``flag`` through ``print``.
+    """
+    for stmt in node.body:
+        for inner in ast.walk(stmt):
+            if isinstance(inner, ast.Await | ast.Yield | ast.YieldFrom):
+                return True
+    return False
+
+
 @dataclass(frozen=True, slots=True)
 class LintIssue:
     """Individual lint issue discovered in the workflow script."""
@@ -115,18 +190,26 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
     def visit_While(self, node: ast.While) -> None:
         self._loop_depth += 1
         # Check for while True / while 1 unbounded loop
-        is_constant_truthy = False
-        if (isinstance(node.test, ast.Constant) and bool(node.test.value)) or (
-            isinstance(node.test, ast.NameConstant) and node.test.value is True
-        ):
-            is_constant_truthy = True
+        is_constant_truthy = isinstance(node.test, ast.Constant) and bool(node.test.value)
 
-        if is_constant_truthy:
+        if is_constant_truthy and not _loop_can_exit(node):
             self.issues.append(
                 LintIssue(
                     severity=LintSeverity.FATAL,
                     issue_code="UNBOUNDED_LOOP",
                     message="Infinite `while True` loop detected without bounded termination guard.",
+                    line=node.lineno,
+                )
+            )
+        elif not is_constant_truthy and _loop_condition_is_never_updated(node):
+            self.issues.append(
+                LintIssue(
+                    severity=LintSeverity.FATAL,
+                    issue_code="UNBOUNDED_LOOP",
+                    message=(
+                        f"Loop condition at line {node.lineno} never changes inside the body, "
+                        "so it cannot terminate."
+                    ),
                     line=node.lineno,
                 )
             )

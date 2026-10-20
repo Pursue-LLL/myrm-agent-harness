@@ -1,5 +1,6 @@
 """Tests for Dynamic Workflow AST linter and false-edge dataflow detector."""
 
+import pytest
 
 from myrm_agent_harness.agent.dynamic_workflow.linter import (
     lint_workflow_script,
@@ -167,3 +168,61 @@ print(json.dumps({"sub": r, "steer": steer_res}))
     assert report.steer_child_calls_found == 1
     assert len(report.warnings) == 0
 
+
+
+@pytest.mark.parametrize(
+    ("name", "script"),
+    [
+        (
+            "while_true_break_is_legal",
+            "while True:\n    break\n",
+        ),
+        (
+            "while_true_return_is_legal",
+            "while True:\n    return 1\n",
+        ),
+        (
+            "flag_reassigned_in_body_is_legal",
+            "flag = True\nwhile flag:\n    flag = False\n",
+        ),
+        (
+            "counter_advanced_is_legal",
+            "n = 0\nwhile n < 10:\n    n += 1\n",
+        ),
+        (
+            "await_loop_is_not_flagged",
+            "done = False\nwhile not done:\n    await asyncio.sleep(1)\n",
+        ),
+    ],
+)
+def test_lint_legal_loops_are_not_blocked(name: str, script: str) -> None:
+    """Legitimate loops must not be rejected as UNBOUNDED_LOOP.
+
+    The previous check flagged every `while True`, including `while True: break`,
+    which blocked valid orchestration scripts at the plan-confirm gate.
+    """
+    report = lint_workflow_script(script)
+    assert not any("UNBOUNDED_LOOP" in err for err in report.fatal_errors), name
+
+
+@pytest.mark.parametrize(
+    ("name", "script"),
+    [
+        (
+            "flag_never_reset",
+            "flag = True\nwhile flag:\n    print('x')\n",
+        ),
+        (
+            "counter_never_advanced",
+            "n = 0\nwhile n < 10:\n    print(n)\n",
+        ),
+        (
+            "conditional_break_only",
+            "while True:\n    if check():\n        break\n",
+        ),
+    ],
+)
+def test_lint_detects_unbounded_variable_loops(name: str, script: str) -> None:
+    """Loops that cannot terminate must be caught, not just `while True`."""
+    report = lint_workflow_script(script)
+    assert any("UNBOUNDED_LOOP" in err for err in report.fatal_errors), name

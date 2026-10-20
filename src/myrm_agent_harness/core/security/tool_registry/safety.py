@@ -25,11 +25,8 @@ def check_safety_coverage() -> None:
     EXPLICIT_MCP_FALLBACK_TOOLS. Keeping both in sync here prevents a new
     EXPLICIT fallback tool from silently shipping without safety metadata.
     """
-    from .registry import (
-        BUILTIN_TOOL_NAMES,
-        EXPLICIT_MCP_FALLBACK_TOOLS,
-        TOOL_SAFETY_METADATA,
-    )
+    from .governance import EXPLICIT_MCP_FALLBACK_TOOLS
+    from .registry import BUILTIN_TOOL_NAMES, TOOL_SAFETY_METADATA
 
     safety_required = BUILTIN_TOOL_NAMES | EXPLICIT_MCP_FALLBACK_TOOLS
     missing = safety_required - TOOL_SAFETY_METADATA.keys()
