@@ -8,6 +8,8 @@
 - utils.token_economics.tracker (POS: LLM call metadata tracker)
 - agent.streaming.recovery.stream_recovery_oneshot (POS: one-shot recovery strategies)
 - agent.streaming.recovery.stream_recovery_continuation (POS: steering, subagent, and goal continuation recovery)
+- agent.streaming.recovery.stream_recovery_window (POS: provider rate-limit window recovery)
+- toolkits.llms.errors.provider_window (POS: provider-stated retry boundary for the transient backoff floor)
 - agent.streaming.recovery.stream_recovery_truncation (POS: length truncation recovery)
 - agent.streaming.escalation_scrubber::EscalationScrubber (POS: 流式层升级标记检测)
 - utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
@@ -15,18 +17,15 @@
 
 [OUTPUT]
 - StreamRecoveryMixin: used by StreamExecutor via multiple inheritance
-- _extract_retry_after_ms: module-level helper function
 - _is_escalation_marker_message: module-level helper function
 
 [POS]
-StreamRecoveryMixin composes overflow, deferred failover (429 never failover unless quota exhausted; 529 after 3 consecutive; emits `model_failover_unconfigured` when failoverable but no fallback LLM), safety refusal fallback (HTTP 200 refusal/content_filter → safety_fallback_llm), escalation, transient retry (short-circuits on is_quota_exhausted), iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies.
+StreamRecoveryMixin composes overflow, deferred failover (429 never failover unless quota exhausted; 529 after 3 consecutive; emits `model_failover_unconfigured` when failoverable but no fallback LLM), safety refusal fallback (HTTP 200 refusal/content_filter → safety_fallback_llm), escalation, provider-window recovery (exact in-turn wait / goal park / fail-fast on a stated reset, via ProviderWindowRecoveryMixin), transient retry (short-circuits on is_quota_exhausted; honors an in-turn Retry-After as the backoff floor), iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies.
 
 """
 
 from __future__ import annotations
 
-import asyncio
-import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
@@ -47,6 +46,7 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import (
     is_context_overflow,
     is_quota_exhausted,
 )
+from myrm_agent_harness.toolkits.llms.errors.provider_window import WindowKind, extract_provider_window
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -60,6 +60,7 @@ from .stream_recovery_oneshot import (
 from .stream_recovery_truncation import (
     StreamTruncationRecoveryMixin,
 )
+from .stream_recovery_window import ProviderWindowRecoveryMixin
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -75,7 +76,6 @@ logger = get_agent_logger(__name__)
 _MAX_OVERFLOW_RETRIES = 2
 _MAX_CONSECUTIVE_OVERLOADED_BEFORE_FAILOVER = 3
 _SUMMARY_OUTPUT_CAP_TOKENS = 32_768
-_RETRY_AFTER_RE = re.compile(r"retry.*?after.*?(\d+).*?second", re.IGNORECASE)
 
 
 def _overflow_focus_topic(ctx: object) -> str:
@@ -95,33 +95,11 @@ def _overflow_focus_topic(ctx: object) -> str:
         return ""
 
 
-def _extract_retry_after_ms(exc: Exception) -> int | None:
-    """Try to extract a retry-after duration from the exception.
-
-    Priority:
-    1. HTTP ``Retry-After`` header (seconds → ms)
-    2. "retry after N seconds" in the error message
-    """
-    headers: dict[str, str] | None = getattr(exc, "headers", None) or getattr(exc, "response_headers", None)
-    if headers:
-        raw = headers.get("retry-after") or headers.get("Retry-After")
-        if raw:
-            try:
-                return int(float(raw) * 1000)
-            except (ValueError, TypeError, OverflowError):
-                pass
-
-    m = _RETRY_AFTER_RE.search(str(exc))
-    if m:
-        return int(m.group(1)) * 1000
-
-    return None
-
-
 class StreamRecoveryMixin(
     StreamContinuationRecoveryMixin,
     StreamTruncationRecoveryMixin,
     OneshotRecoveryMixin,
+    ProviderWindowRecoveryMixin,
 ):
     """Error recovery strategy collection, used by StreamExecutor via multiple inheritance.
 
@@ -525,7 +503,9 @@ class StreamRecoveryMixin(
     async def _handle_transient_retry(self, exc: Exception, retries: int) -> bool:
         """Handle transient errors via jittered backoff. Returns True to retry."""
         from myrm_agent_harness.toolkits.llms.reliability.jittered_backoff import (
-            calculate_jittered_delay,
+            calculate_adaptive_jittered_delay,
+            is_paas_overload_error,
+            paas_overload_retry_ceiling,
         )
 
         error_kind = classify_error(exc)
@@ -543,68 +523,55 @@ class StreamRecoveryMixin(
             logger.warning(" Non-transient quota exhausted; bypassing transient retry loop: %s", str(exc)[:100])
             return False
 
-        max_transient_retries = 15
+        is_paas_1305 = is_paas_overload_error(exc)
+        max_transient_retries = paas_overload_retry_ceiling() if is_paas_1305 else 15
         if retries >= max_transient_retries:
             logger.warning(
-                " Transient retry exhausted after %d attempts for %s",
+                " Transient retry exhausted after %d attempts for %s (paas_1305=%s)",
                 retries,
                 error_kind.value,
+                is_paas_1305,
             )
-
-            # If we have an active goal, pause it instead of failing completely
-            if hasattr(self._ctx, "goal_provider") and self._ctx.goal_provider:
-                from myrm_agent_harness.agent.goals.types import GoalStatus
-
-                goal = await self._ctx.goal_provider.get_active_goal(self._ctx.message_id)
-                if goal:
-                    logger.warning(
-                        " Goal %s paused due to exhausted transient retries (e.g. 429 Rate Limit)",
-                        goal.goal_id,
-                    )
-                    await self._ctx.goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
-
             return False
 
-        retry_after_ms = _extract_retry_after_ms(exc)
-        retry_after_sec = (retry_after_ms / 1000.0) if retry_after_ms else None
+        # Only an in-turn wait may floor the backoff; a longer boundary is not waited out here.
+        hint = extract_provider_window(exc)
+        retry_after_s = hint.wait_s if hint is not None and hint.kind is WindowKind.IN_TURN else None
 
-        delay_seconds = calculate_jittered_delay(
+        delay_seconds, stage_label = calculate_adaptive_jittered_delay(
             attempt=retries + 1,
+            error=exc,
             base_delay=2.0,
             max_delay=60.0,
-            retry_after=retry_after_sec,
+            retry_after=retry_after_s,
         )
 
+        ctx = getattr(self, "_ctx", None)
+        if ctx is not None and getattr(ctx, "retry_state", None) is not None and is_paas_1305:
+            ctx.retry_state = ctx.retry_state.with_paas_1305_incremented()
+
+        reason_label = stage_label or error_kind.value
+
         logger.warning(
-            " Transient error (%s): %s. Jittered Retry attempt %d/%d in %.2fs",
+            " Transient error (%s): %s. Jittered Retry attempt %d/%d in %.2fs (label=%s)",
             error_kind.value,
             str(exc)[:100],
             retries + 1,
             max_transient_retries,
             delay_seconds,
+            reason_label,
         )
 
         await self._emit_recovery_event(
             "transient_retry",
             error_kind=error_kind.value,
+            reason_label=reason_label,
             delay_ms=int(delay_seconds * 1000),
             attempt=retries + 1,
             restart=True,
         )
 
-        if self._ctx.cancel_token:
-            steps = int(delay_seconds * 10)
-            for _ in range(steps):
-                if self._ctx.cancel_token.is_cancelled:
-                    return False
-                await asyncio.sleep(0.1)
-            remainder = delay_seconds - (steps * 0.1)
-            if remainder > 0:
-                await asyncio.sleep(remainder)
-        else:
-            await asyncio.sleep(delay_seconds)
-
-        if self._ctx.cancel_token and self._ctx.cancel_token.is_cancelled:
+        if not await self._sleep_unless_cancelled(delay_seconds):
             return False
 
         self.streaming_final_answer = False

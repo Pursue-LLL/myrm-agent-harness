@@ -14,14 +14,34 @@ Package entry for streaming recovery strategies. stream_executor consumes Stream
 via multiple inheritance and recovery helpers directly from the sub-modules.
 """
 
+from .disconnection_recovery import ResilientDisconnectionRecoveryManager
+from .recovery_types import (
+    ConnectionState,
+    ReplayBatch,
+    ReplayStatus,
+    StagedAction,
+    StructuredStreamEvent,
+    dict_to_event,
+    event_to_dict,
+)
+from .replay_buffer import CircularEventReplayBuffer
 from .stream_recovery import StreamRecoveryMixin
 from .stream_recovery_continuation import StreamContinuationRecoveryMixin
 from .stream_recovery_oneshot import OneshotRecoveryMixin
 from .stream_recovery_truncation import StreamTruncationRecoveryMixin
 
 __all__ = [
+    "CircularEventReplayBuffer",
+    "ConnectionState",
     "OneshotRecoveryMixin",
+    "ReplayBatch",
+    "ReplayStatus",
+    "ResilientDisconnectionRecoveryManager",
+    "StagedAction",
     "StreamContinuationRecoveryMixin",
     "StreamRecoveryMixin",
     "StreamTruncationRecoveryMixin",
+    "StructuredStreamEvent",
+    "dict_to_event",
+    "event_to_dict",
 ]

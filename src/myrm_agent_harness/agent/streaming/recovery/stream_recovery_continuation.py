@@ -2,6 +2,7 @@
 
 [INPUT]
 - agent.goals.continuation::check_continuation (POS: goal continuation verdict builder)
+- agent.streaming.recovery.goal_session::goal_session_id (POS: goal lookup key of a run)
 - agent.streaming.types::AgentEventType (POS: streaming event type constants)
 
 [OUTPUT]
@@ -19,6 +20,7 @@ from typing import TYPE_CHECKING, cast
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 
+from myrm_agent_harness.agent.streaming.recovery.goal_session import goal_session_id
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -213,7 +215,7 @@ class StreamContinuationRecoveryMixin:
 
         from myrm_agent_harness.agent.goals.continuation import check_continuation
 
-        session_id = str(ctx.merged_context.get("chat_id", ctx.merged_context.get("session_id", ctx.message_id)))
+        session_id = goal_session_id(ctx)
         decision = await check_continuation(
             goal_provider=goal_provider,
             session_id=session_id,
