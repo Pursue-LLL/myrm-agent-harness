@@ -707,6 +707,7 @@ async def test_delegate_task_tool_allowed_types_none_allows_all() -> None:
     )
 
     agent = BaseAgent(llm=FakeLLM())
+    agent._last_context = {"session_id": "s", "workspace_path": "/tmp", "workspaces_storage_root": "/tmp"}
     spawn_tool = create_delegate_task_tool(
         parent_agent=agent,
         tool_registry_getter=lambda: [FakeSearchTool()],
@@ -714,18 +715,7 @@ async def test_delegate_task_tool_allowed_types_none_allows_all() -> None:
         allowed_types=None,
     )
 
-    result = await spawn_tool.ainvoke(
-        {
-            "agent_type": "search",
-            "objective": "test",
-            "wait": True,
-            "context": {
-                "session_id": "s",
-                "workspace_path": "/tmp",
-                "workspaces_storage_root": "/tmp",
-            },
-        }
-    )
+    result = await spawn_tool.ainvoke({"agent_type": "search", "objective": "test", "wait": True})
     assert result["success"] is True
 
 
@@ -1973,7 +1963,7 @@ class TestCancelChildEdgeCases:
 
 
 # =========================================================================
-# _run_subagent_inner mock tests — hook exceptions & budget_tokens
+# _run_subagent_core mock tests — hook exceptions & budget_tokens
 # =========================================================================
 
 
@@ -2039,7 +2029,7 @@ class TestHookExceptionSafety:
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
-            result = await manager._run_subagent_inner(
+            result = await manager._run_subagent_core(
                 task_id="hook_spawn",
                 agent_type="search",
                 task_description="test",
@@ -2077,7 +2067,7 @@ class TestHookExceptionSafety:
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
-            result = await manager._run_subagent_inner(
+            result = await manager._run_subagent_core(
                 task_id="hook_complete",
                 agent_type="search",
                 task_description="test",
@@ -2119,7 +2109,7 @@ class TestHookExceptionSafety:
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
-            result = await manager._run_subagent_inner(
+            result = await manager._run_subagent_core(
                 task_id="hook_error",
                 agent_type="search",
                 task_description="test",
@@ -2134,7 +2124,7 @@ class TestHookExceptionSafety:
 
 
 class TestBudgetTokensLimit:
-    """Test budget_tokens enforcement in _run_subagent_inner."""
+    """Test budget_tokens enforcement in _run_subagent_core."""
 
     @pytest.mark.asyncio
     async def test_budget_exceeded_breaks_early(self) -> None:
@@ -2165,7 +2155,7 @@ class TestBudgetTokensLimit:
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
-            result = await manager._run_subagent_inner(
+            result = await manager._run_subagent_core(
                 task_id="budget_test",
                 agent_type="search",
                 task_description="test",
@@ -2205,7 +2195,7 @@ class TestBudgetTokensLimit:
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
-            result = await manager._run_subagent_inner(
+            result = await manager._run_subagent_core(
                 task_id="no_budget",
                 agent_type="search",
                 task_description="test",
@@ -2220,7 +2210,7 @@ class TestBudgetTokensLimit:
 
 
 class TestTimeoutRetryPath:
-    """Test timeout retry with exponential backoff inside _run_subagent_inner."""
+    """Test timeout retry with exponential backoff inside _run_subagent_core."""
 
     @pytest.mark.asyncio
     async def test_timeout_exhausts_retries(self) -> None:
@@ -2253,7 +2243,7 @@ class TestTimeoutRetryPath:
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
         ):
-            result = await manager._run_subagent_inner(
+            result = await manager._run_subagent_core(
                 task_id="timeout_retry",
                 agent_type="search",
                 task_description="test",
