@@ -27,17 +27,9 @@ import secrets
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.cron.engine.parser import (
-    compute_next_run,
-    validate_cron_expr,
-    validate_timezone,
-)
-from myrm_agent_harness.toolkits.cron.triggers import (
-    TriggerConfig,
-    WebhookTrigger,
-    generate_webhook_path,
-    generate_webhook_secret,
-)
+from myrm_agent_harness.toolkits.cron.engine.parser import compute_next_run
+from myrm_agent_harness.toolkits.cron.manager_validation import CronValidationMixin
+from myrm_agent_harness.toolkits.cron.triggers import TriggerConfig, WebhookTrigger
 from myrm_agent_harness.toolkits.cron.types import (
     ActiveHours,
     CronJob,
@@ -63,7 +55,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class CronManager:
+class CronManager(CronValidationMixin):
     """CRUD orchestration for cron jobs.
 
     All mutations validate inputs, persist via ``CronStore``, and notify
@@ -94,6 +86,7 @@ class CronManager:
         *,
         name_filter: str | None = None,
         chat_id: str | None = None,
+        project_id: str | None = None,
         limit: int | None = None,
         offset: int = 0,
     ) -> list[CronJob]:
@@ -101,6 +94,7 @@ class CronManager:
             user_id=user_id,
             name_filter=name_filter,
             chat_id=chat_id,
+            project_id=project_id,
             limit=limit,
             offset=offset,
         )
@@ -111,8 +105,14 @@ class CronManager:
         *,
         name_filter: str | None = None,
         chat_id: str | None = None,
+        project_id: str | None = None,
     ) -> int:
-        return await self._store.count_jobs(user_id=user_id, name_filter=name_filter, chat_id=chat_id)
+        return await self._store.count_jobs(
+            user_id=user_id,
+            name_filter=name_filter,
+            chat_id=chat_id,
+            project_id=project_id,
+        )
 
     async def get_job(self, job_id: str, user_id: str) -> CronJob | None:
         job = await self._store.get_job(job_id)
@@ -174,6 +174,7 @@ class CronManager:
         model: str | None = None,
         chat_id: str | None = None,
         agent_id: str | None = None,
+        project_id: str | None = None,
         workflow_template_id: str | None = None,
         workflow_template_args: dict[str, str] | None = None,
         command: str | None = None,
@@ -230,6 +231,7 @@ class CronManager:
                 model=model,
                 chat_id=chat_id,
                 agent_id=agent_id,
+                project_id=project_id,
                 workflow_template_id=workflow_template_id,
                 workflow_template_args=workflow_template_args,
                 command=command,
@@ -311,6 +313,7 @@ class CronManager:
             model=source.model,
             chat_id=source.chat_id,
             agent_id=source.agent_id,
+            project_id=source.project_id,
             workflow_template_id=source.workflow_template_id,
             workflow_template_args=(dict(source.workflow_template_args) if source.workflow_template_args else None),
             command=source.command,
@@ -401,6 +404,10 @@ class CronManager:
             job.model = patch.model
         if patch.agent_id is not None:
             job.agent_id = patch.agent_id
+        if patch.clear_project_id:
+            job.project_id = None
+        elif patch.project_id is not None:
+            job.project_id = patch.project_id
         if patch.clear_workflow_template:
             job.workflow_template_id = None
             job.workflow_template_args = None
@@ -591,99 +598,3 @@ class CronManager:
         self._scheduler.notify_change()
         return True
 
-    # ------------------------------------------------------------------
-    # Validation & Helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _validate_resume_preconditions(job: CronJob, now: datetime) -> None:
-        """Reject resuming a job whose constraints make it immediately un-runnable."""
-        if job.status == JobStatus.COMPLETED:
-            raise ValueError("completed jobs cannot be resumed")
-        if job.expires_at is not None:
-            ea = job.expires_at if job.expires_at.tzinfo else job.expires_at.replace(tzinfo=UTC)
-            if now >= ea:
-                raise ValueError("job has expired; extend expires_at before resuming")
-        if job.max_fires is not None and job.fire_count >= job.max_fires:
-            raise ValueError("max execution count reached; increase max_fires before resuming")
-
-    def _validate_create(
-        self,
-        job_type: JobType,
-        schedule: Schedule,
-        prompt: str | None,
-        command: str | None,
-    ) -> None:
-        """Validate required fields by job type before persisting."""
-        if job_type == JobType.SHELL:
-            if not self._shell_enabled:
-                raise ValueError("shell jobs are not enabled")
-            if not command:
-                raise ValueError("SHELL job requires a non-empty 'command'")
-        elif not prompt:
-            raise ValueError(f"{job_type.value.upper()} job requires a non-empty 'prompt'")
-
-        if schedule.kind == ScheduleKind.CRON and not validate_cron_expr(schedule.expr):
-            raise ValueError(f"invalid cron expression: {schedule.expr!r}")
-        if schedule.tz and not validate_timezone(schedule.tz):
-            raise ValueError(f"unknown timezone: {schedule.tz!r}")
-
-    def _validate_schedule(self, schedule: Schedule) -> None:
-        """Validate schedule cron expression and timezone."""
-        if schedule.kind == ScheduleKind.CRON and not validate_cron_expr(schedule.expr):
-            raise ValueError(f"invalid cron expression: {schedule.expr!r}")
-        if schedule.tz and not validate_timezone(schedule.tz):
-            raise ValueError(f"unknown timezone: {schedule.tz!r}")
-
-    async def _validate_context_from(self, job_id: str, context_from: tuple[str, ...]) -> None:
-        """Ensure context_from references are valid and non-circular."""
-        for ref_id in context_from:
-            if ref_id == job_id:
-                raise ValueError(f"context_from must not reference the job itself: {ref_id!r}")
-            ref_job = await self._store.get_job(ref_id)
-            if ref_job is None:
-                raise ValueError(f"context_from references non-existent job: {ref_id!r}")
-
-    @staticmethod
-    def _ensure_webhook_credentials(triggers: TriggerConfig) -> TriggerConfig:
-        """Fill in missing path/secret for each webhook trigger."""
-        if not triggers.webhooks:
-            return triggers
-        patched = tuple(
-            WebhookTrigger(
-                path=wh.path or generate_webhook_path(),
-                secret=wh.secret or generate_webhook_secret(),
-            )
-            for wh in triggers.webhooks
-        )
-        return TriggerConfig(
-            webhooks=patched,
-            events=triggers.events,
-            system_events=triggers.system_events,
-            polls=triggers.polls,
-            streams=triggers.streams,
-        )
-
-    async def _resolve_name_conflict(self, user_id: str, name: str) -> str:
-        """Auto-append (2), (3), etc. if name already exists for this user.
-
-        Args:
-            user_id: User identifier for scope isolation
-            name: Desired task name
-
-        Returns:
-            Unique name (original or with suffix like " (2)")
-        """
-        # Query store directly to avoid mock issues in tests
-        existing_jobs = await self._store.list_jobs(user_id=user_id)
-        existing_names = {job.name for job in existing_jobs}
-
-        if name not in existing_names:
-            return name
-
-        # Find next available suffix: (2), (3), ...
-        suffix = 2
-        while f"{name} ({suffix})" in existing_names:
-            suffix += 1
-
-        return f"{name} ({suffix})"
