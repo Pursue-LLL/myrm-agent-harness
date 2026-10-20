@@ -21,13 +21,13 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from myrm_agent_harness.toolkits.vector.base import (
-    CollectionInfo,
     FilterDict,
     SearchResult,
     VectorDocument,
     VectorStore,
 )
 from myrm_agent_harness.toolkits.vector.config import VectorStoreConfig
+from myrm_agent_harness.toolkits.vector.qdrant.collections import QdrantCollectionMixin
 from myrm_agent_harness.toolkits.vector.qdrant.filters import build_qdrant_filter, point_id_for
 from myrm_agent_harness.toolkits.vector.qdrant.sparse import QdrantSparseMixin
 
@@ -44,7 +44,7 @@ def _is_missing_collection(exc: Exception) -> bool:
     return isinstance(exc, ValueError) and "not found" in str(exc).lower()
 
 
-class QdrantVectorStore(QdrantSparseMixin, VectorStore):
+class QdrantVectorStore(QdrantCollectionMixin, QdrantSparseMixin, VectorStore):
     """Qdrant implementation of VectorStore.
 
     Supports embedded (local file) and remote (server/cloud) modes.
@@ -127,189 +127,6 @@ class QdrantVectorStore(QdrantSparseMixin, VectorStore):
             return await operation(*args, **kwargs)  # type: ignore[misc]
         async with self._local_exec_lock:
             return await asyncio.to_thread(operation, *args, **kwargs)  # type: ignore[arg-type]
-
-    # Collection operations
-
-    async def create_collection(
-        self,
-        name: str,
-        dimension: int | None = None,
-        distance: str = "cosine",
-    ) -> bool:
-        from qdrant_client.models import Distance, VectorParams
-
-        if await self.collection_exists(name):
-            return False
-
-        dim = dimension or self._default_dimension
-        distance_map = {
-            "cosine": Distance.COSINE,
-            "euclidean": Distance.EUCLID,
-            "dot": Distance.DOT,
-        }
-        qdrant_distance = distance_map.get(distance.lower(), Distance.COSINE)
-
-        quantization_config = None
-        if getattr(self._config, "quantization_enabled", False):
-            try:
-                from qdrant_client.models import (
-                    ScalarQuantization,
-                    ScalarQuantizationConfig,
-                    ScalarType,
-                )
-
-                quantization_config = ScalarQuantization(
-                    scalar=ScalarQuantizationConfig(
-                        type=ScalarType.INT8,
-                        always_ram=True,
-                    )
-                )
-            except Exception as e:
-                logger.warning("Failed to configure Qdrant scalar quantization: %s", e)
-
-        create_kwargs: dict[str, object] = {
-            "collection_name": name,
-            "vectors_config": VectorParams(size=dim, distance=qdrant_distance),
-        }
-        if quantization_config is not None:
-            create_kwargs["quantization_config"] = quantization_config
-
-        await self._with_retry(
-            self._client.create_collection,  # type: ignore[attr-defined]
-            **create_kwargs,
-        )
-        logger.debug(
-            f"Created collection: {name} (dim={dim}, distance={distance}, quant={quantization_config is not None})"
-        )
-        return True
-
-    async def ensure_collection(
-        self,
-        name: str,
-        dimension: int,
-        *,
-        distance: str = "cosine",
-    ) -> None:
-        """Idempotently create the collection when missing (VectorStoreProtocol contract)."""
-        if await self.collection_exists(name):
-            return
-        await self.create_collection(name, dimension=dimension, distance=distance)
-
-    async def delete_collection(self, name: str) -> bool:
-        if not await self.collection_exists(name):
-            return False
-        await self._with_retry(self._client.delete_collection, collection_name=name)  # type: ignore[attr-defined]
-        logger.debug(f"Deleted collection: {name}")
-        return True
-
-    async def collection_exists(self, name: str) -> bool:
-        try:
-            return await self._with_retry(self._client.collection_exists, collection_name=name)
-        except Exception:
-            return False
-
-    async def get_collection_info(self, name: str) -> CollectionInfo | None:
-        try:
-            info = await self._execute(self._client.get_collection, collection_name=name)  # type: ignore[attr-defined]
-            return CollectionInfo(
-                name=name,
-                dimension=info.config.params.vectors.size,  # type: ignore[union-attr]
-                distance=info.config.params.vectors.distance.name.lower(),  # type: ignore[union-attr]
-                count=info.points_count,
-            )
-        except Exception:
-            return None
-
-    async def list_collections(self) -> list[str]:
-        collections = await self._execute(self._client.get_collections)  # type: ignore[attr-defined]
-        return [c.name for c in collections.collections]  # type: ignore[union-attr]
-
-    async def ensure_payload_indexes(self, collection: str) -> None:
-        """Create payload indexes required for sorted scrolling and tag filtering.
-
-        Idempotent — safe to call on every startup.  Indexes that already exist
-        are silently skipped by Qdrant.
-        """
-        from qdrant_client.http.models import PayloadSchemaType
-
-        index_specs: list[tuple[str, PayloadSchemaType]] = [
-            ("_created_ts", PayloadSchemaType.FLOAT),
-            ("_updated_ts", PayloadSchemaType.FLOAT),
-            ("importance", PayloadSchemaType.FLOAT),
-            ("tags", PayloadSchemaType.KEYWORD),
-            ("namespaces", PayloadSchemaType.KEYWORD),
-            ("primary_namespace", PayloadSchemaType.KEYWORD),
-        ]
-        for field, schema_type in index_specs:
-            try:
-                await self._with_retry(
-                    self._client.create_payload_index,  # type: ignore[attr-defined]
-                    collection_name=collection,
-                    field_name=field,
-                    field_schema=schema_type,
-                )
-            except Exception as e:
-                logger.debug("Payload index %s on %s skipped: %s", field, collection, e)
-
-    async def backfill_epoch_timestamps(self, collection: str, batch_size: int = 100) -> int:
-        """Backfill ``_created_ts`` / ``_updated_ts`` for points missing them.
-
-        Returns the number of points updated.
-        """
-        from qdrant_client.http.models import Filter, IsEmptyCondition, PayloadField
-
-        missing_filter = Filter(must=[IsEmptyCondition(is_empty=PayloadField(key="_created_ts"))])
-        updated = 0
-        offset: str | None = None
-
-        while True:
-            points, next_offset = await self._with_retry(
-                self._client.scroll,  # type: ignore[attr-defined]
-                collection_name=collection,
-                scroll_filter=missing_filter,
-                limit=batch_size,
-                offset=offset,
-                with_payload=True,
-                with_vectors=False,
-            )
-            if not points:  # type: ignore[truthy-bool]
-                break
-            for point in points:  # type: ignore[union-attr]
-                payload = point.payload or {}
-                iso_created = payload.get("created_at")
-                iso_updated = payload.get("updated_at")
-                if iso_created:
-                    try:
-                        ts = datetime.fromisoformat(iso_created).timestamp()
-                    except (ValueError, TypeError):
-                        ts = datetime.now(UTC).timestamp()
-                else:
-                    ts = datetime.now(UTC).timestamp()
-                if iso_updated:
-                    try:
-                        uts = datetime.fromisoformat(iso_updated).timestamp()
-                    except (ValueError, TypeError):
-                        uts = ts
-                else:
-                    uts = ts
-                await self._with_retry(
-                    self._client.set_payload,  # type: ignore[attr-defined]
-                    collection_name=collection,
-                    payload={"_created_ts": ts, "_updated_ts": uts},
-                    points=[point.id],
-                )
-                updated += 1
-            if next_offset is None:
-                break
-            offset = str(next_offset)
-
-        if updated:
-            logger.info(
-                "Backfilled %d points in collection %s with epoch timestamps",
-                updated,
-                collection,
-            )
-        return updated
 
     # Document operations
 

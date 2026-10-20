@@ -118,6 +118,25 @@ class VectorStore(ABC):
             True if created, False if already exists.
         """
 
+    async def create_named_vector_collection(
+        self,
+        name: str,
+        dimension: int,
+        *,
+        names: Sequence[str],
+        distance: str = "cosine",
+    ) -> bool:
+        """Create a collection holding several named vectors of one dimension. No-op if it exists.
+
+        Named vectors carry several embeddings per point (e.g. a raw exchange and its
+        summary), so a backend that cannot store them raises ``NotImplementedError``
+        rather than accepting the write and silently dropping a channel.
+
+        Returns:
+            True if created, False if it already existed.
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} does not support named-vector collections")
+
     @abstractmethod
     async def delete_collection(self, name: str) -> bool:
         """Delete a collection.
