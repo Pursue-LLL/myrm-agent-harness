@@ -66,33 +66,35 @@ class TestComputeCostByTokens:
         assert compute_cost_by_tokens("gpt-4o", -1, -1) == CostResult()
 
     def test_positive_cost_returns_actual(self) -> None:
-        with patch.object(litellm, "completion_cost", return_value=0.005) as mock_cc:
+        with patch.object(litellm, "cost_per_token", return_value=(0.003, 0.002)) as mock_cpt:
             result = compute_cost_by_tokens("claude-3.5-sonnet", 1000, 500)
             assert result.usd == 0.005
             assert result.status == CostStatus.ACTUAL
-            mock_cc.assert_called_once_with(
-                model="claude-3.5-sonnet",
-                prompt_tokens=1000,
-                completion_tokens=500,
-            )
+            mock_cpt.assert_called_once()
+            _, kwargs = mock_cpt.call_args
+            assert kwargs["model"] == "claude-3.5-sonnet"
+            assert kwargs["prompt_tokens"] == 1000
+            assert kwargs["completion_tokens"] == 500
 
     def test_zero_cost_returns_unknown(self) -> None:
-        with patch.object(litellm, "completion_cost", return_value=0.0):
+        with patch.object(litellm, "cost_per_token", return_value=(0.0, 0.0)):
             result = compute_cost_by_tokens("gpt-4o", 100, 50)
             assert result.usd == 0.0
             assert result.status == CostStatus.UNKNOWN
 
     def test_exception_returns_unknown(self) -> None:
-        with patch.object(litellm, "completion_cost", side_effect=RuntimeError("API error")):
+        with patch.object(litellm, "cost_per_token", side_effect=RuntimeError("API error")):
             result = compute_cost_by_tokens("unknown-model", 100, 50)
             assert result == CostResult()
 
     def test_only_prompt_tokens(self) -> None:
-        with patch.object(litellm, "completion_cost", return_value=0.001):
+        with patch.object(litellm, "cost_per_token", return_value=(0.001, 0.0)):
             result = compute_cost_by_tokens("gpt-4o", 100, 0)
             assert result.status == CostStatus.ACTUAL
+            assert result.usd == 0.001
 
     def test_only_completion_tokens(self) -> None:
-        with patch.object(litellm, "completion_cost", return_value=0.002):
+        with patch.object(litellm, "cost_per_token", return_value=(0.0, 0.002)):
             result = compute_cost_by_tokens("gpt-4o", 0, 100)
             assert result.status == CostStatus.ACTUAL
+            assert result.usd == 0.002
