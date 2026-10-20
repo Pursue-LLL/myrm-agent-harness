@@ -21,6 +21,7 @@ Dual-layer context injection engine preserving LLM Prompt Cache while resolving 
 from __future__ import annotations
 
 import hashlib
+import html
 from typing import Final
 
 from myrm_agent_harness.toolkits.memory.two_layer_dialectic.models import (
@@ -42,10 +43,14 @@ def _compute_cache_hash(session_summary: str, peer_cards: list[str]) -> str:
 
 def _format_base_context_xml(payload: BaseContextPayload) -> str:
     """Render Layer 1 base context with explicit cache hash boundaries."""
-    peers_xml = "\n".join(f"  <peer_card>{card.strip()}</peer_card>" for card in payload.standing_peer_cards)
+    summary = html.escape(payload.session_summary.strip())
+    peers_xml = "\n".join(
+        f"  <peer_card>{html.escape(card.strip())}</peer_card>" for card in payload.standing_peer_cards
+    )
     return (
-        f'<base_context cache_hash="{payload.cache_control_hash}" turn="{payload.refreshed_at_turn}">\n'
-        f"  <session_summary>{payload.session_summary.strip()}</session_summary>\n"
+        f'<base_context cache_hash="{html.escape(payload.cache_control_hash)}" '
+        f'turn="{payload.refreshed_at_turn}">\n'
+        f"  <session_summary>{summary}</session_summary>\n"
         f"  <standing_peers>\n{peers_xml}\n  </standing_peers>\n"
         f"</base_context>"
     )

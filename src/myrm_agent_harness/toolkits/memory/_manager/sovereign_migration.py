@@ -1,16 +1,14 @@
-"""MemoryManager mixin for sovereign memory asset packaging, cross-host migration, and competitor ingestion.
+"""MemoryManager mixin for third-party assistant asset detection and ingestion.
 
 [INPUT]
-- toolkits.memory.sovereign_migration.bundle_archiver::SovereignBundleArchiver (POS: bundle exporter)
-- toolkits.memory.sovereign_migration.bundle_restorer::SovereignBundleRestorer (POS: bundle restorer)
 - toolkits.memory.sovereign_migration.competitor_adapter::CompetitorIngestionAdapter (POS: competitor adapter)
-- toolkits.memory.sovereign_migration.types::CompetitorDetectResult, CompetitorImportResult, CompetitorType, ExportBundleRequest, ExportBundleResult, RestoreBundleRequest, RestoreBundleResult (POS: contracts)
+- toolkits.memory.sovereign_migration.types::CompetitorDetectResult, CompetitorImportResult, CompetitorType (POS: contracts)
 
 [OUTPUT]
-- MemoryManagerSovereignMigrationMixin: runtime orchestration methods for sovereign asset packaging and migration
+- MemoryManagerSovereignMigrationMixin: runtime orchestration methods for competitor asset detection and ingestion
 
 [POS]
-Partial mixin for MemoryManager providing atomic .myrmpkg bundle export, checksum-verified restore with path remapping, and competitor ingestion.
+Partial mixin for MemoryManager providing competitor asset detection and ingestion.
 """
 
 from __future__ import annotations
@@ -19,12 +17,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.memory.sovereign_migration.bundle_archiver import (
-        SovereignBundleArchiver,
-    )
-    from myrm_agent_harness.toolkits.memory.sovereign_migration.bundle_restorer import (
-        SovereignBundleRestorer,
-    )
     from myrm_agent_harness.toolkits.memory.sovereign_migration.competitor_adapter import (
         CompetitorIngestionAdapter,
     )
@@ -32,43 +24,11 @@ if TYPE_CHECKING:
         CompetitorDetectResult,
         CompetitorImportResult,
         CompetitorType,
-        ExportBundleRequest,
-        ExportBundleResult,
-        RestoreBundleRequest,
-        RestoreBundleResult,
     )
 
 
 class MemoryManagerSovereignMigrationMixin:
-    """Provides methods for exporting and restoring sovereign memory bundles, and ingesting competitor assets."""
-
-    def export_sovereign_bundle(
-        self,
-        request: ExportBundleRequest,
-        *,
-        archiver: SovereignBundleArchiver | None = None,
-    ) -> ExportBundleResult:
-        """Collect and package sovereign memory assets into verified portable .myrmpkg archive."""
-        from myrm_agent_harness.toolkits.memory.sovereign_migration.bundle_archiver import (
-            SovereignBundleArchiver,
-        )
-
-        active_archiver = archiver or SovereignBundleArchiver()
-        return active_archiver.export_bundle(request)
-
-    def restore_sovereign_bundle(
-        self,
-        request: RestoreBundleRequest,
-        *,
-        restorer: SovereignBundleRestorer | None = None,
-    ) -> RestoreBundleResult:
-        """Unpack .myrmpkg archive, verify SHA-256 checksums, and remap workspace paths."""
-        from myrm_agent_harness.toolkits.memory.sovereign_migration.bundle_restorer import (
-            SovereignBundleRestorer,
-        )
-
-        active_restorer = restorer or SovereignBundleRestorer()
-        return active_restorer.restore_bundle(request)
+    """Provides methods for detecting and ingesting third-party assistant assets."""
 
     def detect_competitors(
         self,

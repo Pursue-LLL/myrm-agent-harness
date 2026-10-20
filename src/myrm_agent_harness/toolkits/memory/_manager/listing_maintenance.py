@@ -91,11 +91,18 @@ class MemoryManagerListingMaintenanceMixin:
         failed: list[str] = []
         # Memories a model switch left in a previous model's collections are the same memories.
         async with family_lock(self._vector, self._config):
-            collections = (
-                (await memory_collections(self._vector, self._config)).get(memory_type, [])
-                if self._vector is not None and memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC)
-                else []
-            )
+            try:
+                collections = (
+                    (await memory_collections(self._vector, self._config)).get(memory_type, [])
+                    if self._vector is not None and memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC)
+                    else []
+                )
+            except MemoryError as e:
+                # A listing failure hides the previous models' collections: clearing only the
+                # current model would report success while those copies survive.
+                logger.warning("Cannot enumerate memory collections for delete_by_type: %s", e)
+                collections = []
+                failed.append(f"{self._config.collection_prefix}* (collection listing failed)")
             if not include_previous_models:
                 collections = [c for c in collections if c == current_collection(self._config, memory_type)]
             if memory_type == MemoryType.EPISODIC and self._graph is not None:

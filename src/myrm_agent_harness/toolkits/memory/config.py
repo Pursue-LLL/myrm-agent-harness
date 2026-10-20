@@ -15,6 +15,7 @@ Memory configuration — functional switches and retrieval params only.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -35,13 +36,30 @@ if TYPE_CHECKING:
     )
 
 
+_MODEL_SUFFIX_MAX = 40
+_MODEL_SUFFIX_DIGEST_LEN = 8
+
+
 def _normalize_model_name(model: str) -> str:
-    """Normalize embedding model name into a collection-name-safe suffix.
+    """Normalize an embedding model name into a collection-name-safe suffix.
 
     Qdrant collection names allow alphanumerics, hyphens, and underscores.
     Model names like "openai/BAAI/bge-m3" become "openai-baai-bge-m3".
+
+    Two different models must never share a suffix: the collection name is the only thing
+    separating one model's vectors from another's, so a collision silently mixes two vector
+    spaces in one collection and hides the older one from orphan detection. A name this
+    transformation cannot keep whole — longer than the suffix budget once non-alphanumerics
+    are collapsed, or emptied by it (e.g. a CJK-only name) — therefore carries a short digest
+    of the raw name. A name that survives intact keeps its exact suffix, so existing
+    collections of ordinary models are unaffected.
     """
-    return re.sub(r"[^a-zA-Z0-9]+", "-", model).strip("-").lower()[:40]
+    collapsed = re.sub(r"[^a-zA-Z0-9]+", "-", model).strip("-").lower()
+    if collapsed and len(collapsed) <= _MODEL_SUFFIX_MAX:
+        return collapsed
+    digest = hashlib.sha256(model.encode("utf-8")).hexdigest()[:_MODEL_SUFFIX_DIGEST_LEN]
+    head = collapsed[: _MODEL_SUFFIX_MAX - _MODEL_SUFFIX_DIGEST_LEN - 1].rstrip("-")
+    return f"{head}-{digest}" if head else digest
 
 
 class RecallMode(StrEnum):

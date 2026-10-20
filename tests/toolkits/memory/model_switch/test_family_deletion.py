@@ -8,6 +8,7 @@ those memories stayed on disk, and a later migration would bring them back.
 from __future__ import annotations
 
 from dataclasses import replace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -90,6 +91,18 @@ class TestDeleteAll:
         assert await _count(store, new_config.semantic_collection) == 0
         assert await _count(store, old_config.semantic_collection) == 2
 
+    async def test_a_listing_failure_reports_a_failure_instead_of_claiming_success(
+        self, store, old_config, new_config, monkeypatch
+    ) -> None:
+        await _seed_two_generations(store, old_config, new_config)
+        monkeypatch.setattr(store, "list_collections", AsyncMock(side_effect=RuntimeError("unreachable")))
+
+        with pytest.raises(MemoryManagerError):
+            await manager_for(store, new_config, Embedder(NEW_DIM)).delete_all()
+
+        # The previous model's copies survive: the caller must not read the raise as "nothing was there".
+        assert await _count(store, old_config.semantic_collection) == 2
+
 
 class TestDeleteByType:
     async def test_clears_that_type_in_every_model_and_leaves_the_others(self, store, old_config, new_config) -> None:
@@ -116,6 +129,21 @@ class TestDeleteByType:
 
         assert deleted == 1
         assert await _count(store, new_config.semantic_collection) == 0
+        assert await _count(store, old_config.semantic_collection) == 2
+
+    async def test_a_listing_failure_reports_a_failure_instead_of_a_partial_clear(
+        self, store, old_config, new_config, monkeypatch
+    ) -> None:
+        await _seed_two_generations(store, old_config, new_config)
+        monkeypatch.setattr(store, "list_collections", AsyncMock(side_effect=RuntimeError("unreachable")))
+
+        with pytest.raises(MemoryManagerError):
+            await manager_for(store, new_config, Embedder(NEW_DIM), namespaces=_NAMESPACES).delete_by_type(
+                MemoryType.SEMANTIC
+            )
+
+        # The previous model's copies survive and the raise says so: the caller retries rather than
+        # believing the family is clean.
         assert await _count(store, old_config.semantic_collection) == 2
 
 

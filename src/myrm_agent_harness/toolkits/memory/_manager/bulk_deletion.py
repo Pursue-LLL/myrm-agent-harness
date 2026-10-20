@@ -117,7 +117,15 @@ class MemoryManagerBulkDeletionMixin(MemoryManagerDeletionMixin):
                 failed.append("relational")
         if self._vector:
             async with family_lock(self._vector, self._config):
-                for memory_type, collections in (await memory_collections(self._vector, self._config)).items():
+                try:
+                    collections_by_type = await memory_collections(self._vector, self._config)
+                except MemoryError as e:
+                    # A listing failure hides the previous models' collections: clearing only the
+                    # current model would report success while those copies survive.
+                    logger.warning("Cannot enumerate memory collections for delete_all: %s", e)
+                    collections_by_type = {}
+                    failed.append(f"{self._config.collection_prefix}* (collection listing failed)")
+                for memory_type, collections in collections_by_type.items():
                     for coll in collections:
                         try:
                             counts[coll] = await self._vector.delete_by_filter(coll, {})

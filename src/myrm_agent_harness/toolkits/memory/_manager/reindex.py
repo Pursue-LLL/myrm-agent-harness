@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory._internal.storage import (
+    MemoryError,
     doc_to_conversation,
     embed_batch,
     embed_conversations,
@@ -66,16 +67,14 @@ class OrphanCollectionInfo:
 
     collection_name: str
     memory_type: str
-    old_model_suffix: str
     document_count: int
 
 
 @dataclass(frozen=True)
 class ReindexEstimate:
-    """Cost estimate for re-embedding orphan memories."""
+    """How many memories a reindex would move into the current model's collections."""
 
     total_memories: int
-    orphan_collections: list[OrphanCollectionInfo]
 
 
 @dataclass(frozen=True)
@@ -134,7 +133,11 @@ class MemoryManagerReindexMixin:
         A keyword-mode mirror whose dense collection never existed counts too: once an embedding
         model is configured, its memories are reachable through neither the dense reads nor the
         BM25 fan-out (which queries the current model's mirror), so the migration has to carry
-        them over.
+        them over. A listing failure raises ``MemoryError`` instead of reporting no orphans: an
+        estimate of zero and a migration that moves nothing would both claim there is nothing left.
+
+        Raises:
+            MemoryError: When the collections cannot be listed.
         """
         catalog = catalog_of(self._vector)
         if catalog is None:
@@ -143,8 +146,7 @@ class MemoryManagerReindexMixin:
         try:
             listed = await catalog.list_collections()
         except Exception as e:
-            logger.warning("Failed to list collections for orphan detection: %s", e)
-            return []
+            raise MemoryError(f"Could not list memory collections for orphan detection: {e}") from e
         previous = previous_model_collections(listed, self._config) + orphan_mirror_collections(listed, self._config)
 
         orphans: list[OrphanCollectionInfo] = []
@@ -161,7 +163,6 @@ class MemoryManagerReindexMixin:
                 OrphanCollectionInfo(
                     collection_name=collection.name,
                     memory_type=collection.memory_type.value,
-                    old_model_suffix=collection.model_suffix,
                     document_count=count,
                 )
             )
@@ -171,7 +172,7 @@ class MemoryManagerReindexMixin:
         """Estimate the scope of a reindex operation without executing it."""
         orphans = await self.detect_orphan_collections()
         total = sum(o.document_count for o in orphans)
-        return ReindexEstimate(total_memories=total, orphan_collections=orphans)
+        return ReindexEstimate(total_memories=total)
 
     async def reindex_from_orphans(
         self,

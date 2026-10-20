@@ -2,18 +2,18 @@
 
 [INPUT]
 - toolkits.memory.sovereign_migration.tool::create_sovereign_migration_tool, SovereignAssetActionInput
-- toolkits.memory.sovereign_migration.types::AssetCategory, CompetitorType, ExportBundleRequest, RestoreBundleRequest
+- toolkits.memory.sovereign_migration.types::CompetitorType
 - toolkits.memory._manager.sovereign_migration::MemoryManagerSovereignMigrationMixin
 - toolkits.memory.manager::MemoryManager
 
 [OUTPUT]
 - test_sovereign_tool_detect: tests competitor environment detection action
-- test_sovereign_tool_export_and_restore: tests export and restore cycle via agent tool
+- test_sovereign_tool_rejects_removed_bundle_actions: tests export/restore are no longer exposed
 - test_sovereign_tool_ingest_hermes_into_memories: tests Hermes memories ingested into memories/ directory
 - test_memory_manager_sovereign_migration_mixin: tests MemoryManager mixin delegation methods
 
 [POS]
-Integration and unit tests ensuring Agent runtime and MemoryManager can orchestrate sovereign asset packaging and migration.
+Integration and unit tests ensuring Agent runtime and MemoryManager can detect and ingest competitor assets.
 """
 
 from __future__ import annotations
@@ -31,12 +31,7 @@ from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.sovereign_migration.tool import (
     create_sovereign_migration_tool,
 )
-from myrm_agent_harness.toolkits.memory.sovereign_migration.types import (
-    AssetCategory,
-    CompetitorType,
-    ExportBundleRequest,
-    RestoreBundleRequest,
-)
+from myrm_agent_harness.toolkits.memory.sovereign_migration.types import CompetitorType
 
 
 class DummySovereignMemoryManager(MemoryManagerSovereignMigrationMixin):
@@ -77,51 +72,12 @@ def test_sovereign_tool_detect() -> None:
     assert "detected_competitors" in data["result"]
 
 
-def test_sovereign_tool_export_and_restore() -> None:
-    """Ensure agent tool can export a sovereign bundle and restore it."""
-    with tempfile.TemporaryDirectory() as td_src, tempfile.TemporaryDirectory() as td_dst:
-        src = Path(td_src)
-        dst = Path(td_dst)
-
-        # Create test memory file
-        mem_file = src / "test_memory.md"
-        mem_file.write_text(f"Memory anchored to {src}/project/file.py", encoding="utf-8")
-
-        bundle_path = src / "backup.myrmpkg"
-
-        tool = create_sovereign_migration_tool()
-
-        # 1. Export
-        export_raw = tool.invoke(
-            {
-                "action": "export",
-                "source_dir": str(src),
-                "output_bundle_path": str(bundle_path),
-                "include_categories": ["wiki_memory"],
-            }
-        )
-        export_data = json.loads(export_raw)
-        assert export_data["action"] == "export"
-        assert export_data["success"] is True
-        assert export_data["asset_count"] >= 1
-        assert bundle_path.exists()
-
-        # 2. Restore with path remapping
-        restore_raw = tool.invoke(
-            {
-                "action": "restore",
-                "bundle_path": str(bundle_path),
-                "target_destination_dir": str(dst),
-                "current_workspace_root": str(dst),
-            }
-        )
-        restore_data = json.loads(restore_raw)
-        assert restore_data["action"] == "restore"
-        assert restore_data["success"] is True
-        assert len(restore_data["restored_assets"]) >= 1
-
-        restored_file = dst / "test_memory.md"
-        assert restored_file.exists()
+def test_sovereign_tool_rejects_removed_bundle_actions() -> None:
+    """Whole-instance export/restore moved to infra.state_archive; the tool must not offer it."""
+    tool = create_sovereign_migration_tool()
+    for action in ("export", "restore"):
+        data = json.loads(tool.invoke({"action": action}))
+        assert data == {"error": f"Unknown action '{action}'"}
 
 
 def test_sovereign_tool_ingest_hermes_into_memories(mock_hermes_dir: Path) -> None:
@@ -159,39 +115,12 @@ def test_memory_manager_sovereign_migration_mixin(mock_hermes_dir: Path) -> None
 
     manager = DummySovereignMemoryManager()
 
-    with tempfile.TemporaryDirectory() as td_src, tempfile.TemporaryDirectory() as td_dst:
-        src = Path(td_src)
+    with tempfile.TemporaryDirectory() as td_dst:
         dst = Path(td_dst)
-        (src / "note.md").write_text("Sovereign note", encoding="utf-8")
-        bundle = src / "bundle.myrmpkg"
 
-        # 1. Export
-        exp_res = manager.export_sovereign_bundle(
-            ExportBundleRequest(
-                source_dir=str(src),
-                output_bundle_path=str(bundle),
-                include_categories=[AssetCategory.WIKI_MEMORY],
-            )
-        )
-        assert exp_res.success is True
-        assert bundle.exists()
-
-        # 2. Restore
-        rest_res = manager.restore_sovereign_bundle(
-            RestoreBundleRequest(
-                bundle_path=str(bundle),
-                target_destination_dir=str(dst),
-                current_workspace_root=str(dst),
-            )
-        )
-        assert rest_res.success is True
-        assert (dst / "note.md").exists()
-
-        # 3. Detect
         detected = manager.detect_competitors()
         assert isinstance(detected.detected_competitors, list)
 
-        # 4. Ingest Hermes
         ingest_res = manager.ingest_competitor_assets(
             competitor=CompetitorType.HERMES,
             source_path=mock_hermes_dir,

@@ -66,6 +66,34 @@ async def embed_conversations(
             summary_idx += 1
 
 
+async def _ensure_conversation_collection(
+    vector: VectorStoreProtocol,
+    collection: str,
+    memories: list[ConversationMemory],
+) -> None:
+    """Create the named-vector conversation collection at the size the model just produced.
+
+    The size comes from the embedded vectors, never a configured default: a guessed size
+    would be permanent once the collection exists, and every later write would fail its
+    size check. Vectors are already embedded by the caller, so this costs no model call.
+    """
+    dimension = next(
+        (
+            len(vec)
+            for m in memories
+            for vec in (m.raw_embedding, m.summary_embedding)
+            if vec
+        ),
+        0,
+    )
+    if dimension <= 0:
+        raise ValueError(
+            f"Cannot create the conversation collection {collection}: the memories carry no embedding "
+            "to size its raw/summary vectors"
+        )
+    await vector.create_named_vector_collection(collection, dimension, names=CONVERSATION_VECTORS)
+
+
 async def store_conversations_batch(
     memories: list[ConversationMemory],
     vector: VectorStoreProtocol,
@@ -77,8 +105,10 @@ async def store_conversations_batch(
 
     Uses Qdrant named vectors to store both raw_embedding and summary_embedding
     in a single point; the BM25 mirror wrapper is unwrapped first because the
-    conversation collection is not mirrored. Other backends raise
-    ``NotImplementedError``. A vector the memory already carries is written as is.
+    conversation collection is not mirrored. A collection that does not exist yet is
+    created from the vectors just embedded, so its size comes from the real model
+    output instead of a guessed default. Other backends raise ``NotImplementedError``.
+    A vector the memory already carries is written as is.
     """
     from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
         _lifecycle_payload as lc_payload,
@@ -96,6 +126,8 @@ async def store_conversations_batch(
             from qdrant_client.models import PointStruct
 
             collection = config.conversation_collection
+            if not await vector.collection_exists(collection):
+                await _ensure_conversation_collection(vector, collection, memories)
 
             import base64
 

@@ -155,14 +155,8 @@ async def held_by(store: VectorStore, collection: str) -> dict[str, VectorDocume
 
 
 async def create_conversation_collection(store: VectorStore, name: str, dim: int) -> None:
-    """Mirror ``memory.setup``: the conversation collection carries ``raw`` + ``summary`` named vectors."""
-    from qdrant_client.models import Distance, VectorParams
-
-    vectors_config = {
-        "raw": VectorParams(size=dim, distance=Distance.COSINE),
-        "summary": VectorParams(size=dim, distance=Distance.COSINE),
-    }
-    await asyncio.to_thread(store._client.create_collection, collection_name=name, vectors_config=vectors_config)  # type: ignore[attr-defined]
+    """Create the conversation collection the way ``memory.setup`` does: ``raw`` + ``summary`` named vectors."""
+    await store.create_named_vector_collection(name, dim, names=("raw", "summary"))
 
 
 def fail_on(

@@ -15,6 +15,7 @@ from myrm_agent_harness.toolkits.memory._manager.model_collections import (
     previous_model_collections,
     retire_if_drained,
 )
+from myrm_agent_harness.toolkits.memory.manager import MemoryError
 from myrm_agent_harness.toolkits.memory.types import MemoryType
 
 from .support import NEW_DIM, Embedder, create_conversation_collection, manager_for, seed, semantic
@@ -84,17 +85,14 @@ class TestMemoryCollections:
             MemoryType.CONVERSATION: [new_config.conversation_collection],
         }
 
-    async def test_a_failing_listing_falls_back_to_the_current_model_only(
-        self, store, new_config, monkeypatch, caplog: pytest.LogCaptureFixture
+    async def test_a_failing_listing_raises_instead_of_hiding_other_models(
+        self, store, new_config, monkeypatch
     ) -> None:
         monkeypatch.setattr(store, "list_collections", AsyncMock(side_effect=RuntimeError("unreachable")))
         manager = manager_for(store, new_config, Embedder(NEW_DIM))
 
-        with caplog.at_level("WARNING"):
-            found = await memory_collections(manager._vector, new_config)
-
-        assert found[MemoryType.SEMANTIC] == [new_config.semantic_collection]
-        assert any("Failed to list collections" in r.message for r in caplog.records)
+        with pytest.raises(MemoryError, match="list memory collections"):
+            await memory_collections(manager._vector, new_config)
 
 
 class TestRetireIfDrained:

@@ -4,8 +4,6 @@
 - config::DeepResearchConfig (POS: configuration)
 - agent.types::SubagentConfig (POS: subagent config type)
 - langchain_core (POS: BaseChatModel, messages)
-- toolkits.memory.working_tree.models::EvidenceNode (POS: 强类型树状工作记忆原子节点)
-- toolkits.memory.working_tree.tree::EvidenceTree (POS: ReTree 拓扑证据树容器)
 
 [OUTPUT]
 - DeepResearchResult: result container dataclass
@@ -13,7 +11,7 @@
 - Helper functions: context limit, usage tracking, cost estimation,
   reasoning model detection, tool call extraction, message compaction,
   text truncation, subagent config building, source formatting,
-  citation auditing, evidence node creation, format_research_context
+  citation auditing, format_research_context
 
 [POS]
 Stateless helper functions for Deep Research orchestration —
@@ -22,8 +20,6 @@ token counting, content formatting, and configuration utilities.
 
 from __future__ import annotations
 
-import hashlib
-import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -33,13 +29,6 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from myrm_agent_harness.agent.streaming.citation_audit import CitationAuditResult, audit_citation_markers
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 from myrm_agent_harness.toolkits.llms.utils.model_utils import get_model_context_limit as get_model_context_limit
-from myrm_agent_harness.toolkits.memory.working_tree import (
-    BoundedSummary,
-    EvidenceNode,
-    EvidenceNodeStatus,
-    EvidenceSource,
-    EvidenceTree,
-)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .config import DeepResearchConfig
@@ -66,12 +55,9 @@ class DeepResearchResult:
     total_output_tokens: int = 0
     estimated_cost_usd: float = 0.0
     citation_audit: CitationAuditResult | None = None
-    evidence_tree: dict[str, object] | None = None
 
 
 def get_datetime_str() -> str:
-    from datetime import UTC, datetime
-
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
@@ -151,7 +137,7 @@ def compact_orch_messages(messages: list[BaseMessage]) -> None:
         if isinstance(msg, ToolMessage) and len(content_str) > 300:
             first_chunk = content_str.strip().split("\n")[0][:180]
             messages[i] = ToolMessage(
-                content=f"[Earlier research result compacted to save context: {first_chunk}...] (full evidence preserved in working tree)",
+                content=f"[Earlier research result compacted to save context: {first_chunk}...] (full result available in report context)",
                 tool_call_id=msg.tool_call_id,
             )
             compacted += 1
@@ -217,136 +203,20 @@ def format_numbered_sources(sources: list[dict[str, object]], char_budget: int =
     return "\n\n".join(parts)
 
 
-_TASK_COMMON_STOPWORDS: frozenset[str] = frozenset(
-    {
-        "analysis",
-        "market",
-        "report",
-        "overview",
-        "status",
-        "strategy",
-        "research",
-        "global",
-        "latest",
-        "trend",
-        "trends",
-        "share",
-        "shares",
-        "price",
-        "pricing",
-        "industry",
-        "forecast",
-        "growth",
-        "demand",
-        "supply",
-        "evaluation",
-        "comparison",
-    }
-)
+def format_research_context(agent_results: list[dict[str, object]], max_chars: int) -> str:
+    """Format research agent results into one report-context block within ``max_chars``.
 
-
-def create_evidence_node_from_task_result(
-    cycle: int,
-    task_idx: int,
-    task_text: str,
-    result_text: str,
-    existing_nodes: list[EvidenceNode] | None = None,
-) -> EvidenceNode:
-    """Construct an EvidenceNode with bounded summary, entity-derived dependencies, and SHA-256 fingerprint."""
-    first_line = result_text.strip().split("\n")[0][:180]
-    url_match = re.search(r"https?://[^\s)\]]+", result_text)
-    source_url = url_match.group(0) if url_match else ""
-    content_hash = hashlib.sha256(result_text.encode("utf-8")).hexdigest()
-    now = datetime.now(UTC).isoformat()
-
-    extracted_entities = [
-        w for w in re.findall(r"\b[A-Za-z0-9_-]{4,}\b", task_text) if w.lower() not in _TASK_COMMON_STOPWORDS
-    ][:5]
-    summary = BoundedSummary(
-        summary=first_line,
-        key_entities=extracted_entities,
-        key_metrics={},
-        estimated_tokens=len(first_line) // 4,
-    )
-    source = EvidenceSource(
-        url=source_url,
-        snippet=result_text[:400],
-        content_hash=content_hash,
-    )
-
-    # Derive causal dependencies from overlapping entities in active nodes
-    dependencies: list[str] = []
-    if existing_nodes:
-        cand_words = {e.lower() for e in extracted_entities}
-        for prior_node in existing_nodes:
-            if prior_node.node_id == "root_plan":
-                continue
-            prior_words = {e.lower() for e in prior_node.bounded_summary.key_entities}
-            if cand_words.intersection(prior_words):
-                dependencies.append(prior_node.node_id)
-
-    if not dependencies:
-        dependencies = ["root_plan"]
-
-    return EvidenceNode(
-        node_id=f"ev_c{cycle}_{task_idx}",
-        claim=task_text,
-        bounded_summary=summary,
-        source=source,
-        dependencies=dependencies,
-        dependents=[],
-        created_at=now,
-        updated_at=now,
-    )
-
-
-def format_research_context(
-    agent_results: list[dict[str, object]],
-    max_chars: int,
-    evidence_tree_data: dict[str, object] | None = None,
-) -> str:
-    """Format research agent results and verified tree working memory into a single context block.
-
-    Filters out tasks invalidated by the causal evidence tree and prepends
-    the verified consensus slice while respecting max_chars budget.
+    Over budget, the newest results are kept whole, the next older one is truncated to fill
+    the remainder, and anything older is dropped.
     """
     if not agent_results:
         return ""
 
-    pruned_claims: set[str] = set()
-    pruned_hashes: set[str] = set()
-    tree_slice = ""
-
-    if evidence_tree_data:
-        try:
-            tree = EvidenceTree.from_dict(evidence_tree_data)
-            for node in tree.nodes.values():
-                if node.status == EvidenceNodeStatus.PRUNED_INVALIDATED:
-                    pruned_claims.add(node.claim.strip().lower())
-                    if node.source.content_hash:
-                        pruned_hashes.add(node.source.content_hash)
-            tree_slice = tree.format_bounded_slice()
-        except Exception:
-            logger.warning("[deep-research] Failed to parse evidence tree for report context", exc_info=True)
-
     separator = "\n\n---\n\n"
-    parts: list[str] = []
-
-    if tree_slice:
-        parts.append(tree_slice)
-
-    task_counter = 1
-    for entry in agent_results:
-        task = str(entry.get("task", "Unknown task"))
-        result = str(entry.get("result", "No result"))
-        res_hash = hashlib.sha256(result.encode("utf-8")).hexdigest()
-
-        if task.strip().lower() in pruned_claims or res_hash in pruned_hashes:
-            logger.info("[deep-research] Excluded pruned task from final context: %s", task)
-            continue
-
-        parts.append(f"## Research Task {task_counter}: {task}\n\n{result}")
-        task_counter += 1
+    parts = [
+        f"## Research Task {number}: {entry.get('task', 'Unknown task')}\n\n{entry.get('result', 'No result')}"
+        for number, entry in enumerate(agent_results, start=1)
+    ]
 
     full = separator.join(parts)
     if len(full) <= max_chars:
@@ -354,23 +224,7 @@ def format_research_context(
 
     kept: list[str] = []
     budget = max_chars
-
-    if tree_slice and parts and parts[0] == tree_slice:
-        # Guarantee minimum quota for raw task results to prevent empty/hollow reports
-        min_body_quota = min(int(max_chars * 0.4), 2000)
-        max_tree_chars = max_chars - min_body_quota - len(separator)
-        effective_tree_slice = parts[0]
-        if max_tree_chars > 200 and len(effective_tree_slice) > max_tree_chars:
-            effective_tree_slice = (
-                effective_tree_slice[: max_tree_chars - 60] + "\n... [Tree slice truncated for report body quota]"
-            )
-        kept.append(effective_tree_slice)
-        budget -= len(effective_tree_slice) + len(separator)
-        remaining_parts = parts[1:]
-    else:
-        remaining_parts = parts
-
-    for part in reversed(remaining_parts):
+    for part in reversed(parts):
         cost = len(part) + len(separator)
         if budget >= cost:
             kept.append(part)
@@ -383,18 +237,12 @@ def format_research_context(
         else:
             break
 
-    if tree_slice and parts and parts[0] == tree_slice:
-        rest = kept[1:]
-        rest.reverse()
-        final_parts = [kept[0], *rest]
-    else:
-        kept.reverse()
-        final_parts = kept
-
+    kept.reverse()
+    trimmed = separator.join(kept)
     logger.info(
         "[deep-research] Report context: %d items kept, %d/%d chars",
-        len(final_parts),
-        len(separator.join(final_parts)),
+        len(kept),
+        len(trimmed),
         len(full),
     )
-    return separator.join(final_parts)
+    return trimmed

@@ -42,6 +42,7 @@ from myrm_agent_harness.toolkits.memory._internal.bm25_sparse_index import (
     is_sparse_authoritative,
     unwrap_sparse_mirror,
 )
+from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError
 from myrm_agent_harness.toolkits.memory.types import MemoryType
 from myrm_agent_harness.toolkits.vector.base import VectorStore
 
@@ -139,6 +140,8 @@ async def memory_collections(vector: VectorStoreProtocol | None, config: MemoryC
 
     A backend that cannot list collections reports the current model's names only; a listing
     backend reports only collections that exist, so a bulk deletion never trips over a missing one.
+    A listing backend that fails raises ``MemoryError``: silently covering the current model would
+    let a deletion report success while previous models' copies survive.
 
     In a sparse-authoritative deployment the memories live in the current collection's ``_bm25``
     mirror alone. The dense name is still reported, because every caller reads and deletes through
@@ -154,8 +157,7 @@ async def memory_collections(vector: VectorStoreProtocol | None, config: MemoryC
     try:
         listed = await catalog.list_collections()
     except Exception as e:
-        logger.warning("Failed to list collections, covering the current model only: %s", e)
-        return {memory_type: [name] for memory_type, name in current.items()}
+        raise MemoryError(f"Could not list memory collections: {e}") from e
     present = set(listed)
     sparse_only = vector is not None and is_sparse_authoritative(vector)
     previous = previous_model_collections(listed, config)

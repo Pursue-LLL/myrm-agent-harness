@@ -18,6 +18,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.memory._internal.storage import store_conversations_batch
 from myrm_agent_harness.toolkits.memory._manager.reindex import _BATCH_SIZE
+from myrm_agent_harness.toolkits.memory.manager import MemoryError as MemoryManagerError
 from myrm_agent_harness.toolkits.memory.types import ConversationMemory
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
 from myrm_agent_harness.toolkits.vector.qdrant.filters import point_id_for
@@ -194,35 +195,47 @@ class TestOrphanDetection:
         await seed(store, old_config, semantics=[semantic("a"), semantic("b")], episodics=[episodic("c")])
         await seed(store, new_config, semantics=[semantic("current")], dim=NEW_DIM)
 
-        estimate = await manager_for(store, new_config, Embedder(NEW_DIM)).estimate_reindex()
+        manager = manager_for(store, new_config, Embedder(NEW_DIM))
+        estimate = await manager.estimate_reindex()
 
         assert estimate.total_memories == 3
-        found = {
-            (o.collection_name, o.memory_type, o.old_model_suffix, o.document_count)
-            for o in estimate.orphan_collections
-        }
+        found = {(o.collection_name, o.memory_type, o.document_count) for o in await manager.detect_orphan_collections()}
         assert found == {
-            (old_config.semantic_collection, "semantic", "old-model", 2),
-            (old_config.episodic_collection, "episodic", "old-model", 1),
+            (old_config.semantic_collection, "semantic", 2),
+            (old_config.episodic_collection, "episodic", 1),
         }
 
     async def test_a_model_that_never_switched_has_no_orphans(self, store, old_config) -> None:
         await seed(store, old_config, semantics=[semantic("a"), semantic("b")], episodics=[episodic("c")])
 
-        estimate = await manager_for(store, old_config, Embedder(OLD_DIM)).estimate_reindex()
+        manager = manager_for(store, old_config, Embedder(OLD_DIM))
 
-        assert (estimate.total_memories, estimate.orphan_collections) == (0, [])
+        assert (await manager.estimate_reindex()).total_memories == 0
+        assert await manager.detect_orphan_collections() == []
+
+    async def test_a_failing_listing_raises_instead_of_reporting_no_orphans(
+        self, store, old_config, new_config, monkeypatch
+    ) -> None:
+        await seed(store, old_config, semantics=[semantic("a")])
+        monkeypatch.setattr(store, "list_collections", AsyncMock(side_effect=RuntimeError("unreachable")))
+        manager = manager_for(store, new_config, Embedder(NEW_DIM))
+
+        with pytest.raises(MemoryManagerError, match="orphan detection"):
+            await manager.estimate_reindex()
+        with pytest.raises(MemoryManagerError, match="orphan detection"):
+            await manager.reindex_from_orphans()
 
     async def test_a_collection_that_cannot_be_counted_is_reported_not_silently_dropped(
         self, store, old_config, new_config, monkeypatch, caplog
     ) -> None:
         await seed(store, old_config, semantics=[semantic("a")], episodics=[episodic("b")])
         fail_on(monkeypatch, store, "count", old_config.semantic_collection)
+        manager = manager_for(store, new_config, Embedder(NEW_DIM))
 
         with caplog.at_level("WARNING"):
-            estimate = await manager_for(store, new_config, Embedder(NEW_DIM)).estimate_reindex()
+            orphans = await manager.detect_orphan_collections()
 
-        assert [o.collection_name for o in estimate.orphan_collections] == [old_config.episodic_collection]
+        assert [o.collection_name for o in orphans] == [old_config.episodic_collection]
         assert old_config.semantic_collection in caplog.text
 
     async def test_collections_of_another_prefix_are_not_orphans(self, store, prefix, new_config) -> None:
@@ -383,3 +396,30 @@ class TestConversationMigration:
         assert len(points[0].vector["raw"]) == NEW_DIM
         assert len(points[0].vector["summary"]) == NEW_DIM
         assert not await _exists(store, old_config.conversation_collection)
+
+    async def test_a_conversation_write_creates_its_collection_at_the_models_size(self, store, old_config) -> None:
+        """No startup step created it: the write sizes raw/summary from the vectors it just embedded."""
+        assert not await _exists(store, old_config.conversation_collection)
+        exchange = ConversationMemory(
+            content="Discussed the rollout plan",
+            raw_exchange="User: how do we roll out?\nAI: canary first, then 50%.",
+            user_id="u1",
+            scope=scope_of("researcher"),
+        )
+
+        await store_conversations_batch([exchange], store, old_config, Embedder(OLD_DIM), None)
+
+        assert await _exists(store, old_config.conversation_collection)
+        info = await store.get_collection_info(old_config.conversation_collection)
+        # Named-vector collections report no single size, so assert through a real read instead.
+        assert info is None
+        points = await store._with_retry(  # type: ignore[attr-defined]
+            store._client.retrieve,  # type: ignore[attr-defined]
+            collection_name=old_config.conversation_collection,
+            ids=[point_id_for(exchange.id)],
+            with_payload=True,
+            with_vectors=True,
+        )
+        assert len(points) == 1
+        assert len(points[0].vector["raw"]) == OLD_DIM
+        assert len(points[0].vector["summary"]) == OLD_DIM

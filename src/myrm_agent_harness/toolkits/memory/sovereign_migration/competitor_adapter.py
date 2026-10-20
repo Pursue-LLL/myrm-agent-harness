@@ -6,7 +6,7 @@ Strict typing applied: No `Any` types allowed.
 
 [INPUT]
 - toolkits.memory.sovereign_migration.types::CompetitorDetectResult, CompetitorImportResult, CompetitorType
-  (POS: Type definitions for sovereign asset bundle migration and cross-machine restore protocol.)
+  (POS: Type definitions for competitor asset detection and ingestion.)
 
 [OUTPUT]
 - CompetitorIngestionAdapter: Detects and imports digital assets from competitor setups without loss.

@@ -208,7 +208,7 @@ class MemoryTokenAccounting(BaseModel):
     injected_memory_tokens: int = 0
     effective_cited_tokens: int = 0
     background_construction_tokens: int = 0
-    cache_preservation_score: float = 1.0
+    cache_preservation_score: float = 0.0
     roi_percentage: float = 0.0
     roi_grade: MemoryRecallRoiGrade = MemoryRecallRoiGrade.HEALTHY
 

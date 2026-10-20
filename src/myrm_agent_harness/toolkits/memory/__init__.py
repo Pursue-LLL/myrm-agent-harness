@@ -37,6 +37,11 @@ from myrm_agent_harness.toolkits.memory.chunking import (
 )
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.domain_types import MemoryDomain, infer_domain_and_category
+from myrm_agent_harness.toolkits.memory.ephemeral_delta import (
+    clear_ephemeral_deltas_for_session,
+    get_shared_ephemeral_delta_store,
+    record_ephemeral_memory_delta,
+)
 from myrm_agent_harness.toolkits.memory.hermes_bridge import import_hermes_bundle
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.mem_cube import (
@@ -175,6 +180,9 @@ __all__ = [
     "ToolGuidanceItem",
     "synthesize_tool_guidance",
     "create_local_memory_manager",
+    "clear_ephemeral_deltas_for_session",
+    "get_shared_ephemeral_delta_store",
+    "record_ephemeral_memory_delta",
     "get_scan_metrics",
     "get_search_metrics",
     "summarize_recall_benchmark",
