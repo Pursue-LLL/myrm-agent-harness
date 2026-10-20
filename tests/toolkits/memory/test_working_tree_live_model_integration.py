@@ -1,0 +1,129 @@
+"""Live integration test for ReTree FastContradictionDetector using real LLM from .env.test.
+
+Uses real API credentials loaded from .env.test:
+- BASIC_MODEL (e.g. openai-like/muse-spark-1.3-contributor)
+- BASIC_BASE_URL
+- BASIC_API_KEY
+"""
+
+from __future__ import annotations
+
+import inspect
+import os
+from collections.abc import AsyncIterator
+from pathlib import Path
+
+import pytest
+
+from myrm_agent_harness.agent.config.litellm_routing import normalize_env_model_selection_string
+from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
+from myrm_agent_harness.toolkits.memory.working_tree import (
+    BoundedSummary,
+    ConflictType,
+    EvidenceNode,
+    EvidenceSource,
+    FastContradictionDetector,
+)
+
+_ENV_TEST = Path(__file__).resolve().parents[4] / "myrm-agent" / "myrm-agent-server" / ".env.test"
+
+
+from langchain_core.language_models.chat_models import BaseChatModel
+
+# Live-network + .env.test credential dependency: kept out of the default unit lane
+# (harness addopts exclude `integration`) and run explicitly with `-m integration`.
+pytestmark = [pytest.mark.integration, pytest.mark.timeout(60)]
+
+
+def _get_live_llm() -> BaseChatModel:
+    if not _ENV_TEST.exists():
+        pytest.skip(f"{_ENV_TEST} not found")
+
+    for line in _ENV_TEST.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        if key and value:
+            os.environ.setdefault(key, value)
+
+    api_key = os.environ.get("BASIC_API_KEY", "")
+    base_url = os.environ.get("BASIC_BASE_URL", "")
+    model = os.environ.get("BASIC_MODEL", "")
+
+    if not all([api_key, base_url, model]):
+        pytest.skip("BASIC_API_KEY / BASIC_BASE_URL / BASIC_MODEL not configured in .env.test")
+
+    norm_model = normalize_env_model_selection_string(model)
+    return create_litellm_model(norm_model, base_url=base_url, api_key=api_key, streaming=False)
+
+
+@pytest.fixture
+async def live_llm() -> AsyncIterator[BaseChatModel]:
+    """Hand out a real model and shut its transport down with the test.
+
+    The litellm handler keeps a connection worker thread bound to the running
+    loop. Without an explicit close it outlives that loop and raises
+    "Event loop is closed" from a stray thread, which pytest then attributes to
+    whichever unrelated test happens to be running at the time.
+    """
+    llm = _get_live_llm()
+    try:
+        yield llm
+    finally:
+        handler = getattr(llm, "client", None)
+        close = getattr(handler, "close", None)
+        if callable(close):
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+
+
+class TestWorkingTreeRealLLMIntegration:
+    """Live verification of FastContradictionDetector with real model configured in .env.test."""
+
+    @pytest.mark.asyncio
+    async def test_real_llm_arbitration_on_contradiction(self, live_llm: BaseChatModel) -> None:
+        """Run real LLM arbitration and verify model understands factual refutation."""
+        detector = FastContradictionDetector(arbitrator_llm=live_llm)
+
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC).isoformat()
+        prior_node = EvidenceNode(
+            node_id="ev_live_01",
+            claim="NVIDIA H100 initial pricing baseline",
+            bounded_summary=BoundedSummary(
+                summary="NVIDIA H100 MSRP was established at $30,000 per unit in 2023.",
+                key_entities=["H100", "NVIDIA", "MSRP"],
+                key_metrics={"price": "$30,000"},
+            ),
+            source=EvidenceSource(url="https://example.com/h100-2023"),
+            dependencies=["root_plan"],
+            created_at=now,
+            updated_at=now,
+        )
+
+        new_claim = "NVIDIA H100 list price is $22,000 per unit"
+        new_summary = (
+            "Updated 2026 pricing data states the NVIDIA H100 list price is now $22,000 per unit. "
+            "The previously recorded $30,000 per unit list price was incorrect."
+        )
+
+        verdict = await detector.acheck_conflict(
+            new_claim=new_claim,
+            new_summary=new_summary,
+            existing_nodes=[prior_node],
+        )
+
+        # Print model response for objective evidence logging
+        print(f"\n[LIVE_LLM_EVIDENCE] Model: {os.environ.get('BASIC_MODEL')}")
+        print(f"[LIVE_LLM_EVIDENCE] ConflictType: {verdict.conflict_type}")
+        print(f"[LIVE_LLM_EVIDENCE] ConflictingNode: {verdict.conflicting_node_id}")
+        print(f"[LIVE_LLM_EVIDENCE] Reason: {verdict.reason}")
+        print(f"[LIVE_LLM_EVIDENCE] Confidence: {verdict.confidence}")
+
+        # Assertions
+        assert verdict.conflict_type in (ConflictType.CONTRADICTION, ConflictType.TEMPORAL_UPDATE)
+        assert verdict.conflicting_node_id == "ev_live_01"
+        assert len(verdict.reason) > 5
