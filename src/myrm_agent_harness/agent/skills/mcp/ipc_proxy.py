@@ -146,9 +146,14 @@ class MCPIPCServer:
             logger.warning("MCP IPC Server already running")
             return
 
-        # 私有目录（0700）：同机其他用户无法预建或连接 socket
+        # 私有目录（0700）：同机其他用户无法预建或连接 socket。
+        # umask 在创建瞬间生效，消除 mkdir 与 chmod 之间被 co-tenant 打开目录 fd 的窗口。
         socket_dir = Path(self.socket_path).parent
-        socket_dir.mkdir(parents=True, exist_ok=True, mode=SOCKET_DIR_MODE)
+        previous_umask = os.umask(0o077)
+        try:
+            socket_dir.mkdir(parents=True, exist_ok=True, mode=SOCKET_DIR_MODE)
+        finally:
+            os.umask(previous_umask)
         os.chmod(socket_dir, SOCKET_DIR_MODE)
 
         # 删除已存在的 socket 文件

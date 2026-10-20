@@ -95,9 +95,15 @@ class PtcRpcServer:
             logger.debug("PTC RPC server listening on TCP port %d", self._tcp_port)
         else:
             # Private per-PID directory: another local user must not be able to
-            # pre-create or connect to this socket.
+            # pre-create or connect to this socket. umask applies at creation, so
+            # there is no window between mkdir and chmod where a co-tenant could
+            # open a directory fd.
             socket_dir = Path(tempfile.gettempdir()) / f"myrm_ptc-{os.getpid()}"
-            socket_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            previous_umask = os.umask(0o077)
+            try:
+                socket_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            finally:
+                os.umask(previous_umask)
             with contextlib.suppress(OSError):
                 os.chmod(socket_dir, 0o700)
             self._socket_path = str(socket_dir / f"ptc_{os.getpid()}_{id(self)}.sock")
