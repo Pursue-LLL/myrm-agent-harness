@@ -300,7 +300,16 @@ class SkillExecutor:
             auth_token=self._resolve_ipc_auth_token(),
             readonly_workspace=readonly_workspace,
             trace_nonce=self._resolve_trace_nonce(),
+            tcp_port=self._resolve_tcp_port(),
         )
+
+    @staticmethod
+    def _resolve_tcp_port() -> int:
+        """Loopback TCP port when the host IPC server uses the non-POSIX transport."""
+        from myrm_agent_harness.agent.skills.mcp.ipc_proxy import get_mcp_ipc_server
+
+        server = get_mcp_ipc_server()
+        return server.tcp_port if server is not None else 0
 
     @staticmethod
     def _resolve_trace_nonce() -> str | None:

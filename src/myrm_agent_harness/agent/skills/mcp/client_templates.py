@@ -255,6 +255,7 @@ def generate_ipc_client_code(
     auth_token: str | None = None,
     readonly_workspace: bool = False,
     trace_nonce: str | None = None,
+    tcp_port: int = 0,
 ) -> str:
     """生成 Unix Socket IPC 客户端代码。
 
@@ -269,6 +270,8 @@ def generate_ipc_client_code(
         trace_nonce: 服务端下发的标记 nonce。宿主只接受带该 nonce 的调用标记，
             因此工具返回的文本无法伪造引用或截断真实标记。缺失时客户端不输出标记
             （宁可不产生元数据，也不产生不可信的元数据）。
+        tcp_port: 服务端以 loopback TCP 监听时的端口（Windows 走这条路径）。为 0
+            时客户端连接 Unix socket。
     """
     base = _generate_base_code()
     module_system = _generate_module_system()
@@ -280,6 +283,7 @@ def generate_ipc_client_code(
     token_literal = json.dumps(auth_token) if auth_token is not None else "None"
     readonly_literal = "True" if readonly_workspace else "False"
     nonce_literal = json.dumps(trace_nonce) if trace_nonce is not None else "None"
+    tcp_port_literal = str(tcp_port) if tcp_port else "0"
 
     return f'''
 import sys, types, json, asyncio, uuid, base64
@@ -293,6 +297,7 @@ _READ_ONLY_TOOLS = frozenset({read_only_literal})
 _AUTH_TOKEN = {token_literal}
 _READONLY_WORKSPACE = {readonly_literal}
 _TRACE_NONCE = {nonce_literal}
+_TCP_PORT = {tcp_port_literal}
 
 {base}
 {module_system}
@@ -312,7 +317,11 @@ async def _ipc_request(skill: str, tool: str, params: dict):
     }}
 
     data = json.dumps(request).encode()
-    reader, writer = await asyncio.open_unix_connection(_SOCKET_PATH)
+    if _TCP_PORT:
+        # Windows asyncio uses ProactorEventLoop, which cannot open AF_UNIX streams.
+        reader, writer = await asyncio.open_connection("127.0.0.1", _TCP_PORT)
+    else:
+        reader, writer = await asyncio.open_unix_connection(_SOCKET_PATH)
 
     try:
         # 发送：4字节长度 + 数据

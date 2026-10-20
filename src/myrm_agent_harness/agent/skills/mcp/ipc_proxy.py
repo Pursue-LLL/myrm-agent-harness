@@ -45,6 +45,7 @@ from myrm_agent_harness.core.network.ipc_socket import (
     SOCKET_DIR_MODE,
     SOCKET_FILE_MODE,
 )
+from myrm_agent_harness.utils import os_compat
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,7 @@ class MCPIPCServer:
         self._running = False
         self._max_calls_per_session = max_calls_per_session
         self._session_calls: dict[str, int] = {}
+        self._tcp_port: int = 0
         self.auth_token: str = secrets.token_urlsafe(32)
         self.trace_nonce: str = secrets.token_hex(16)
         """Nonce that authenticates in-script call markers on stdout.
@@ -145,6 +147,19 @@ class MCPIPCServer:
         """启动 IPC 服务端"""
         if self._running:
             logger.warning("MCP IPC Server already running")
+            return
+
+        if os_compat.IS_WIN:
+            # Windows asyncio runs ProactorEventLoop, whose create_unix_connection raises
+            # NotImplementedError, so the AF_UNIX path cannot work there. Bind loopback
+            # TCP on an ephemeral port instead; the bearer token remains the boundary.
+            self._server = await asyncio.start_server(self._handle_client, "127.0.0.1", 0)
+            sockets = self._server.sockets
+            if not sockets:
+                raise RuntimeError("MCP IPC server bound no TCP socket")
+            self._tcp_port = int(sockets[0].getsockname()[1])
+            self._running = True
+            logger.info(f"MCP IPC Server started at tcp://127.0.0.1:{self._tcp_port}")
             return
 
         # 私有目录（0700）：同机其他用户无法预建或连接 socket。
@@ -169,6 +184,11 @@ class MCPIPCServer:
 
         self._running = True
         logger.info(f"MCP IPC Server started at {self.socket_path}")
+
+    @property
+    def tcp_port(self) -> int:
+        """Loopback TCP port when the server runs on the non-POSIX transport, else 0."""
+        return self._tcp_port
 
     async def stop(self) -> None:
         """停止 IPC 服务端"""
