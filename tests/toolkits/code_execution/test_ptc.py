@@ -56,6 +56,12 @@ def mock_bash(command: str) -> str:
     return f"output_of_{command}"
 
 
+@lc_tool
+def mock_orchestration(task_id: str, optional_note: str = "") -> dict:
+    """Orchestration-style tool returning a structured dict, like DW primitives."""
+    return {"success": True, "task_id": task_id, "note": optional_note, "result": f"done_{task_id}"}
+
+
 # ---------------------------------------------------------------------------
 # models.py tests
 # ---------------------------------------------------------------------------
@@ -277,6 +283,29 @@ class TestPtcDispatcher:
         assert "content_of_/tmp/x" in resp.result
         assert len(dispatcher.records) == 1
         assert dispatcher.records[0].success is True
+
+    @pytest.mark.asyncio
+    async def test_dispatch_preserves_dict_payload(self):
+        """Structured tool results must survive the wire as dicts, not repr strings.
+
+        Regression guard for the DW contract tear: prompts.py declares every
+        myrm_tools primitive as ``-> dict`` and few-shot examples unpack them
+        (``**result`` / ``answers["results"]``). Serializing to a string makes
+        those scripts fail with TypeError at runtime.
+        """
+        dispatcher = PtcDispatcher([mock_orchestration])
+        req = PtcRpcRequest(tool="mock_orchestration", args={"task_id": "t1"})
+        resp = await dispatcher.dispatch(req)
+        assert resp.error is None
+        assert resp.result == {"success": True, "task_id": "t1", "note": "", "result": "done_t1"}
+
+    @pytest.mark.asyncio
+    async def test_dispatch_keeps_plain_string_result(self):
+        """String results stay strings so existing string-only tools are unaffected."""
+        dispatcher = PtcDispatcher([mock_file_read])
+        resp = await dispatcher.dispatch(PtcRpcRequest(tool="mock_file_read", args={"path": "/y"}))
+        assert resp.error is None
+        assert resp.result == "content_of_/y"
 
     @pytest.mark.asyncio
     async def test_dispatch_unknown_tool(self):
@@ -555,6 +584,43 @@ class TestPtcInjection:
         result = await inject_ptc_for_python_execution(context, executor, [mock_file_read])
         assert result.success
         assert "content_of_/test/file.txt" in (result.stdout or "")
+
+    @pytest.mark.asyncio
+    async def test_dict_contract_end_to_end(self):
+        """Real subprocess + real stub generator + real RPC server: dict survives.
+
+        This is the unpatched E2E guard. Mocked dispatcher tests cannot catch a
+        ``str`` vs ``dict`` regression because both satisfy ``assert x in stdout``;
+        only a script that actually unpacks the dict proves the wire contract.
+        """
+        from myrm_agent_harness.toolkits.code_execution.executors.models import (
+            ExecutionContext,
+        )
+        from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (
+            inject_ptc_for_python_execution,
+        )
+        from tests.toolkits.code_execution._executor_stub import InProcessExecutor
+
+        script = (
+            "import myrm_tools\n"
+            'result = myrm_tools.mock_orchestration(task_id="t7", optional_note="")\n'
+            'print("TYPE", type(result).__name__)\n'
+            'print("MERGED", {**result}["task_id"])\n'
+            'print("SUBSCRIPT", result["result"])\n'
+            'print("GET", result.get("success"))\n'
+            'print("EMPTY_KEPT", "note" in result and result["note"] == "")\n'
+        )
+        context = ExecutionContext(code=script, timeout=30)
+        executor = InProcessExecutor()
+        result = await inject_ptc_for_python_execution(context, executor, [mock_orchestration])
+
+        assert result.success, f"script failed: {result.stderr}"
+        out = result.stdout or ""
+        assert "TYPE dict" in out
+        assert "MERGED t7" in out
+        assert "SUBSCRIPT done_t7" in out
+        assert "GET True" in out
+        assert "EMPTY_KEPT True" in out
 
     @pytest.mark.asyncio
     async def test_multiple_tool_calls(self):

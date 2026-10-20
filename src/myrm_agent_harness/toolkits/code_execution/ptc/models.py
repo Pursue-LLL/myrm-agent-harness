@@ -40,9 +40,14 @@ class PtcRpcRequest(BaseModel):
 
 
 class PtcRpcResponse(BaseModel):
-    """RPC response sent from server to stub."""
+    """RPC response sent from server to stub.
 
-    result: str | None = None
+    ``result`` carries the tool's native return value. Dicts/lists stay structured
+    on the wire (JSON-native payload) so orchestration primitives that declare
+    ``-> dict`` reach scripts as dicts; strings stay flat strings.
+    """
+
+    result: object | None = None
     error: str | None = None
 
 

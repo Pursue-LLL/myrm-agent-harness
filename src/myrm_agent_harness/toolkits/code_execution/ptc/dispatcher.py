@@ -21,6 +21,9 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from langchain_core.messages import ToolMessage
+from pydantic import BaseModel
+
 from myrm_agent_harness.toolkits.code_execution.ptc.models import (
     PtcRpcRequest,
     PtcRpcResponse,
@@ -40,12 +43,46 @@ _BLOCKED_TOOLS: frozenset[str] = frozenset(
 )
 
 
+def _unwrap_tool_message(value: object) -> object:
+    """Reduce a LangChain ToolMessage to its payload.
+
+    ``response_format="content_and_artifact"`` tools put the structured result in
+    ``artifact``; plain tools put it in ``content``. Preferring ``artifact`` keeps
+    structured payloads intact instead of degrading them to a text blob.
+    """
+    if not isinstance(value, ToolMessage):
+        return value
+    artifact = getattr(value, "artifact", None)
+    return artifact if artifact is not None else value.content
+
+
+def _to_json_native(value: object) -> object:
+    """Normalize a tool result into a JSON-native payload for the RPC envelope.
+
+    Scripts consume these values directly, so structure is preserved: dicts and
+    lists survive as-is, scalars stay scalars. Anything else (dataclasses, Pydantic
+    models, datetimes, custom objects) is reduced through ``json.dumps(default=str)``
+    so the child process never receives an unserializable object.
+    """
+    unwrapped = _unwrap_tool_message(value)
+    if unwrapped is None or isinstance(unwrapped, str | int | float | bool):
+        return unwrapped
+    if isinstance(unwrapped, dict | list):
+        try:
+            json.dumps(unwrapped)
+        except (TypeError, ValueError):
+            return json.loads(json.dumps(unwrapped, ensure_ascii=False, default=str))
+        return unwrapped
+    if isinstance(unwrapped, BaseModel):
+        return unwrapped.model_dump(mode="json")
+    return json.loads(json.dumps(unwrapped, ensure_ascii=False, default=str))
+
+
 class PtcDispatcher:
     """Dispatches PTC RPC requests to agent tools.
 
     Maintains a name->tool mapping and records call traces for observability.
     """
-
     def __init__(
         self,
         tools: list[BaseTool],
@@ -87,13 +124,7 @@ class PtcDispatcher:
 
         try:
             result = await tool.ainvoke(input=args)
-
-            if isinstance(result, str):
-                result_str = result
-            elif hasattr(result, "content"):
-                result_str = str(result.content)
-            else:
-                result_str = json.dumps(result, ensure_ascii=False, default=str)
+            payload = _to_json_native(result)
 
             duration_ms = (time.perf_counter() - start) * 1000
             self._records.append(
@@ -104,7 +135,7 @@ class PtcDispatcher:
                     success=True,
                 )
             )
-            return PtcRpcResponse(result=result_str)
+            return PtcRpcResponse(result=payload)
 
         except Exception as e:
             return self._record_error(tool_name, args, start, str(e))
