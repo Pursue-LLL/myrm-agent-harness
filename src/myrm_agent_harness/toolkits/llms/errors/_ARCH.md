@@ -15,3 +15,4 @@ LLM error processing layer: three-tier error classification, fault-tolerant call
 | provider_window/ | Subpackage | Typed "when may I retry" fact extracted once from an LLM exception (Anthropic unified rejected windows > Codex/OpenAI body > Retry-After > message text) and consumed by stream recovery, credential cooldown and diagnostics. See `provider_window/_ARCH.md`. | ✅ |
 | resilient.py | Core | Resilient LLM call with automatic failover. | ✅ |
 | `classifier_patterns.py` | Core | Provider error-message patterns used by the LLM failure classifier. — 限额/过载/计费/鉴权/超时/TLS/溢出/策略/WAF 等预编译模式与关键词表 | ✅ |
+| `retry_after.py` | Core | ``Retry-After`` extraction from provider HTTP exceptions. — extract_retry_after(): 从 HTTP 响应头读取正数秒数，取不到返回 None | ✅ |

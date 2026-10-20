@@ -59,6 +59,7 @@ from .classifier_patterns import (
 )
 from .error_types import FailoverReason
 from .provider_window import has_rejected_quota_window
+from .retry_after import extract_retry_after as extract_retry_after
 
 # ============================================================================
 # ErrorKind enum
