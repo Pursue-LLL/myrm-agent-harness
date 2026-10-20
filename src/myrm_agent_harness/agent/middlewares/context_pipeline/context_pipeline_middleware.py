@@ -106,11 +106,14 @@ from myrm_agent_harness.agent.context_management.tracking.task_metrics import (
     get_or_create_task_metrics,
 )
 from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_helpers import (
+    count_tool_calls,
     estimate_request_context_tokens,
     extract_compression_intent,
+    extract_last_message_db_id,
     extract_tool_names_and_schemas,
     resolve_cache_usage_feedback,
     resolve_context_budget_metadata,
+    safe_persist_summary,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -276,7 +279,7 @@ def create_context_pipeline_middleware(
             if metrics is not None:
                 metrics.add_input_tokens(total_tokens)
 
-            last_message_db_id = _extract_last_message_db_id(request)
+            last_message_db_id = extract_last_message_db_id(request)
 
             if _notes_manager is not None:
                 if not _notes_loaded and on_notes_load is not None:
@@ -292,7 +295,7 @@ def create_context_pipeline_middleware(
                             exc,
                         )
 
-                total_tool_calls = _count_tool_calls(messages)
+                total_tool_calls = count_tool_calls(messages)
                 await _notes_manager.maybe_trigger_update(messages, total_tokens, total_tool_calls)
 
             async with acquire_context_lock(chat_id):
@@ -476,9 +479,18 @@ def create_context_pipeline_middleware(
                 )
 
             if on_summary_persist is not None and result.structured_summary is not None and chat_id:
-                persist_task = asyncio.create_task(_safe_persist_summary(on_summary_persist, chat_id, result))
+                persist_task = asyncio.create_task(safe_persist_summary(on_summary_persist, chat_id, result))
                 _summary_persist_tasks.add(persist_task)
                 persist_task.add_done_callback(_summary_persist_tasks.discard)
+
+            from myrm_agent_harness.agent.middlewares._session_context import (
+                set_session_notes_summary,
+            )
+
+            if _notes_manager is not None and _notes_manager.notes.is_ready():
+                set_session_notes_summary(_notes_manager.notes.to_summary_text())
+            else:
+                set_session_notes_summary(None)
 
             response = await handler(request)
             _last_successful_call_time = time.time()
@@ -498,44 +510,3 @@ def create_context_pipeline_middleware(
 
     return context_pipeline_middleware
 
-
-def _count_tool_calls(messages: list[BaseMessage]) -> int:
-    """Count total tool calls across all messages."""
-    count = 0
-    for msg in messages:
-        if msg.type == "ai" and hasattr(msg, "tool_calls") and msg.tool_calls:
-            count += len(msg.tool_calls)
-    return count
-
-
-def _extract_last_message_db_id(request: ModelRequest) -> str | None:
-    """Extract last message DB ID from runtime.context."""
-    try:
-        if not hasattr(request, "runtime") or not request.runtime:
-            return None
-        context = getattr(request.runtime, "context", None)
-        if isinstance(context, dict):
-            val = context.get("last_message_db_id")
-        else:
-            val = getattr(context, "last_message_db_id", None)
-        return str(val) if val is not None else None
-    except Exception:
-        return None
-
-
-async def _safe_persist_summary(callback: SummaryPersistCallback, chat_id: str, result: ProcessorContext) -> None:
-    """Safely invoke summary persist callback (fire-and-forget, non-blocking)."""
-    try:
-        await callback(
-            chat_id=chat_id,
-            summary=result.structured_summary,  # type: ignore[arg-type]
-            before_message_id=result.last_summarized_message_id or "",
-            tokens_saved=result.tokens_saved,
-        )
-        logger.info(
-            "[SummaryPersist] Summary persisted: chat_id=%s, tokens_saved=%d",
-            chat_id,
-            result.tokens_saved,
-        )
-    except Exception as exc:
-        logger.error("[SummaryPersist] Persist failed: %s", exc)

@@ -11,13 +11,14 @@ post-processing event emission.
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 - toolkits.code_execution.workspace.storage_root_bind (POS: ContextVar binding for aggregate workspace filesystem roots during a single agent Task.)
 - utils.runtime.steering::SteeringToken (POS: Steering  Agent  Agent)
+- _internals.message_end_event::build_message_end_event, resolve_completion_status (POS: MESSAGE_END 事件负载与完成态仲裁)
 
 [OUTPUT]
 - setup_workspace: Create workspace under host ``workspaces_storage_root``, bind executor, set context vars. The storage-root ContextVar undo token is stashed in a ContextVar (not in ``merged_context``) so checkpoints/msgpack never serialize it.
 - cleanup_run: Run-end cleanup: cancel children, reset context vars, col...
 - _init_pseudonym_store: Initialize the context-local PseudonymStore and regex PII closure when the active PrivacyPolicy requires one (``needs_pseudonym_store``); consumed by skill-agent session-end privacy re-establishment.
 - compute_context_budget_snapshot: Compute a lightweight context budget snapshot from token ...
-- post_run_events: Yield post-processing events: artifacts, FILE_MUTATION_FAILED, WORKSPACE_MERGE_FAILED, and MESSAGE_END (upgrade completion_status to warning on workspace merge failure when LLM status is complete). Accepts an explicit TokenTracker so `message_end.token_economics` is present even when async-generator resume crosses task boundaries where the ContextVar is invisible.
+- post_run_events: Yield post-processing events: artifacts, FILE_MUTATION_FAILED, WORKSPACE_MERGE_FAILED, and MESSAGE_END (payload assembly lives in ``message_end_event``).
 
 [POS]
 Agent run lifecycle helpers — workspace setup, cleanup, and post-processing.
@@ -31,6 +32,10 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent._internals.message_end_event import (
+    build_message_end_event,
+    resolve_completion_status,
+)
 from myrm_agent_harness.agent.context_management.infra.cache_metrics_collector import (
     clear_pending_explicit_cache_snapshot,
     install_llm_response_hook,
@@ -42,12 +47,8 @@ from myrm_agent_harness.agent.middlewares.approval import set_workspace_root
 from myrm_agent_harness.agent.streaming.types import ContextBudgetSnapshot
 from myrm_agent_harness.agent.types import (
     AgentRunStatistics,
-    CompletionStatus,
     WorkspaceBinding,
     map_to_completion_status,
-)
-from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
-    has_workspace_merge_warning,
 )
 from myrm_agent_harness.toolkits.code_execution import create_workspace_service
 from myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind import (
@@ -700,56 +701,9 @@ async def post_run_events(
             "messageId": message_id,
         }
 
-    completion_status = stats.completion_status.value
-    if has_workspace_merge_warning() and completion_status == CompletionStatus.COMPLETE.value:
-        completion_status = "warning"
-
-    message_end_event: dict[str, object] = {
-        "type": AgentEventType.MESSAGE_END.value,
-        "data": "",
-        "messageId": message_id,
-        "completion_status": completion_status,
-    }
-
-    # Per-turn disclosure (evidence tier + staged drafts) published by the completion guard.
-    from myrm_agent_harness.agent.middlewares.completion import attach_disclosure_to_event
-
-    attach_disclosure_to_event(message_end_event, message_id)
-    if stats.token_usage:
-        usage_dict = stats.token_usage.to_dict()
-        if stats.model_usage:
-            usage_dict["model_usage"] = stats.model_usage
-        message_end_event["usage"] = usage_dict
-
-    try:
-        if tracker is None:
-            from myrm_agent_harness.utils.token_economics.tracker import (
-                get_token_tracker,
-            )
-
-            tracker = get_token_tracker()
-        if tracker is not None:
-            message_end_event["token_economics"] = tracker.to_dict()
-    except Exception:
-        pass
-
-    if stats.cost_usd > 0:
-        message_end_event["cost_usd"] = round(stats.cost_usd, 6)
-        message_end_event["cost_status"] = stats.cost_status
-    if stats.primary_model:
-        message_end_event["model"] = stats.primary_model
-    if stats.context_budget:
-        message_end_event["context_budget"] = stats.context_budget.to_dict()
-
-    if tracker is not None and tracker.budget_checker is not None:
-        remaining = tracker.budget_checker.get_remaining_budget()
-        if remaining is not None:
-            budget_status = tracker.last_budget_status
-            if budget_status in ("warning", "exceeded"):
-                message_end_event["usage_alert"] = {
-                    "status": budget_status,
-                    "today_cost": round(tracker.total_cost_usd, 6),
-                    "remaining": round(remaining, 6),
-                }
-
-    yield message_end_event
+    yield build_message_end_event(
+        stats,
+        message_id,
+        tracker=tracker,
+        completion_status=resolve_completion_status(stats),
+    )

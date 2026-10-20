@@ -19,6 +19,7 @@ stable canonicalization separate from middleware orchestration.
 
 import json
 from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING
 
 from langchain.agents.middleware import ModelRequest
 from langchain_core.messages import BaseMessage
@@ -30,10 +31,17 @@ from myrm_agent_harness.agent.context_management.infra.schemas import (
     CacheUsageFeedback,
     CompressionIntent,
 )
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import (
     estimate_context_tokens,
     estimate_request_tools_tokens,
 )
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.context_management.infra.schemas import SummaryPersistCallback
+    from myrm_agent_harness.agent.context_management.pipeline import ProcessorContext
+
+logger = get_agent_logger(__name__)
 
 
 def extract_compression_intent(
@@ -161,3 +169,49 @@ __all__ = [
     "resolve_cache_usage_feedback",
     "resolve_context_budget_metadata",
 ]
+
+
+def count_tool_calls(messages: Sequence[BaseMessage]) -> int:
+    """Count total tool calls across all messages."""
+    count = 0
+    for msg in messages:
+        if msg.type == "ai" and getattr(msg, "tool_calls", None):
+            count += len(msg.tool_calls)
+    return count
+
+
+def extract_last_message_db_id(request: ModelRequest) -> str | None:
+    """Extract the last message DB id from the request runtime context."""
+    try:
+        if not hasattr(request, "runtime") or not request.runtime:
+            return None
+        context = getattr(request.runtime, "context", None)
+        if isinstance(context, dict):
+            val = context.get("last_message_db_id")
+        else:
+            val = getattr(context, "last_message_db_id", None)
+        return str(val) if val is not None else None
+    except Exception:
+        return None
+
+
+async def safe_persist_summary(
+    callback: "SummaryPersistCallback",
+    chat_id: str,
+    result: "ProcessorContext",
+) -> None:
+    """Safely invoke the summary persist callback (fire-and-forget, non-blocking)."""
+    try:
+        await callback(
+            chat_id=chat_id,
+            summary=result.structured_summary,  # type: ignore[arg-type]
+            before_message_id=result.last_summarized_message_id or "",
+            tokens_saved=result.tokens_saved,
+        )
+        logger.info(
+            "[SummaryPersist] Summary persisted: chat_id=%s, tokens_saved=%d",
+            chat_id,
+            result.tokens_saved,
+        )
+    except Exception as exc:
+        logger.error("[SummaryPersist] Persist failed: %s", exc)

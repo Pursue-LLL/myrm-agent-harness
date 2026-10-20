@@ -21,12 +21,21 @@ from myrm_agent_harness.agent.context_management.pipeline import (
     ProcessorContext,
 )
 from myrm_agent_harness.agent.context_management.pipeline.base import BaseProcessor
+from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_helpers import (
+    count_tool_calls,
+    extract_last_message_db_id,
+    safe_persist_summary,
+)
 from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_middleware import (
-    _count_tool_calls,
-    _extract_last_message_db_id,
-    _safe_persist_summary,
     create_context_pipeline_middleware,
 )
+
+
+# The helpers moved into ``context_pipeline_helpers``; keep the historical private
+# names in this module's test scope so the cases below keep documenting the contract.
+_count_tool_calls = count_tool_calls
+_extract_last_message_db_id = extract_last_message_db_id
+_safe_persist_summary = safe_persist_summary
 
 
 class _NoOpProcessor(BaseProcessor):
