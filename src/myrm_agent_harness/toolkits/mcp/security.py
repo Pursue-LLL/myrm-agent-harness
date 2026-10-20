@@ -31,6 +31,8 @@ and are re-exported here.
 from __future__ import annotations
 
 import logging
+import time as _time
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
@@ -164,11 +166,11 @@ class MCPResponseValidator:
         self.max_response_size = max_response_size
         self._enabled = enabled
 
-    def validate_tools_response(self, tools: list[object]) -> None:
+    def validate_tools_response(self, tools: Sequence[object]) -> None:
         """Validate a tools list response from an MCP server.
 
         Args:
-            tools: List of tool definitions.
+            tools: Tool definitions (any sequence; only its length is inspected).
 
         Raises:
             MCPResponseError: If the response exceeds safety limits.
@@ -220,6 +222,14 @@ class MCPResponseValidator:
 
 _OSV_QUERY_URL = "https://api.osv.dev/v1/query"
 _OSV_TIMEOUT_SECONDS = 10
+_OSV_CACHE_TTL_SECONDS = 3600.0
+_osv_advisory_cache: dict[tuple[str, str], tuple[str | None, float]] = {}
+
+
+def clear_osv_malware_cache() -> None:
+    """Clear the in-memory OSV malware advisory cache."""
+    _osv_advisory_cache.clear()
+
 
 _OSV_ECOSYSTEM_MAP: dict[str, str] = {
     "npx": "npm",
@@ -266,17 +276,26 @@ def _extract_package_info(
 async def check_osv_malware(
     command: str,
     args: list[str] | None,
+    *,
+    use_cache: bool = False,
 ) -> str | None:
     """Check if an MCP package has MAL-* malware advisories via OSV API.
 
     Fail-open: returns None on network errors or extraction failures.
     Returns advisory summary string if malware is found.
+    When ``use_cache=True``, successful lookups are cached in memory for 1 hour.
     """
     info = _extract_package_info(command, args)
     if info is None:
         return None
 
     package_name, ecosystem = info
+    cache_key = (ecosystem, package_name)
+    now = _time.monotonic()
+    if use_cache:
+        cached = _osv_advisory_cache.get(cache_key)
+        if cached is not None and now < cached[1]:
+            return cached[0]
 
     try:
         async with create_httpx_client(timeout=_OSV_TIMEOUT_SECONDS) as client:
@@ -287,13 +306,16 @@ async def check_osv_malware(
             response.raise_for_status()
             data = response.json()
 
+        advisory: str | None = None
         for vuln in data.get("vulns", []):
             vuln_id = vuln.get("id", "")
             if vuln_id.startswith("MAL-"):
                 summary = vuln.get("summary", "malware advisory")
-                return f"{vuln_id}: {summary} (package: {package_name})"
+                advisory = f"{vuln_id}: {summary} (package: {package_name})"
+                break
 
-        return None
+        _osv_advisory_cache[cache_key] = (advisory, now + _OSV_CACHE_TTL_SECONDS)
+        return advisory
 
     except Exception as exc:
         logger.debug("OSV check skipped for %s/%s: %s", ecosystem, package_name, exc)
@@ -313,6 +335,7 @@ __all__ = [
     "ResolvedURL",
     "URLValidationError",
     "check_osv_malware",
+    "clear_osv_malware_cache",
     "format_mcp_scan_block_message",
     "scan_mcp_config",
     "scan_mcp_runtime_surface",

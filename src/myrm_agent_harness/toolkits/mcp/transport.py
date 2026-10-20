@@ -282,6 +282,8 @@ class ExecutorStdioTransport:
             max_memory_mb=self.max_memory_mb,
             workspace_root=self.executor.workspace_path,
             work_dir=work_dir,
+            # One server process serves many agents: it must not inherit the capability of the agent that connected it.
+            harness_owned=True,
         )
 
         # OSV malware check before spawning
@@ -304,8 +306,8 @@ class ExecutorStdioTransport:
         # Create anyio memory streams for the SDK to interact with
         # SDK reads from read_stream_rx, we write to read_stream_tx
         # SDK writes to write_stream_tx, we read from write_stream_rx
-        read_stream_tx, read_stream_rx = anyio.create_memory_object_stream(256)
-        write_stream_tx, write_stream_rx = anyio.create_memory_object_stream(256)
+        read_stream_tx, read_stream_rx = anyio.create_memory_object_stream[str | bytes](256)
+        write_stream_tx, write_stream_rx = anyio.create_memory_object_stream[str | bytes](256)
 
         # Start bridge tasks
         # Note: We must cast the streams to the expected types since AsyncProcessProtocol

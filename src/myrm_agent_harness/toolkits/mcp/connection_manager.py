@@ -4,27 +4,21 @@ Architecture:
 - Global singleton, initialized at app startup, cleaned up at process exit
 - One :class:`MCPConnection` per distinct config hash; each holds one
   :class:`MCPSessionActor` per server (a warm, already-initialized session)
-- Tool calls are routed to the owning actor, which executes them on the live
-  session — no per-call subprocess spawn or re-``initialize`` handshake
-- Actors self-heal transport breaks (reconnect in place); the pool's health
-  check + rebuild is only the last resort once an actor's reconnect budget is
-  exhausted
-- TTL expiry recycles idle connections
-
-Performance model (the real win):
-- A server with heavy startup (large catalog, DB pool, model load) pays that
-  cost **once** per connection lifetime instead of once per tool call.
-- SSE/HTTP servers reuse a single connection instead of reconnecting per call,
-  cutting latency and transient handshake failures.
+- Per-``config_hash`` singleflight creation locks so distinct MCP servers spawn
+  in parallel without head-of-line blocking, bounded by a process-wide spawn
+  semaphore
+- OpenClaw-style exponential startup backoff circuit breaker (``MCPStartupBackoff``)
+- Transparent cross-TTL proxy tool rebinding via ``actor_resolver``
 
 [INPUT]
 - client::MCPClientManager, MCPServerConfigProtocol (POS: MCP client management layer)
 - session_actor::MCPSessionActor (POS: MCP persistent-session layer)
 - placeholders::resolve_stdio_launch (POS: MCP stdio env/cwd/placeholder resolution)
+- connection_pool_types (POS: ConnectionStatus, ConnectionMetrics, MCPConnection, MCPStartupBackoff)
 
 [OUTPUT]
-- MCPConnection: warm per-config connection (a set of per-server session actors), refresh_server_auth() for hot-updating auth headers
-- MCPConnectionManager: persistent pool with health checks, TTL expiry, and refresh_server_auth() for pool-wide auth header hot-update
+- MCPConnection: warm per-config connection
+- MCPConnectionManager: persistent pool with per-hash singleflight, startup backoff, and TTL recycling
 - get_mcp_connection_manager(): global singleton accessor
 - get_mcp_connection(): acquire a pooled connection for a config
 
@@ -40,202 +34,32 @@ import hashlib
 import json
 import logging
 import time
+import weakref
 from contextlib import suppress
-from dataclasses import dataclass
-from enum import Enum
 from typing import TYPE_CHECKING
+
+from .connection_pool_types import (
+    ConnectionMetrics,
+    ConnectionStatus,
+    MCPConnection,
+    MCPServerState,
+    MCPStartupBackoff,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from langchain_core.tools import BaseTool
-
     from .client import MCPServerConfigProtocol
     from .session_actor import MCPSessionActor
+    from .session_actor_types import MCPActorResolver
 
 logger = logging.getLogger(__name__)
 
-
-class ConnectionStatus(Enum):
-    """Connection state."""
-
-    IDLE = "idle"  # Available
-    ACTIVE = "active"  # In use
-    UNHEALTHY = "unhealthy"  # Broken — will be recycled
-    CLOSED = "closed"  # Closed
-
-
-@dataclass
-class ConnectionMetrics:
-    """Connection usage metrics."""
-
-    created_at: float
-    last_used: float
-    use_count: int
-    total_time: float  # Cumulative tool-call time
-    error_count: int
-
-
-class MCPConnection:
-    """A warm connection for one config — one session actor per server.
-
-    Holds persistent, already-initialized sessions and routes tool calls to the
-    owning actor so the underlying process/connection is reused across calls.
-    """
-
-    def __init__(
-        self,
-        config_hash: str,
-        actors: dict[str, MCPSessionActor],
-    ) -> None:
-        self.config_hash = config_hash
-        self._actors = actors
-        self.status = ConnectionStatus.IDLE
-        # Actors pin their owner task (and asyncio.Queue/Future) to the loop that
-        # created them; a connection is only reusable on that same loop. Reuse
-        # from a different loop (e.g. a new per-test loop) must rebuild instead.
-        try:
-            self._loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
-        except RuntimeError:
-            self._loop = None
-        now = time.time()
-        self.metrics = ConnectionMetrics(
-            created_at=now,
-            last_used=now,
-            use_count=0,
-            total_time=0.0,
-            error_count=0,
-        )
-
-    def is_bound_to_current_loop(self) -> bool:
-        """True if this connection's actors live on the currently running loop."""
-        try:
-            return self._loop is asyncio.get_running_loop()
-        except RuntimeError:
-            return False
-
-    @property
-    def tools_by_server(self) -> dict[str, list[BaseTool]]:
-        """Actor-routed proxy tools grouped by server (schemas for routing/skills)."""
-        return {name: actor.tools for name, actor in self._actors.items()}
-
-    @property
-    def instructions_by_server(self) -> dict[str, str | None]:
-        """MCP ``initialize`` instructions per server, captured once at startup."""
-        return {name: actor.instructions for name, actor in self._actors.items()}
-
-    def _resolve_actor(self, server_name: str) -> MCPSessionActor | None:
-        actor = self._actors.get(server_name)
-        if actor is not None:
-            return actor
-        for variant in (server_name.replace("-", "_"), server_name.replace("_", "-")):
-            actor = self._actors.get(variant)
-            if actor is not None:
-                return actor
-        return None
-
-    async def call(self, server_name: str, tool_name: str, params: dict[str, object]) -> object:
-        """Invoke a tool on the warm session of the given server."""
-        actor = self._resolve_actor(server_name)
-        if actor is None:
-            raise RuntimeError(f"MCP server not found: {server_name}. Available servers: {list(self._actors)}")
-
-        self.status = ConnectionStatus.ACTIVE
-        self.metrics.use_count += 1
-        self.metrics.last_used = time.time()
-        start = time.time()
-        try:
-            return await actor.call(tool_name, params)
-        except Exception:
-            self.metrics.error_count += 1
-            if not actor.is_healthy():
-                self.status = ConnectionStatus.UNHEALTHY
-            raise
-        finally:
-            self.metrics.total_time += time.time() - start
-            if self.status == ConnectionStatus.ACTIVE:
-                self.status = ConnectionStatus.IDLE
-
-    async def read_resource(self, server_name: str, uri: str) -> bytes:
-        """Read a resource from the given MCP server's warm session.
-
-        Used by MCP Apps (ext-apps) host to fetch UI content.
-        """
-        actor = self._resolve_actor(server_name)
-        if actor is None:
-            raise RuntimeError(f"MCP server not found: {server_name}. Available servers: {list(self._actors)}")
-
-        self.metrics.last_used = time.time()
-        return await actor.read_resource(uri)
-
-    async def health_check(self) -> bool:
-        """Return True only if every server's session is alive and usable."""
-        if self.status == ConnectionStatus.CLOSED:
-            return False
-        healthy = bool(self._actors) and all(actor.is_healthy() for actor in self._actors.values())
-        if not healthy:
-            self.status = ConnectionStatus.UNHEALTHY
-        return healthy
-
-    def is_expired(self, ttl: int) -> bool:
-        """Check whether the connection has been idle longer than ``ttl``.
-
-        Idle time is measured against the most recent activity from *either*
-        path: ``metrics.last_used`` (PTC via ``call``) and each actor's
-        ``last_activity`` (direct-mode tools invoked straight on the actor).
-        """
-        last = self.metrics.last_used
-        if self._actors:
-            last = max(last, *(actor.last_activity for actor in self._actors.values()))
-        return time.time() - last > ttl
-
-    def get_stats(self) -> dict[str, object]:
-        """Return connection statistics for observability."""
-        now = time.time()
-        return {
-            "status": self.status.value,
-            "servers": list(self._actors),
-            "age_seconds": int(now - self.metrics.created_at),
-            "idle_seconds": int(now - self.metrics.last_used),
-            "use_count": self.metrics.use_count,
-            "avg_time_ms": int(self.metrics.total_time * 1000 / max(1, self.metrics.use_count)),
-            "error_count": self.metrics.error_count,
-            "error_rate": f"{self.metrics.error_count / max(1, self.metrics.use_count) * 100:.1f}%",
-        }
-
-    def refresh_server_auth(self, server_name: str, new_headers: dict[str, str]) -> bool:
-        """Hot-update auth headers for a specific server's session actor.
-
-        Returns True if the server was found and updated, False otherwise.
-        Called by the business layer after a successful OAuth re-authorization
-        so the existing warm session picks up the fresh token.
-        """
-        actor = self._resolve_actor(server_name)
-        if actor is None:
-            return False
-        actor.update_auth_headers(new_headers)
-        return True
-
-    async def close(self) -> None:
-        """Close every session actor, releasing all processes / connections."""
-        if self.status == ConnectionStatus.CLOSED:
-            return
-        self.status = ConnectionStatus.CLOSED
-        await asyncio.gather(
-            *(actor.close() for actor in self._actors.values()),
-            return_exceptions=True,
-        )
-        self._actors.clear()
+_MAX_CONCURRENT_SPAWNS = 8
 
 
 class MCPConnectionManager:
-    """Global singleton pool of warm MCP connections.
-
-    Design principles:
-    - Singleton: one instance per process
-    - Lazy: connections (and their sessions) created on demand
-    - Auto-recycle: TTL-expired and unhealthy connections are closed and rebuilt
-    """
+    """Global singleton pool of warm MCP connections."""
 
     _instance: MCPConnectionManager | None = None
     _init_lock = asyncio.Lock()
@@ -247,24 +71,41 @@ class MCPConnectionManager:
         self._cleanup_task: asyncio.Task[None] | None = None
         self._started = False
         self._create_lock = asyncio.Lock()
+        self._create_locks: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
+        self._spawn_semaphore: asyncio.Semaphore | None = None
         self._create_lock_loop: asyncio.AbstractEventLoop | None = None
+        self._backoff = MCPStartupBackoff()
         logger.info("[MCPConnectionManager] Initialized")
 
-    def _get_create_lock(self) -> asyncio.Lock:
-        """Return a creation lock bound to the running loop.
-
-        The singleton outlives individual event loops (e.g. per-test loops); an
-        ``asyncio.Lock`` is loop-bound once contended, so we recreate it whenever
-        the loop changes to avoid cross-loop "bound to a different loop" errors.
-        """
+    def _sync_loop_primitives(self) -> None:
+        """Reset loop-bound locks and semaphores when the running event loop changes."""
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            return self._create_lock
+            return
         if self._create_lock_loop is not loop:
             self._create_lock = asyncio.Lock()
+            self._create_locks.clear()
+            self._spawn_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_SPAWNS)
             self._create_lock_loop = loop
-        return self._create_lock
+
+    def _get_create_lock(self, config_hash: str | None = None) -> asyncio.Lock:
+        """Return a per-``config_hash`` singleflight creation lock bound to the running loop."""
+        self._sync_loop_primitives()
+        if config_hash is None:
+            return self._create_lock
+        lock = self._create_locks.get(config_hash)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._create_locks[config_hash] = lock
+        return lock
+
+    def _get_spawn_semaphore(self) -> asyncio.Semaphore:
+        """Return a loop-bound semaphore capping concurrent server startups."""
+        self._sync_loop_primitives()
+        if self._spawn_semaphore is None:
+            self._spawn_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_SPAWNS)
+        return self._spawn_semaphore
 
     def _ensure_cleanup_running(self) -> None:
         """Restart the TTL cleanup task if it died with a previous event loop."""
@@ -307,13 +148,7 @@ class MCPConnectionManager:
         logger.info("[MCPConnectionManager] Stopped")
 
     def _make_config_hash(self, config: Sequence[MCPServerConfigProtocol]) -> str:
-        """Hash the full effective config so distinct configs never collide.
-
-        Includes every field that changes the established session or its tool
-        surface (command/args/url/headers/extra_params + the tool filter), not
-        just name/type — two servers differing only in args must not share a
-        pooled connection.
-        """
+        """Hash the full effective config so distinct configs never collide."""
         config_data = [
             {
                 "name": s.name,
@@ -327,6 +162,9 @@ class MCPConnectionManager:
                 "tool_exclude": getattr(s, "tool_exclude", None),
                 "host_serial": getattr(s, "host_serial", False),
                 "keepalive_interval": getattr(s, "keepalive_interval", None),
+                "ssl_verify": getattr(s, "ssl_verify", None),
+                "client_cert": getattr(s, "client_cert", None),
+                "client_key": getattr(s, "client_key", None),
             }
             for s in sorted(config, key=lambda x: x.name)
         ]
@@ -337,20 +175,13 @@ class MCPConnectionManager:
         self,
         config: Sequence[MCPServerConfigProtocol],
     ) -> MCPConnection:
-        """Get (or lazily create) the warm connection for ``config``.
-
-        Reuses a healthy pooled connection with the same effective config; a
-        connection found unhealthy is closed and rebuilt transparently.
-        """
+        """Get (or lazily create) the warm connection for ``config``."""
         self._ensure_cleanup_running()
         config_hash = self._make_config_hash(config)
 
         existing = self._connections.get(config_hash)
         if existing is not None:
             if not existing.is_bound_to_current_loop():
-                # The owning event loop changed; the old actors are pinned to a
-                # now-defunct loop (their tasks already finalised at loop close),
-                # so drop the stale entry and rebuild on the current loop.
                 logger.info(
                     "[MCPConnectionManager] Event loop changed; rebuilding connection %s",
                     config_hash[:16],
@@ -372,13 +203,34 @@ class MCPConnectionManager:
                 await existing.close()
                 self._connections.pop(config_hash, None)
 
-        # Serialise creation so concurrent first-callers don't spawn duplicate
-        # sessions for the same config (double-check after acquiring the lock).
-        async with self._get_create_lock():
+        async with self._get_create_lock(config_hash):
             existing = self._connections.get(config_hash)
             if existing is not None and existing.is_bound_to_current_loop() and await existing.health_check():
                 return existing
-            return await self._create_connection(config, config_hash)
+            self._backoff.check_allowed(config_hash)
+            async with self._get_spawn_semaphore():
+                try:
+                    conn = await self._create_connection(config, config_hash)
+                except Exception as exc:
+                    server_names = tuple(cfg.name for cfg in config)
+                    self._backoff.record_failure(config_hash, str(exc), server_names)
+                    raise
+                self._backoff.record_success(config_hash)
+                return conn
+
+    def _make_actor_resolver(
+        self,
+        config: Sequence[MCPServerConfigProtocol],
+        server_name: str,
+    ) -> MCPActorResolver:
+        """Build a lazy resolver that re-acquires a warm actor after TTL eviction."""
+        config_snapshot = list(config)
+
+        async def _resolve() -> MCPSessionActor | None:
+            conn = await self.get_connection(config_snapshot)
+            return conn._resolve_actor(server_name)
+
+        return _resolve
 
     async def _create_connection(
         self,
@@ -391,14 +243,10 @@ class MCPConnectionManager:
 
         logger.info("[MCPConnectionManager] Creating connection: %s", config_hash[:16])
 
+        spawned_actors: list[MCPSessionActor] = []
+
         async def _spawn(cfg: MCPServerConfigProtocol) -> tuple[str, MCPSessionActor]:
             await MCPClientManager._inject_auth_headers_into_config(cfg)
-            # stdio env/cwd live in extra_params (the only place the business
-            # layer persists them); resolve + expand placeholders here so every
-            # transport build (runtime + enumeration) sees the same values.
-            # resolve_stdio_launch already maps Windows .bat/.cmd commands to
-            # cmd.exe (§7.2.1 MAY) as its final step; static/runtime scanners
-            # still read the plugin's declared command off the config object.
             from .placeholders import resolve_stdio_launch
 
             extra_params = getattr(cfg, "extra_params", None)
@@ -406,6 +254,11 @@ class MCPConnectionManager:
                 cfg.command,
                 cfg.args,
                 extra_params if isinstance(extra_params, dict) else None,
+            )
+            plugin_root = (
+                extra_params.get("plugin_root")
+                if isinstance(extra_params, dict) and isinstance(extra_params.get("plugin_root"), str)
+                else None
             )
             conn_dict: dict[str, object] = {
                 "transport": cfg.type,
@@ -416,6 +269,13 @@ class MCPConnectionManager:
                 "env": stdio_env,
                 "cwd": stdio_cwd,
             }
+            if plugin_root is not None:
+                conn_dict["plugin_root"] = plugin_root
+            for tls_key in ("ssl_verify", "client_cert", "client_key", "client_key_password"):
+                tls_val = getattr(cfg, tls_key, None)
+                if tls_val is not None:
+                    conn_dict[tls_key] = tls_val
+
             actor = MCPSessionActor(
                 cfg.name,
                 conn_dict,
@@ -429,41 +289,48 @@ class MCPConnectionManager:
                 auth_provider=getattr(cfg, "auth_provider", None),
                 oversized_result_handler=getattr(cfg, "oversized_result_handler", None),
                 elicitation_handler=getattr(cfg, "elicitation_handler", None),
+                actor_resolver=self._make_actor_resolver(config, cfg.name),
             )
             await actor.start()
+            spawned_actors.append(actor)
             return cfg.name, actor
 
-        results = await asyncio.gather(*(_spawn(cfg) for cfg in config), return_exceptions=True)
-
         actors: dict[str, MCPSessionActor] = {}
-        errors: list[str] = []
-        for result in results:
-            if isinstance(result, BaseException):
-                errors.append(str(result))
-                continue
-            name, actor = result
-            actors[name] = actor
+        try:
+            results = await asyncio.gather(*(_spawn(cfg) for cfg in config), return_exceptions=True)
 
-        if not actors:
-            raise RuntimeError(f"All MCP servers failed to start: {'; '.join(errors)}")
-        if errors:
-            logger.warning(
-                "[MCPConnectionManager] %d/%d MCP server(s) failed to start: %s",
-                len(errors),
-                len(results),
-                "; ".join(errors),
+            errors: list[str] = []
+            for result in results:
+                if isinstance(result, BaseException):
+                    errors.append(str(result))
+                    continue
+                name, actor = result
+                actors[name] = actor
+
+            if not actors:
+                raise RuntimeError(f"All MCP servers failed to start: {'; '.join(errors)}")
+            if errors:
+                logger.warning(
+                    "[MCPConnectionManager] %d/%d MCP server(s) failed to start: %s",
+                    len(errors),
+                    len(results),
+                    "; ".join(errors),
+                )
+
+            conn = MCPConnection(config_hash, actors)
+            self._connections[config_hash] = conn
+            total_tools = sum(len(actor.tools) for actor in actors.values())
+            logger.info(
+                "[MCPConnectionManager] Connection ready: %s (servers: %d, tools: %d)",
+                config_hash[:16],
+                len(actors),
+                total_tools,
             )
-
-        conn = MCPConnection(config_hash, actors)
-        self._connections[config_hash] = conn
-        total_tools = sum(len(actor.tools) for actor in actors.values())
-        logger.info(
-            "[MCPConnectionManager] Connection ready: %s (servers: %d, tools: %d)",
-            config_hash[:16],
-            len(actors),
-            total_tools,
-        )
-        return conn
+            return conn
+        except BaseException:
+            if spawned_actors:
+                await asyncio.gather(*(actor.close() for actor in spawned_actors), return_exceptions=True)
+            raise
 
     async def _cleanup_loop(self) -> None:
         """Background loop that recycles idle (TTL-expired) connections."""
@@ -491,7 +358,7 @@ class MCPConnectionManager:
             logger.info("[MCPConnectionManager] Cleaned %d expired connections", len(expired))
 
     async def close_all(self) -> None:
-        """Close every pooled connection."""
+        """Close every pooled connection and reset backoff state."""
         logger.info(
             "[MCPConnectionManager] Closing all connections (%d total)",
             len(self._connections),
@@ -501,12 +368,11 @@ class MCPConnectionManager:
             return_exceptions=True,
         )
         self._connections.clear()
+        self._backoff.clear_all()
 
     def refresh_server_auth(self, server_name: str, new_headers: dict[str, str]) -> bool:
-        """Hot-update auth headers for a named server across all pooled connections.
-
-        Returns True if at least one connection contained the server and was updated.
-        """
+        """Hot-update auth headers for a named server and reset any startup backoff."""
+        self._backoff.clear_server(server_name)
         updated = False
         for conn in self._connections.values():
             if conn.status != ConnectionStatus.CLOSED and conn.refresh_server_auth(server_name, new_headers):
@@ -524,13 +390,54 @@ class MCPConnectionManager:
             "connections": {config_hash[:16]: conn.get_stats() for config_hash, conn in self._connections.items()},
         }
 
+    def get_server_runtime_status(self, server_name: str) -> dict[str, object]:
+        """Query granular runtime status for an MCP server across active connections.
+
+        Returns standard MCPServerState and execution metrics.
+        """
+        for conn in self._connections.values():
+            if conn.status == ConnectionStatus.CLOSED:
+                continue
+            actor = conn._resolve_actor(server_name)
+            if actor is not None:
+                state = conn.get_server_state(server_name)
+                return {
+                    "server_name": server_name,
+                    "state": state.value,
+                    "healthy": actor.is_healthy(),
+                    "tool_count": len(actor.tools),
+                    "use_count": conn.metrics.use_count,
+                    "error_count": conn.metrics.error_count,
+                    "total_tokens_consumed": conn.metrics.total_tokens_consumed,
+                    "last_used": conn.metrics.last_used,
+                    "last_error": conn.metrics.last_error,
+                }
+
+        for entry in self._backoff._entries.values():
+            if server_name in entry.server_names:
+                remaining = max(0.0, entry.cooldown_until - time.monotonic())
+                if remaining > 0:
+                    return {
+                        "server_name": server_name,
+                        "state": MCPServerState.ERROR.value,
+                        "healthy": False,
+                        "tool_count": 0,
+                        "cooldown_remaining_seconds": round(remaining, 1),
+                        "last_error": entry.last_error,
+                    }
+
+        return {
+            "server_name": server_name,
+            "state": MCPServerState.OFFLINE.value,
+            "healthy": False,
+            "tool_count": 0,
+            "use_count": 0,
+            "error_count": 0,
+            "total_tokens_consumed": 0,
+        }
+
     def __repr__(self) -> str:
         return f"<MCPConnectionManager connections={len(self._connections)} started={self._started}>"
-
-
-# ============================================================================
-# Convenience access functions
-# ============================================================================
 
 
 async def get_mcp_connection_manager() -> MCPConnectionManager:
@@ -544,3 +451,15 @@ async def get_mcp_connection(
     """Acquire a warm pooled connection for the given MCP config."""
     manager = await get_mcp_connection_manager()
     return await manager.get_connection(config)
+
+
+__all__ = [
+    "ConnectionMetrics",
+    "ConnectionStatus",
+    "MCPConnection",
+    "MCPConnectionManager",
+    "MCPServerState",
+    "MCPStartupBackoff",
+    "get_mcp_connection",
+    "get_mcp_connection_manager",
+]

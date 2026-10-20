@@ -67,6 +67,13 @@ class MCPScanFinding:
     recommendation: str = ""
 
 
+def _max_severity(findings: tuple[MCPScanFinding, ...]) -> MCPScanSeverity | None:
+    """Most severe level among *findings*, ranked by risk order (never by label text)."""
+    if not findings:
+        return None
+    return max(findings, key=lambda f: _SEVERITY_ORDER.index(f.severity)).severity
+
+
 @dataclass(frozen=True, slots=True)
 class MCPConfigSnapshot:
     """Normalized MCP config for static scanning (framework DTO)."""
@@ -98,9 +105,7 @@ class MCPConfigScanResult:
 
     @property
     def max_severity(self) -> MCPScanSeverity | None:
-        if not self.findings:
-            return None
-        return max(self.findings, key=lambda f: _SEVERITY_ORDER.index(f.severity)).severity
+        return _max_severity(self.findings)
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +126,10 @@ class MCPRuntimeScanResult:
     @property
     def allow_use(self) -> bool:
         return not any(f.severity in (MCPScanSeverity.HIGH, MCPScanSeverity.CRITICAL) for f in self.findings)
+
+    @property
+    def max_severity(self) -> MCPScanSeverity | None:
+        return _max_severity(self.findings)
 
 
 def _is_secret_reference(value: str) -> bool:

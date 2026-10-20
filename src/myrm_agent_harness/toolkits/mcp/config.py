@@ -8,11 +8,12 @@ MCP server configuration models passed to the Agent.
 [OUTPUT]
 - MCPAuthProvider: Authentication provider protocol for remote MCP servers.
 - MCPConfig: MCP server configuration (SSE, Stdio, Streamable HTTP).
-- mcp_config_to_runtime_dict: Serialize an MCP server config into a complete runtime dict preserving auth, TLS, filters, and callbacks.
+- mcp_config_to_runtime_dict: Serialize MCPServerConfigProtocol into a complete runtime dict preserving auth, TLS, filters, and callbacks.
 - should_register_mcp_tool: Per-server include/exclude filter for MCP tool whitelisting.
 - sanitize_mcp_name_component: Sanitize name component for ``mcp__{server}__{tool}`` generation (replaces non-alnum, collapses consecutive underscores, strips leading/trailing underscores, falls back to 'unnamed').
 - is_mcp_tool_name: Check if a tool name follows the ``mcp__{server}__{tool}`` convention.
 - parse_mcp_tool_name: Parse ``mcp__{server}__{tool}`` into (server, tool) tuple.
+- mcp_config_to_runtime_dict: Serialize an MCPServerConfigProtocol into a complete runtime dictionary preserving auth, TLS, filtering, and callback attributes.
 
 [POS]
 MCP Configuration
