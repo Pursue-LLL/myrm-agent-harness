@@ -464,10 +464,8 @@ class DeepResearchPhasesMixin:
         )
 
     def _format_research_context(self) -> str:
-        """Format all research agent results into a single context block, respecting tree pruning."""
-        evidence_tree_data = getattr(self._result, "evidence_tree", None)  # type: ignore[attr-defined]
+        """Format all research agent results into a single report-context block."""
         return format_research_context(
             agent_results=self._result.agent_results,  # type: ignore[attr-defined]
             max_chars=self._config.max_report_context_chars,  # type: ignore[attr-defined]
-            evidence_tree_data=evidence_tree_data,
         )
