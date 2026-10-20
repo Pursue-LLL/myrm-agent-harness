@@ -496,10 +496,12 @@ class TestSchedulerOnTick:
         scheduler._running = True
         await scheduler._on_tick()
 
-        for _ in range(20):
-            await asyncio.sleep(0.1)
-            if agent_runner.call_count >= 1:
-                break
+        # Poll until the dispatched task reports back. The ceiling is generous on purpose:
+        # the dispatch is a fire-and-forget task, and under a full-suite run the event
+        # loop can be busy enough that a 2 s window flakes even though nothing is wrong.
+        deadline = asyncio.get_running_loop().time() + 10.0
+        while agent_runner.call_count < 1 and asyncio.get_running_loop().time() < deadline:
+            await asyncio.sleep(0.05)
 
         await scheduler.stop()
 
