@@ -414,6 +414,24 @@ async def run_dynamic_workflow_stream(
         trust_latch=pinned_template.trust_latch,
         estimated_cost_usd=estimated_cost_usd,
     )
+
+    # Static verification must gate before the human gate: asking the user to
+    # approve a script that cannot pass the linter wastes their decision and hides
+    # the real error behind a resolved approval card.
+    if not lint_report.is_valid:
+        yield {
+            "type": "message",
+            "messageId": message_id,
+            "data": f"Dynamic Workflow static verification failed: {lint_report.summary}",
+        }
+        yield {
+            "type": "message_end",
+            "messageId": message_id,
+            "usage": {},
+            "completion_status": "error",
+        }
+        return
+
     needs_approval = (
         spawn_count >= 1
         and approval_gate is not None
@@ -465,20 +483,6 @@ async def run_dynamic_workflow_stream(
             return
 
     store.save_orchestration_script(workflow_id, script_code)
-
-    if not lint_report.is_valid:
-        yield {
-            "type": "message",
-            "messageId": message_id,
-            "data": f"Dynamic Workflow static verification failed: {lint_report.summary}",
-        }
-        yield {
-            "type": "message_end",
-            "messageId": message_id,
-            "usage": {},
-            "completion_status": "error",
-        }
-        return
 
     # --- Phase 3: Execute via PTC ---
     if cancel_token and cancel_token.is_cancelled:

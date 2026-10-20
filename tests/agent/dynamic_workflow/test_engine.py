@@ -1391,3 +1391,56 @@ async def test_inject_ptc_failure_yields_error_completion(
 
     end = next(c for c in chunks if c.get("type") == "message_end")
     assert end["completion_status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_invalid_script_fails_before_plan_confirm(tmp_path, monkeypatch, mock_parent_agent):
+    """A script that cannot pass the linter must not reach the human approval gate.
+
+    Previously the engine emitted plan_confirm and awaited the user, then reported
+    the static verification error only after approval — the user decided on a
+    script that could never run.
+    """
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    # Syntax error: fails the linter, and contains a spawn so approval would engage.
+    mock_parent_agent.llm = FakeLLM(
+        "import myrm_tools\nmyrm_tools.spawn_subagent(task_id='t1', agent_type='x', task_description='y')\nif x ==\n"
+    )
+
+    approval_calls: list[object] = []
+
+    async def approval_gate(review):
+        approval_calls.append(review)
+        return True
+
+    chunks = [
+        chunk
+        async for chunk in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="chat_a",
+            message_id="msg_b",
+            approval_gate=approval_gate,
+        )
+    ]
+
+    assert approval_calls == [], "approval gate must not be reached for an invalid script"
+    phases = [
+        chunk.get("data", {}).get("phase")
+        for chunk in chunks
+        if isinstance(chunk.get("data"), dict)
+    ]
+    assert "plan_confirm" not in phases
+    assert any("static verification failed" in str(chunk.get("data", "")) for chunk in chunks)
