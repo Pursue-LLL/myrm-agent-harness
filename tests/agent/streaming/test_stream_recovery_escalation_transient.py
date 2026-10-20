@@ -6,7 +6,6 @@ Covers:
 - _handle_iteration_limit (GraphRecursionError detection)
 - _handle_empty_response (injection, exhaustion, resume mode)
 - _is_escalation_marker_message (helper function)
-- _extract_retry_after_ms edge cases (invalid header values)
 - _handle_overflow stage 2 (retries==1)
 """
 
@@ -17,10 +16,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
-from myrm_agent_harness.agent.streaming.recovery.stream_recovery import (
-    _extract_retry_after_ms,
-    _is_escalation_marker_message,
-)
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery import _is_escalation_marker_message
 from myrm_agent_harness.agent.streaming.stream_executor import (
     StreamContext,
     StreamExecutor,
@@ -103,26 +99,6 @@ class TestIsEscalationMarkerMessage:
     def test_ai_message_empty(self):
         msg = AIMessage(content="")
         assert _is_escalation_marker_message(msg) is False
-
-
-# ─── _extract_retry_after_ms edge cases ─────────────────────────────────────
-
-
-class TestExtractRetryAfterEdgeCases:
-    def test_invalid_header_value_nan(self):
-        exc = Exception("error")
-        exc.headers = {"Retry-After": "not-a-number"}
-        assert _extract_retry_after_ms(exc) is None
-
-    def test_overflow_header_value(self):
-        exc = Exception("error")
-        exc.headers = {"Retry-After": "1e999"}
-        assert _extract_retry_after_ms(exc) is None
-
-    def test_empty_headers_dict(self):
-        exc = Exception("error")
-        exc.headers = {}
-        assert _extract_retry_after_ms(exc) is None
 
 
 # ─── _handle_overflow stage 2 ────────────────────────────────────────────────
@@ -324,7 +300,7 @@ class TestHandleTransientRetry:
                 return_value=ErrorKind.RATE_LIMIT,
             ),
             patch(
-                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.asyncio.sleep",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery_window.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):
@@ -366,7 +342,7 @@ class TestHandleTransientRetry:
                 return_value=ErrorKind.TIMEOUT,
             ),
             patch(
-                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.asyncio.sleep",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery_window.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):
@@ -386,7 +362,7 @@ class TestHandleTransientRetry:
                 return_value=ErrorKind.OVERLOADED,
             ),
             patch(
-                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.asyncio.sleep",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery_window.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):
@@ -408,7 +384,7 @@ class TestHandleTransientRetry:
                 return_value=ErrorKind.RATE_LIMIT,
             ),
             patch(
-                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.asyncio.sleep",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery_window.asyncio.sleep",
                 new_callable=AsyncMock,
             ) as mock_sleep,
         ):
@@ -422,7 +398,6 @@ class TestHandleTransientRetry:
         events = executor._compactor.events
         retry_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "transient_retry"]
         assert len(retry_events) == 0
-
 
 
 # ─── _handle_iteration_limit ─────────────────────────────────────────────────

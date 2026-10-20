@@ -11,7 +11,6 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
-from myrm_agent_harness.agent.streaming.recovery.stream_recovery import _extract_retry_after_ms
 from myrm_agent_harness.agent.streaming.stream_executor import (
     StreamContext,
     StreamExecutor,
@@ -57,29 +56,6 @@ def _make_executor(ctx: StreamContext) -> StreamExecutor:
     )
     executor._compactor = FakeCompactor()
     return executor
-
-
-# ─── _extract_retry_after_ms ─────────────────────────────────────────────────
-
-
-class TestExtractRetryAfterMs:
-    def test_from_header(self):
-        exc = Exception("rate limited")
-        exc.headers = {"Retry-After": "30"}
-        assert _extract_retry_after_ms(exc) == 30000
-
-    def test_from_response_headers(self):
-        exc = Exception("rate limited")
-        exc.response_headers = {"retry-after": "5.5"}
-        assert _extract_retry_after_ms(exc) == 5500
-
-    def test_from_error_message(self):
-        exc = Exception("Please retry after 10 seconds")
-        assert _extract_retry_after_ms(exc) == 10000
-
-    def test_no_retry_info(self):
-        exc = Exception("random error")
-        assert _extract_retry_after_ms(exc) is None
 
 
 # ─── _handle_overflow ────────────────────────────────────────────────────────

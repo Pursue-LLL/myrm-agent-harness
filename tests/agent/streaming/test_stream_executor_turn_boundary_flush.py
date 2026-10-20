@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -86,10 +87,8 @@ async def test_stream_executor_flushes_memory_on_exception_finally(
         rebuild_agent_fn=MagicMock(),
     )
 
-    try:
+    with contextlib.suppress(Exception):
         await executor.execute()
-    except Exception:
-        pass
 
     assert mock_memory_manager.active_session.flush.called
 
