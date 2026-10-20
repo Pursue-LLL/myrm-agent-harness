@@ -777,12 +777,12 @@ class TestPtcOutputBudget:
     """PtcConfig.max_output_chars must actually clamp PTC script output."""
 
     def test_apply_output_budget_truncates_both_streams(self):
-        from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult as _R
+        from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult
         from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (
             _apply_output_budget,
         )
 
-        result = _R(stdout="A" * 5000, stderr="B" * 5000)
+        result = ExecutionResult(stdout="A" * 5000, stderr="B" * 5000)
         clamped = _apply_output_budget(result, 1000)
 
         assert len(clamped.stdout) < len(result.stdout)
@@ -791,12 +791,12 @@ class TestPtcOutputBudget:
         assert "[Truncated" in clamped.stderr
 
     def test_apply_output_budget_is_noop_below_limit(self):
-        from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult as _R
+        from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult
         from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (
             _apply_output_budget,
         )
 
-        result = _R(stdout="short", stderr="")
+        result = ExecutionResult(stdout="short", stderr="")
         assert _apply_output_budget(result, 1000) is result
 
     @pytest.mark.asyncio
