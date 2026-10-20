@@ -59,6 +59,7 @@ from myrm_agent_harness.toolkits.cron.engine.integrity import (
     compute_integrity_hash,
 )
 from myrm_agent_harness.toolkits.cron.engine.parser import compute_next_run
+from myrm_agent_harness.toolkits.cron.engine.skipped_runs import SkippedRunMixin
 from myrm_agent_harness.toolkits.cron.types import (
     CronConfig,
     CronJob,
@@ -80,7 +81,8 @@ if TYPE_CHECKING:
         ResultDelivery,
     )
 
-    PushCallback = Callable[[str, str, str, str], Coroutine[None, None, None]]
+    # (user_id, job_name, text, level) with an optional ``chat_id`` keyword.
+    PushCallback = Callable[..., Coroutine[None, None, None]]
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +96,7 @@ def _output_hash(text: str) -> str:
     return hashlib.sha256(text.strip().encode()).hexdigest()[:32]
 
 
-class JobExecutor:
+class JobExecutor(SkippedRunMixin):
     """Manages the complete lifecycle of a single job execution.
 
     Stateful only in the sense that it holds injected dependencies.
@@ -178,6 +180,16 @@ class JobExecutor:
                 exit_code=124,
             )
             logger.warning("Job %s timed out after %ds", job.id, job.timeout_seconds)
+
+        if result.retry_at is not None:
+            logger.info(
+                "Job %s deferred until %s: %s",
+                job.id,
+                result.retry_at.isoformat(),
+                result.skip_reason or result.error or "unknown",
+            )
+            await self._record_deferred(job, result)
+            return
 
         if result.skipped:
             logger.info("Job %s skipped by runner: %s", job.id, result.skip_reason or "unknown")
@@ -668,54 +680,6 @@ class JobExecutor:
                 job.id,
                 error,
             )
-
-    async def _record_skipped(self, job: CronJob, *, reason: str | None = None) -> None:
-        """Record a SKIPPED run and advance job schedule.
-
-        Used by both pre-flight probe skips and runner-level skips
-        (e.g. heartbeat no-content).  Does not touch monitors.
-        """
-        now = datetime.now(UTC)
-        run = CronRunRecord(
-            id=secrets.token_urlsafe(12),
-            job_id=job.id,
-            trigger_source=self._current_trigger_source,
-            status=RunStatus.SKIPPED,
-            started_at=now,
-            finished_at=now,
-            duration_ms=0,
-            delivery_status=DeliveryStatus.SKIPPED,
-            output=reason,
-        )
-        await self._store.save_run(run)
-
-        job.status = JobStatus.ACTIVE
-        if job.schedule.kind == ScheduleKind.CRON:
-            try:
-                job.next_run_at = compute_next_run(job.schedule, now)
-            except Exception as e:
-                self._handle_schedule_compute_error(job, e, now)
-        elif job.schedule.kind == ScheduleKind.INTERVAL:
-            job.next_run_at = now + timedelta(milliseconds=job.schedule.interval_ms)
-        elif job.schedule.kind == ScheduleKind.ONCE:
-            if job.delete_after_run:
-                await self._store.delete_job(job.id)
-                return
-            job.status = JobStatus.COMPLETED
-            job.next_run_at = None
-
-        job.last_run_at = now
-        job.last_status = RunStatus.SKIPPED
-        job.updated_at = datetime.now(UTC)
-        await self._store.save_job(job)
-
-    async def _record_skipped_by_probe(self, job: CronJob) -> None:
-        """Handle a job skipped by the pre-flight probe."""
-        await self._record_skipped(job, reason="pre-flight-condition")
-
-    async def _record_skipped_by_runner(self, job: CronJob, reason: str | None) -> None:
-        """Handle a job skipped by the runner (e.g. heartbeat no-content)."""
-        await self._record_skipped(job, reason=reason)
 
     # ------------------------------------------------------------------
     # Failure alerting (dual-layer: per-job + global)

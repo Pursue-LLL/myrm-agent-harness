@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 if TYPE_CHECKING:
     from myrm_agent_harness.infra.incremental.types import MonitorConfig
@@ -198,6 +198,7 @@ class CronJob:
     model: str | None = None
     chat_id: str | None = None
     agent_id: str | None = None
+    project_id: str | None = None
     workflow_template_id: str | None = None
     workflow_template_args: dict[str, str] | None = None
 
@@ -229,6 +230,9 @@ class CronJob:
     deduplicate: bool = False
     skip_if_active: bool = False
     last_output_hash: str | None = None
+    continuity: bool = False
+    job_scratchpad: dict[str, str] = field(default_factory=dict)
+    target_bot_agent_id: str | None = None
     monitor_config: MonitorConfig | None = None
     triggers: TriggerConfig | None = None
     pre_condition_script: str | None = None
@@ -265,6 +269,8 @@ class CronJobPatch:
     prompt: str | None = None
     model: str | None = None
     agent_id: str | None = None
+    project_id: str | None = None
+    clear_project_id: bool = False
     command: str | None = None
     workflow_template_id: str | None = None
     workflow_template_args: dict[str, str] | None = None
@@ -371,6 +377,11 @@ class JobResult:
     should be bypassed (e.g. no actionable content for heartbeat).
     The executor records this as ``RunStatus.SKIPPED`` without
     running delivery or incrementing failure counters.
+
+    ``retry_at`` is the earliest instant a repeat can succeed (e.g. the provider
+    quota window reopens). The executor re-arms the job there, records the run as
+    ``RunStatus.SKIPPED`` and counts no failure; it takes precedence over ``skipped``
+    and, unlike it, keeps one-shot jobs alive.
     """
 
     success: bool
@@ -382,6 +393,7 @@ class JobResult:
     skipped: bool = False
     skip_reason: str | None = None
     circuit_broken: bool = False
+    retry_at: datetime | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -443,8 +455,8 @@ def dict_to_failure_alert(
         return None
     return FailureAlertConfig(
         enabled=bool(d.get("enabled", True)),
-        after=int(d.get("after", 3)),  # type: ignore[arg-type]
-        cooldown_seconds=int(d.get("cooldown_seconds", 300)),  # type: ignore[arg-type]
+        after=int(cast("int | str", d.get("after", 3))),
+        cooldown_seconds=int(cast("int | str", d.get("cooldown_seconds", 300))),
         delivery=dict_to_delivery(d.get("delivery")),  # type: ignore[arg-type]
     )
 
@@ -478,12 +490,13 @@ def dict_to_schedule(d: dict[str, str | int | None]) -> Schedule:
 
     raw_stagger = d.get("stagger_ms")
     stagger_ms = int(raw_stagger) if raw_stagger is not None else None
+    raw_interval = d.get("interval_ms")
 
     return Schedule(
         kind=ScheduleKind(str(d["kind"])),
         expr=str(d["expr"]) if d.get("expr") else None,
         tz=str(d["tz"]) if d.get("tz") else None,
-        interval_ms=int(d["interval_ms"]) if d.get("interval_ms") else None,
+        interval_ms=int(raw_interval) if raw_interval else None,
         run_at=run_at,
         stagger_ms=stagger_ms,
     )

@@ -55,6 +55,7 @@ class CronStore(Protocol):
         user_id: str | None = None,
         name_filter: str | None = None,
         chat_id: str | None = None,
+        project_id: str | None = None,
         due_before: datetime | None = None,
         limit: int | None = None,
         offset: int = 0,
@@ -64,6 +65,7 @@ class CronStore(Protocol):
         - ``user_id`` set: return all jobs owned by that user.
         - ``name_filter`` set: fuzzy match job names (LIKE %filter%).
         - ``chat_id`` set: return jobs bound to that chat session.
+        - ``project_id`` set: return jobs bound to that project.
         - ``due_before`` set: return active jobs whose ``next_run_at <= due_before``.
         - Both None: return all jobs (admin use only).
         - ``limit``/``offset``: optional pagination (None = no limit).
@@ -76,6 +78,7 @@ class CronStore(Protocol):
         user_id: str | None = None,
         name_filter: str | None = None,
         chat_id: str | None = None,
+        project_id: str | None = None,
     ) -> int:
         """Count jobs matching the given filters."""
         ...

@@ -52,6 +52,7 @@ class InMemoryCronStore:
         user_id: str | None = None,
         name_filter: str | None = None,
         chat_id: str | None = None,
+        project_id: str | None = None,
         due_before: datetime | None = None,
         limit: int | None = None,
         offset: int = 0,
@@ -64,6 +65,9 @@ class InMemoryCronStore:
 
         if chat_id is not None:
             result = [j for j in result if j.chat_id == chat_id]
+
+        if project_id is not None:
+            result = [j for j in result if j.project_id == project_id]
 
         if name_filter is not None:
             name_filter_lower = name_filter.lower()
@@ -89,6 +93,7 @@ class InMemoryCronStore:
         user_id: str | None = None,
         name_filter: str | None = None,
         chat_id: str | None = None,
+        project_id: str | None = None,
     ) -> int:
         async with self._lock:
             jobs = list(self._jobs.values())
@@ -96,6 +101,8 @@ class InMemoryCronStore:
             jobs = [j for j in jobs if j.user_id == user_id]
         if chat_id is not None:
             jobs = [j for j in jobs if j.chat_id == chat_id]
+        if project_id is not None:
+            jobs = [j for j in jobs if j.project_id == project_id]
         if name_filter is not None:
             name_filter_lower = name_filter.lower()
             jobs = [j for j in jobs if name_filter_lower in j.name.lower()]

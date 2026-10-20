@@ -67,6 +67,23 @@ from myrm_agent_harness.toolkits.cron.heartbeat import (
     enable_heartbeat,
     get_heartbeat_status,
 )
+from myrm_agent_harness.toolkits.cron.incident_protocols import IncidentStore
+from myrm_agent_harness.toolkits.cron.incident_types import (
+    CronIncident,
+    FailureType,
+    IncidentState,
+    dict_to_incident,
+    incident_to_dict,
+)
+from myrm_agent_harness.toolkits.cron.incidents import (
+    SqliteIncidentStore,
+    calculate_error_signature,
+    classify_failure_type,
+    detect_false_positive,
+    format_incident_id,
+    normalize_error,
+    redact_sensitive_error,
+)
 from myrm_agent_harness.toolkits.cron.manager import CronManager
 from myrm_agent_harness.toolkits.cron.protocols import (
     ConcurrencyLock,
@@ -120,12 +137,17 @@ from myrm_agent_harness.toolkits.cron.types import (
 )
 
 __all__ = [
+    "CRON_MANAGE_TOOL_DESCRIPTION",
+    "CRON_MANAGE_TOOL_DESCRIPTION_EN",
+    "CRON_MANAGE_TOOL_DESCRIPTION_ZH",
+    "DEFAULT_CRON_TOOL_DESCRIPTION_LOCALE",
     "HEARTBEAT_JOB_NAME",
     "ConcurrencyLock",
     "ConnectorErrorCategory",
     "ConnectorFailureDetail",
     "ConnectorHealthStatus",
     "CronConfig",
+    "CronIncident",
     "CronJob",
     "CronJobPatch",
     "CronManager",
@@ -136,8 +158,11 @@ __all__ = [
     "DeliveryStatus",
     "EventTrigger",
     "FailureAlertConfig",
+    "FailureType",
     "HeartbeatStatus",
     "InMemoryCronStore",
+    "IncidentState",
+    "IncidentStore",
     "JobResult",
     "JobRunner",
     "JobStatus",
@@ -154,6 +179,7 @@ __all__ = [
     "SituationContext",
     "SituationReportBuilder",
     "SituationSection",
+    "SqliteIncidentStore",
     "StreamListener",
     "StreamProtocol",
     "StreamTrigger",
@@ -165,15 +191,23 @@ __all__ = [
     "TriggerProvider",
     "WebhookDelivery",
     "WebhookTrigger",
+    "calculate_error_signature",
     "classify_connector_error",
+    "classify_failure_type",
+    "detect_false_positive",
+    "dict_to_incident",
     "dict_to_trigger_config",
     "disable_heartbeat",
     "enable_heartbeat",
+    "format_incident_id",
     "generate_fix_suggestion",
     "generate_webhook_path",
     "generate_webhook_secret",
     "get_heartbeat_status",
+    "incident_to_dict",
+    "normalize_error",
     "redact_connector_url",
+    "redact_sensitive_error",
     "resolve_cron_tool_description",
     "trigger_config_to_dict",
 ]
