@@ -108,6 +108,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | `orthogonal_reviewer/` | 正交双视角审查门禁与零偏见盲审子代理（对标 Codex 双审查子代理实践，彻底终结大模型自我合理化偏见；提供注入完整设计意图的 Reviewer A、物理隔离历史 CoT 纯看 Diff 与契约的盲态 Reviewer B、以及缺陷语义去重、严重度裁决与定向自动修复闭环仲裁器 `OrthogonalReviewArbiter`）。 |
 | `live_transcript/` | 子 Agent 实时透明 Live Transcript 轨迹流、后台委派任务持久化恢复账本、单次命令绑定 Smart Approvals 与 /deny 交互反馈、以及 MoA 角色细粒度推理强度动态分配套件（对标 Hermes v0.19 委托透明与持久化体系，消除多 Agent 协作盲区与后台任务丢失风险）。 |
 | `dag_plan.py` | Core | DAG plan schemas for sub-agent orchestration (not main-agent progress). — PlanStep, Plan: sub-agent DAG plan models with dependency resolution; GraphPatch, GraphPatchResult: declarative graph mutation DTOs for mid-run graph compiler gate | ✅ |
+| `role_chain_schema.py` | Core | Subagent Role Chain Presets and Guidance Compiler. — RoleChainStage: Single stage within an orchestrated subagent role chain; RoleChainPreset: Immutable specification for a multi-agent role chain preset; BUILTIN_ROLE_CHAIN_PRESETS: Dict of official golden role chain presets; get_role_chain_preset: Resolver for role chain preset by ID (+1 more) | ✅ |
 
 
 
