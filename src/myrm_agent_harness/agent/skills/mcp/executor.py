@@ -292,7 +292,20 @@ class SkillExecutor:
             session_id=session_id,
             workspace_root=workspace_root,
             read_only_tools=read_only_tools,
+            auth_token=self._resolve_ipc_auth_token(),
         )
+
+    @staticmethod
+    def _resolve_ipc_auth_token() -> str | None:
+        """Read the bearer token from the running IPC server.
+
+        Returns ``None`` when no server is up: the generated client then sends no
+        token and the server rejects the call, which is the safe failure mode.
+        """
+        from myrm_agent_harness.agent.skills.mcp.ipc_proxy import get_mcp_ipc_server
+
+        server = get_mcp_ipc_server()
+        return server.auth_token if server is not None else None
 
     @staticmethod
     def _collect_read_only_tools(skill_name: str) -> frozenset[str]:

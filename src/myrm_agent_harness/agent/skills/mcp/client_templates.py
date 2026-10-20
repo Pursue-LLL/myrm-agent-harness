@@ -250,6 +250,7 @@ def generate_ipc_client_code(
     session_id: str | None = None,
     workspace_root: str | None = None,
     read_only_tools: frozenset[str] | None = None,
+    auth_token: str | None = None,
 ) -> str:
     """生成 Unix Socket IPC 客户端代码。
 
@@ -259,6 +260,7 @@ def generate_ipc_client_code(
         workspace_root: 沙箱内的工作目录(host 视角的绝对路径)。
         read_only_tools: 声明 ``readOnlyHint`` 的 ``skill.tool`` 全名集合。只有这些
             调用允许在网络中断后重试；写操作重放会造成重复副作用。
+        auth_token: 服务端下发的进程内 bearer token，缺失时服务端会拒绝请求。
     """
     base = _generate_base_code()
     module_system = _generate_module_system()
@@ -267,6 +269,7 @@ def generate_ipc_client_code(
     session_literal = json.dumps(session_id) if session_id is not None else "None"
     workspace_literal = json.dumps(workspace_root) if workspace_root is not None else "None"
     read_only_literal = json.dumps(sorted(read_only_tools or ()))
+    token_literal = json.dumps(auth_token) if auth_token is not None else "None"
 
     return f'''
 import sys, types, json, asyncio, uuid
@@ -277,6 +280,7 @@ _TRACE_ID = uuid.uuid4().hex
 _SESSION_ID = {session_literal}
 _WORKSPACE_ROOT = {workspace_literal}
 _READ_ONLY_TOOLS = frozenset({read_only_literal})
+_AUTH_TOKEN = {token_literal}
 
 {base}
 {module_system}
@@ -291,6 +295,7 @@ async def _ipc_request(skill: str, tool: str, params: dict):
         "trace_id": _TRACE_ID,
         "session_id": _SESSION_ID,
         "workspace_root": _WORKSPACE_ROOT,
+        "auth_token": _AUTH_TOKEN,
     }}
 
     data = json.dumps(request).encode()

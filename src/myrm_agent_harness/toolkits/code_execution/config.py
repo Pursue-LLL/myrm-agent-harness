@@ -28,6 +28,13 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+
+def _default_ipc_socket_path() -> str:
+    """Deferred import keeps the execution config free of agent-layer imports."""
+    from myrm_agent_harness.agent.skills.mcp.ipc_socket import default_ipc_socket_path
+
+    return default_ipc_socket_path()
+
 DEFAULT_ALLOWED_HOSTS: frozenset[str] = frozenset(
     {
         "localhost",
@@ -85,8 +92,11 @@ class MCPIPCConfig(BaseModel):
 
     enabled: bool = Field(default=True, description="Enable MCP IPC")
     socket_path: str = Field(
-        default="/tmp/myrm-agent-mcp/mcp.sock",
-        description="Unix Socket file path",
+        default_factory=_default_ipc_socket_path,
+        description=(
+            "Unix Socket file path. Defaults to a per-process 0700 directory so another "
+            "local user cannot pre-create or connect to the socket."
+        ),
     )
 
 

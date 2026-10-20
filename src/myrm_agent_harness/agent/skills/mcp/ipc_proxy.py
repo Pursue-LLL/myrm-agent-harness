@@ -28,16 +28,32 @@ context that lets builtin handlers reach session-scoped state.
 """
 
 import asyncio
+import hmac
 import json
 import logging
 import os
+import secrets
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic import BaseModel
 
+from myrm_agent_harness.agent.skills.mcp.ipc_socket import (
+    SOCKET_DIR_MODE,
+    SOCKET_FILE_MODE,
+    default_ipc_socket_path,
+)
+
 logger = logging.getLogger(__name__)
+
+DEFAULT_MAX_CALLS_PER_SESSION = 200
+"""Per-session IPC tool-call budget.
+
+MCP PTC scripts loop over tools; without a ceiling a runaway script becomes an
+unbounded external-API amplifier. Track 2 RPC already caps at
+``PtcConfig.max_tool_calls``; this is the missing counterpart for Track 1.
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +86,8 @@ class MCPIPCRequest(BaseModel):
     trace_id: str = ""
     session_id: str | None = None
     workspace_root: str | None = None
+    auth_token: str | None = None
+    """Per-process bearer token; the server rejects requests that omit or fake it."""
 
 
 class MCPIPCResponse(BaseModel):
@@ -89,15 +107,19 @@ class MCPIPCServer:
     _REQUEST_TIMEOUT = 120.0
     _SHUTDOWN_TIMEOUT = 5.0
 
-    def __init__(self, socket_path: str):
+    def __init__(self, socket_path: str, max_calls_per_session: int = DEFAULT_MAX_CALLS_PER_SESSION):
         """初始化 IPC 服务端
 
         Args:
             socket_path: Unix Socket 文件路径
+            max_calls_per_session: 单会话工具调用预算上限
         """
         self.socket_path = socket_path
         self._server: asyncio.Server | None = None
         self._running = False
+        self._max_calls_per_session = max_calls_per_session
+        self._session_calls: dict[str, int] = {}
+        self.auth_token: str = secrets.token_urlsafe(32)
 
     async def start(self) -> None:
         """启动 IPC 服务端"""
@@ -105,9 +127,10 @@ class MCPIPCServer:
             logger.warning("MCP IPC Server already running")
             return
 
-        # 确保 socket 文件所在目录存在
+        # 私有目录（0700）：同机其他用户无法预建或连接 socket
         socket_dir = Path(self.socket_path).parent
-        socket_dir.mkdir(parents=True, exist_ok=True)
+        socket_dir.mkdir(parents=True, exist_ok=True, mode=SOCKET_DIR_MODE)
+        os.chmod(socket_dir, SOCKET_DIR_MODE)
 
         # 删除已存在的 socket 文件
         if os.path.exists(self.socket_path):
@@ -116,8 +139,8 @@ class MCPIPCServer:
         # 启动 Unix Socket 服务器
         self._server = await asyncio.start_unix_server(self._handle_client, path=self.socket_path)
 
-        # 设置 socket 文件权限（允许 Docker 容器访问）
-        os.chmod(self.socket_path, 0o666)  # noqa: S103  # Docker containers need read/write on IPC socket
+        # 仅所有者可读写：访问控制由 token 与目录权限共同保证
+        os.chmod(self.socket_path, SOCKET_FILE_MODE)
 
         self._running = True
         logger.info(f"MCP IPC Server started at {self.socket_path}")
@@ -199,6 +222,15 @@ class MCPIPCServer:
             tid = request.trace_id[:8] if request.trace_id else "-"
             log_prefix = f"[IPC:{tid}]"
 
+            if not self._authorize(request.auth_token):
+                logger.warning(f"{log_prefix} Rejected unauthorized IPC request")
+                return MCPIPCResponse(success=False, error="Unauthorized: invalid or missing auth token").model_dump_json()
+
+            budget_error = self._consume_call_budget(request.session_id)
+            if budget_error is not None:
+                logger.warning(f"{log_prefix} Session budget exhausted: {request.session_id}")
+                return MCPIPCResponse(success=False, error=budget_error).model_dump_json()
+
             logger.info(f"{log_prefix} Request: {request.skill_name}.{request.tool_name}")
 
             # Per-call context for builtin handlers (notify/...).
@@ -241,6 +273,32 @@ class MCPIPCServer:
             response = MCPIPCResponse(success=False, error=error_msg)
 
         return response.model_dump_json()
+
+    def _authorize(self, token: str | None) -> bool:
+        """Constant-time bearer-token check.
+
+        The token is minted per server process and handed to the child through its
+        environment, so a local process cannot forge a ``session_id`` and inject
+        events into another conversation.
+        """
+        if not token:
+            return False
+        return hmac.compare_digest(token, self.auth_token)
+
+    def _consume_call_budget(self, session_id: str | None) -> str | None:
+        """Account one tool call against the session budget.
+
+        Returns an error message when the budget is exhausted, else ``None``.
+        """
+        key = session_id or "-"
+        used = self._session_calls.get(key, 0)
+        if used >= self._max_calls_per_session:
+            return (
+                f"Session tool-call budget exhausted: {used}/{self._max_calls_per_session} "
+                "calls used. Summarise results and finish the script."
+            )
+        self._session_calls[key] = used + 1
+        return None
 
 
 # 全局 IPC 服务端实例
