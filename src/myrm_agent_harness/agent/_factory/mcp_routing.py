@@ -20,7 +20,6 @@ MCP schema-token routing for SkillAgent factory. **Two outcomes only** (see
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -208,22 +207,8 @@ async def route_mcp_servers(
         return_exceptions=True,
     )
 
-    from myrm_agent_harness.toolkits.mcp.mcp_schema_cache import (
-        load_cached_schema,
-        save_cached_schema,
-    )
-
     for cfg, conn in zip(all_mcp_configs, conn_results, strict=True):
-        cfg_hash = manager._make_config_hash([cfg])
         if isinstance(conn, BaseException):
-            cached = load_cached_schema(cfg_hash)
-            if cached is not None and cached.tools:
-                logger.info(
-                    "MCP server '%s' offline/unconnected; cached schema available (%d tools, ~%d tokens)",
-                    cfg.name,
-                    len(cached.tools),
-                    cached.total_schema_tokens,
-                )
             logger.warning("MCP server '%s' failed to connect, skipping: %s", cfg.name, conn)
             continue
 
@@ -233,8 +218,6 @@ async def route_mcp_servers(
         if not server_tools:
             logger.warning("MCP server '%s' exposed no tools, skipping", cfg.name)
             continue
-
-        save_cached_schema(cfg_hash, cfg.name, server_tools)
 
         schema_tokens = estimate_schema_tokens(server_tools)
         if schema_tokens <= direct_threshold or force_direct:

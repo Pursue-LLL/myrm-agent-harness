@@ -13,12 +13,10 @@ Provides MCP client integration with:
 - client::MCPClientManager, MCPServerConfigProtocol (POS: MCP client management layer)
 - config::MCPConfig (POS: MCP user-facing configuration)
 - connection_manager::MCPConnectionManager, get_mcp_connection, get_mcp_connection_manager (POS: MCP connection pool layer)
-- mcp_schema_cache::CachedServerSchema, CachedToolMeta, clear_schema_cache, get_schema_cache_dir, load_cached_schema, save_cached_schema (POS: MCP schema disk cache layer)
 - security (POS: MCP security — URL SSRF protection and response validation)
 - schema (POS: MCP inbound tool schema normalization — canonicalization, $ref inlining, composite flattening, argument coercion)
 
 [OUTPUT]
-- CachedServerSchema, CachedToolMeta, clear_schema_cache, get_schema_cache_dir, load_cached_schema, save_cached_schema: schema disk caching and cold-start acceleration
 - MCPAgent, MCPClientManager, MCPConfig, MCPConnectionManager, MCPServerConfigProtocol: core MCP types
 - OversizedResultHandler: callback type for vault-spilling oversized MCP tool outputs
 - get_schema_coercion_stats/reset_schema_coercion_stats: runtime counters for MCP schema coercion observability
@@ -39,14 +37,6 @@ from .connection_manager import (
     get_mcp_connection_manager,
 )
 from .env_guard import is_dangerous_env_key, sanitize_mcp_env
-from .mcp_schema_cache import (
-    CachedServerSchema,
-    CachedToolMeta,
-    clear_schema_cache,
-    get_schema_cache_dir,
-    load_cached_schema,
-    save_cached_schema,
-)
 from .oauth import (
     MCPOAuthConfig,
     MCPOAuthProvider,
@@ -68,8 +58,6 @@ from .security import (
 from .structured_tool import SafeStructuredTool
 
 __all__ = [
-    "CachedServerSchema",
-    "CachedToolMeta",
     "MCPAgent",
     "MCPClientManager",
     "MCPConfig",
@@ -87,17 +75,13 @@ __all__ = [
     "SafeStructuredTool",
     "URLValidationError",
     "build_authorization_url",
-    "clear_schema_cache",
     "expand_placeholders",
     "generate_pkce_pair",
     "get_mcp_connection",
     "get_mcp_connection_manager",
-    "get_schema_cache_dir",
     "get_schema_coercion_stats",
     "is_dangerous_env_key",
-    "load_cached_schema",
     "reset_schema_coercion_stats",
     "resolve_stdio_launch",
     "sanitize_mcp_env",
-    "save_cached_schema",
 ]
