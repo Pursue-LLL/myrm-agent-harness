@@ -1,8 +1,14 @@
-# [INPUT] DeepExtractResult
-# [OUTPUT] SelectiveDeepExtractCleaner
-# [POS] Stage 2 selective deep web content cleanser, noise stripper, and markdown normalizer
+"""Selective deep extract content cleaner stripping navigation, ads, and boilerplate noise.
 
-"""Selective deep extract content cleaner stripping navigation, ads, and boilerplate noise."""
+[INPUT]
+- DeepExtractResult
+
+[OUTPUT]
+- SelectiveDeepExtractCleaner
+
+[POS]
+Stage 2 selective deep web content cleanser: noise stripping and markdown normalization.
+"""
 
 from __future__ import annotations
 

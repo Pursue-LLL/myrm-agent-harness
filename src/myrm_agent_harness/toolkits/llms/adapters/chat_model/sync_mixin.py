@@ -3,7 +3,7 @@
 [INPUT]
 - adapters.chat_model.exceptions (POS: EmptyChoicesError / EmptyStreamError)
 - adapters.stream_aggregator / adapters.streaming (POS: stream aggregation)
-- utils.token_economics (POS: usage recording for streaming + non-streaming — lazy import)
+- adapters.chat_model.usage_recording (POS: usage/cost/ledger recording shared with the async path)
 
 [OUTPUT]
 - ChatLiteLLMSyncMixin: _generate, _stream, empty-response retry, usage recording
@@ -36,6 +36,10 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
     EmptyChoicesError,
     EmptyStreamError,
 )
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.usage_recording import (
+    record_non_stream_usage,
+    record_usage,
+)
 from myrm_agent_harness.toolkits.llms.adapters.metrics import EmptyRetryMetrics
 from myrm_agent_harness.toolkits.llms.adapters.stream_aggregator import (
     StreamAggregator,
@@ -44,7 +48,6 @@ from myrm_agent_harness.toolkits.llms.adapters.stream_aggregator import (
 )
 from myrm_agent_harness.toolkits.llms.adapters.streaming import (
     build_tool_call_chunks,
-    normalize_usage,
 )
 from myrm_agent_harness.toolkits.llms.adapters.wire.anthropic_params import (
     apply_anthropic_messages_params,
@@ -270,51 +273,12 @@ class ChatLiteLLMSyncMixin:
         ttft_ms: float | None = None,
         finish_reason: str = "",
     ) -> None:
-        """Record token usage, cost, and latency for an LLM response.
-
-        In streaming mode LiteLLM callbacks are skipped, so we manually record
-        usage, compute cost via token counts, and append to the audit ledger.
-        Non-streaming calls go through the same helper so both paths converge
-        on the request-scoped ``TokenTracker``.
-
-        Args:
-            usage: LiteLLM usage object from the response / final stream chunk
-            model_name: Model identifier for per-model attribution
-            duration_ms: Total call duration (request start to completion)
-            ttft_ms: Time to first token (streaming only)
-            finish_reason: Model's finish reason (stop, tool_calls, max_tokens, etc.)
-        """
-        from myrm_agent_harness.utils.token_economics.cost_engine import (
-            compute_cost_by_tokens,
-        )
-        from myrm_agent_harness.utils.token_economics.tracker import (
-            append_to_ledger,
-            record_token_usage,
-        )
-
-        if not usage:
-            return
-
-        usage_dict = normalize_usage(usage)
-        resolved_model = model_name or None
-
-        prompt_tokens = int(usage_dict.get("prompt_tokens", 0) or 0)
-        completion_tokens = int(usage_dict.get("completion_tokens", 0) or 0)
-        cost_result = compute_cost_by_tokens(resolved_model, prompt_tokens, completion_tokens)
-
-        record_token_usage(
-            usage_dict,
-            model_name=resolved_model,
+        """Record token usage, cost, and latency (see ``usage_recording.record_usage``)."""
+        record_usage(
+            self,
+            usage,
+            model_name=model_name,
             duration_ms=duration_ms,
-            ttft_ms=ttft_ms,
-            cost_usd=cost_result.usd,
-            cost_status=cost_result.status,
-        )
-        append_to_ledger(
-            usage_dict,
-            resolved_model,
-            duration_ms,
-            cost_result.usd,
             ttft_ms=ttft_ms,
             finish_reason=finish_reason,
         )
@@ -326,30 +290,12 @@ class ChatLiteLLMSyncMixin:
         model_name: str,
         duration_ms: float,
     ) -> None:
-        """Record token usage and finish reason for a non-streaming response.
-
-        Symmetric to the streaming path (``finalize_stream`` → ``_record_usage``).
-        Without this, non-streaming calls (orchestrators, summarizers, context
-        compressors, ``llm_query``, ...) silently bypass the request-scoped
-        ``TokenTracker`` and vanish from usage/cost reporting.
-        """
-        finish_reason = ""
-        choices = response.get("choices") or []
-        if choices and isinstance(choices[0], dict):
-            finish_reason = str(choices[0].get("finish_reason") or "")
-
-        if finish_reason:
-            from myrm_agent_harness.utils.token_economics.tracker import (
-                record_finish_reason,
-            )
-
-            record_finish_reason(finish_reason)
-
-        self._record_usage(
-            response.get("usage"),
+        """Record usage and finish reason for a non-streaming response."""
+        record_non_stream_usage(
+            self,
+            response,
             model_name=model_name,
             duration_ms=duration_ms,
-            finish_reason=finish_reason,
         )
 
     def _stream(

@@ -7,13 +7,14 @@
 - contextvars::ContextVar (POS: Python 标准库，提供上下文变量隔离)
 - .cost_engine::compute_cost (POS: 成本计算引擎，封装 litellm.completion_cost + CostStatus 溯源)
 - .cache_economics::compute_prompt_cache_stats (POS: 缓存命中率与相对未缓存 input 的节省比例)
+- .latency_stats::LatencyStats (POS: 由逐次调用的耗时与首 token 耗时样本汇总的延迟统计)
+- .usage_fields::extract_cached_tokens / extract_cache_write_tokens (POS: provider 缓存计数字段的唯一读取入口)
 - .usage_ledger::UsageRecord (POS: 审计日志记录类型，lazy import)
 - .budget_guard::BudgetChecker (POS: Budget guard protocol, TYPE_CHECKING only)
 
 [OUTPUT]
 - TokenUsage: Token 使用量统计类（prompt/completion/total/cached/cache_write/reasoning/citation tokens + input/output/net_input aliases）
   - get_cache_effectiveness(): 会话级缓存效果
-- LatencyStats: 延迟统计 frozen dataclass（avg_ms, p95_ms, min_ms, max_ms, avg_ttft_ms, p95_ttft_ms, avg_tokens_per_second）
 - TokenTracker: Token 追踪器类（token 使用量、模型级费用、工具级归因、成本溯源、延迟、错误）
 - init_token_tracker(): 初始化请求级 token 追踪器
 - get_token_tracker(): 获取当前请求的 token 追踪器
@@ -40,6 +41,8 @@ from typing import TYPE_CHECKING, Protocol, cast
 from myrm_agent_harness.utils.coercion import parse_int
 
 from .cache_economics import compute_prompt_cache_stats
+from .latency_stats import LatencyStats
+from .usage_fields import extract_cache_write_tokens, extract_cached_tokens
 
 if TYPE_CHECKING:
     from .budget_guard import BudgetChecker
@@ -54,18 +57,6 @@ def _trim_list(data: list[float]) -> None:
     """Trim list to prevent unbounded growth, keeping most recent samples."""
     if len(data) >= _MAX_DURATION_SAMPLES:
         del data[: len(data) - _TRIM_TO_SIZE + 1]
-
-
-def _percentile(sorted_data: list[float], p: float) -> float:
-    """Compute percentile from sorted data."""
-    if not sorted_data:
-        return 0.0
-    k = (len(sorted_data) - 1) * p
-    f = int(k)
-    c = f + 1
-    if c >= len(sorted_data):
-        return sorted_data[-1]
-    return sorted_data[f] + (k - f) * (sorted_data[c] - sorted_data[f])
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +115,13 @@ class TokenUsage:
         """Tokens that were actually computed (not served from cache)."""
         return max(self.prompt_tokens - self.cached_tokens, 0)
 
+    @property
+    def cache_hit_rate(self) -> float:
+        """Prompt cache read ratio against billed input tokens (0.0 to 1.0)."""
+        if self.prompt_tokens <= 0:
+            return 0.0
+        return round(min(max(self.cached_tokens / self.prompt_tokens, 0.0), 1.0), 4)
+
     # --- Accumulation ---
 
     def add(self, usage: Mapping[str, object]) -> None:
@@ -157,21 +155,12 @@ class TokenUsage:
     # --- Provider field extraction ---
 
     def _extract_cached(self, usage: Mapping[str, object]) -> int:
-        """Extract cached_tokens — LiteLLM normalizes to prompt_tokens_details.cached_tokens."""
-        prompt_details = usage.get("prompt_tokens_details", {})
-        if isinstance(prompt_details, dict):
-            return parse_int(prompt_details.get("cached_tokens"), 0, min_val=0)
-        return 0
+        """Extract cached_tokens (LiteLLM normalises providers into ``prompt_tokens_details``)."""
+        return extract_cached_tokens(usage)
 
     def _extract_cache_write(self, usage: Mapping[str, object]) -> int:
         """Extract cache_write_tokens (Anthropic cache_creation_input_tokens)."""
-        direct = usage.get("cache_creation_input_tokens")
-        if direct is not None:
-            return parse_int(direct, 0, min_val=0)
-        prompt_details = usage.get("prompt_tokens_details", {})
-        if isinstance(prompt_details, dict):
-            return parse_int(prompt_details.get("cache_creation_input_tokens"), 0, min_val=0)
-        return 0
+        return extract_cache_write_tokens(usage)
 
     def _extract_reasoning(self, usage: Mapping[str, object]) -> int:
         """Extract reasoning_tokens from completion_tokens_details or top-level."""
@@ -197,6 +186,14 @@ class TokenUsage:
         """Serialize to dict for SSE/DB/frontend."""
         return {f: getattr(self, f) for f in _TOKEN_USAGE_FIELDS}
 
+    def to_economic_dict(self, net_savings_usd: float = 0.0) -> dict[str, object]:
+        """Serialize token usage enriched with Prompt Cache economics and eligibility gates."""
+        data: dict[str, object] = dict(self.to_dict())
+        data["cache_hit_rate"] = self.cache_hit_rate
+        data["net_savings_usd"] = round(net_savings_usd, 6)
+        data["has_effective_cache"] = bool(self.cached_tokens >= 1024 and net_savings_usd >= 0.0001)
+        return data
+
     def get_cache_effectiveness(self, cache_read_ratio: float = 0.1) -> dict[str, float]:
         """Compute session-level cache effectiveness.
 
@@ -205,20 +202,6 @@ class TokenUsage:
                 Anthropic: 0.1 (90% off), OpenAI: 0.5 (50% off)
         """
         return compute_prompt_cache_stats(self.prompt_tokens, self.cached_tokens, cache_read_ratio=cache_read_ratio)
-
-
-@dataclass(frozen=True)
-class LatencyStats:
-    """LLM 调用延迟统计"""
-
-    call_count: int = 0
-    avg_ms: float = 0.0
-    p95_ms: float = 0.0
-    min_ms: float = 0.0
-    max_ms: float = 0.0
-    avg_ttft_ms: float = 0.0
-    p95_ttft_ms: float = 0.0
-    avg_tokens_per_second: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -240,9 +223,6 @@ class TokenTracker:
     model_savings: dict[str, float] = field(default_factory=dict)
     tool_stack: list[str] = field(default_factory=list)
     tool_usage: dict[str, TokenUsage] = field(default_factory=dict)
-    # Facts about how the turn's context was assembled (history source, skill catalog delivery);
-    # persisted next to the cost snapshot so a cache-hit drop can be traced to a rebuild.
-    turn_context: dict[str, int | str] = field(default_factory=dict)
     tool_cost: dict[str, float] = field(default_factory=dict)
     call_durations_ms: list[float] = field(default_factory=list)
     call_ttft_ms: list[float] = field(default_factory=list)
@@ -253,6 +233,9 @@ class TokenTracker:
     last_error: str | None = None
     budget_checker: "BudgetChecker | None" = field(default=None, repr=False)
     last_budget_status: str = "ok"
+    # Facts about how the turn's context was assembled (history source, skill catalog delivery);
+    # persisted next to the cost snapshot so a cache-hit drop can be traced to a rebuild.
+    turn_context: dict[str, int | str] = field(default_factory=dict)
 
     # --- Tool chain tracking ---
 
@@ -312,7 +295,7 @@ class TokenTracker:
 
         event: dict[str, object] = {
             "call_index": self.call_count,
-            "usage": self.usage.to_dict(),
+            "usage": self.usage.to_economic_dict(net_savings_usd=cache_savings_usd),
         }
         if duration_ms is not None:
             event["duration_ms"] = duration_ms
@@ -337,25 +320,7 @@ class TokenTracker:
 
     def get_latency_stats(self) -> LatencyStats:
         """计算延迟统计（含 TTFT 和 tokens/s）"""
-        if not self.call_durations_ms:
-            return LatencyStats()
-
-        sorted_durations = sorted(self.call_durations_ms)
-        sorted_ttft = sorted(self.call_ttft_ms) if self.call_ttft_ms else []
-
-        total_duration_s = sum(self.call_durations_ms) / 1000.0
-        avg_tps = self.usage.completion_tokens / total_duration_s if total_duration_s > 0 else 0.0
-
-        return LatencyStats(
-            call_count=len(sorted_durations),
-            avg_ms=sum(sorted_durations) / len(sorted_durations),
-            p95_ms=_percentile(sorted_durations, 0.95),
-            min_ms=sorted_durations[0],
-            max_ms=sorted_durations[-1],
-            avg_ttft_ms=(sum(sorted_ttft) / len(sorted_ttft) if sorted_ttft else 0.0),
-            p95_ttft_ms=_percentile(sorted_ttft, 0.95),
-            avg_tokens_per_second=round(avg_tps, 1),
-        )
+        return LatencyStats.from_samples(self.call_durations_ms, self.call_ttft_ms, self.usage.completion_tokens)
 
     def merge(self, other: "TokenTracker") -> None:
         """Merge a child Agent's tracking data into this tracker.
@@ -409,6 +374,8 @@ class TokenTracker:
             "call_count": self.call_count,
             "total_cost_usd": round(self.total_cost_usd, 6),
             "total_cache_savings_usd": round(self.total_cache_savings_usd, 6),
+            "cache_hit_rate": self.usage.cache_hit_rate,
+            "has_effective_cache": bool(self.usage.cached_tokens >= 1024 and self.total_cache_savings_usd >= 0.0001),
             "cost_status": self.cost_status,
             "error_count": self.error_count,
             "latency": {

@@ -14,8 +14,8 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
 from PIL import Image
 
-from myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot import (
-    _shrink_oversized_images,
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery_image_shrink import (
+    shrink_oversized_images as _shrink_oversized_images,
 )
 from myrm_agent_harness.agent.streaming.stream_executor import (
     StreamContext,
@@ -767,8 +767,8 @@ class TestShrinkOversizedImagesRealPillow:
 
     def test_parse_max_dimension_from_error(self) -> None:
         """Verify max_dimension parsing from error messages."""
-        from myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot import (
-            _parse_image_max_dimension,
+        from myrm_agent_harness.agent.streaming.recovery.stream_recovery_image_shrink import (
+            parse_image_max_dimension as _parse_image_max_dimension,
         )
 
         exc = _FakeError("image dimension exceeds the maximum allowed size of 2000")

@@ -11,9 +11,10 @@ Two-stage ranked snippet triage and selective deep web extraction subsystem (Ite
 | search_extract_types.py | Types | Strongly typed data structures for ranked snippet items, triage results, deep extract results, budget status, and configuration. | ✅ |
 | snippet_triage_engine.py | Core | Stage 1 lightweight snippet triage engine bounding token usage strictly within 500 tokens with meta-guidance. | ✅ |
 | deep_extract_cleaner.py | Core | Stage 2 selective deep web content cleanser stripping navigation, scripts, ads, and normalizing dense markdown. | ✅ |
-| session_coalescing_cache.py | Core | Session-level in-memory coalescing cache for search triage snippets and deep extracted documents with TTL. | ✅ |
+| session_coalescing_cache.py | Core | Session-level in-memory coalescing cache for search triage snippets and deep extracted documents with adaptive TTL. | ✅ |
+| ttl_advisor.py | Core | Time-sensitivity evaluation engine scheduling adaptive TTLs across realtime, standard, and archive scenarios. | ✅ |
 | fetch_budget_governor.py | Core | Concurrency and depth governor preventing runaway crawling and enforcing interim synthesis gates. | ✅ |
-| two_stage_search_suite.py | Facade | Unified facade suite orchestrating two-stage search triage, deep extraction, budget limits, and caching. | ✅ |
+| two_stage_search_suite.py | Facade | Unified facade suite orchestrating two-stage search triage, deep extraction, budget limits, and adaptive caching. | ✅ |
 
 ## Key Dependencies
 

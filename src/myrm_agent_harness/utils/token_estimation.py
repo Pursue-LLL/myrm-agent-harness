@@ -13,6 +13,9 @@
 - estimate_bound_tools_tokens(): Turn-1 bind_tools description + schema wrapper overhead
 - estimate_request_tools_tokens(): Live ModelRequest tools overhead（planning SSOT）
 - estimate_context_tokens(): messages + bind-tools overhead，可选 max(provider prompt_tokens)
+- tool_input_schema(): tool 的 JSON Schema（原生 dict 原样返回，Pydantic 走 model_json_schema）
+- estimate_tool_schema_tokens(): 单个 tool 的完整 schema（name + description + parameters）token 数
+- estimate_tools_schema_tokens(): tool 列表的完整 schema token 总数
 - SCHEMA_WRAPPER_TOKENS_PER_TOOL: 每个 bound tool 的 JSON schema wrapper 预算
 
 [POS]
@@ -25,6 +28,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from typing import cast
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.tools import BaseTool
@@ -111,6 +115,42 @@ def _tool_description_text(tool: object) -> str:
             return desc
     desc = getattr(tool, "description", "")
     return desc if isinstance(desc, str) else ""
+
+
+def tool_input_schema(tool: BaseTool) -> dict[str, object]:
+    """Return the tool's JSON Schema, falling back for malformed tools.
+
+    MCP tools carry a native JSON Schema ``dict`` as ``args_schema`` (see
+    ``tool_converter``); for those the dict is returned verbatim so schema
+    token estimates reflect the exact schema the LLM receives. Built-in
+    tools keep Pydantic models and are serialized via ``model_json_schema``.
+    """
+    try:
+        args_schema = getattr(tool, "args_schema", None)
+        if isinstance(args_schema, dict):
+            return cast("dict[str, object]", args_schema)
+        schema_model = tool.get_input_schema()
+        return cast("dict[str, object]", schema_model.model_json_schema())
+    except Exception:
+        return {}
+
+
+def _tool_schema_entry(tool: BaseTool) -> dict[str, object]:
+    return {
+        "name": tool.name,
+        "description": tool.description or "",
+        "parameters": tool_input_schema(tool),
+    }
+
+
+def estimate_tool_schema_tokens(tool: BaseTool) -> int:
+    """Estimate the full schema tokens billed for one bound tool."""
+    return get_token_count(json.dumps(_tool_schema_entry(tool), ensure_ascii=False, separators=(",", ":")))
+
+
+def estimate_tools_schema_tokens(tools: Sequence[BaseTool]) -> int:
+    """Estimate the full schema tokens billed for a bound tool list."""
+    return sum(estimate_tool_schema_tokens(tool) for tool in tools)
 
 
 def estimate_bound_tools_tokens(tools: Sequence[BaseTool]) -> int:

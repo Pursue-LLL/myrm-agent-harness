@@ -34,6 +34,11 @@ from myrm_agent_harness.toolkits.mcp.config import (
     MCPConfig,
     mcp_config_to_runtime_dict,
 )
+from myrm_agent_harness.utils.token_estimation import (
+    estimate_tool_schema_tokens,
+    estimate_tools_schema_tokens,
+    tool_input_schema,
+)
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -120,50 +125,18 @@ def compute_direct_threshold(
 
 
 def _input_schema(tool: BaseTool) -> dict[str, object]:
-    """Return the tool's JSON Schema, falling back for malformed tools.
-
-    MCP tools carry a native JSON Schema ``dict`` as ``args_schema`` (see
-    ``tool_converter``); for those the dict is returned verbatim so schema
-    token estimates reflect the exact schema the LLM receives. Built-in
-    tools keep Pydantic models and are serialized via ``model_json_schema``.
-    """
-    try:
-        args_schema = getattr(tool, "args_schema", None)
-        if isinstance(args_schema, dict):
-            return cast("dict[str, object]", args_schema)
-        schema_model = tool.get_input_schema()
-        return cast("dict[str, object]", schema_model.model_json_schema())
-    except Exception:
-        return {}
+    """Return the tool's JSON Schema (SSOT lives in ``utils.token_estimation``)."""
+    return tool_input_schema(tool)
 
 
 def estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
-    """Estimate schema tokens for a list of tools via planning SSOT tiktoken."""
-    from myrm_agent_harness.utils.text_utils import get_token_count
-
-    total = 0
-    for tool in tools:
-        schema = _input_schema(tool)
-        entry = {
-            "name": tool.name,
-            "description": tool.description or "",
-            "parameters": schema,
-        }
-        total += get_token_count(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
-    return total
+    """Estimate the full schema tokens for a list of tools (SSOT in ``utils.token_estimation``)."""
+    return estimate_tools_schema_tokens(tools)
 
 
 def estimate_single_tool_tokens(tool: BaseTool) -> int:
-    """Estimate schema tokens for a single tool."""
-    from myrm_agent_harness.utils.text_utils import get_token_count
-
-    schema = _input_schema(tool)
-    entry = {
-        "name": tool.name,
-        "description": tool.description or "",
-        "parameters": schema,
-    }
-    return get_token_count(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
+    """Estimate the full schema tokens for a single tool (SSOT in ``utils.token_estimation``)."""
+    return estimate_tool_schema_tokens(tool)
 
 
 async def _generate_mcp_skills(

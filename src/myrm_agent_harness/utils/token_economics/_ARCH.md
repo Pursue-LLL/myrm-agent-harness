@@ -14,8 +14,10 @@ LLM call full-chain economic metrics: token usage tracking (7 token types), cost
 | cache_economics.py | Core | Framework-neutral utilities under ``utils/``; safe for any layer to import. | ✅ |
 | cache_savings.py | Core | Provides calculate_cache_savings_usd. | ✅ |
 | cost_engine.py | Core | Thin wrapper over litellm.completion_cost() that adds CostStatus provenance. | ✅ |
+| latency_stats.py | Core | `LatencyStats` frozen dataclass and `LatencyStats.from_samples`: average, p95, min, max, time-to-first-token and tokens-per-second over the per-call samples a `TokenTracker` collects. | ✅ |
 | tracker.py | Core | LLM call metadata tracker. ContextVar-based request-level tracking supporting both streaming and non-streaming calls. `record_turn_context` stores how the turn's context was assembled (`history_mode`, discarded message and tool-message counts, `catalog_delivery`, `tools_signature_changes`); exported as `turn_context` in `to_dict()` next to the cost snapshot (a child tracker's facts are not merged). | ✅ |
 | usage_ledger.py | Core | Lightweight audit log recording token count, cost, latency, and model metadata for each LLM call; owns the `DROPPED_STREAM_FINISH_REASON` finish_reason sentinel (stream closed without a final chunk) shared by the LLM adapters and the agent completion-status mapping. | ✅ |
+| `usage_fields.py` | Core | Provider-cache token extraction shared by cost computation and usage tracking. — extract_cached_tokens(): prompt tokens served from the provider cache; extract_cache_write_tokens(): prompt tokens newly written to the provider cache; extract_cost_tokens(): (prompt, completion, cache read, cache write) for cost computation | ✅ |
 
 ## Budget Control Architecture
 

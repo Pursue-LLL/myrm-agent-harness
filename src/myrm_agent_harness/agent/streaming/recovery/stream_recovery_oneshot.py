@@ -7,9 +7,12 @@ without entering backoff or failover loops.
 - toolkits.llms.errors.classifier (POS: 错误分类)
 - toolkits.llms.errors.error_types (POS: 三层错误类型定义)
 - agent._internals.agent_recovery (POS: 消息压缩/截断工具)
+- recovery.stream_recovery_image_shrink (POS: provider 图片上限恢复：测上限、压缩、聚合淘汰)
 
 [OUTPUT]
 - OneshotRecoveryMixin: One-shot recovery handlers mixed into StreamRecoveryMixin
+- _strip_all_media_from_messages(): 把媒体块降级为文本占位
+- _resolve_model_name_from_ctx() / _resolve_api_base_from_ctx(): 能力学习所需的模型/端点解析
 
 [POS]
 Targeted one-shot recovery handlers for THINKING_SIGNATURE, DUPLICATE_TOOL_USE_ID,
@@ -30,13 +33,16 @@ from myrm_agent_harness.agent._internals.agent_recovery import (
 from myrm_agent_harness.agent._internals.agent_recovery import (
     truncate_oldest_rounds as _truncate_oldest_rounds,
 )
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery_image_shrink import (
+    parse_image_max_dimension,
+    shrink_oversized_images,
+)
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.toolkits.llms.errors.classifier import (
     classify_failover_reason,
 )
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
-from myrm_agent_harness.utils.media.image_compressor import SEND_COMPRESS_TRIGGER_BYTES
 
 if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
@@ -123,6 +129,39 @@ class OneshotRecoveryMixin:
         self.streaming_final_answer = False
         return True
 
+    async def _handle_reasoning_mandatory(
+        self,
+        exc: Exception,
+        attempted: bool = False,
+    ) -> bool:
+        """Recover from 400 mandatory reasoning / unsupported reasoning_effort rejections.
+
+        When a provider mandates reasoning (e.g. GLM-5.3, DeepSeek-R1, Claude 3.7)
+        and rejects disabling reasoning or an unsupported effort level, step up to
+        the floor effort or drop back to route default.
+
+        CRITICAL: Never alter or truncate the messages sequence or prompt prefix,
+        guaranteeing 100% Prompt Cache Key preservation on the upstream provider.
+        """
+        ctx = self._ctx
+        retry_state = getattr(ctx, "retry_state", None)
+        if attempted or (retry_state and retry_state.reasoning_mandatory_attempted):
+            return False
+
+        reason = classify_failover_reason(exc)
+        if reason != FailoverReason.REASONING_MANDATORY:
+            return False
+
+        if retry_state is not None:
+            ctx.retry_state = retry_state.with_reasoning_floor(effort="low")
+
+        logger.warning(
+            " Mandatory reasoning constraint rejected (400) — stepping reasoning to floor/default while strictly preserving Prompt Cache Key, retrying"
+        )
+        await self._emit_recovery_event("reasoning_mandatory_recovery", restart=True)
+        self.streaming_final_answer = False
+        return True
+
     async def _handle_duplicate_tool_use_id(
         self,
         exc: Exception,
@@ -186,8 +225,8 @@ class OneshotRecoveryMixin:
         messages_dict = ctx.agent_input
         messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
 
-        max_dim = _parse_image_max_dimension(exc)
-        shrunk = _shrink_oversized_images(messages, max_dimension=max_dim)
+        max_dim = parse_image_max_dimension(exc)
+        shrunk = shrink_oversized_images(messages, max_dimension=max_dim)
         if shrunk == 0:
             return False
 
@@ -429,245 +468,3 @@ def _strip_all_media_from_messages(messages: list[BaseMessage]) -> int:
             stripped_count += 1
     return stripped_count
 
-
-import re as _re  # noqa: E402
-
-_IMAGE_MAX_DIM_RE = _re.compile(
-    r"(?:maximum|max).*?(?:allowed\s+)?size.*?(\d{3,5})"
-    r"|(\d{3,5})\s*(?:px|pixels?)?\s*(?:per[- ]?side|limit|maximum|cap)",
-    _re.IGNORECASE,
-)
-
-_DEFAULT_MAX_DIMENSION = 8000
-
-
-def _parse_image_max_dimension(exc: Exception) -> int:
-    """Extract provider-reported dimension ceiling from error message.
-
-    Anthropic reports e.g. "maximum allowed size of 2000" or
-    "exceeds the maximum of 8000px per side".  Returns the parsed
-    integer or ``_DEFAULT_MAX_DIMENSION`` when not parseable.
-    """
-    from myrm_agent_harness.toolkits.llms.errors.classifier import (
-        normalize_provider_error,
-    )
-
-    msg = normalize_provider_error(exc).message
-    match = _IMAGE_MAX_DIM_RE.search(msg)
-    if match:
-        value = int(match.group(1) or match.group(2))
-        if 64 <= value <= 32768:
-            return value
-    return _DEFAULT_MAX_DIMENSION
-
-
-def _shrink_oversized_images(
-    messages: list[BaseMessage],
-    *,
-    max_dimension: int = _DEFAULT_MAX_DIMENSION,
-    enable_aggregate_fallback: bool = True,
-) -> int:
-    """Walk messages and shrink base64 images exceeding byte/dimension limits.
-
-    Checks **both** byte size (against ``SEND_COMPRESS_TRIGGER_BYTES``, base64
-    space) and pixel dimensions (against ``max_dimension``).  Uses a
-    ``triggered_by`` mechanism to validate the correct constraint after resize —
-    a pixel-correct downscale is accepted even if its bytes grew (PNG
-    re-encode can increase bytes).
-
-    If no single image exceeds the individual thresholds (e.g. multiple legal
-    ~2MB images whose sum exceeds an external proxy gateway's body limit),
-    automatically activates Tier 2 aggregate eviction: degrades older historical
-    images to 512px WebP thumbnails or semantic text placeholders, preserving
-    the latest focus round.
-
-    Returns the number of images actually replaced.  Returns 0 if any image
-    was oversized but could not be shrunk (unshrinkable), because retrying
-    would re-send the same rejected payload.
-    """
-    import base64
-    import io
-
-    from myrm_agent_harness.utils.image_utils import (
-        estimate_base64_byte_size,
-        is_base64_data_url,
-    )
-    from myrm_agent_harness.utils.media.image_compressor import ImageCompressor
-
-    shrunk_count = 0
-    unshrinkable_count = 0
-    compressor = ImageCompressor()
-
-    for msg in messages:
-        content = getattr(msg, "content", None)
-        if not isinstance(content, list):
-            continue
-        for idx, part in enumerate(content):
-            if not isinstance(part, dict) or part.get("type") != "image_url":
-                continue
-            image_url = part.get("image_url")
-            if not isinstance(image_url, dict):
-                continue
-            url = image_url.get("url", "")
-            if not isinstance(url, str) or not is_base64_data_url(url):
-                continue
-
-            b64_data = url.split(";base64,", 1)[1]
-            # Base64-space byte check: provider per-image ceilings are base64
-            # sizes, so a raw-byte comparison (estimate_base64_byte_size)
-            # would miss 3-4 MiB raw images whose base64 form (4-5.3 MiB)
-            # still exceeds a 5 MiB ceiling.
-            over_bytes = len(b64_data) > SEND_COMPRESS_TRIGGER_BYTES
-            original_size = estimate_base64_byte_size(url)
-
-            dims = _decode_image_dimensions(url)
-            over_pixels = dims is not None and max(dims) > max_dimension
-
-            if not over_bytes and not over_pixels:
-                continue
-
-            triggered_by = "bytes" if over_bytes else "dimension"
-
-            try:
-                header = url.split(";base64,", 1)[0]
-                raw_bytes = base64.b64decode(b64_data)
-                compressed = compressor.compress(
-                    io.BytesIO(raw_bytes),
-                    quality=0.5,
-                    max_dimension=max_dimension,
-                )
-                if compressed is None:
-                    unshrinkable_count += 1
-                    continue
-
-                if triggered_by == "bytes" and len(compressed) >= original_size:
-                    unshrinkable_count += 1
-                    continue
-
-                new_dims = _decode_bytes_dimensions(compressed)
-                if new_dims is not None and max(new_dims) > max_dimension:
-                    unshrinkable_count += 1
-                    continue
-
-                new_b64 = base64.b64encode(compressed).decode("ascii")
-                new_url = f"{header};base64,{new_b64}"
-                image_url["url"] = new_url
-                shrunk_count += 1
-            except Exception as shrink_err:
-                logger.warning("Image shrink failed for part %d: %s", idx, shrink_err)
-                unshrinkable_count += 1
-
-    if unshrinkable_count > 0:
-        logger.warning(
-            "Image shrink: %d part(s) could not be shrunk — not retrying",
-            unshrinkable_count,
-        )
-        return 0
-
-    # Tier 2 Aggregate Fallback: If no single image was oversized individually
-    # but the provider/gateway rejected the request with IMAGE_TOO_LARGE or 413,
-    # perform aggregate progressive downsampling on older historical images.
-    # Protects the latest message (Focus Window) by requiring multiple turns (len > 1).
-    if enable_aggregate_fallback and shrunk_count == 0 and len(messages) > 1:
-        shrunk_count = _evict_aggregate_historical_images(messages)
-
-    return shrunk_count
-
-
-def _evict_aggregate_historical_images(messages: list[BaseMessage]) -> int:
-    """Progressively compress or placeholder older images when aggregate payload overflows.
-
-    Protects the latest message (Focus Window) and downsamples historical base64
-    images to 512px WebP (quality 0.5) to clear gateway payload restrictions.
-    """
-    import base64
-    import io
-
-    from myrm_agent_harness.utils.image_utils import (
-        estimate_base64_byte_size,
-        is_base64_data_url,
-    )
-    from myrm_agent_harness.utils.media.image_compressor import ImageCompressor
-
-    compressor = ImageCompressor()
-    evicted_count = 0
-
-    # Protect the latest message turn (last message in sequence)
-    target_messages = messages[:-1]
-
-    for msg in target_messages:
-        content = getattr(msg, "content", None)
-        if not isinstance(content, list):
-            continue
-        for part in content:
-            if not isinstance(part, dict) or part.get("type") != "image_url":
-                continue
-            image_url = part.get("image_url")
-            if not isinstance(image_url, dict):
-                continue
-            url = image_url.get("url", "")
-            if not isinstance(url, str) or not is_base64_data_url(url):
-                continue
-
-            try:
-                b64_data = url.split(";base64,", 1)[1]
-                raw_bytes = base64.b64decode(b64_data)
-                original_size = estimate_base64_byte_size(url)
-
-                compressed = compressor.compress(
-                    io.BytesIO(raw_bytes),
-                    quality=0.5,
-                    max_dimension=512,
-                )
-                if compressed and len(compressed) < original_size:
-                    new_b64 = base64.b64encode(compressed).decode("ascii")
-                    image_url["url"] = f"data:image/webp;base64,{new_b64}"
-                    evicted_count += 1
-                else:
-                    # If compression yields no gain, replace with semantic placeholder
-                    part.clear()
-                    part.update(
-                        {
-                            "type": "text",
-                            "text": f"[Historical image omitted to reduce aggregate payload: {original_size // 1024}KB]",
-                        }
-                    )
-                    evicted_count += 1
-            except Exception as evict_err:
-                logger.warning("[_evict_aggregate] Fallback eviction failed: %s", evict_err)
-
-    if evicted_count > 0:
-        logger.info(
-            "[_evict_aggregate] Successfully compressed/evicted %d historical image(s) for aggregate recovery",
-            evicted_count,
-        )
-
-    return evicted_count
-
-
-def _decode_image_dimensions(data_url: str) -> tuple[int, int] | None:
-    """Decode pixel dimensions (width, height) from a base64 data URL."""
-    import base64
-    import io
-
-    try:
-        from PIL import Image
-
-        _, b64_data = data_url.split(";base64,", 1)
-        with Image.open(io.BytesIO(base64.b64decode(b64_data))) as img:
-            return img.size
-    except Exception:
-        return None
-
-
-def _decode_bytes_dimensions(raw_bytes: bytes) -> tuple[int, int] | None:
-    """Decode pixel dimensions (width, height) from raw image bytes."""
-    import io
-
-    try:
-        from PIL import Image
-
-        with Image.open(io.BytesIO(raw_bytes)) as img:
-            return img.size
-    except Exception:
-        return None

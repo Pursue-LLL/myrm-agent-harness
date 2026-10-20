@@ -1,13 +1,26 @@
-# [INPUT] None (Foundational domain types for two-stage search triage and selective deep extract)
-# [OUTPUT] RankedSnippetItem, SnippetTriageResult, DeepExtractResult, FetchBudgetStatus, TwoStageSearchConfig, SearchExtractError, FetchBudgetExceededError
-# [POS] Domain data structures, config parameters, and error taxonomy for 2-stage search and context protection
+"""Domain types and configuration for two-stage ranked snippet and selective deep extract.
 
-"""Domain types and configuration for two-stage ranked snippet and selective deep extract."""
+[INPUT]
+- None (Foundational domain types for two-stage search triage and selective deep extract)
+
+[OUTPUT]
+- RankedSnippetItem
+- SnippetTriageResult
+- DeepExtractResult
+- FetchBudgetStatus
+- TwoStageSearchConfig
+- SearchExtractError
+- FetchBudgetExceededError
+
+[POS]
+Domain data structures, configuration parameters, and the error taxonomy for two-stage search and context protection.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Literal
 
 _DEFAULT_GUIDANCE_DIRECTIVE = (
@@ -15,6 +28,23 @@ _DEFAULT_GUIDANCE_DIRECTIVE = (
     "If these snippets are sufficient to answer the query accurately, synthesize your response directly. "
     "Only invoke 'web_fetch' on at most 1-2 critical URLs if deep technical code or exhaustive facts are required."
 )
+
+
+class TimeSensitivityScenario(str, Enum):
+    """Scenario-based classification for dynamic cache TTL scheduling."""
+
+    REALTIME = "realtime"
+    STANDARD = "standard"
+    ARCHIVE = "archive"
+
+
+@dataclass(frozen=True)
+class AdaptiveTtlConfig:
+    """Configurable TTL ceilings per time-sensitivity scenario."""
+
+    realtime_ttl_seconds: int = 180
+    standard_ttl_seconds: int = 1800
+    archive_ttl_seconds: int = 86400
 
 
 class SearchExtractError(Exception):
@@ -47,6 +77,9 @@ class SnippetTriageResult:
     total_estimated_tokens: int
     guidance_directive: str = _DEFAULT_GUIDANCE_DIRECTIVE
     cached: bool = False
+    cache_age_seconds: int = 0
+    saved_tokens: int = 0
+    scenario: str = "standard"
     timestamp_iso: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -64,6 +97,9 @@ class DeepExtractResult:
     compression_ratio: float
     fetch_turn: int = 1
     cached: bool = False
+    cache_age_seconds: int = 0
+    saved_tokens: int = 0
+    scenario: str = "standard"
     timestamp_iso: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -92,4 +128,5 @@ class TwoStageSearchConfig:
     max_accumulated_fetches_per_session: int = 6
     interim_synthesis_threshold: int = 3
     cache_ttl_seconds: int = 1800
+    adaptive_ttl: AdaptiveTtlConfig = field(default_factory=AdaptiveTtlConfig)
     default_guidance_directive: str = _DEFAULT_GUIDANCE_DIRECTIVE

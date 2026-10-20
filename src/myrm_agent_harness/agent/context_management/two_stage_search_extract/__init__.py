@@ -1,8 +1,19 @@
-# [INPUT] search_extract_types, snippet_triage_engine, deep_extract_cleaner, session_coalescing_cache, fetch_budget_governor, two_stage_search_suite
-# [OUTPUT] All public symbols of two_stage_search_extract package
-# [POS] Facade entry point for two-stage search triage, selective deep extract, and context protection
+"""Two-stage ranked snippet triage and selective deep extract subsystem.
 
-"""Two-stage ranked snippet triage and selective deep extract subsystem."""
+[INPUT]
+- search_extract_types
+- snippet_triage_engine
+- deep_extract_cleaner
+- session_coalescing_cache
+- fetch_budget_governor
+- two_stage_search_suite
+
+[OUTPUT]
+- All public symbols of two_stage_search_extract package
+
+[POS]
+Facade entry point for two-stage search triage, selective deep extract, and context protection.
+"""
 
 from myrm_agent_harness.agent.context_management.two_stage_search_extract.deep_extract_cleaner import (
     SelectiveDeepExtractCleaner,
@@ -11,12 +22,14 @@ from myrm_agent_harness.agent.context_management.two_stage_search_extract.fetch_
     FetchBudgetGovernor,
 )
 from myrm_agent_harness.agent.context_management.two_stage_search_extract.search_extract_types import (
+    AdaptiveTtlConfig,
     DeepExtractResult,
     FetchBudgetExceededError,
     FetchBudgetStatus,
     RankedSnippetItem,
     SearchExtractError,
     SnippetTriageResult,
+    TimeSensitivityScenario,
     TwoStageSearchConfig,
 )
 from myrm_agent_harness.agent.context_management.two_stage_search_extract.session_coalescing_cache import (
@@ -26,11 +39,15 @@ from myrm_agent_harness.agent.context_management.two_stage_search_extract.sessio
 from myrm_agent_harness.agent.context_management.two_stage_search_extract.snippet_triage_engine import (
     RankedSnippetTriageEngine,
 )
+from myrm_agent_harness.agent.context_management.two_stage_search_extract.ttl_advisor import (
+    TimeSensitivityTtlAdvisor,
+)
 from myrm_agent_harness.agent.context_management.two_stage_search_extract.two_stage_search_suite import (
     TwoStageRankedSnippetAndSelectiveDeepExtractSuite,
 )
 
 __all__ = [
+    "AdaptiveTtlConfig",
     "CacheStats",
     "DeepExtractResult",
     "FetchBudgetExceededError",
@@ -42,6 +59,8 @@ __all__ = [
     "SearchFetchSessionCache",
     "SelectiveDeepExtractCleaner",
     "SnippetTriageResult",
+    "TimeSensitivityScenario",
+    "TimeSensitivityTtlAdvisor",
     "TwoStageRankedSnippetAndSelectiveDeepExtractSuite",
     "TwoStageSearchConfig",
 ]
