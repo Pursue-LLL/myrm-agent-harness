@@ -448,7 +448,7 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 
 **SaaS 最终选型：Fly Sprites 作为唯一云供给**（E2B 支持已移除；Machines 仅作为 Sprites 适配完成前的过渡实现，随后删除）。
 
-**企业私有化**：单 VM Docker Compose（CP + PostgreSQL + Redis + 每用户 Docker 沙箱）为默认数据面；K8s/Helm 冻结，等大客户明确要求再启用。**本地**：OS 进程沙箱（sandbox-exec / bwrap / AppContainer）。两者都不使用 Sprites。
+**企业私有化**：单 VM Docker Compose（CP + PostgreSQL + Redis + 每用户 Docker 沙箱）为默认数据面；不采用 K8s/Helm。**本地**：OS 进程沙箱（sandbox-exec / bwrap / AppContainer）。两者都不使用 Sprites。
 
 | 项 | 方案 |
 |----|------|
