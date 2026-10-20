@@ -114,7 +114,6 @@ class SubAgentStatus(StrEnum):
 
     PENDING = "pending"
     RUNNING = "running"
-    VERIFYING = "verifying"
     COMPLETED = "completed"
     FAILED = "failed"
     TIMED_OUT = "timed_out"
@@ -457,17 +456,17 @@ class SubagentConfig:
     """Wall-clock timeout for the subagent. None (default) disables the hard
     timeout — the subagent runs until max_turns, staleness detection, or
     budget limits stop it. Set to a positive int to enforce a hard cap."""
-    concurrency_limit: int = 5
-    max_turns: int = 25
+    concurrency_limit: int = 10
+    max_turns: int = 250
     max_retries: int = 3
     retry_backoff_seconds: float = 2.0
     max_spawn_depth: int = 0
     budget_tokens: int | None = None
     max_cost_usd: float | None = None
     max_result_tokens: int | None = None
-    max_children_per_agent: int = 5
-    max_descendants_per_run: int = 20
-    max_batch_size: int = 5
+    max_children_per_agent: int = 10
+    max_descendants_per_run: int = 50
+    max_batch_size: int = 10
     auto_vault_threshold: int | None = 8000
     """Auto-vault threshold in characters. When subagent output exceeds this,
     the result is stored in ArtifactVault and a summary + vault:// pointer
@@ -499,6 +498,11 @@ class SubagentConfig:
     Defaults to False (warn only) to avoid killing tasks that are slow but alive."""
     delegation_catalog: SubagentCatalog | None = field(default=None, repr=False)
     delegation_allowed_types: frozenset[str] | None = field(default=None, repr=False)
+    is_advisory: bool = False
+    advisory_schema: dict[str, object] | None = field(default=None, repr=False)
+    role_chain: tuple[str, ...] | None = None
+    max_review_rounds: int = 3
+    model_override: str | None = None
 
     _MIN_TIMEOUT_SECONDS: ClassVar[int] = 30
 
@@ -514,8 +518,8 @@ class SubagentConfig:
 class SubagentCatalog(Protocol):
     """Protocol for resolving subagent configurations.
 
-    Replaces the global SUBAGENT_CONFIGS dictionary, allowing the business layer
-    to resolve subagents from databases (e.g., custom saved agents) or YAML presets.
+    Lets the business layer resolve subagents from databases (e.g., custom saved agents)
+    or YAML presets.
     """
 
     async def resolve(self, type_id: str) -> SubagentConfig | None:
@@ -532,12 +536,3 @@ class SubagentCatalog(Protocol):
     async def list_available(self) -> list[str]:
         """List all available subagent type IDs."""
         ...
-
-
-SUBAGENT_CONFIGS: dict[str, SubagentConfig] = {}
-"""[DEPRECATED] Registry of subagent configurations.
-Use SubagentCatalog protocol instead."""
-
-# NOTE: Global registry and registration functions have been moved to registry.py
-# for better separation of concerns. Import from there:
-# from .registry import SUBAGENT_CONFIGS, register_subagent_configs, etc.
