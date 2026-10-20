@@ -22,27 +22,14 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubAgentStatus,
     VerificationSummary,
 )
-
-_GET_EXECUTOR_PATH = (
-    "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor"
-)
-
-
-def _mock_executor(*, has_executed: bool = True) -> MagicMock:
-    """Create a mock executor that reports code execution status."""
-    executor = MagicMock()
-    executor.has_executed_code = has_executed
-    return executor
-
+from myrm_agent_harness.toolkits.code_execution.executors.execution_evidence import record_execution
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _ok(
-    task_id: str = "t1", agent_type: str = "worker", result: str = "done"
-) -> SubAgentResult:
+def _ok(task_id: str = "t1", agent_type: str = "worker", result: str = "done") -> SubAgentResult:
     return SubAgentResult(
         success=True,
         task_id=task_id,
@@ -53,9 +40,7 @@ def _ok(
     )
 
 
-def _fail(
-    task_id: str = "t1", agent_type: str = "worker", error: str = "boom"
-) -> SubAgentResult:
+def _fail(task_id: str = "t1", agent_type: str = "worker", error: str = "boom") -> SubAgentResult:
     return SubAgentResult(
         success=False,
         task_id=task_id,
@@ -68,7 +53,7 @@ def _fail(
 
 def _verdict_json(
     verdict: str = "PASS",
-    summary: str = "ok STDOUT",
+    summary: str = "ok",
     confidence: str = "HIGH",
     findings: str = "[]",
 ) -> str:
@@ -82,23 +67,17 @@ def _verdict_json(
 
 class TestVerificationVerdict:
     def test_frozen_immutability(self):
-        v = VerificationVerdict(
-            passed=True, summary="ok", confidence="HIGH", findings=[], raw=""
-        )
+        v = VerificationVerdict(passed=True, summary="ok", confidence="HIGH", findings=[], raw="")
         with pytest.raises(FrozenInstanceError):
             v.passed = False  # type: ignore[misc]
 
     def test_slots(self):
-        v = VerificationVerdict(
-            passed=True, summary="ok", confidence="HIGH", findings=[], raw="x"
-        )
+        v = VerificationVerdict(passed=True, summary="ok", confidence="HIGH", findings=[], raw="x")
         assert not hasattr(v, "__dict__")
 
     def test_fields(self):
         findings = [{"severity": "CRITICAL", "description": "NPE"}]
-        v = VerificationVerdict(
-            passed=False, summary="bad", confidence="LOW", findings=findings, raw="raw"
-        )
+        v = VerificationVerdict(passed=False, summary="bad", confidence="LOW", findings=findings, raw="raw")
         assert v.passed is False
         assert v.summary == "bad"
         assert v.confidence == "LOW"
@@ -141,9 +120,7 @@ class TestVerificationSummary:
         }
 
     def test_subagent_result_round_trip(self):
-        summary = VerificationSummary(
-            passed=True, rounds=1, max_rounds=2, confidence="HIGH"
-        )
+        summary = VerificationSummary(passed=True, rounds=1, max_rounds=2, confidence="HIGH")
         result = _ok()
         result.verification = summary
         data = result.to_dict()
@@ -162,9 +139,9 @@ class TestVerificationSummary:
 
 class TestParseVerdict:
     def test_standard_json_pass(self):
-        v = _parse_verdict(_verdict_json("PASS", "All good STDOUT", "HIGH"))
+        v = _parse_verdict(_verdict_json("PASS", "All good", "HIGH"))
         assert v.passed is True
-        assert v.summary == "All good STDOUT"
+        assert v.summary == "All good"
         assert v.confidence == "HIGH"
         assert v.findings == []
 
@@ -187,11 +164,7 @@ class TestParseVerdict:
         assert len(v.findings) == 2
 
     def test_markdown_fenced_json(self):
-        raw = (
-            "Here is my verdict:\n```json\n"
-            + _verdict_json("PASS", "ok STDOUT")
-            + "\n```\nEnd."
-        )
+        raw = "Here is my verdict:\n```json\n" + _verdict_json("PASS", "ok") + "\n```\nEnd."
         v = _parse_verdict(raw)
         assert v.passed is True
 
@@ -201,14 +174,10 @@ class TestParseVerdict:
         assert v.passed is False
 
     def test_json_embedded_in_text(self):
-        raw = (
-            "Based on my analysis, "
-            + _verdict_json("PASS", "Looks good STDOUT")
-            + " that is my verdict."
-        )
+        raw = "Based on my analysis, " + _verdict_json("PASS", "Looks good") + " that is my verdict."
         v = _parse_verdict(raw)
         assert v.passed is True
-        assert v.summary == "Looks good STDOUT"
+        assert v.summary == "Looks good"
 
     def test_gibberish_defaults_to_fail(self):
         v = _parse_verdict("I think everything looks fine but I cannot generate JSON")
@@ -222,14 +191,14 @@ class TestParseVerdict:
         assert v.confidence == "LOW"
 
     def test_keyword_fallback_pass(self):
-        raw = 'After analysis: "verdict": "PASS" — the code is correct. STDOUT'
+        raw = 'After analysis: "verdict": "PASS" — the code is correct.'
         v = _parse_verdict(raw)
         assert v.passed is True
         assert v.confidence == "LOW"
         assert "keyword" in v.summary.lower()
 
     def test_keyword_fallback_no_space(self):
-        raw = 'Result:"verdict":"PASS" end. STDOUT'
+        raw = 'Result:"verdict":"PASS" end.'
         v = _parse_verdict(raw)
         assert v.passed is True
         assert v.confidence == "LOW"
@@ -241,13 +210,11 @@ class TestParseVerdict:
         assert v.passed is False
 
     def test_verdict_case_insensitive_json(self):
-        v = _parse_verdict(
-            '{"verdict": "pass", "summary": "ok STDOUT", "confidence": "HIGH", "findings": []}'
-        )
+        v = _parse_verdict('{"verdict": "pass", "summary": "ok", "confidence": "HIGH", "findings": []}')
         assert v.passed is True
 
     def test_verdict_with_extra_fields_ignored(self):
-        raw = '{"verdict": "PASS", "summary": "ok STDOUT", "confidence": "HIGH", "findings": [], "extra_field": 123}'
+        raw = '{"verdict": "PASS", "summary": "ok", "confidence": "HIGH", "findings": [], "extra_field": 123}'
         v = _parse_verdict(raw)
         assert v.passed is True
 
@@ -268,9 +235,7 @@ class TestParseVerdict:
         assert len(v.findings) == 1
 
     def test_whitespace_around_verdict(self):
-        v = _parse_verdict(
-            '  {"verdict": " PASS ", "summary": "ok STDOUT", "confidence": "HIGH", "findings": []}  '
-        )
+        v = _parse_verdict('  {"verdict": " PASS ", "summary": "ok", "confidence": "HIGH", "findings": []}  ')
         assert v.passed is True
 
     def test_missing_confidence_defaults_to_unknown(self):
@@ -278,25 +243,29 @@ class TestParseVerdict:
         assert v.confidence == "UNKNOWN"
 
     def test_missing_summary_defaults_to_empty(self):
-        v = _parse_verdict(
-            '{"verdict": "PASS", "confidence": "HIGH", "findings": [], "STDOUT": "here"}'
-        )
+        v = _parse_verdict('{"verdict": "PASS", "confidence": "HIGH", "findings": []}')
         assert v.summary == ""
 
     def test_prose_with_trailing_comma_and_bare_newline(self):
         raw = (
             "Verdict after review:\n"
-            '{"verdict": "PASS", "summary": "Ran the tool, output matches STDOUT",'
+            '{"verdict": "PASS", "summary": "Ran the tool, output matches",'
             ' "confidence": "HIGH", "findings": [],}'
         )
         v = _parse_verdict(raw)
         assert v.passed is True
         assert v.confidence == "HIGH"
 
-    def test_malformed_json_defaults_to_fail(self):
+    def test_repairable_malformed_json_keeps_its_verdict(self):
         raw = '{"verdict": "PASS", "summary": "ok", "findings": [}'
         v = _parse_verdict(raw)
-        assert v.passed is False
+        assert v.passed is True
+        assert v.summary == "ok"
+
+    def test_pass_wording_is_not_second_guessed_by_the_parser(self):
+        """Whether a PASS is backed by execution is the verifier round's call, not a parsing heuristic."""
+        v = _parse_verdict(_verdict_json("PASS", "looks right to me"))
+        assert v.passed is True
 
 
 class TestVerificationResultShape:
@@ -320,9 +289,8 @@ class TestVerificationResultShape:
 
 class TestRunWithVerification:
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_pass_on_first_round(self, mock_get_executor):
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_pass_on_first_round(self):
         mgr = MagicMock()
         calls: list[str] = []
 
@@ -333,7 +301,7 @@ class TestRunWithVerification:
             return _ok(
                 kwargs["task_id"],
                 kwargs["agent_type"],
-                _verdict_json("PASS", "All good STDOUT", "HIGH"),
+                _verdict_json("PASS", "All good", "HIGH"),
             )
 
         mgr.spawn_child = _spawn
@@ -356,9 +324,8 @@ class TestRunWithVerification:
         assert len(calls) == 2  # 1 worker + 1 verifier
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_fail_then_pass_on_retry(self, mock_get_executor):
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_fail_then_pass_on_retry(self):
         mgr = MagicMock()
         round_counter = {"worker": 0, "verifier": 0}
 
@@ -381,7 +348,7 @@ class TestRunWithVerification:
             return _ok(
                 kwargs["task_id"],
                 kwargs["agent_type"],
-                _verdict_json("PASS", "Fixed STDOUT", "HIGH"),
+                _verdict_json("PASS", "Fixed", "HIGH"),
             )
 
         mgr.spawn_child = _spawn
@@ -433,9 +400,7 @@ class TestRunWithVerification:
             max_rounds=2,
         )
         assert "FAIL after 2 round(s)" in result.result
-        assert (
-            result.success is False
-        ), "Verification failure must propagate success=False"
+        assert result.success is False, "Verification failure must propagate success=False"
         assert result.verification is not None
         assert result.verification.passed is False
         assert result.verification.max_rounds == 2
@@ -465,9 +430,46 @@ class TestRunWithVerification:
         )
         assert not result.success
         assert "worker crashed" in result.error
-        assert (
-            result.verification is None
-        ), "Worker failure must not fabricate a verification outcome"
+        assert result.verification is None, "Worker failure must not fabricate a verification outcome"
+        assert "Verification:" not in (result.result or "")
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_rework_worker_failure_is_not_reported_as_a_verification_fail(self):
+        mgr = MagicMock()
+        worker_calls = 0
+
+        async def _spawn(**kwargs):
+            nonlocal worker_calls
+            if "worker" in kwargs["task_id"]:
+                worker_calls += 1
+                if worker_calls == 1:
+                    return _ok(kwargs["task_id"], kwargs["agent_type"], "first attempt")
+                return _fail(kwargs["task_id"], kwargs["agent_type"], "rework crashed")
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("FAIL", "round one found a defect", "HIGH"),
+            )
+
+        mgr.spawn_child = _spawn
+
+        result = await run_with_verification(
+            mgr,
+            worker_type="w",
+            worker_config=SubagentConfig(system_prompt="worker"),
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=SubagentConfig(system_prompt="verifier"),
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=2,
+        )
+
+        assert not result.success
+        assert result.error == "rework crashed"
+        assert result.verification is None, "Round one's verdict judged another output and must not be reported"
+        assert "Verification:" not in (result.result or "")
 
     @pytest.mark.asyncio
     async def test_verifier_failure_aborts(self):
@@ -495,7 +497,11 @@ class TestRunWithVerification:
             context={},
             tool_registry_getter=lambda: [],
         )
-        assert "FAIL after" in result.result
+        assert result.status == SubAgentStatus.BLOCKED
+        assert result.verification is None
+        assert "Verification: INCOMPLETE" in result.result
+        assert "FAIL" not in result.result
+        assert call_count == 2, "An inconclusive verifier must not trigger worker rework"
 
     @pytest.mark.asyncio
     async def test_max_rounds_clamped_to_one(self):
@@ -528,9 +534,8 @@ class TestRunWithVerification:
         assert "FAIL after 1 round(s)" in result.result
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_custom_verifier_task_template(self, mock_get_executor):
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_custom_verifier_task_template(self):
         mgr = MagicMock()
         captured_desc: list[str] = []
 
@@ -558,9 +563,8 @@ class TestRunWithVerification:
         assert "CHECK THIS: my-output" in captured_desc[1]
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_retry_feedback_contains_findings(self, mock_get_executor):
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_retry_feedback_contains_findings(self):
         mgr = MagicMock()
         worker_tasks: list[str] = []
 
@@ -601,9 +605,8 @@ class TestRunWithVerification:
         assert "original task" in worker_tasks[1]
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_dict_return_from_spawn_child(self, mock_get_executor):
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_dict_return_from_spawn_child(self):
         mgr = MagicMock()
 
         async def _spawn(**kwargs):
@@ -652,9 +655,8 @@ class TestRunWithVerification:
         assert not result.success
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_verification_metadata_in_pass_result(self, mock_get_executor):
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_verification_metadata_in_pass_result(self):
         mgr = MagicMock()
 
         async def _spawn(**kwargs):
@@ -663,7 +665,7 @@ class TestRunWithVerification:
             return _ok(
                 kwargs["task_id"],
                 kwargs["agent_type"],
-                _verdict_json("PASS", "ok STDOUT", "MEDIUM"),
+                _verdict_json("PASS", "ok", "MEDIUM"),
             )
 
         mgr.spawn_child = _spawn
@@ -688,13 +690,12 @@ class TestRunWithVerification:
         assert result.verification.rounds == 1
         assert result.verification.max_rounds == 2
         assert result.verification.confidence == "MEDIUM"
-        assert result.verification.summary == "ok STDOUT"
+        assert result.verification.summary == "ok"
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_tool_call_verdict_used_when_present(self, mock_get_executor):
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_tool_call_verdict_used_when_present(self):
         """When verifier sets _verifier_verdict via tool call, it takes precedence over text parsing."""
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
 
         async def _spawn(**kwargs):
@@ -729,19 +730,20 @@ class TestRunWithVerification:
         assert "PASS" in result.result
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_no_execution_rejects_pass_verdict(self, mock_get_executor):
-        """Verifier that submits PASS without executing code should be rejected."""
-        mock_get_executor.return_value = _mock_executor(has_executed=False)
+    async def test_pass_without_execution_is_inconclusive_not_a_failed_verification(self):
+        """A PASS nobody ran anything for leaves the output unverified, and the worker is not sent into rework."""
         mgr = MagicMock()
+        worker_runs = 0
 
         async def _spawn(**kwargs):
+            nonlocal worker_runs
             if "worker" in kwargs["task_id"]:
+                worker_runs += 1
                 return _ok(kwargs["task_id"], kwargs["agent_type"], "work done")
             return _ok(
                 kwargs["task_id"],
                 kwargs["agent_type"],
-                _verdict_json("PASS", "Looks good STDOUT", "HIGH"),
+                _verdict_json("PASS", "Looks good", "HIGH"),
             )
 
         mgr.spawn_child = _spawn
@@ -757,10 +759,15 @@ class TestRunWithVerification:
             verifier_config=v_cfg,
             context={},
             tool_registry_getter=lambda: [],
-            max_rounds=1,
+            max_rounds=3,
         )
         assert not result.success
-        assert "did not execute any code" in result.result
+        assert result.status == SubAgentStatus.BLOCKED
+        assert result.error == "Verifier produced no conclusive verdict"
+        assert result.verification is None
+        assert "Verification: INCOMPLETE" in result.result
+        assert "did not execute any code" not in result.result
+        assert worker_runs == 1
 
     @pytest.mark.asyncio
     async def test_verification_metadata_in_fail_result(self):
@@ -794,13 +801,10 @@ class TestRunWithVerification:
         assert result.success is False, "Verification failure must set success=False"
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_business_task_id_first_worker_visible_retries_internal(
-        self, mock_get_executor
-    ):
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_business_task_id_first_worker_visible_retries_internal(self):
         """With a business task_id, the first worker runs under that id (visible),
         while retry workers and verifiers spawn as internal nodes."""
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
         spawned: list[tuple[str, bool]] = []
 
@@ -815,9 +819,7 @@ class TestRunWithVerification:
                     kwargs["agent_type"],
                     _verdict_json("FAIL", "Issues found", "HIGH"),
                 )
-            return _ok(
-                tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH")
-            )
+            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok", "HIGH"))
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -847,19 +849,16 @@ class TestRunWithVerification:
         assert all(internal for _, internal in spawned[1:]), spawned
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_pass_first_round_keeps_business_task_id(self, mock_get_executor):
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_pass_first_round_keeps_business_task_id(self):
         """PASS on the first round returns the business node with its id intact."""
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
 
         async def _spawn(**kwargs):
             tid = kwargs["task_id"]
             if "worker" in tid:
                 return _ok(tid, kwargs["agent_type"], "work output")
-            return _ok(
-                tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH")
-            )
+            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok", "HIGH"))
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -884,10 +883,9 @@ class TestRunWithVerification:
         assert result.verification.passed is True
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_no_task_id_keeps_internal_worker_ids(self, mock_get_executor):
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_no_task_id_keeps_internal_worker_ids(self):
         """Without a business task_id, every spawned worker is internal."""
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
         spawned: list[tuple[str, bool]] = []
 
@@ -896,9 +894,7 @@ class TestRunWithVerification:
             tid = kwargs["task_id"]
             if "worker" in tid:
                 return _ok(tid, kwargs["agent_type"], "work output")
-            return _ok(
-                tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH")
-            )
+            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok", "HIGH"))
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -921,7 +917,7 @@ class TestRunWithVerification:
 
 class TestVerifyWorkerOutput:
     @pytest.mark.asyncio
-    async def test_returns_fail_when_verifier_subagent_fails(self):
+    async def test_returns_no_verdict_when_verifier_subagent_fails(self):
         from myrm_agent_harness.agent.sub_agents._verifier_round import (
             verify_worker_output,
         )
@@ -943,8 +939,7 @@ class TestVerifyWorkerOutput:
             context={},
             tool_registry_getter=lambda: [],
         )
-        assert verdict.passed is False
-        assert "failed to complete" in verdict.summary
+        assert verdict is None
 
 
 class TestSubAgentResultInternal:
@@ -1065,9 +1060,8 @@ class TestInternalIdUniqueness:
     """
 
     @pytest.mark.asyncio
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_parallel_invokes_spawn_unique_internal_ids(self, mock_get_executor):
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_parallel_invokes_spawn_unique_internal_ids(self):
         mgr = MagicMock()
         spawned: list[str] = []
 
@@ -1075,9 +1069,7 @@ class TestInternalIdUniqueness:
             spawned.append(kwargs["task_id"])
             if kwargs["agent_type"] == "w":
                 return _ok(kwargs["task_id"], "w", "work output")
-            return _ok(
-                kwargs["task_id"], "v", _verdict_json("PASS", "ok STDOUT", "HIGH")
-            )
+            return _ok(kwargs["task_id"], "v", _verdict_json("PASS", "ok", "HIGH"))
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -1098,11 +1090,7 @@ class TestInternalIdUniqueness:
             )
             assert result.success
 
-        internal_ids = [
-            tid
-            for tid in spawned
-            if tid.startswith(("verify-worker-", "verify-check-"))
-        ]
+        internal_ids = [tid for tid in spawned if tid.startswith(("verify-worker-", "verify-check-"))]
         assert len(internal_ids) == 2  # one verifier per invocation
         assert len(internal_ids) == len(set(internal_ids)), internal_ids
 
@@ -1114,9 +1102,7 @@ class TestInternalIdUniqueness:
 
 class TestFormatWorkerOutput:
     def test_dict_with_text_returns_text(self):
-        assert (
-            _format_worker_output_for_verifier({"text": "hello", "other": 1}) == "hello"
-        )
+        assert _format_worker_output_for_verifier({"text": "hello", "other": 1}) == "hello"
 
     def test_dict_without_text_returns_filtered_json(self):
         result = _format_worker_output_for_verifier(
@@ -1136,9 +1122,7 @@ class TestFormatWorkerOutput:
 
 class TestAppendVerificationBlock:
     def test_dict_with_prior_summary_appends(self):
-        updated = _append_verification_block(
-            {"result": "r", "_verification_summary": "old"}, "block"
-        )
+        updated = _append_verification_block({"result": "r", "_verification_summary": "old"}, "block")
         assert updated["_verification_summary"] == "old\n\nblock"
 
     def test_dict_without_prior_sets_summary_and_append_text(self):
@@ -1169,33 +1153,17 @@ class TestSpawnDictToSubagentResult:
 
 
 class TestBuildVerifierToolRegistryGetter:
-    def test_filters_non_readonly_mcp_tools_and_appends_verdict_tool(self):
+    def test_passes_parent_tools_through_and_appends_verdict_tool(self):
         from myrm_agent_harness.agent.sub_agents._verifier_round import (
             _build_verifier_tool_registry_getter,
         )
 
-        ro = MagicMock()
-        ro.readonly = True
-        plain = MagicMock()
-        plain.readonly = None
-        plain.metadata = {}
-        plain.is_mcp = False
-        mcp_ro = MagicMock()
-        mcp_ro.readonly = None
-        mcp_ro.metadata = {"readonly": True, "is_mcp": True}
-        mcp_rw = MagicMock()
-        mcp_rw.readonly = None
-        mcp_rw.metadata = {"readonly": False, "is_mcp": True}
+        parent_tools = [MagicMock(), MagicMock()]
 
-        getter = _build_verifier_tool_registry_getter(
-            lambda: [ro, plain, mcp_ro, mcp_rw], {}
-        )
-        tools = getter()
-        assert ro in tools
-        assert plain in tools
-        assert mcp_ro in tools
-        assert mcp_rw not in tools
-        assert any(getattr(t, "name", "") == "submit_verdict" for t in tools)
+        tools = _build_verifier_tool_registry_getter(lambda: parent_tools, {})()
+
+        assert tools[:2] == parent_tools
+        assert [getattr(t, "name", "") for t in tools[2:]] == ["submit_verdict"]
 
 
 # ---------------------------------------------------------------------------
@@ -1232,18 +1200,13 @@ class TestRunWithVerificationCancelled:
 class TestExecuteVerifierRoundWorkspaceDiff:
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.sub_agents._verifier_round.diff_snapshots")
-    @patch(
-        "myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot"
-    )
-    @patch("myrm_agent_harness.toolkits.code_execution.executors.base.get_executor")
-    async def test_diff_injected_and_verdict_returned(
-        self, mock_get_executor, mock_snapshot, mock_diff
-    ):
+    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot")
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_diff_injected_and_verdict_returned(self, mock_snapshot, mock_diff):
         from myrm_agent_harness.agent.sub_agents._verifier_round import (
             _execute_verifier_round,
         )
 
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mock_snapshot.return_value = {"file.py": (10.0, 5)}
         mock_diff.return_value = "--- /dev/null\n+++ b/file.py\n"
 
@@ -1254,7 +1217,7 @@ class TestExecuteVerifierRoundWorkspaceDiff:
             return _ok(
                 kwargs["task_id"],
                 kwargs["agent_type"],
-                _verdict_json("PASS", "ok STDOUT", "HIGH"),
+                _verdict_json("PASS", "ok", "HIGH"),
             )
 
         mgr.spawn_child = _spawn
@@ -1282,14 +1245,9 @@ class TestExecuteVerifierRoundWorkspaceDiff:
 
 class TestRunWithVerificationSnapshotFailure:
     @pytest.mark.asyncio
-    @patch(
-        "myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot"
-    )
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_pre_snapshot_failure_does_not_abort(
-        self, mock_get_executor, mock_snapshot
-    ):
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
+    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_pre_snapshot_failure_does_not_abort(self, mock_snapshot):
         mock_snapshot.side_effect = OSError("snapshot failed")
         mgr = MagicMock()
 
@@ -1299,7 +1257,7 @@ class TestRunWithVerificationSnapshotFailure:
             return _ok(
                 kwargs["task_id"],
                 kwargs["agent_type"],
-                _verdict_json("PASS", "All good STDOUT", "HIGH"),
+                _verdict_json("PASS", "All good", "HIGH"),
             )
 
         mgr.spawn_child = _spawn
@@ -1328,21 +1286,14 @@ class TestRunWithVerificationSnapshotFailure:
 class TestAuditorBlindAndSnapshotRevert:
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.sub_agents._verifier_round.diff_snapshots")
-    @patch(
-        "myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot"
-    )
-    @patch(
-        "myrm_agent_harness.agent.sub_agents._verifier_round.revert_workspace_mutations"
-    )
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_auditor_blind_omits_worker_narrative_when_diff_present(
-        self, mock_get_executor, mock_revert, mock_snapshot, mock_diff
-    ):
+    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot")
+    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.revert_workspace_mutations")
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_auditor_blind_omits_worker_narrative_when_diff_present(self, mock_revert, mock_snapshot, mock_diff):
         from myrm_agent_harness.agent.sub_agents._verifier_round import (
             _execute_verifier_round,
         )
 
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mock_snapshot.return_value = {"file.py": (10.0, 5)}
         mock_diff.return_value = "## Workspace Changes\n- `file.py` modified"
         mock_revert.return_value = []
@@ -1355,7 +1306,7 @@ class TestAuditorBlindAndSnapshotRevert:
             return _ok(
                 kwargs["task_id"],
                 kwargs["agent_type"],
-                _verdict_json("PASS", "Blind check ok STDOUT", "HIGH"),
+                _verdict_json("PASS", "Blind check ok", "HIGH"),
             )
 
         mgr.spawn_child = _spawn
@@ -1391,9 +1342,7 @@ class TestAuditorBlindAndSnapshotRevert:
         base_file = tmp_path / "base.py"
         base_file.write_text("print('base')")
 
-        pre_snapshot = {
-            "base.py": (base_file.stat().st_mtime, base_file.stat().st_size)
-        }
+        pre_snapshot = {"base.py": (base_file.stat().st_mtime, base_file.stat().st_size)}
 
         # Verifier created stray test files
         stray_file = tmp_path / "test_temp_out.py"
@@ -1417,12 +1366,9 @@ class TestAuditorBlindAndSnapshotRevert:
 
 class TestMultiSkepticVerification:
     @pytest.mark.asyncio
-    @patch(
-        "myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot"
-    )
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_multi_skeptic_majority_pass(self, mock_get_executor, mock_snapshot):
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
+    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_multi_skeptic_majority_pass(self, mock_snapshot):
         mock_snapshot.return_value = {"file.py": (10.0, 5)}
 
         mgr = MagicMock()
@@ -1439,7 +1385,7 @@ class TestMultiSkepticVerification:
             return _ok(
                 task_id,
                 "verifier",
-                _verdict_json(verdict_str, f"Skeptic {call_count} STDOUT", "HIGH"),
+                _verdict_json(verdict_str, f"Skeptic {call_count}", "HIGH"),
             )
 
         mgr.spawn_child = _spawn
@@ -1463,20 +1409,110 @@ class TestMultiSkepticVerification:
         assert result.success
         assert result.verification is not None
         assert result.verification.passed is True
-        assert (
-            "Multi-Skeptic Voting: 2/3 approved (majority=PASS)"
-            in result.verification.summary
-        )
+        assert "Multi-Skeptic Voting: 2/3 approved (majority=PASS)" in result.verification.summary
 
     @pytest.mark.asyncio
-    @patch(
-        "myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot"
+    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @pytest.mark.parametrize(
+        ("skeptic_plan", "expected_passed", "expected_tally"),
+        [
+            ([("PASS", False), ("PASS", True), ("PASS", True)], True, "2/2 approved"),
+            ([("PASS", False), ("PASS", True), ("FAIL", True)], False, "1/2 approved"),
+            ([("FAIL", True), ("PASS", False), ("PASS", False)], False, "0/1 approved"),
+        ],
     )
-    @patch(_GET_EXECUTOR_PATH)
-    async def test_multi_skeptic_fail_closed_on_crash(
-        self, mock_get_executor, mock_snapshot
+    async def test_multi_skeptic_lazy_skeptic_abstains_instead_of_voting(
+        self, mock_snapshot, skeptic_plan, expected_passed, expected_tally
     ):
-        mock_get_executor.return_value = _mock_executor(has_executed=True)
+        """A skeptic that passed without launching any command casts no vote, in either direction."""
+        mock_snapshot.return_value = {}
+
+        mgr = MagicMock()
+        skeptic_calls = 0
+
+        async def _spawn(**kwargs):
+            nonlocal skeptic_calls
+            task_id = kwargs["task_id"]
+            if "worker" in task_id or task_id == "biz-task":
+                return _ok(task_id, "worker", "worker done")
+            verdict_str, ran_command = skeptic_plan[skeptic_calls]
+            skeptic_calls += 1
+            if ran_command:
+                record_execution()
+            return _ok(task_id, "verifier", _verdict_json(verdict_str, f"Skeptic {skeptic_calls}", "HIGH"))
+
+        mgr.spawn_child = _spawn
+
+        result = await run_with_verification(
+            mgr,
+            worker_type="worker",
+            worker_config=SubagentConfig(system_prompt="worker"),
+            worker_task="do task",
+            verifier_type="verifier",
+            verifier_config=SubagentConfig(system_prompt="verifier"),
+            context={"workspace_path": "/tmp/w"},
+            tool_registry_getter=lambda: [],
+            max_rounds=1,
+            task_id="biz-task",
+            verification_mode="multi_skeptic",
+        )
+
+        assert result.verification is not None
+        assert result.verification.passed is expected_passed
+        assert expected_tally in result.verification.summary
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @pytest.mark.parametrize(
+        "ran_command_per_skeptic",
+        [
+            [False, False, False],
+            [True, False, False],
+        ],
+    )
+    async def test_multi_skeptic_without_a_deciding_vote_blocks_without_a_verdict(
+        self, mock_snapshot, ran_command_per_skeptic
+    ):
+        """No conclusive vote, or a lone PASS that can neither reach the quorum nor prove a defect, decides nothing."""
+        mock_snapshot.return_value = {}
+
+        mgr = MagicMock()
+        skeptic_calls = 0
+
+        async def _spawn(**kwargs):
+            nonlocal skeptic_calls
+            task_id = kwargs["task_id"]
+            if "worker" in task_id or task_id == "biz-task":
+                return _ok(task_id, "worker", "worker done")
+            if ran_command_per_skeptic[skeptic_calls]:
+                record_execution()
+            skeptic_calls += 1
+            return _ok(task_id, "verifier", _verdict_json("PASS", "Skeptic"))
+
+        mgr.spawn_child = _spawn
+
+        result = await run_with_verification(
+            mgr,
+            worker_type="worker",
+            worker_config=SubagentConfig(system_prompt="worker"),
+            worker_task="do task",
+            verifier_type="verifier",
+            verifier_config=SubagentConfig(system_prompt="verifier"),
+            context={"workspace_path": "/tmp/w"},
+            tool_registry_getter=lambda: [],
+            max_rounds=1,
+            task_id="biz-task",
+            verification_mode="multi_skeptic",
+        )
+
+        assert result.status == SubAgentStatus.BLOCKED
+        assert result.verification is None
+        assert result.error == "Multi-skeptic verifiers produced no conclusive verdict (Fail-Closed blocked)."
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @pytest.mark.usefixtures("verifier_ran_code")
+    async def test_multi_skeptic_fail_closed_on_crash(self, mock_snapshot):
         mock_snapshot.return_value = {}
 
         mgr = MagicMock()
