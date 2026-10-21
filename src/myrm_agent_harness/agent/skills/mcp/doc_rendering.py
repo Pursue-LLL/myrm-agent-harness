@@ -45,11 +45,16 @@ Every part is bounded below, so the assembled body can never exceed this.
 L2_FIXED_TOKENS = 224
 """Header + calling contract, measured on 12306."""
 
-INDEX_NOTE_TOKENS = 40
-"""Reserve for the tier note the generator appends after the tool section."""
+INDEX_NOTE_TOKENS = 96
+"""Reserve for the tier note the generator appends after the tool section.
+
+Covers a long server/skill name in the `/mcp/<skill>/<func>.md` pointer; the note is
+only appended for the `required`/`names` tiers, so reserving the maximum keeps the
+whole L2 body inside `L2_MAX_TOKENS` for every tier.
+"""
 
 MIN_TOOL_SECTION_TOKENS = L2_MAX_TOKENS - INSTRUCTIONS_TOKEN_LIMIT - L2_FIXED_TOKENS - INDEX_NOTE_TOKENS
-"""Floor left for tools when instructions use their whole cap (736)."""
+"""Floor left for tools when instructions use their whole cap (680)."""
 
 SIGNATURE_TOKENS_PER_TOOL = 120
 """Budget for one signature line; past it the line degrades to ``name(…)`` + a doc pointer."""

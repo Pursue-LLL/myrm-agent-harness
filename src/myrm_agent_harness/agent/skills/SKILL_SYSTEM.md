@@ -230,7 +230,7 @@ Level 2: 正文（Body）
   → LLM 选择使用某技能后按需加载
   → Token 消耗：~500-2000 tokens/技能
   → **MCP 例外**：`core_generator` 生成的 MCP SKILL.md 上限为 3,000 tokens
-    （instructions ≤2,000 + 工具段吃剩余额度 + 固定约 224 + tier note 40）。
+    （instructions ≤2,000 + 工具段吃剩余额度 + 固定约 224 + tier note 96）。
     理由：服务器的业务原则不截断，工具段用预算阶梯
     （full → required → names）适配工具数量，而不是砍规则。
 
