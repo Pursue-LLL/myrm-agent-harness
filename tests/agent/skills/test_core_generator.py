@@ -212,6 +212,42 @@ class TestBuildToolListIndex:
         assert tool_list.count("get_ticket") >= 2
         assert "不可直接调用" in tool_list
 
+    def test_large_server_lists_names_without_descriptions(
+        self, generator: MCPSkillGenerator, large_skill_meta: SkillMetadata
+    ) -> None:
+        assert large_skill_meta.mcp is not None
+        content = generator.generate_skill_content(large_skill_meta)
+        assert "- tool_0\n" in content
+        assert "Tool 0 description" not in content
+        assert "only names are listed" in content
+
+
+class TestInstructionsCap:
+    """Server instructions are bounded so one verbose server cannot blow up L2."""
+
+    def test_long_instructions_are_truncated(self, generator: MCPSkillGenerator) -> None:
+        long_text = "必须遵守的规则。" * 1_000
+        schemas: dict[str, dict[str, object]] = {
+            "__instructions__": {"content": long_text},
+            "fn_0": {"description": "Fn", "inputSchema": {"properties": {"a": {"type": "string"}}}},
+        }
+        mcp = MCPSkillData(server="verbose", tools=["fn_0"], config=[], tool_schemas=schemas)
+        meta = SkillMetadata(name="mcp_verbose_skill", description="d", mcp=mcp)
+        content = generator.generate_skill_content(meta)
+        assert "instructions truncated" in content
+        assert content.count("必须遵守的规则") < 1_000
+
+    def test_short_instructions_are_untouched(self, generator: MCPSkillGenerator) -> None:
+        schemas: dict[str, dict[str, object]] = {
+            "__instructions__": {"content": "必要时追问。"},
+            "fn_0": {"description": "Fn", "inputSchema": {}},
+        }
+        mcp = MCPSkillData(server="brief", tools=["fn_0"], config=[], tool_schemas=schemas)
+        meta = SkillMetadata(name="mcp_brief_skill", description="d", mcp=mcp)
+        content = generator.generate_skill_content(meta)
+        assert "必要时追问。" in content
+        assert "truncated" not in content
+
 
 class TestGenerateToolDoc:
     """generate_tool_doc (Level 3) must include returns section."""
@@ -519,7 +555,8 @@ class TestRenderSignatureEdge:
 
     def test_non_dict_param_info_skipped(self, generator: MCPSkillGenerator) -> None:
         schema = {"type": "object", "properties": {"weird": "not-a-dict"}}
-        assert render_signature("fn", schema) == "fn()"
+        # A malformed properties map means "unknown parameters", not "no parameters".
+        assert render_signature("fn", schema) == "fn(…)"
 
     def test_type_list_drops_null(self, generator: MCPSkillGenerator) -> None:
         schema = {"properties": {"q": {"type": ["string", "null"]}}}
@@ -608,10 +645,10 @@ class TestGenerateMetadataOnly:
         assert skills[0].is_mcp_skill is True
         assert skills[0].name == "mcp_srv_skill"
 
-    async def test_colliding_skill_names_keep_first(
+    async def test_colliding_skill_names_are_disambiguated(
         self, generator: MCPSkillGenerator, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """weather and weather-skill normalize to the same skill name; the later one is skipped."""
+        """weather and weather-skill normalize to the same name; the later one is renamed, not dropped."""
         from types import SimpleNamespace
         from unittest.mock import AsyncMock, MagicMock
 
@@ -633,4 +670,4 @@ class TestGenerateMetadataOnly:
                 MCPConfig(name="weather-skill", type="stdio", command="echo"),
             ]
         )
-        assert [skill.name for skill in skills] == ["mcp_weather_skill"]
+        assert [skill.name for skill in skills] == ["mcp_weather_skill", "mcp_weather_skill_2"]

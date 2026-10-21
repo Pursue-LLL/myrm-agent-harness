@@ -18,6 +18,7 @@ Skill registry. Manages runtime caches and lookups, primarily for MCP-based skil
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from xml.sax.saxutils import escape, quoteattr
 
 from myrm_agent_harness.backends.skills.types import SkillMetadata
@@ -142,6 +143,7 @@ def get_metadata_summary(
     max_skills: int = MAX_SKILLS_IN_PROMPT,
     *,
     hidden_skill_count: int = 0,
+    hidden_skill_names: Sequence[str] = (),
 ) -> str:
     """Generate structured XML skill summary for HumanMessage catalog blocks.
 
@@ -155,6 +157,10 @@ def get_metadata_summary(
     Skills with always=True are guaranteed inclusion in the XML **once the bound set exceeds the
     inline threshold**; below it every skill is inlined and ``always`` changes nothing. Remaining
     slots are filled by available skills first, then unavailable ones, up to max_skills.
+
+    ``hidden_skill_names`` keeps skills that did not fit discoverable: names alone let the
+    model call ``skill_select_tool`` directly instead of paying a ``skill_search_tool`` round
+    trip, and they keep user-authored skills visible when MCP skills fill the always band.
 
     Cache impact: stable skill list in messages[] keeps tool schema bytes stable;
     catalog size still counts toward cached conversation prefix when present.
@@ -202,6 +208,10 @@ def get_metadata_summary(
     ]
     if hidden_skill_count > 0:
         lines.append(" If the needed skill is not listed below: use skill_search_tool before skill_select_tool.")
+        if hidden_skill_names:
+            lines.append(
+                " Skills named under <hidden_skills> are still bound: pass the name to skill_select_tool directly."
+            )
     lines.append(" </routing_rules>")
     for s in included:
         attrs = f"name={quoteattr(s.name)} available={quoteattr(str(s.available).lower())} trust={quoteattr(s.trust.name.lower())}"
@@ -218,6 +228,11 @@ def get_metadata_summary(
         _append_contract_summary(lines, s)
 
         lines.append(" </skill>")
+
+    if hidden_skill_names:
+        lines.append(f' <hidden_skills count="{len(hidden_skill_names)}">')
+        lines.append(f" {escape(', '.join(hidden_skill_names))}")
+        lines.append(" </hidden_skills>")
 
     lines.append("</skills>")
     return "\n".join(lines)

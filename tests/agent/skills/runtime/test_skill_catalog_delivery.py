@@ -241,8 +241,51 @@ def test_resolve_catalog_display_skills_prefers_always_skills_when_over_threshol
     ]
     resolution = resolve_catalog_display_skills(skills)
     assert resolution.display_skills[0].name == "skill_0_skill"
-    assert len(resolution.display_skills) == 11
-    assert resolution.hidden_skill_count == 14
+    # The old SKILL_CORE_MAX cap collapsed 21+ skills to 10 visible; the always band
+    # plus the remaining slots must now fill the catalog instead.
+    assert len(resolution.display_skills) == 20
+    assert resolution.hidden_skill_count == 5
+    assert {skill.name for skill in resolution.hidden_skills} | {
+        skill.name for skill in resolution.display_skills
+    } == {skill.name for skill in skills}
+
+
+def test_catalog_visibility_is_monotonic_across_the_threshold() -> None:
+    from myrm_agent_harness.agent.skills.runtime.catalog_display import (
+        resolve_catalog_display_skills,
+    )
+
+    def visible(count: int) -> int:
+        skills = [
+            SkillMetadata(
+                name=f"skill_{idx:02d}_skill",
+                description="x",
+                model_invocable=True,
+                available=True,
+            )
+            for idx in range(count)
+        ]
+        return len(resolve_catalog_display_skills(skills).display_skills)
+
+    assert visible(20) == 20
+    assert visible(21) == 20
+    assert visible(40) == 20
+
+
+def test_hidden_skill_names_stay_selectable_in_the_catalog() -> None:
+    from myrm_agent_harness.agent.skills.runtime.skill_catalog_delivery import (
+        render_bound_skills_catalog,
+    )
+
+    skills = [
+        SkillMetadata(name=f"mcp_{idx:02d}_skill", description="x", model_invocable=True, available=True, always=True)
+        for idx in range(25)
+    ]
+    rendered = render_bound_skills_catalog(skills)
+    assert rendered is not None
+    assert '<hidden_skills count="5">' in rendered.xml
+    assert "mcp_20_skill" in rendered.xml
+    assert "pass the name to skill_select_tool directly" in rendered.xml
 
     from myrm_agent_harness.agent.skills.runtime.catalog_display import (
         resolve_catalog_display_skills,

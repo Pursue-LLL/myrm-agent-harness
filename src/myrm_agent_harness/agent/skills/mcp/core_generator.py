@@ -28,6 +28,7 @@ from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import (
     TOOL_DOC_TEMPLATE,
     build_call_example,
     build_params_section,
+    cap_instructions,
     normalize_input_schema,
     render_signature,
 )
@@ -59,7 +60,10 @@ TOOL_LINE_DESC_CHARS = 60
 """Characters of tool description kept after a signature line."""
 
 L2_SOFT_TOKEN_BUDGET = 3_000
-"""Warn when a generated SKILL.md exceeds this; server instructions are unbounded."""
+"""Warn when a generated SKILL.md exceeds this; signature/index growth is bounded elsewhere."""
+
+INSTRUCTIONS_TOKEN_LIMIT = 2_000
+"""Server instructions are capped here so one verbose server cannot blow up L2."""
 
 
 def _text_field(schema: JsonDict, key: str, default: str) -> str:
@@ -140,18 +144,24 @@ class MCPSkillGenerator:
                 continue
 
             instructions = conn.instructions_by_server.get(cfg.name)
-            skill = self._create_skill_metadata(cfg.name, server_tools, config_desc_map.get(cfg.name, ""), instructions)
-
-            owner = claimed_skill_names.get(skill.name)
-            if owner is not None:
-                logger.error(
+            _, base_name = self._get_safe_names(cfg.name)
+            skill_name = self._dedupe_skill_name(base_name, claimed_skill_names)
+            if skill_name != base_name:
+                logger.warning(
                     "MCP skill name collision: servers '%s' and '%s' both normalize to '%s'; "
-                    "keeping the first and skipping the second",
-                    owner,
+                    "renaming the latter to '%s' so both stay callable",
+                    claimed_skill_names[base_name],
                     cfg.name,
-                    skill.name,
+                    base_name,
+                    skill_name,
                 )
-                continue
+            skill = self._create_skill_metadata(
+                cfg.name,
+                server_tools,
+                config_desc_map.get(cfg.name, ""),
+                instructions,
+                skill_name=skill_name,
+            )
             claimed_skill_names[skill.name] = cfg.name
 
             if skill.mcp is not None:
@@ -176,10 +186,21 @@ class MCPSkillGenerator:
         instructions = tool_schemas.get("__instructions__", {}).get("content", "")
 
         tool_count = len(skill_meta.mcp.tools)
-        _, skill_name = self._get_safe_names(server_name)
+        # The registry matches on skill_meta.name, so L2 must advertise the same string:
+        # a server whose name collided was renamed, and recomputing from server_name
+        # here would print an import path that no skill answers to.
+        skill_name = skill_meta.name
         tool_list = self._build_tool_list(skill_meta.mcp.tools, tool_schemas, tool_count, skill_name=skill_name)
 
         usage_section = SKILL_USAGE_TEMPLATE.format(skill_name=skill_name)
+        index_note = (
+            f"\nThis server exposes {tool_count} tools, so only names are listed. "
+            f"Read `/mcp/{skill_name}/<func_name>.md` with `file_read_tool` for the 1-2 tools "
+            "you will call, then write the call.\n"
+            if tool_count > SIGNATURE_TOOL_LIMIT
+            else ""
+        )
+        instructions = cap_instructions(instructions, skill_meta.name, INSTRUCTIONS_TOKEN_LIMIT)
 
         intro = f"{instructions}\n\n" if instructions else ""
         content = f"""# {server_name.replace("_", " ").replace("-", " ").title()} Skill
@@ -189,7 +210,7 @@ class MCPSkillGenerator:
 ## Functions
 
 {tool_list}
-
+{index_note}
 {usage_section}
 """
 
@@ -241,8 +262,8 @@ class MCPSkillGenerator:
 
         The skill name becomes a Python package segment (``from skills.<name> import``),
         so every character outside ``[a-z0-9_]`` is folded to ``_``. Collisions produced
-        by that folding (``weather`` vs ``weather-skill``) are rejected by
-        :meth:`generate_metadata_only` rather than silently overwriting in the registry.
+        by that folding (``weather`` vs ``weather-skill``) are resolved by
+        :meth:`_dedupe_skill_name`, because dropping a server would make it unreachable.
 
         Returns:
             (display_name, skill_name) tuple
@@ -256,6 +277,16 @@ class MCPSkillGenerator:
             skill_name = f"{skill_name}_skill"
 
         return display_name, skill_name
+
+    @staticmethod
+    def _dedupe_skill_name(base: str, claimed: dict[str, str]) -> str:
+        """Return *base* or the first free ``base_<n>`` so every server keeps a skill."""
+        if base not in claimed:
+            return base
+        index = 2
+        while f"{base}_{index}" in claimed:
+            index += 1
+        return f"{base}_{index}"
 
     # ========== Internal: Description Building ==========
 
@@ -325,7 +356,7 @@ class MCPSkillGenerator:
         SKILL.md past the token band a skill body is expected to occupy).
         """
         if tool_count > SIGNATURE_TOOL_LIMIT:
-            return self._build_tool_index(tools, tool_schemas)
+            return self._build_tool_index(tools)
 
         lines: list[str] = []
         claimed: dict[str, str] = {}
@@ -345,10 +376,7 @@ class MCPSkillGenerator:
                     tool_name,
                     func_name,
                 )
-                lines.append(
-                    f"- {func_name} — {desc or 'no description'} "
-                    f"（不可直接调用：与 {canonical} 归一同名）"
-                )
+                lines.append(f"- {func_name} — {desc or 'no description'} （不可直接调用：与 {canonical} 归一同名）")
                 continue
             claimed[func_name] = tool_name
 
@@ -361,16 +389,15 @@ class MCPSkillGenerator:
 
         return "\n".join(lines)
 
-    def _build_tool_index(self, tools: list[str], tool_schemas: dict[str, JsonDict]) -> str:
-        """Name + first sentence for servers above ``SIGNATURE_TOOL_LIMIT``."""
-        lines: list[str] = []
-        for tool_name in tools:
-            schema = tool_schemas.get(tool_name, {})
-            desc = self._truncate_to_sentence(
-                _text_field(schema, "description", "No description available"), max_len=150
-            )
-            lines.append(f"- **{mcp_tool_short_name(tool_name)}**: {desc}")
-        return "\n\n".join(lines)
+    def _build_tool_index(self, tools: list[str]) -> str:
+        """Name-only index for servers above ``SIGNATURE_TOOL_LIMIT``.
+
+        Descriptions are dropped on purpose: a 100-tool server with first-sentence
+        hints costs ~3,800 tok, while names alone cost ~800. Measured on a realistic
+        100-tool set, a 40-character hint still costs ~3,500 tok, so there is no
+        useful middle ground — the model reads the doc for the one or two tools it needs.
+        """
+        return "\n".join(f"- {mcp_tool_short_name(tool_name)}" for tool_name in tools)
 
     def _build_tool_detail_doc(
         self,
@@ -419,6 +446,8 @@ class MCPSkillGenerator:
         tools: list[BaseTool],
         user_description: str = "",
         instructions: str | None = None,
+        *,
+        skill_name: str | None = None,
     ) -> SkillMetadata:
         """Create SkillMetadata for a single MCP server.
 
@@ -429,9 +458,12 @@ class MCPSkillGenerator:
             tools: Tools from this server
             user_description: User-provided description (from MCPConfig.description)
             instructions: MCP server instructions (from initialize handshake)
+            skill_name: Final skill name when the caller already resolved a collision;
+                defaults to the name derived from ``server_name``
         """
         tool_names = [tool.name for tool in tools]
-        _, skill_name = self._get_safe_names(server_name)
+        if skill_name is None:
+            _, skill_name = self._get_safe_names(server_name)
 
         skill_description = self._resolve_description(user_description, instructions, tools, server_name)
 

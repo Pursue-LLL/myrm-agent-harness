@@ -16,10 +16,43 @@ into human-readable markdown, enabling Agent LLMs to generate correct MCP tool a
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
+from myrm_agent_harness.utils.text_utils import get_token_count
+
+logger = logging.getLogger(__name__)
+
 type JsonDict = dict[str, Any]
+
+
+def cap_instructions(text: str, skill_name: str, limit: int) -> str:
+    """Bound server-provided instructions so one verbose server cannot blow up L2.
+
+    Cut on a sentence boundary near the token budget; the marker tells the model
+    that a rule may be missing so it asks instead of inventing one.
+    """
+    if not text:
+        return ""
+    tokens = get_token_count(text)
+    if tokens <= limit:
+        return text
+    budget = max(1, int(len(text) * limit / tokens))
+    head = text[:budget]
+    for separator in ("。", "\n", ". "):
+        cut = head.rfind(separator)
+        if cut > budget * 0.6:
+            head = head[: cut + len(separator)]
+            break
+    logger.warning(
+        "MCP instructions for '%s' truncated: %d -> about %d tokens",
+        skill_name,
+        tokens,
+        limit,
+    )
+    return f"{head.rstrip()}\n\n[instructions truncated at ~{limit} tokens; ask the user when a rule is unclear]"
+
 
 TOOL_DOC_TEMPLATE = """# {tool_name}
 
@@ -62,20 +95,26 @@ _CONSTRAINT_RENDERERS: list[tuple[str, str]] = [
 
 
 def build_params_section(input_schema: JsonDict) -> str:
-    """Build parameters documentation section with full JSON Schema constraints."""
-    if not input_schema or "properties" not in input_schema:
+    """Build parameters documentation section with full JSON Schema constraints.
+
+    Third-party servers send malformed schemas (``properties`` as a list, ``required``
+    as a bare string); documenting them must never raise, because this runs on the
+    Level-3 read path the model triggers mid-task.
+    """
+    properties = input_schema.get("properties") if isinstance(input_schema, dict) else None
+    if not isinstance(properties, dict) or not properties:
         return "## Parameters\n\nNo parameters required."
 
-    properties = input_schema.get("properties", {})
-    required = input_schema.get("required", [])
+    required = input_schema.get("required")
+    required_names = set(required) if isinstance(required, list) else set()
 
     lines = ["## Parameters\n"]
     for param_name, param_info in properties.items():
         if not isinstance(param_info, dict):
             continue
-        param_type = param_info.get("type", "any")
+        param_type = render_type(param_info)
         param_desc = param_info.get("description", "No description")
-        is_required = param_name in required
+        is_required = param_name in required_names
 
         required_tag = " **(required)**" if is_required else " (optional)"
         lines.append(f"### {param_name}{required_tag}")
@@ -148,17 +187,23 @@ def build_call_example(input_schema: JsonDict) -> str:
     Flattened schemas use dot-path names (``config.timeout``) which are not valid
     Python keywords, so those examples switch to a ``**{...}`` dict splat; emitting
     ``config.timeout=...`` directly would be a SyntaxError the model would copy.
+
+    A malformed ``properties``/``required`` from a third-party server yields an empty
+    example instead of raising on the Level-3 read path.
     """
-    if not isinstance(input_schema, dict) or "properties" not in input_schema:
+    properties = input_schema.get("properties") if isinstance(input_schema, dict) else None
+    if not isinstance(properties, dict) or not properties:
         return ""
-    properties = input_schema.get("properties", {})
-    required = set(input_schema.get("required", []))
+
+    required = input_schema.get("required")
+    required_names = set(required) if isinstance(required, list) else set()
+
     names: list[str] = []
     values: list[str] = []
     for name, info in properties.items():
-        if name not in required or not isinstance(info, dict):
+        if name not in required_names or not isinstance(info, dict):
             continue
-        ptype = info.get("type", "string")
+        ptype = render_type(info)
         names.append(name)
         values.append(_render_value(info, ptype))
 
@@ -237,8 +282,12 @@ def render_signature(func_name: str, input_schema: JsonDict) -> str:
 
     Required parameters come first so a long optional tail cannot bury them; both
     groups keep the schema's (canonicalised) order for a deterministic prompt.
+
+    A schema that declares properties but none of them renderable echoes ``(…)``
+    rather than ``()``: an empty signature would read as a zero-argument tool and
+    send the model to a call the server then rejects.
     """
-    properties = input_schema.get("properties")
+    properties = input_schema.get("properties") if isinstance(input_schema, dict) else None
     if not isinstance(properties, dict) or not properties:
         return f"{func_name}()"
     required = input_schema.get("required")
@@ -250,5 +299,7 @@ def render_signature(func_name: str, input_schema: JsonDict) -> str:
         is_optional = name not in required_names
         marker = "?" if is_optional else ""
         params.append((is_optional, f"{name}{marker}:{render_type(info)}{render_constraint(info)}"))
+    if not params:
+        return f"{func_name}(…)"
     params.sort(key=lambda item: (item[0], item[1]))
     return f"{func_name}({', '.join(text for _, text in params)})"

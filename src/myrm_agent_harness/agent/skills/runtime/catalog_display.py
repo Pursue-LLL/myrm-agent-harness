@@ -24,20 +24,21 @@ Visible vs selectable — the two sets are deliberately different:
   learns its name — from an earlier turn, an explicit user mention, or a search hit.
 
 A skill missing from the catalog is therefore not unreachable, but it is not discoverable by
-recall either: reaching it costs one ``skill_search_tool`` round trip.
+recall either: reaching it costs one ``skill_search_tool`` round trip — unless the catalog
+lists it by name in ``<hidden_skills>``, which is what this module now feeds so a hidden
+skill stays one ``skill_select_tool`` call away.
 
 Allocation when the bound set exceeds ``SKILL_INLINE_THRESHOLD``:
 
 1. Every ``always=True`` skill is taken first, with no cap of its own.
-2. The remainder is filled with non-always skills, capped by both
-   ``SKILL_SELECT_INLINE_MAX - len(always)`` and ``SKILL_CORE_MAX``.
+2. The remainder is filled with non-always skills, capped by
+   ``SKILL_SELECT_INLINE_MAX - len(always)``.
 3. The combined list is sorted by name and truncated to ``SKILL_SELECT_INLINE_MAX``.
 
-Consequence worth knowing before changing anything: because step 2 is capped at
-``SKILL_CORE_MAX``, a bound set just over the threshold shows far fewer skills than the
-threshold itself allows (20 skills → 20 visible, 21 skills → 10 visible). MCP skills are built
-with ``always=True`` (``agent.skills.mcp.core_generator``), so they consume step 1's budget
-unconditionally.
+Skills left out are returned as ``hidden_skills`` so the renderer can list their names.
+That keeps the catalog monotonic (20 skills -> 20 visible, 21 -> 20 + 1 hidden name)
+instead of collapsing to ten, and it keeps user skills discoverable when MCP skills
+consume the always band.
 """
 
 from __future__ import annotations
@@ -47,7 +48,6 @@ from dataclasses import dataclass
 from myrm_agent_harness.backends.skills.types import SkillMetadata, skill_visible_for_tools
 
 SKILL_INLINE_THRESHOLD = 20
-SKILL_CORE_MAX = 10
 SKILL_SELECT_INLINE_MAX = 20
 
 
@@ -57,6 +57,7 @@ class CatalogDisplayResolution:
 
     filtered_skills: list[SkillMetadata]
     display_skills: list[SkillMetadata]
+    hidden_skills: list[SkillMetadata]
     hidden_skill_count: int
 
 
@@ -107,16 +108,17 @@ def resolve_catalog_display_skills(
             key=lambda skill: skill.name,
         )
         remaining = max(SKILL_SELECT_INLINE_MAX - len(always_skills), 0)
-        core_non_always = non_always[: min(SKILL_CORE_MAX, remaining)]
-        display_skills = _sorted_inline(always_skills + core_non_always)
+        display_skills = _sorted_inline(always_skills + non_always[:remaining])
     else:
         display_skills = _sorted_inline(model_visible)
 
-    hidden = len(model_visible) - len(display_skills)
+    display_names = {skill.name for skill in display_skills}
+    hidden_skills = [skill for skill in model_visible if skill.name not in display_names]
     return CatalogDisplayResolution(
         filtered_skills=filtered,
         display_skills=display_skills,
-        hidden_skill_count=max(hidden, 0),
+        hidden_skills=hidden_skills,
+        hidden_skill_count=len(hidden_skills),
     )
 
 
@@ -141,7 +143,6 @@ def should_mount_skill_search_tool(
 
 
 __all__ = [
-    "SKILL_CORE_MAX",
     "SKILL_INLINE_THRESHOLD",
     "SKILL_SELECT_INLINE_MAX",
     "CatalogDisplayResolution",

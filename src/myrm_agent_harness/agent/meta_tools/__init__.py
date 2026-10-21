@@ -12,7 +12,7 @@
 [OUTPUT]
 - get_meta_tools: 获取所有元工具的函数(含自适应技能搜索逻辑)
 - 各个工具的 create_xxx_tool 工厂函数
-- SKILL_INLINE_THRESHOLD, SKILL_CORE_MAX: 自适应阈值常量（定义于 agent.skills.runtime.catalog_display）
+- SKILL_INLINE_THRESHOLD, SKILL_SELECT_INLINE_MAX: 自适应阈值常量（定义于 agent.skills.runtime.catalog_display）
 
 [POS]
 Agent meta-tools module. Provides tools that depend on Agent framework infrastructure:
@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 
 # Agent 专属工具(本模块)
 from myrm_agent_harness.agent.skills.runtime.catalog_display import (
-    SKILL_CORE_MAX,
     SKILL_INLINE_THRESHOLD,
     SKILL_SELECT_INLINE_MAX,
     resolve_catalog_display_skills,
@@ -47,6 +46,7 @@ from myrm_agent_harness.agent.skills.runtime.catalog_display import (
 
 from .answer_user_tool import create_answer_user_tool, request_answer_user_tool
 from .bash import create_bash_code_execute_tool, create_bash_process_tool
+from .communication import create_send_user_message_async_tool
 from .file_ops import (
     create_file_edit_tool,
     create_file_read_tool,
@@ -57,7 +57,6 @@ from .file_search import (
     create_grep_tool,
 )
 from .skills.manage import create_skill_manage_tool
-from .communication import create_send_user_message_async_tool
 from .skills.market import create_skill_market_tool
 from .skills.select import create_select_skill_tool
 from .spawn_subagent import (
@@ -248,7 +247,6 @@ def get_meta_tools(
 
 
 __all__ = [
-    "SKILL_CORE_MAX",
     "SKILL_INLINE_THRESHOLD",
     "SKILL_SELECT_INLINE_MAX",
     "FileAccessMode",

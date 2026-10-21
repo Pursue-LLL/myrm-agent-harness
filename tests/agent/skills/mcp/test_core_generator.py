@@ -395,3 +395,85 @@ class TestUsageTemplateShape:
         # function-name placeholders stay literal hints for the LLM to fill
         assert "<function_name>" in rendered
         assert "<func_name>" in rendered
+
+
+class TestMalformedSchemas:
+    """Third-party servers send malformed JSON Schema; the L3 path must never raise."""
+
+    def test_params_section_tolerates_non_object_properties(self) -> None:
+        from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import build_params_section
+
+        assert build_params_section({"properties": None}) == "## Parameters\n\nNo parameters required."
+        assert build_params_section({"properties": ["city"]}) == "## Parameters\n\nNo parameters required."
+
+    def test_params_section_ignores_string_required(self) -> None:
+        from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import build_params_section
+
+        section = build_params_section({"properties": {"c": {"type": "string"}}, "required": "city"})
+        assert "### c (optional)" in section
+        assert "**(required)**" not in section
+
+    def test_params_section_renders_nullable_type_without_list_repr(self) -> None:
+        from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import build_params_section
+
+        section = build_params_section({"properties": {"c": {"type": ["string", "null"]}}})
+        assert "- **Type**: `string`" in section
+        assert "'null'" not in section
+
+    def test_call_example_tolerates_non_object_properties(self) -> None:
+        from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import build_call_example
+
+        assert build_call_example({"properties": None}) == ""
+        assert build_call_example({"properties": ["city"]}) == ""
+        assert build_call_example({"properties": {"c": True}}) == ""
+
+    def test_call_example_ignores_string_required(self) -> None:
+        from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import build_call_example
+
+        # "city" as a bare string must not mark the single-letter param "c" required.
+        assert build_call_example({"properties": {"c": {"type": "string"}}, "required": "city"}) == ""
+
+    def test_signature_marks_unrenderable_properties(self) -> None:
+        from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import render_signature
+
+        # An empty signature would read as a zero-argument tool.
+        assert render_signature("f", {"properties": {"a": True}}) == "f(…)"
+        assert render_signature("f", {"properties": {"a": {"type": "string"}}, "required": ["a"]}) == "f(a:string)"
+
+
+class TestSkillNameCollisions:
+    """A folded name collision must rename, never drop a server."""
+
+    def test_colliding_server_names_both_survive(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class _Manager:
+            def __init__(self) -> None:
+                self.tools_by_server: dict[str, list[object]] = {
+                    "weather": [SimpleNamespace(name="get_temp", description="temp", args_schema=None)],
+                    "weather-skill": [SimpleNamespace(name="get_wind", description="wind", args_schema=None)],
+                }
+                self.instructions_by_server: dict[str, str] = {}
+
+            async def get_connection(self, _configs: list[object]) -> _Manager:
+                return self
+
+        async def _manager_factory() -> object:
+            return _Manager()
+
+        monkeypatch.setattr(
+            "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
+            _manager_factory,
+        )
+        configs = [
+            SimpleNamespace(name="weather", description=""),
+            SimpleNamespace(name="weather-skill", description=""),
+        ]
+        out = asyncio.run(mcp_skill_generator.generate_metadata_only(configs))
+        assert [skill.name for skill in out] == ["mcp_weather_skill", "mcp_weather_skill_2"]
+
+    def test_l2_import_path_uses_metadata_name(self) -> None:
+        meta = _skill_meta("weather-skill", ["get_wind"])
+        meta.name = "mcp_weather_skill_2"
+        out = mcp_skill_generator.generate_skill_content(meta)
+        assert "mcp_weather_skill_2" in out
+        assert "from skills.mcp_weather_skill_2" in out
+        assert "mcp_weather_skill`" not in out

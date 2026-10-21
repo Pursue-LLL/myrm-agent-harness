@@ -221,14 +221,21 @@ class ToolLayer(IntEnum):
 |---|---|
 | ≤ `SKILL_INLINE_THRESHOLD` (20) | 全部内联进 `<bound_skills>`，`always` 无效 |
 | > 20 且提供 `skill_configs` | 只内联 `is_core=true` 的（按名字排序，仍截断到 20） |
-| > 20 且无 `skill_configs` | `always` 全部先占位（无上限）→ 剩余名额填非 always，但被 `SKILL_CORE_MAX` (10) 二次截断 → 合计排序后截断到 20 |
+| > 20 且无 `skill_configs` | `always` 全部先占位（无上限）→ 剩余名额填非 always → 合计排序后截断到 20 |
 
-**由此产生的两个已知行为**（不是推测，是当前代码行为）：
+**落选技能不再静默消失**：`resolve_catalog_display_skills` 返回 `hidden_skills`，渲染器把它们以
+`<hidden_skills count="N">name1, name2, …</hidden_skills>` 附在目录末尾，并在 routing_rules 里
+说明「这些名字可直接传给 `skill_select_tool`」。因此目录是单调的（20 → 20 可见；21 → 20 可见 +
+1 个名字），用户技能也不会因为 MCP 占满 `always` 而彻底不可见。
 
-1. `always` 无上限。MCP 技能由 `core_generator._create_skill_metadata` 统一置为 `always=True`，所以 MCP 服务器越多，用户手写技能能拿到的目录名额越少；`always` 数量 ≥ 20 时用户技能完全不可见（但仍可经 `skill_search_tool` 检索并 `skill_select_tool` 加载）。
-2. 非 always 技能的 10 个截断导致阈值处断崖：20 个技能 → 可见 20；21 个技能 → 可见 10。10 这个值目前没有任何文档解释其来源与依据。
+**`always` 仍然无上限**：MCP 技能由 `core_generator._create_skill_metadata` 统一置为 `always=True`，
+服务器数量超过 20 时，超出部分只能出现在 `<hidden_skills>` 名单里。若要让它们拿到完整条目，
+需要单独立项调整 `always` 配额或 `SKILL_SELECT_INLINE_MAX`。
 
-**不变量**：目录只决定「模型能否看见」，不决定「能否被选中」。`skill_select_tool` 的白名单与 `skill_search_tool` 的索引都取自全量 `filtered_skills`。评估任何目录改动时，必须同时看**供给侧**（`filtered_skills`）与**接收侧**（`display_skills` → `<bound_skills>`），只看一侧会得出错误结论。
+**不变量**：目录只决定「模型能否看见多少细节」，不决定「能否被选中」。`skill_select_tool` 的白名单与
+`skill_search_tool` 的索引都取自全量 `filtered_skills`；`<hidden_skills>` 只是把「名字」这一层存在性
+补回来。评估任何目录改动时，必须同时看**供给侧**（`filtered_skills`）与**接收侧**（`display_skills`
++ `hidden_skills` → `<bound_skills>`），只看一侧会得出错误结论。
 
 ### 3.4 成本计算公式
 

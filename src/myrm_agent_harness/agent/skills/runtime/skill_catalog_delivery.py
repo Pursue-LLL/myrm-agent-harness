@@ -82,16 +82,32 @@ def compute_catalog_hash(catalog_body: str) -> str:
 
 @dataclass(frozen=True, slots=True)
 class RenderedCatalog:
-    """The catalog a bind list resolves to: XML body, its hash and the count of skills left out of it."""
+    """The catalog a bind list resolves to: XML body, its hash and what was left out of it."""
 
     xml: str
     hash: str
     hidden_skill_count: int
+    hidden_skill_names: tuple[str, ...] = ()
 
     @classmethod
-    def from_display(cls, display_skills: list[SkillMetadata], *, hidden_skill_count: int = 0) -> RenderedCatalog:
-        xml = get_metadata_summary(display_skills, hidden_skill_count=hidden_skill_count)
-        return cls(xml=xml, hash=compute_catalog_hash(xml), hidden_skill_count=hidden_skill_count)
+    def from_display(
+        cls,
+        display_skills: list[SkillMetadata],
+        *,
+        hidden_skill_count: int = 0,
+        hidden_skill_names: Sequence[str] = (),
+    ) -> RenderedCatalog:
+        xml = get_metadata_summary(
+            display_skills,
+            hidden_skill_count=hidden_skill_count,
+            hidden_skill_names=hidden_skill_names,
+        )
+        return cls(
+            xml=xml,
+            hash=compute_catalog_hash(xml),
+            hidden_skill_count=hidden_skill_count,
+            hidden_skill_names=tuple(hidden_skill_names),
+        )
 
 
 def render_bound_skills_catalog(
@@ -115,6 +131,7 @@ def render_bound_skills_catalog(
     return RenderedCatalog.from_display(
         resolution.display_skills,
         hidden_skill_count=resolution.hidden_skill_count,
+        hidden_skill_names=[skill.name for skill in resolution.hidden_skills],
     )
 
 
@@ -140,9 +157,16 @@ def build_bound_skills_block(
     display_skills: list[SkillMetadata],
     *,
     hidden_skill_count: int = 0,
+    hidden_skill_names: Sequence[str] = (),
 ) -> str:
     """Render the full ``<bound_skills>`` block for HumanMessage prepend."""
-    return _baseline_block(RenderedCatalog.from_display(display_skills, hidden_skill_count=hidden_skill_count))
+    return _baseline_block(
+        RenderedCatalog.from_display(
+            display_skills,
+            hidden_skill_count=hidden_skill_count,
+            hidden_skill_names=hidden_skill_names,
+        )
+    )
 
 
 def build_bound_skills_update_block(rendered: RenderedCatalog | None) -> str:
