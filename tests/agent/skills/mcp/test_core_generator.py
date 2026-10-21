@@ -24,6 +24,7 @@ from myrm_agent_harness.agent.skills.mcp.core_generator import (
 from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import render_signature
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 from myrm_agent_harness.backends.skills.types.types_requires import MCPSkillData
+from myrm_agent_harness.utils.text_utils import get_token_count
 
 
 def _tool_section(generator, tools, schemas, **kwargs):
@@ -479,3 +480,26 @@ class TestSkillNameCollisions:
         assert "mcp_weather_skill_2" in out
         assert "from skills.mcp_weather_skill_2" in out
         assert "mcp_weather_skill`" not in out
+
+
+class TestL2Bounded:
+    """Every cap is enforced, so the assembled L2 can never exceed their sum."""
+
+    def test_verbose_instructions_and_twenty_tools_stay_bounded(self) -> None:
+        from myrm_agent_harness.agent.skills.mcp.core_generator import L2_SOFT_TOKEN_BUDGET
+
+        tools = [f"tool_{i}" for i in range(20)]
+        schemas: dict[str, dict[str, object]] = {
+            name: {
+                "description": "Query records and return matches.",
+                "inputSchema": {
+                    "properties": {f"p{j}": {"type": "string"} for j in range(6)},
+                    "required": ["p0", "p1"],
+                },
+            }
+            for name in tools
+        }
+        schemas["__instructions__"] = {"content": "规则。" * 2_000}
+        meta = _skill_meta("verbose", tools, schemas=schemas)
+        content = mcp_skill_generator.generate_skill_content(meta)
+        assert get_token_count(content) <= L2_SOFT_TOKEN_BUDGET
