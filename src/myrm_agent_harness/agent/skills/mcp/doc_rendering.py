@@ -127,7 +127,7 @@ def build_tool_section(
         text = render_tool_tier(tools, tool_schemas, name_map, skill_name, tier)
         if get_token_count(text) <= budget:
             return text, tier
-    return build_tool_index(tools, name_map), "names"
+    return build_tool_index(tools, name_map, budget), "names"
 
 
 def render_tool_tier(
@@ -159,11 +159,32 @@ def render_tool_tier(
     return "\n".join(lines)
 
 
-def build_tool_index(tools: list[str], name_map: dict[str, str]) -> str:
+def build_tool_index(tools: list[str], name_map: dict[str, str], budget: int | None = None) -> str:
     """Name-only index, the last rung of the budget ladder.
 
     Descriptions are dropped on purpose: name-only costs 960 tokens for 100 tools
     and 2,360 for 300, while a first-sentence hint per tool would exceed the L2
     ceiling. The model reads the doc for the one or two tools it needs.
+
+    When the hard ceiling cannot fit every name, the tail is dropped with an
+    explicit count so the omission is visible instead of silent.
     """
-    return "\n".join(f"- {name_map[tool_name]}" for tool_name in tools)
+    lines = [f"- {name_map[tool_name]}" for tool_name in tools]
+    if budget is None:
+        return "\n".join(lines)
+
+    def _render(count: int) -> str:
+        omitted = len(lines) - count
+        suffix = f"\n[{omitted} more tools not shown; ask the user for the exact tool name]" if omitted else ""
+        return "\n".join(lines[:count]) + suffix
+
+    low, high, best = 0, len(lines), ""
+    while low <= high:
+        middle = (low + high) // 2
+        candidate = _render(middle)
+        if get_token_count(candidate) <= budget:
+            best = candidate
+            low = middle + 1
+        else:
+            high = middle - 1
+    return best or _render(0)

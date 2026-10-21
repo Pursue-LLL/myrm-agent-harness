@@ -710,6 +710,20 @@ class TestToolSectionLadder:
         assert "…" not in tool_list
         assert get_token_count(tool_list) <= 1_600
 
+    def test_budget_reserves_the_tier_note(self) -> None:
+        # The tier note is appended after the tool section; the budget must leave room for it.
+        assert L2_FIXED_TOKENS + INSTRUCTIONS_TOKEN_LIMIT + MIN_TOOL_SECTION_TOKENS + INDEX_NOTE_TOKENS == L2_MAX_TOKENS
+        assert tool_section_budget("") == L2_MAX_TOKENS - L2_FIXED_TOKENS - INDEX_NOTE_TOKENS
+        assert tool_section_budget("token " * 3_000) == MIN_TOOL_SECTION_TOKENS
+
+    def test_names_tier_respects_budget(self) -> None:
+        # A verbose server with hundreds of tools cannot fit every name inside the ceiling.
+        schemas = self._schemas(300)
+        budget = tool_section_budget("token " * 3_000)
+        tool_list = build_tool_section(list(schemas), schemas, "x", budget)[0]
+        assert get_token_count(tool_list) <= budget
+        assert "more tools not shown" in tool_list
+
     def test_fifty_tools_drop_optionals_but_keep_required(self) -> None:
         schemas = self._schemas(50)
         tool_list = build_tool_section(list(schemas), schemas, "x", 1_200)[0]
