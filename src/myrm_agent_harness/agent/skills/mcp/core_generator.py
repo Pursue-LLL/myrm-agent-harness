@@ -24,16 +24,25 @@ import re
 
 from langchain_core.tools import BaseTool
 
+from myrm_agent_harness.agent.skills.mcp.description import (
+    build_description_from_tools,
+    resolve_description,
+)
+from myrm_agent_harness.agent.skills.mcp.doc_rendering import (
+    INSTRUCTIONS_TOKEN_LIMIT,
+    L2_MAX_TOKENS,
+    build_tool_section,
+    cap_instructions,
+    clean_markdown,
+    text_field,
+    tool_section_budget,
+    truncate_to_sentence,
+)
 from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import (
     TOOL_DOC_TEMPLATE,
     build_call_example,
     build_params_section,
-    build_tool_index,
-    cap_instructions,
     normalize_input_schema,
-    render_tool_tier,
-    text_field,
-    truncate_to_sentence,
 )
 from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
     build_tool_name_map,
@@ -47,20 +56,6 @@ from myrm_agent_harness.utils.text_utils import get_token_count
 logger = logging.getLogger(__name__)
 
 type JsonDict = dict[str, object]
-
-INSTRUCTIONS_TOKEN_LIMIT = 2_000
-"""Server instructions are capped here so one verbose server cannot blow up L2."""
-
-L2_MAX_TOKENS = 3_000
-"""Hard ceiling for one generated SKILL.md body (1.5x the 2,000-token authored band).
-
-Every part is bounded below, so the assembled body can never exceed this.
-"""
-
-L2_FIXED_TOKENS = 224  # header + calling contract, measured on 12306
-
-MIN_TOOL_SECTION_TOKENS = L2_MAX_TOKENS - INSTRUCTIONS_TOKEN_LIMIT - L2_FIXED_TOKENS
-"""Floor left for tools when instructions use their whole cap (776)."""
 
 
 SKILL_USAGE_TEMPLATE = """

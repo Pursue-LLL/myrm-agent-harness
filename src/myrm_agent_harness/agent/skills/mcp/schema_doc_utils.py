@@ -7,6 +7,7 @@
 - extract_schema_constraints: Formats JSON Schema constraints as markdown documentation lines.
 - build_params_section: Builds full parameters documentation section from JSON Schema.
 - build_call_example: Generates minimal call example string from required parameters.
+- render_signature / render_type / render_constraint: Compact one-line signatures for L2.
 - TOOL_DOC_TEMPLATE: Template for single tool documentation (Level 3).
 
 [POS]
@@ -16,42 +17,10 @@ into human-readable markdown, enabling Agent LLMs to generate correct MCP tool a
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import Any
 
-from myrm_agent_harness.utils.text_utils import get_token_count
-
-logger = logging.getLogger(__name__)
-
 type JsonDict = dict[str, Any]
-
-
-def cap_instructions(text: str, skill_name: str, limit: int) -> str:
-    """Bound server-provided instructions so one verbose server cannot blow up L2.
-
-    Cut on a sentence boundary near the token budget; the marker tells the model
-    that a rule may be missing so it asks instead of inventing one.
-    """
-    if not text:
-        return ""
-    tokens = get_token_count(text)
-    if tokens <= limit:
-        return text
-    budget = max(1, int(len(text) * limit / tokens))
-    head = text[:budget]
-    for separator in ("。", "\n", ". "):
-        cut = head.rfind(separator)
-        if cut > budget * 0.6:
-            head = head[: cut + len(separator)]
-            break
-    logger.warning(
-        "MCP instructions for '%s' truncated: %d -> about %d tokens",
-        skill_name,
-        tokens,
-        limit,
-    )
-    return f"{head.rstrip()}\n\n[instructions truncated at ~{limit} tokens; ask the user when a rule is unclear]"
 
 
 TOOL_DOC_TEMPLATE = """# {tool_name}
@@ -312,63 +281,3 @@ def render_signature(func_name: str, input_schema: JsonDict, *, required_only: b
         return f"{func_name}(…)"
     params.sort(key=lambda item: (item[0], item[1]))
     return f"{func_name}({', '.join(text for _, text in params)})"
-
-
-# --- L2 tool section (budget ladder) ----------------------------------------------------
-
-SIGNATURE_TOKENS_PER_TOOL = 120
-"""Budget for one signature line; past it the line degrades to ``name(…)`` + a doc pointer."""
-
-TOOL_LINE_DESC_CHARS = 60
-"""Characters of tool description kept after a signature line."""
-
-
-def text_field(schema: JsonDict, key: str, default: str) -> str:
-    """Return the string stored under *key*, or *default* when absent or not a string."""
-    value = schema.get(key)
-    return value if isinstance(value, str) else default
-
-
-def truncate_to_sentence(text: str, max_len: int = 150) -> str:
-    """Truncate text at the first sentence boundary, or at max_len."""
-    match = re.search(r"[。.\n]", text)
-    if match and match.end() <= max_len:
-        return text[: match.end()].strip()
-    if len(text) > max_len:
-        return text[:max_len].strip() + "..."
-    return text
-
-
-def build_tool_index(tools: list[str], name_map: dict[str, str]) -> str:
-    """Name-only index: the last rung of the L2 budget ladder."""
-    return "\n".join(f"- {name_map[tool_name]}" for tool_name in tools)
-
-
-def render_tool_tier(
-    tools: list[str],
-    tool_schemas: dict[str, JsonDict],
-    name_map: dict[str, str],
-    skill_name: str,
-    tier: str,
-    *,
-    line_budget: int = SIGNATURE_TOKENS_PER_TOOL,
-    desc_chars: int = TOOL_LINE_DESC_CHARS,
-) -> str:
-    """Render the L2 tool section for one ladder tier (``full`` / ``required`` / ``names``)."""
-    if tier == "names":
-        return build_tool_index(tools, name_map)
-
-    lines: list[str] = []
-    for tool_name in tools:
-        schema = tool_schemas.get(tool_name, {})
-        func_name = name_map[tool_name]
-        desc = truncate_to_sentence(text_field(schema, "description", ""), max_len=desc_chars).strip()
-        signature = render_signature(
-            func_name, normalize_input_schema(schema.get("inputSchema")), required_only=tier == "required"
-        )
-        line = f"- {signature} — {desc}" if desc else f"- {signature}"
-        if get_token_count(line) > line_budget:
-            pointer = f"/mcp/{skill_name}/{func_name}.md" if skill_name else "the function doc"
-            line = f"- {func_name}(…) — {desc or 'no description'}（参数见 {pointer}）"
-        lines.append(line)
-    return "\n".join(lines)
