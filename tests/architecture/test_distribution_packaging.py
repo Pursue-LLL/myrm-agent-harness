@@ -1,0 +1,268 @@
+"""Architecture tests for distribution packaging."""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+import tomllib
+import zipfile
+from pathlib import Path
+
+import pytest
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+
+from harness_packaging.assemble import (
+    ProductionWheels,
+    assemble_production_wheels,
+    install_production_wheels,
+    run_post_install_verify,
+)
+from harness_packaging.integrity import (
+    DistributionWheelRole,
+    manifest_import_names,
+    verify_distribution_wheel_artifact,
+)
+from harness_packaging.manifest import load_core_manifest
+from harness_packaging.platforms import SUPPORTED_PLATFORMS, get_current_platform
+from harness_packaging.release import manifest_source_paths, resolve_uv_executable, strip_manifest_sources_from_wheel
+from harness_packaging.version import read_harness_version
+from myrm_agent_harness.runtime.install_guard._generated.core_ip_manifest import CORE_IP_IMPORTS
+
+_MANIFEST_PATH = _REPO_ROOT / "harness_packaging" / "core_manifest.yaml"
+
+_SKIP_UNDER_XDIST = pytest.mark.skipif(
+    os.environ.get("PYTEST_XDIST_WORKER") is not None,
+    reason="Wheel build tests invoke Nuitka/subprocess and require pytest -n0",
+)
+
+_SKIP_WITHOUT_NUITKA = pytest.mark.skipif(
+    not __import__("importlib").util.find_spec("nuitka"),
+    reason="Nuitka is not installed (install with: uv sync --group build)",
+)
+
+_SLOW_ARCHITECTURE = pytest.mark.slow
+
+
+@pytest.fixture(scope="module")
+def production_wheels() -> ProductionWheels:
+    """Compile the core manifest once; every slow wheel test inspects the same build."""
+    return assemble_production_wheels()
+
+
+def _rustc_version_tuple() -> tuple[int, ...]:
+    """Return rustc version as a tuple, e.g. (1, 94, 1)."""
+    try:
+        out = subprocess.run(
+            ["rustc", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if out.returncode != 0:
+            return (0,)
+        parts = out.stdout.split()
+        if len(parts) >= 2:
+            return tuple(int(x) for x in parts[1].split(".") if x.isdigit())
+    except Exception:
+        pass
+    return (0,)
+
+
+_SKIP_RUSTC_TOO_OLD = pytest.mark.skipif(
+    _rustc_version_tuple() < (1, 94, 1),
+    reason="rustc >= 1.94.1 required for litellm wheel build",
+)
+
+
+@pytest.mark.architecture
+def test_platform_detection_returns_known_key() -> None:
+    plat = get_current_platform()
+    assert plat.key in SUPPORTED_PLATFORMS
+
+
+@pytest.mark.architecture
+def test_manifest_source_paths_match_yaml() -> None:
+    manifest = load_core_manifest()
+    paths = manifest_source_paths()
+    assert len(paths) == len(manifest.module_paths)
+    for path in paths:
+        assert path.startswith("myrm_agent_harness/")
+        assert path.endswith(".py")
+
+
+@pytest.mark.architecture
+def test_read_harness_version_matches_pyproject() -> None:
+    version = read_harness_version(_REPO_ROOT)
+    pyproject = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert version == pyproject["project"]["version"]
+
+
+@pytest.mark.architecture
+def test_core_ip_manifest_matches_yaml() -> None:
+    yaml_names = manifest_import_names()
+    assert yaml_names == CORE_IP_IMPORTS
+
+
+def _write_minimal_wheel(zf: zipfile.ZipFile, *, entries: dict[str, str]) -> None:
+    """Write wheel payload plus a PEP 427 RECORD stub required by release.py."""
+    record_path = "myrm_agent_harness-0.1.0.dist-info/RECORD"
+    for path, content in entries.items():
+        zf.writestr(path, content)
+    zf.writestr(record_path, "")
+
+
+@pytest.mark.architecture
+def test_strip_manifest_sources_from_wheel(tmp_path: Path) -> None:
+    manifest_paths = manifest_source_paths()
+    wheel_path = tmp_path / "myrm_agent_harness-0.1.0-py3-none-any.whl"
+    release_path = tmp_path / "out.whl"
+
+    with zipfile.ZipFile(wheel_path, "w") as zf:
+        _write_minimal_wheel(
+            zf,
+            entries={
+                "myrm_agent_harness/api/__init__.py": "# public",
+                manifest_paths[0]: "# secret",
+                "myrm_agent_harness/agent/other.py": "# ok",
+            },
+        )
+
+    result = strip_manifest_sources_from_wheel(wheel_path, release_path)
+    assert result == release_path
+
+    with zipfile.ZipFile(release_path, "r") as zf:
+        names = zf.namelist()
+    assert manifest_paths[0] not in names
+    assert "myrm_agent_harness/api/__init__.py" in names
+    assert "myrm_agent_harness/agent/other.py" in names
+
+
+@pytest.mark.architecture
+def test_strip_manifest_in_place_preserves_pep427_name(tmp_path: Path) -> None:
+    manifest_paths = manifest_source_paths()
+    wheel_path = tmp_path / "myrm_agent_harness-0.1.0-py3-none-any.whl"
+
+    with zipfile.ZipFile(wheel_path, "w") as zf:
+        _write_minimal_wheel(
+            zf,
+            entries={
+                "myrm_agent_harness/api/__init__.py": "# public",
+                manifest_paths[0]: "# secret",
+            },
+        )
+
+    result = strip_manifest_sources_from_wheel(wheel_path, in_place=True)
+    assert result.name == "myrm_agent_harness-0.1.0-py3-none-any.whl"
+    assert result.is_file()
+
+
+@pytest.mark.architecture
+@_SKIP_UNDER_XDIST
+@_SKIP_WITHOUT_NUITKA
+@_SLOW_ARCHITECTURE
+def test_core_wheel_contains_compiled_artifacts(production_wheels: ProductionWheels) -> None:
+    """Platform core wheel must ship Nuitka .so/.pyd for manifest modules."""
+    core_wheel = production_wheels.core_wheel
+    verify_distribution_wheel_artifact(core_wheel, role=DistributionWheelRole.CORE)
+
+    with zipfile.ZipFile(core_wheel, "r") as zf:
+        names = zf.namelist()
+    compiled = [n for n in names if n.startswith("myrm_agent_harness/") and (n.endswith(".so") or n.endswith(".pyd"))]
+    assert len(compiled) == len(manifest_source_paths()), compiled
+    assert any("agent/skills/evolution/core/engine" in n for n in compiled)
+    assert any("agent/context_management/pipeline/engine" in n for n in compiled)
+
+
+_SLOW_ARCHITECTURE = pytest.mark.slow
+
+
+@pytest.mark.architecture
+@_SKIP_UNDER_XDIST
+@_SLOW_ARCHITECTURE
+@_SKIP_RUSTC_TOO_OLD
+def test_release_wheel_is_uv_installable(tmp_path: Path) -> None:
+    """Release wheel filename must be PEP 427 compliant for uv pip install."""
+    subprocess.run(
+        [sys.executable, str(_REPO_ROOT / "scripts" / "build_release_wheel.py")],
+        check=True,
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    wheels = sorted((_REPO_ROOT / "dist").glob("myrm_agent_harness-*.whl"))
+    assert wheels, "build_release_wheel did not produce a wheel"
+    wheel_path = wheels[-1]
+
+    venv = tmp_path / "venv"
+    subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
+    venv_python = venv / "bin" / "python"
+    if not venv_python.exists():
+        venv_python = venv / "Scripts" / "python.exe"
+    result = subprocess.run(
+        [resolve_uv_executable(), "pip", "install", "--python", str(venv_python), str(wheel_path)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+    verify_distribution_wheel_artifact(wheel_path, role=DistributionWheelRole.RELEASE)
+
+
+@pytest.mark.architecture
+@_SKIP_UNDER_XDIST
+@_SKIP_WITHOUT_NUITKA
+@_SLOW_ARCHITECTURE
+def test_dual_wheel_compiled_mode_e2e(tmp_path: Path, production_wheels: ProductionWheels) -> None:
+    """Release + platform core wheels must install together and enter COMPILED mode."""
+    wheels = production_wheels
+
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    subprocess.run([sys.executable, "-m", "venv", str(consumer / ".venv")], check=True)
+
+    venv_python = install_production_wheels(
+        wheels.core_wheel,
+        wheels.release_wheel,
+        install_dir=consumer,
+    )
+    run_post_install_verify(venv_python)
+
+    probe = subprocess.run(
+        [
+            str(venv_python),
+            "-c",
+            (
+                "from myrm_agent_harness.runtime.install_guard.probe import ("
+                "DistributionMode, assert_distribution_ready, get_distribution_mode"
+                "); "
+                "assert_distribution_ready(); "
+                "assert get_distribution_mode() is DistributionMode.COMPILED"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert probe.returncode == 0, probe.stderr or probe.stdout
+
+
+@pytest.mark.architecture
+def test_verify_distribution_in_source_mode() -> None:
+    """install_guard verify must pass on editable dev installs (all .py source)."""
+    from importlib.metadata import entry_points
+
+    script_names = {ep.name for ep in entry_points(group="console_scripts")}
+    assert "verify-harness-distribution" in script_names
+
+    venv_python = _REPO_ROOT / ".venv" / "bin" / "python"
+    if not venv_python.is_file():
+        venv_python = _REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+    assert venv_python.is_file(), f"Harness venv python missing: {venv_python}"
+
+    subprocess.run(
+        [str(venv_python), "-m", "myrm_agent_harness.runtime.install_guard.verify"],
+        check=True,
+        cwd=_REPO_ROOT,
+    )

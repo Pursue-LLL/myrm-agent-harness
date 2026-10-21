@@ -1,0 +1,282 @@
+"""Memory observability DTOs.
+
+[INPUT]
+pydantic::BaseModel (POS: structured data model foundation)
+
+[OUTPUT]
+MemoryOperationKind, MemoryOperationStatus, MemorySpaceKind, MemoryInfluenceRef,
+MemoryOperationEvent, MemorySpaceBinding, MemoryOperationSink: business-neutral memory observability contracts.
+
+[POS]
+Memory observability contract layer. Defines framework-level DTOs that applications
+can project into dashboards or logs without coupling the harness to product concepts.
+
+Framework-owned, business-neutral contracts for memory operation visibility.
+Applications may project these models into dashboards, logs, or API responses
+without coupling the harness to product concepts.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from enum import StrEnum
+from typing import Literal, Protocol
+
+from pydantic import BaseModel, Field
+
+ScalarValue = str | int | float | bool | None
+type JsonValue = ScalarValue | dict[str, "JsonValue"] | list["JsonValue"]
+
+
+class MemoryOperationKind(StrEnum):
+    """Generic memory operation categories."""
+
+    OBSERVE = "observe"
+    EXTRACT = "extract"
+    PROPOSE = "propose"
+    APPROVE = "approve"
+    REJECT = "reject"
+    WRITE = "write"
+    INDEX = "index"
+    RECALL = "recall"
+    INJECT = "inject"
+    CITE = "cite"
+    FORGET = "forget"
+    CORRECT = "correct"
+    CONFLICT = "conflict"
+    MAINTENANCE = "maintenance"
+    IMPORT_MEMORY = "import_memory"
+    EXPORT_MEMORY = "export_memory"
+    HEALTH_CHECK = "health_check"
+
+
+class MemoryOperationStatus(StrEnum):
+    """Execution state for an observed memory operation."""
+
+    PENDING = "pending"
+    SUCCESS = "success"
+    SKIPPED = "skipped"
+    WARNING = "warning"
+    ERROR = "error"
+
+
+class MemorySpaceKind(StrEnum):
+    """Business-neutral namespace categories understood by the harness."""
+
+    GLOBAL = "global"
+    AGENT = "agent"
+    CHANNEL = "channel"
+    CONVERSATION = "conversation"
+    TASK = "task"
+    SHARED = "shared"
+    UNKNOWN = "unknown"
+
+
+class MemoryInfluenceRef(BaseModel):
+    """Reference to a memory that influenced recall, prompt context, or a reply."""
+
+    memory_id: str
+    memory_type: str
+    score: float | None = None
+    content_preview: str = ""
+    primary_namespace: str | None = None
+    namespaces: list[str] = Field(default_factory=list)
+    source_chat_id: str | None = None
+    source_message_id: str | None = None
+    reason: str | None = None
+
+
+class MemoryOperationEvent(BaseModel):
+    """Framework-level memory operation event payload."""
+
+    id: str
+    kind: MemoryOperationKind
+    status: MemoryOperationStatus
+    occurred_at: datetime
+    memory_id: str | None = None
+    memory_type: str | None = None
+    namespace: str | None = None
+    source: str | None = None
+    summary: str = ""
+    target_kind: str | None = None
+    target_id: str | None = None
+    correlation_id: str | None = None
+    trace_id: str | None = None
+    influence_refs: list[MemoryInfluenceRef] = Field(default_factory=list)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class MemoryTraceStep(BaseModel):
+    """One business-neutral step in a memory retrieval trace."""
+
+    phase: Literal[
+        "sanitize", "route", "embed", "collect", "rank", "graph", "rerank", "budget", "cite"
+    ]
+    status: Literal["success", "skipped", "warning", "error"] = "success"
+    title: str
+    summary: str = ""
+    duration_ms: float | None = None
+    input_count: int = 0
+    output_count: int = 0
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+# Stream Gather Typed Warning Codes SSOT
+GATHER_QUERY_EMBEDDING_TIMEOUT = "GATHER_QUERY_EMBEDDING_TIMEOUT"
+GATHER_QUERY_EMBEDDING_FAILED = "GATHER_QUERY_EMBEDDING_FAILED"
+GATHER_PROFILE_TIMEOUT = "GATHER_PROFILE_TIMEOUT"
+GATHER_PROFILE_FAILED = "GATHER_PROFILE_FAILED"
+GATHER_PROCEDURAL_TIMEOUT = "GATHER_PROCEDURAL_TIMEOUT"
+GATHER_PROCEDURAL_FAILED = "GATHER_PROCEDURAL_FAILED"
+GATHER_SEMANTIC_TIMEOUT = "GATHER_SEMANTIC_TIMEOUT"
+GATHER_SEMANTIC_FAILED = "GATHER_SEMANTIC_FAILED"
+GATHER_EPISODIC_TIMEOUT = "GATHER_EPISODIC_TIMEOUT"
+GATHER_EPISODIC_FAILED = "GATHER_EPISODIC_FAILED"
+GATHER_CONVERSATION_TIMEOUT = "GATHER_CONVERSATION_TIMEOUT"
+GATHER_CONVERSATION_FAILED = "GATHER_CONVERSATION_FAILED"
+GATHER_BM25_TIMEOUT = "GATHER_BM25_TIMEOUT"
+GATHER_BM25_FAILED = "GATHER_BM25_FAILED"
+GATHER_GRAPH_TIMEOUT = "GATHER_GRAPH_TIMEOUT"
+GATHER_GRAPH_FAILED = "GATHER_GRAPH_FAILED"
+GATHER_WIKI_TIMEOUT = "GATHER_WIKI_TIMEOUT"
+GATHER_WIKI_FAILED = "GATHER_WIKI_FAILED"
+GATHER_SESSIONS_TIMEOUT = "GATHER_SESSIONS_TIMEOUT"
+GATHER_SESSIONS_FAILED = "GATHER_SESSIONS_FAILED"
+GATHER_RERANK_TIMEOUT = "GATHER_RERANK_TIMEOUT"
+GATHER_RERANK_FAILED = "GATHER_RERANK_FAILED"
+
+GatherStreamWarningCode = Literal[
+    "GATHER_QUERY_EMBEDDING_TIMEOUT",
+    "GATHER_QUERY_EMBEDDING_FAILED",
+    "GATHER_PROFILE_TIMEOUT",
+    "GATHER_PROFILE_FAILED",
+    "GATHER_PROCEDURAL_TIMEOUT",
+    "GATHER_PROCEDURAL_FAILED",
+    "GATHER_SEMANTIC_TIMEOUT",
+    "GATHER_SEMANTIC_FAILED",
+    "GATHER_EPISODIC_TIMEOUT",
+    "GATHER_EPISODIC_FAILED",
+    "GATHER_CONVERSATION_TIMEOUT",
+    "GATHER_CONVERSATION_FAILED",
+    "GATHER_BM25_TIMEOUT",
+    "GATHER_BM25_FAILED",
+    "GATHER_GRAPH_TIMEOUT",
+    "GATHER_GRAPH_FAILED",
+    "GATHER_WIKI_TIMEOUT",
+    "GATHER_WIKI_FAILED",
+    "GATHER_SESSIONS_TIMEOUT",
+    "GATHER_SESSIONS_FAILED",
+    "GATHER_RERANK_TIMEOUT",
+    "GATHER_RERANK_FAILED",
+]
+
+
+class MemoryRetrievalTrace(BaseModel):
+    """Business-neutral trace for one memory retrieval call."""
+
+    id: str
+    query_preview: str
+    occurred_at: datetime
+    result_count: int = 0
+    degraded: bool = False
+    warning_codes: list[str] = Field(default_factory=list)
+    correlation_id: str | None = None
+    steps: list[MemoryTraceStep] = Field(default_factory=list)
+
+
+class MemoryRecallRoiGrade(StrEnum):
+    """Business-neutral evaluation grade for memory recall ROI."""
+
+    OPTIMAL = "optimal"
+    HEALTHY = "healthy"
+    DILUTED = "diluted"
+    CRITICAL = "critical"
+
+
+class MemoryPhaseLatency(BaseModel):
+    """Omri et al. 2026 three-phase latency telemetry in milliseconds."""
+
+    construction_ms: float = 0.0
+    retrieval_ms: float = 0.0
+    injection_overhead_ms: float = 0.0
+    total_wall_clock_ms: float = 0.0
+
+
+class MemoryTokenAccounting(BaseModel):
+    """Business-neutral token accounting and cache preservation metrics."""
+
+    injected_memory_tokens: int = 0
+    effective_cited_tokens: int = 0
+    background_construction_tokens: int = 0
+    cache_preservation_score: float = 0.0
+    roi_percentage: float = 0.0
+    roi_grade: MemoryRecallRoiGrade = MemoryRecallRoiGrade.HEALTHY
+
+
+class MemoryEconomicsSnapshot(BaseModel):
+    """Business-neutral snapshot of memory system economics for one turn or aggregated run."""
+
+    id: str
+    correlation_id: str | None = None
+    timestamp: datetime
+    latency: MemoryPhaseLatency = Field(default_factory=MemoryPhaseLatency)
+    accounting: MemoryTokenAccounting = Field(default_factory=MemoryTokenAccounting)
+    parasitic_memory_ids: list[str] = Field(default_factory=list)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class MemorySpaceBinding(BaseModel):
+    """A memory namespace exposed as an observable memory space."""
+
+    namespace: str
+    kind: MemorySpaceKind = MemorySpaceKind.UNKNOWN
+    label: str = ""
+    target_id: str | None = None
+    context_id: str | None = None
+    active: bool = True
+
+
+class MemoryOperationSink(Protocol):
+    """Application-provided sink for durable memory operation visibility."""
+
+    async def record_memory_operation(self, event: MemoryOperationEvent) -> None:
+        """Persist or forward one memory operation event."""
+
+
+__all__ = [
+    "GATHER_BM25_FAILED",
+    "GATHER_BM25_TIMEOUT",
+    "GATHER_CONVERSATION_FAILED",
+    "GATHER_CONVERSATION_TIMEOUT",
+    "GATHER_EPISODIC_FAILED",
+    "GATHER_EPISODIC_TIMEOUT",
+    "GATHER_GRAPH_FAILED",
+    "GATHER_GRAPH_TIMEOUT",
+    "GATHER_PROCEDURAL_FAILED",
+    "GATHER_PROCEDURAL_TIMEOUT",
+    "GATHER_PROFILE_FAILED",
+    "GATHER_PROFILE_TIMEOUT",
+    "GATHER_QUERY_EMBEDDING_FAILED",
+    "GATHER_QUERY_EMBEDDING_TIMEOUT",
+    "GATHER_SEMANTIC_FAILED",
+    "GATHER_SEMANTIC_TIMEOUT",
+    "GATHER_SESSIONS_FAILED",
+    "GATHER_SESSIONS_TIMEOUT",
+    "GATHER_WIKI_FAILED",
+    "GATHER_WIKI_TIMEOUT",
+    "GatherStreamWarningCode",
+    "MemoryEconomicsSnapshot",
+    "MemoryInfluenceRef",
+    "MemoryOperationEvent",
+    "MemoryOperationKind",
+    "MemoryOperationSink",
+    "MemoryOperationStatus",
+    "MemoryPhaseLatency",
+    "MemoryRecallRoiGrade",
+    "MemoryRetrievalTrace",
+    "MemorySpaceBinding",
+    "MemorySpaceKind",
+    "MemoryTokenAccounting",
+    "MemoryTraceStep",
+    "ScalarValue",
+]

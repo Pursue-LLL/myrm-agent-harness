@@ -1,0 +1,698 @@
+"""Batch approval decision handling — interrupt payload and decision application.
+
+[INPUT]
+- agent.security (POS: security types, approval flow, audit, engine)
+- agent.security.script_operand_verifier::compute_file_content_digest, extract_script_file_operand (POS: TOCTOU Defense verification)
+
+[OUTPUT]
+- build_interrupt_payload: Build LangChain-standard interrupt payload for batch approval (includes optional command_spans for shell tools).
+- apply_approval_decisions: Apply user decisions to tool_calls and generate ToolMessages (blocks unsafe shell edits).
+
+[POS]
+Batch approval decision handling — interrupt payload construction and decision application.
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+import uuid
+from typing import Any
+
+from langchain_core.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
+
+from myrm_agent_harness.agent.security.approval_flow import DEFAULT_USER_ID
+from myrm_agent_harness.agent.security.audit import record_decision
+from myrm_agent_harness.agent.security.command_allowlist_pattern import (
+    extract_shell_command,
+)
+from myrm_agent_harness.agent.security.engine import extract_url_domains
+from myrm_agent_harness.agent.security.path_security import (
+    is_protected_instruction_file,
+)
+from myrm_agent_harness.agent.security.types import SecurityConfig
+from myrm_agent_harness.core.security.redact import redact_for_display
+
+from .guidance_delivery import bounded_note
+from .helpers import add_to_allowlist_if_needed, record_approval, record_denial
+
+logger = logging.getLogger(__name__)
+
+
+def _integration_mutation_blocks_allow_always(tool_call: ToolCall | dict[str, object]) -> bool:
+    raw_args = tool_call.get("args", {})
+    if not isinstance(raw_args, dict):
+        return False
+    shell_cmd = str(raw_args.get("command", "") or raw_args.get("code", "")).strip()
+    if not shell_cmd:
+        return False
+    from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
+        is_integration_mutation_command,
+    )
+
+    return is_integration_mutation_command(shell_cmd)
+
+
+def _should_block_allow_always(
+    tool_call: ToolCall | dict[str, object],
+    extra_ctx: dict[str, Any] | None,
+) -> bool:
+    """Unified guard: returns True when allowAlways must be blocked."""
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_managed_approval_policy,
+    )
+    from myrm_agent_harness.agent.security.managed_policy_gates import (
+        allow_always_writes_blocked,
+    )
+
+    if allow_always_writes_blocked(get_managed_approval_policy()):
+        return True
+    if extra_ctx and (
+        extra_ctx.get("high_risk")
+        or extra_ctx.get("smart_denied")
+        or extra_ctx.get("hide_allow_always")
+        or extra_ctx.get("requires_dual_insurance")
+        or extra_ctx.get("socially_irreversible")
+        or extra_ctx.get("irreversible_destructive")
+        or extra_ctx.get("auto_mode_suspended")
+        or extra_ctx.get("protected_instruction")
+    ):
+        return True
+
+    raw_args = tool_call.get("args") or tool_call.get("arguments") or {}
+    if isinstance(raw_args, dict):
+        p = str(raw_args.get("path", "") or raw_args.get("file_path", "") or raw_args.get("filepath", "")).strip()
+        if p and is_protected_instruction_file(p):
+            return True
+
+        cmd = str(raw_args.get("command", "") or raw_args.get("code", "")).strip()
+        if cmd:
+            from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
+                is_protected_instruction_mutation_command,
+            )
+
+            if is_protected_instruction_mutation_command(cmd):
+                return True
+
+    return _integration_mutation_blocks_allow_always(tool_call)
+
+
+async def _try_add_to_allowlist(
+    tool_call: ToolCall | dict[str, object],
+    extra_ctx: dict[str, Any] | None,
+    allow_always: bool | dict[str, bool],
+    permission_type: str,
+    allowlist_tool_name: str,
+    idx: int,
+    args_hashes: dict[int, str | None],
+    ttl_seconds: int | float | None = None,
+) -> None:
+    """Write to allowlist if allow_always is set and not blocked by security guards."""
+    if not allow_always:
+        return
+    if _should_block_allow_always(tool_call, extra_ctx):
+        tool_name = tool_call.get("name", "unknown")
+        logger.warning(
+            "[APPROVAL] Ignoring allow_always for high-risk/restricted operation on %s",
+            tool_name,
+        )
+        return
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_agent_id,
+        get_approval_session,
+        get_approval_user_id,
+    )
+
+    user_id = get_approval_user_id() or DEFAULT_USER_ID
+    agent_id = get_agent_id() or None
+    session_id = get_approval_session() or None
+    tool_args = tool_call.get("args", {})
+    shell_command = extract_shell_command(tool_args if isinstance(tool_args, dict) else None)
+    await add_to_allowlist_if_needed(
+        allow_always,
+        user_id,
+        permission_type,
+        allowlist_tool_name,
+        args_hashes.get(idx),
+        tool_command=shell_command,
+        agent_id=agent_id,
+        ttl_seconds=ttl_seconds,
+        session_id=session_id,
+    )
+
+
+__all__ = ["apply_approval_decisions", "build_interrupt_payload"]
+
+_DEFAULT_APPROVAL_TIMEOUT_SECONDS = 600
+_DEFAULT_TIMEOUT_BEHAVIOR = "deny"
+
+_EDIT_REAPPROVAL_MESSAGE = (
+    "Edited command requires new approval: modified shell commands with "
+    "non-safe risk must be re-submitted by the agent."
+)
+
+_SHELL_EDIT_PERMISSION_TYPES = frozenset({"shell_exec", "code_interpreter"})
+
+
+def _edited_shell_edit_block_reason(
+    tool_name: str,
+    permission_type: str,
+    original_args: dict[str, object],
+    edited_args: dict[str, object],
+) -> str | None:
+    """Return a rejection reason when an edited shell command must be re-approved."""
+    from myrm_agent_harness.toolkits.code_execution.security.command_explainer.extract import (
+        extract_shell_command_text,
+        is_shell_approval_tool,
+    )
+    from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
+        CommandRiskLevel,
+        classify_command_risk,
+    )
+
+    if permission_type not in _SHELL_EDIT_PERMISSION_TYPES:
+        return None
+    if not is_shell_approval_tool(tool_name):
+        return None
+
+    original_cmd = extract_shell_command_text(original_args)
+    edited_cmd = extract_shell_command_text(edited_args)
+    if not edited_cmd or original_cmd.strip() == edited_cmd.strip():
+        return None
+    if classify_command_risk(edited_cmd) == CommandRiskLevel.SAFE:
+        return None
+    return _EDIT_REAPPROVAL_MESSAGE
+
+
+def build_interrupt_payload(
+    pending_approval: list[tuple[int, ToolCall, str, str, dict[str, Any] | None]],
+    session_key: str,
+    *,
+    approval_timeout_seconds: int | None = None,
+    timeout_behavior: str = _DEFAULT_TIMEOUT_BEHAVIOR,
+    workspace_root: str | None = None,
+) -> tuple[dict[str, Any], list[int]]:
+    """Build LangChain-standard interrupt payload for batch approval.
+
+    Args:
+        pending_approval: list of (idx, tool_call, permission_type, reason, extra_ctx)
+        session_key: session identifier for routing
+        approval_timeout_seconds: seconds before auto-resolution (from SecurityConfig)
+        timeout_behavior: "deny" or "allow" — action taken when timeout expires
+
+    Returns: (interrupt_payload, interrupt_indices)
+    """
+    action_requests = []
+    review_configs = []
+    interrupt_indices = []
+
+    for idx, tool_call, permission_type, reason, extra_ctx in pending_approval:
+        tool_name = tool_call.get("name", "unknown")
+        tool_input = tool_call.get("args", {})
+
+        action_name = tool_name
+        if extra_ctx and "ptc_tool_name_full" in extra_ctx:
+            action_name = extra_ctx["ptc_tool_name_full"]
+
+        redacted_args = redact_for_display(tool_input)
+        action_request: dict[str, object] = {
+            "action": action_name,
+            "args": redacted_args,
+            "description": reason,
+        }
+        if extra_ctx and "ptc_annotations" in extra_ctx:
+            action_request["ptc_annotations"] = extra_ctx["ptc_annotations"]
+
+        domains = extract_url_domains(permission_type, tool_input)
+        if domains:
+            action_request["domains"] = domains
+
+        from myrm_agent_harness.toolkits.code_execution.security.command_explainer.extract import (
+            build_shell_approval_fields,
+        )
+
+        action_request.update(build_shell_approval_fields(tool_name, redacted_args))
+
+        is_smart_denied = bool(extra_ctx and extra_ctx.get("smart_denied"))
+        is_high_risk = bool(extra_ctx and extra_ctx.get("high_risk"))
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_managed_approval_policy,
+        )
+        from myrm_agent_harness.agent.security.managed_policy_gates import (
+            allow_always_writes_blocked,
+        )
+
+        map_blocks_allow_always = allow_always_writes_blocked(get_managed_approval_policy())
+        if is_smart_denied:
+            review_config: dict[str, object] = {
+                "allowedDecisions": ["approve", "reject"],
+                "smartDenied": True,
+                "hideAllowAlways": True,
+            }
+            reviewer_reason = extra_ctx.get("reviewer_reason", "") if extra_ctx else ""
+            if reviewer_reason:
+                action_request["reviewerReason"] = reviewer_reason
+        else:
+            review_config = {
+                "allowedDecisions": ["approve", "reject", "edit"],
+            }
+            if is_high_risk or map_blocks_allow_always:
+                review_config["hideAllowAlways"] = True
+        if extra_ctx and extra_ctx.get("hide_allow_always"):
+            review_config["hideAllowAlways"] = True
+        if extra_ctx and extra_ctx.get("requires_dual_insurance"):
+            review_config["requiresDualInsurance"] = True
+        if extra_ctx and extra_ctx.get("batch_impact_summary"):
+            review_config["batchImpactSummary"] = extra_ctx.get("batch_impact_summary")
+        if extra_ctx and extra_ctx.get("recovery_hint"):
+            review_config["recoveryHint"] = extra_ctx.get("recovery_hint")
+        if extra_ctx and extra_ctx.get("is_spend"):
+            review_config["isSpend"] = True
+            review_config["spendAmount"] = extra_ctx.get("spend_amount")
+            review_config["spendCurrency"] = extra_ctx.get("spend_currency")
+            review_config["actionDigest"] = extra_ctx.get("action_digest")
+            review_config["hideAllowAlways"] = True
+        if extra_ctx and extra_ctx.get("auto_mode_suspended"):
+            review_config["autoModeSuspended"] = extra_ctx.get("auto_mode_suspended")
+            action_request["autoModeSuspended"] = extra_ctx.get("auto_mode_suspended")
+        if extra_ctx and extra_ctx.get("socially_irreversible"):
+            review_config["sociallyIrreversible"] = True
+            review_config["hideAllowAlways"] = True
+            action_request["sociallyIrreversible"] = True
+        if extra_ctx and extra_ctx.get("irreversible_destructive"):
+            review_config["irreversibleDestructive"] = True
+            review_config["hideAllowAlways"] = True
+            review_config["blastRadius"] = extra_ctx.get("blast_radius")
+            review_config["snapshotId"] = extra_ctx.get("snapshot_id")
+            action_request["irreversibleDestructive"] = True
+            if extra_ctx.get("snapshot_id"):
+                action_request["snapshotId"] = extra_ctx.get("snapshot_id")
+        if extra_ctx and extra_ctx.get("script_operand_path"):
+            action_request["scriptOperandPath"] = extra_ctx.get("script_operand_path")
+            action_request["scriptOperandHash"] = extra_ctx.get("script_operand_hash")
+            review_config["scriptOperandProtected"] = True
+        if extra_ctx and extra_ctx.get("script_content_hash"):
+            review_config["scriptTarget"] = extra_ctx.get("script_target")
+            review_config["scriptContentHash"] = extra_ctx.get("script_content_hash")
+            action_request["scriptTarget"] = extra_ctx.get("script_target")
+            action_request["scriptContentHash"] = extra_ctx.get("script_content_hash")
+            review_config["scriptOperandProtected"] = True
+        if domains:
+            review_config["domainApproval"] = True
+
+        action_requests.append(action_request)
+        review_configs.append(review_config)
+        interrupt_indices.append(idx)
+
+    logger.info(
+        "[BATCH_APPROVAL] Triggering interrupt for %d tools: %s",
+        len(action_requests),
+        [req["action"] for req in action_requests],
+    )
+
+    has_handover = any(perm_type == "browser_human_handover" for _, _, perm_type, _, _ in pending_approval)
+    display_mode = "handover" if has_handover else "approval"
+
+    effective_timeout = approval_timeout_seconds or _DEFAULT_APPROVAL_TIMEOUT_SECONDS
+    expires_at = time.time() + effective_timeout
+    request_id = str(uuid.uuid4())
+
+    payload: dict[str, Any] = {
+        "actionRequests": action_requests,
+        "reviewConfigs": review_configs,
+        "extensions": {
+            "timeout": {
+                "seconds": effective_timeout,
+                "expiresAt": expires_at,
+                "behavior": timeout_behavior,
+            },
+            "approval": {
+                "requestId": request_id,
+                "sessionKey": session_key,
+                "batchSize": len(action_requests),
+            },
+            "displayMode": display_mode,
+        },
+    }
+    if workspace_root:
+        payload["extensions"]["workspaceRoot"] = workspace_root
+
+    return payload, interrupt_indices
+
+
+async def apply_approval_decisions(
+    decisions: list[dict[str, Any]],
+    last_ai_msg: AIMessage,
+    auto_denied: list[tuple[int, ToolCall, str]],
+    pending_approval: list[tuple[int, ToolCall, str, str, dict[str, Any] | None]],
+    interrupt_indices: list[int],
+    args_hashes: dict[int, str | None],
+    config: SecurityConfig | None = None,
+) -> tuple[list[ToolCall], list[ToolMessage], list[HumanMessage]]:
+    """Apply user decisions to tool_calls and generate ToolMessages.
+
+    When *config* is provided and ``domain_hitl_enabled`` is True, handles
+    ``allowDomain`` extensions by adding approved domains to the session-scoped
+    runtime allowlist.
+
+    Returns: (revised_tool_calls, artificial_tool_messages, guidance_messages)
+    """
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_approval_session,
+    )
+
+    from ._batch_review import _get_runtime_domains
+
+    session_key = get_approval_session()
+
+    revised_tool_calls: list[ToolCall] = []
+    artificial_tool_messages: list[ToolMessage] = []
+    guidance_messages: list[HumanMessage] = []
+    decision_idx = 0
+
+    for idx, tool_call in enumerate(last_ai_msg.tool_calls):
+        denied = next(((d_idx, tc, msg) for d_idx, tc, msg in auto_denied if d_idx == idx), None)
+        if denied:
+            _, _, error_msg = denied
+            artificial_tool_messages.append(
+                ToolMessage(
+                    content=error_msg,
+                    name=tool_call.get("name", "unknown"),
+                    tool_call_id=tool_call.get("id", ""),
+                    status="error",
+                )
+            )
+            continue
+
+        if idx in interrupt_indices:
+            decision = decisions[decision_idx]
+            decision_idx += 1
+
+            _, _, permission_type, reason, extra_ctx = pending_approval[decision_idx - 1]
+            tool_name = tool_call.get("name", "unknown")
+            tool_call_id = tool_call.get("id", "")
+            allowlist_tool_name = extra_ctx.get("ptc_tool_name_full", tool_name) if extra_ctx else tool_name
+
+            decision_type = decision.get("type") or decision.get("decision") or "reject"
+            extensions = decision.get("extensions", {})
+            allow_always = decision.get("allow_always", extensions.get("allowAlways", False)) or decision.get(
+                "allowAlways", False
+            )
+            allow_domain = decision.get("allow_domain", extensions.get("allowDomain", False))
+            grant_directory = decision.get("grant_directory", extensions.get("grantDirectory", False))
+            ttl_seconds = (
+                decision.get("ttl_seconds")
+                or decision.get("ttlSeconds")
+                or extensions.get("ttlSeconds")
+                or extensions.get("ttl_seconds")
+            )
+            guidance_text = decision.get("guidance", "").strip() if isinstance(decision.get("guidance"), str) else ""
+
+            logger.info(
+                "[APPROVAL] Tool %s decision: type=%s, allow_always=%s, allow_domain=%s, grant_directory=%s, ttl_seconds=%s",
+                tool_name,
+                decision_type,
+                allow_always,
+                allow_domain,
+                grant_directory,
+                ttl_seconds,
+            )
+
+            if decision_type == "approve":
+                expected_digest = extra_ctx.get("action_digest") if extra_ctx else None
+                if expected_digest:
+                    from myrm_agent_harness.core.security.spend_governance import (
+                        verify_action_digest,
+                    )
+
+                    user_digest = str(
+                        decision.get("action_digest")
+                        or decision.get("actionDigest")
+                        or extensions.get("actionDigest")
+                        or extensions.get("action_digest")
+                        or ""
+                    ).strip()
+                    if not verify_action_digest(tool_name, tool_call.get("args", {}), user_digest):
+                        logger.warning(
+                            "[APPROVAL] Tool %s: action digest mismatch (expected=%s, received=%s)",
+                            tool_name,
+                            expected_digest,
+                            user_digest,
+                        )
+                        record_decision(
+                            tool_name,
+                            "DIGEST_MISMATCH_REJECT",
+                            "Financial action digest mismatch or missing: parameter tampering prevented",
+                        )
+                        hint = record_denial(tool_name, session_key)
+                        artificial_tool_messages.append(
+                            ToolMessage(
+                                content=(
+                                    f"Security Blocked: Financial action digest verification failed. "
+                                    f"Expected '{expected_digest[:16]}...', received '{user_digest[:16] if user_digest else 'none'}...'. "
+                                    f"Execution aborted to prevent parameter tampering.{hint}"
+                                ),
+                                name=tool_name,
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        )
+                        continue
+
+                expected_script_hash = extra_ctx.get("script_operand_hash") if extra_ctx else None
+                script_path = extra_ctx.get("script_operand_path") if extra_ctx else None
+                if expected_script_hash and script_path:
+                    from myrm_agent_harness.agent.security.script_operand_verifier import (
+                        verify_script_operand_integrity,
+                    )
+
+                    is_valid, drift_reason = verify_script_operand_integrity(expected_script_hash, script_path)
+                    if not is_valid:
+                        logger.warning(
+                            "[APPROVAL] Tool %s script operand drift blocked: %s",
+                            tool_name,
+                            drift_reason,
+                        )
+                        record_decision(
+                            tool_name,
+                            "SCRIPT_OPERAND_DRIFT_REJECT",
+                            drift_reason or "Approved script content modified before execution",
+                        )
+                        hint = record_denial(tool_name, session_key)
+                        artificial_tool_messages.append(
+                            ToolMessage(
+                                content=(
+                                    f"Security Blocked: {drift_reason or 'Approved script content was modified before execution (TOCTOU detected)'}. "
+                                    f"Execution aborted to prevent unreviewed code from running.{hint}"
+                                ),
+                                name=tool_name,
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        )
+                        continue
+
+                # ApprovedScriptsChangePrevention: generic script file content integrity check
+                if extra_ctx and extra_ctx.get("script_content_hash"):
+                    from myrm_agent_harness.core.security.spend_governance import (
+                        verify_script_file_integrity,
+                    )
+
+                    exp_script_hash = str(extra_ctx.get("script_content_hash"))
+                    target_script_path = str(extra_ctx.get("script_target") or "")
+                    is_script_valid, script_fail_reason = verify_script_file_integrity(
+                        target_script_path, exp_script_hash
+                    )
+                    if not is_script_valid:
+                        logger.warning(
+                            "[SCRIPT_INTEGRITY] TOCTOU script alteration detected on %s: %s",
+                            tool_name,
+                            script_fail_reason,
+                        )
+                        record_decision(
+                            tool_name,
+                            "SCRIPT_INTEGRITY_REJECT",
+                            script_fail_reason,
+                        )
+                        hint = record_denial(tool_name, session_key)
+                        artificial_tool_messages.append(
+                            ToolMessage(
+                                content=f"Security Blocked: {script_fail_reason}{hint}",
+                                name=tool_name,
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        )
+                        continue
+
+                if extra_ctx and extra_ctx.get("is_spend"):
+                    raw_args = tool_call.get("args")
+                    if isinstance(raw_args, dict) and "idempotency_key" not in raw_args:
+                        raw_args["idempotency_key"] = f"myrm_tx_{uuid.uuid4().hex[:16]}"
+
+                record_decision(tool_name, "USER_APPROVED", reason)
+                record_approval(session_key)
+
+                if grant_directory and "Path outside allowed zones" in reason:
+                    from myrm_agent_harness.agent.middlewares._session_context import (
+                        get_workspace_root,
+                    )
+                    from myrm_agent_harness.agent.security.session_access import (
+                        get_session_access_roots,
+                        grant_session_access_root,
+                        resolve_grant_directory_path,
+                    )
+                    from myrm_agent_harness.agent.security.types import (
+                        AccessRoot,
+                        _default_path_policy,
+                    )
+
+                    tool_input_grant: dict[str, object] = tool_call.get("args", {})
+                    raw_path = str(
+                        tool_input_grant.get("path")
+                        or tool_input_grant.get("file_path")
+                        or tool_input_grant.get("target_path")
+                        or ""
+                    ).strip()
+                    if raw_path:
+                        workspace_root = get_workspace_root() or None
+                        policy = config.path_policy if config else _default_path_policy()
+                        grant_path = resolve_grant_directory_path(raw_path, workspace_root)
+                        if grant_path:
+                            requires_write = permission_type in (
+                                "file_write",
+                                "file_edit",
+                                "file_delete",
+                            )
+                            roots_before = get_session_access_roots()
+                            grant_session_access_root(
+                                AccessRoot(
+                                    path=grant_path,
+                                    writable=requires_write,
+                                    source="path_ask_grant",
+                                ),
+                                policy=policy,
+                                workspace_root=workspace_root,
+                            )
+                            if len(get_session_access_roots()) > len(roots_before):
+                                record_decision(
+                                    tool_name,
+                                    "DIRECTORY_GRANTED",
+                                    f"path: {grant_path}",
+                                )
+
+                if allow_domain and config and config.domain_hitl_enabled:
+                    tool_input: dict[str, object] = tool_call.get("args", {})
+                    domains = extract_url_domains(permission_type, tool_input)
+                    if domains:
+                        runtime_domains = _get_runtime_domains()
+                        for domain in domains:
+                            runtime_domains.add(domain)
+                        logger.warning(
+                            "[DOMAIN_HITL] User approved domain(s) %s for session",
+                            domains,
+                        )
+                        record_decision(tool_name, "DOMAIN_APPROVED", f"domains: {domains}")
+
+                await _try_add_to_allowlist(
+                    tool_call,
+                    extra_ctx,
+                    allow_always,
+                    permission_type,
+                    allowlist_tool_name,
+                    idx,
+                    args_hashes,
+                    ttl_seconds=ttl_seconds,
+                )
+
+                revised_tool_calls.append(tool_call)
+
+            elif decision_type == "edit":
+                edited_args = decision.get("args")
+
+                edit_applied = False
+                if edited_args is not None:
+                    raw_original_args = tool_call.get("args", {})
+                    original_args = dict(raw_original_args) if isinstance(raw_original_args, dict) else {}
+                    normalized_edited_args = dict(edited_args) if isinstance(edited_args, dict) else {}
+                    edit_block_reason = _edited_shell_edit_block_reason(
+                        tool_name,
+                        permission_type,
+                        original_args,
+                        normalized_edited_args,
+                    )
+                    if edit_block_reason is not None:
+                        logger.warning(
+                            "[APPROVAL] Tool %s: edited shell command blocked",
+                            tool_name,
+                        )
+                        record_decision(tool_name, "USER_EDIT_REJECTED", edit_block_reason)
+                        hint = record_denial(tool_name, session_key)
+                        artificial_tool_messages.append(
+                            ToolMessage(
+                                content=f"{edit_block_reason}{hint}",
+                                name=tool_name,
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        )
+                    else:
+                        logger.warning("[APPROVAL] Tool %s: user edited args", tool_name)
+                        record_decision(tool_name, "USER_EDITED", reason)
+                        revised_tool_calls.append(
+                            ToolCall(
+                                type="tool_call",
+                                name=tool_call.get("name", "unknown"),
+                                args=normalized_edited_args,
+                                id=tool_call_id,
+                            )
+                        )
+                        edit_applied = True
+                else:
+                    record_decision(tool_name, "USER_EDITED", reason)
+                    revised_tool_calls.append(tool_call)
+                    edit_applied = True
+
+                if edit_applied:
+                    record_approval(session_key)
+                    await _try_add_to_allowlist(
+                        tool_call,
+                        extra_ctx,
+                        allow_always,
+                        permission_type,
+                        allowlist_tool_name,
+                        idx,
+                        args_hashes,
+                        ttl_seconds=ttl_seconds,
+                    )
+
+            else:
+                feedback = str(decision.get("feedback") or "").strip() or "User rejected this action."
+                logger.warning("[SECURITY] Tool %s REJECTED by user: %s", tool_name, feedback)
+                record_decision(tool_name, "USER_REJECTED", feedback)
+                hint = record_denial(tool_name, session_key)
+                artificial_tool_messages.append(
+                    ToolMessage(
+                        content=f"Action rejected by user: {feedback}{hint}",
+                        name=tool_name,
+                        tool_call_id=tool_call_id,
+                        status="error",
+                    )
+                )
+
+            if guidance_text:
+                logger.info(
+                    "[APPROVAL] Tool %s: user provided guidance: %s",
+                    tool_name,
+                    guidance_text[:100],
+                )
+                guidance_messages.append(
+                    HumanMessage(
+                        content=f"[User Guidance during approval of {tool_name}]: {bounded_note(guidance_text)}",
+                        additional_kwargs={"approval_guidance": True},
+                    )
+                )
+        else:
+            revised_tool_calls.append(tool_call)
+
+    return revised_tool_calls, artificial_tool_messages, guidance_messages

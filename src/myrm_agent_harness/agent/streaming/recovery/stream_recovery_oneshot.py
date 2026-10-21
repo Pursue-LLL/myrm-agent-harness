@@ -1,0 +1,470 @@
+"""One-shot error recovery handlers for specific LLM error types.
+
+Provides targeted recovery strategies that attempt a single fix and retry,
+without entering backoff or failover loops.
+
+[INPUT]
+- toolkits.llms.errors.classifier (POS: 错误分类)
+- toolkits.llms.errors.error_types (POS: 三层错误类型定义)
+- agent._internals.agent_recovery (POS: 消息压缩/截断工具)
+- recovery.stream_recovery_image_shrink (POS: provider 图片上限恢复：测上限、压缩、聚合淘汰)
+
+[OUTPUT]
+- OneshotRecoveryMixin: One-shot recovery handlers mixed into StreamRecoveryMixin
+- _strip_all_media_from_messages(): 把媒体块降级为文本占位
+- _resolve_model_name_from_ctx() / _resolve_api_base_from_ctx(): 能力学习所需的模型/端点解析
+
+[POS]
+Targeted one-shot recovery handlers for THINKING_SIGNATURE, DUPLICATE_TOOL_USE_ID,
+IMAGE_TOO_LARGE, MEDIA_REJECTED, ALLOWED_TOOLS_TOOL_CHOICE_REJECTED, and LONG_CONTEXT_TIER errors. Includes model name resolution
+via llm_info for capability learning.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import TYPE_CHECKING, cast
+
+from langgraph.types import Command
+
+from myrm_agent_harness.agent._internals.agent_recovery import (
+    emergency_compact as _emergency_compact,
+)
+from myrm_agent_harness.agent._internals.agent_recovery import (
+    truncate_oldest_rounds as _truncate_oldest_rounds,
+)
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery_image_shrink import (
+    parse_image_max_dimension,
+    shrink_oversized_images,
+)
+from myrm_agent_harness.agent.streaming.types import AgentEventType
+from myrm_agent_harness.toolkits.llms.errors.classifier import (
+    classify_failover_reason,
+)
+from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
+if TYPE_CHECKING:
+    from langchain_core.messages import BaseMessage
+
+    from myrm_agent_harness.agent.streaming.stream_compactor import StreamCompactor
+    from myrm_agent_harness.agent.streaming.stream_executor import StreamContext
+
+logger = get_agent_logger(__name__)
+
+_TOOL_CHOICE_REJECTED_RE = re.compile(
+    r"tool_choice|allowed_tools|(?:unsupported|invalid).*tool.?choice",
+    re.IGNORECASE,
+)
+
+_THINKING_BLOCK_TYPES = frozenset(("thinking", "redacted_thinking"))
+
+
+class OneshotRecoveryMixin:
+    """One-shot recovery handlers for specific error types.
+
+    Provides targeted fix-and-retry strategies that should be attempted
+    before generic overflow/failover/transient handlers.
+
+    All methods access StreamExecutor attrs via self:
+    _ctx, _compactor, streaming_final_answer
+    """
+
+    _ctx: StreamContext
+    _compactor: StreamCompactor
+    streaming_final_answer: bool
+
+    async def _handle_thinking_signature(self, exc: Exception, attempted: bool) -> bool:
+        """Strip all thinking-related content from messages and retry once.
+
+        Anthropic signs thinking blocks against the full turn content.
+        Context compression or message truncation invalidates the signature,
+        causing HTTP 400.  Recovery: remove all thinking/reasoning content
+        (thinking, redacted_thinking blocks in content; reasoning_content
+        and thinking_blocks in additional_kwargs) and retry.
+        """
+        if attempted:
+            return False
+        reason = classify_failover_reason(exc)
+        if reason != FailoverReason.THINKING_SIGNATURE:
+            return False
+
+        from langchain_core.messages import AIMessage
+
+        ctx = self._ctx
+        if isinstance(ctx.agent_input, Command):
+            return False
+
+        messages_dict = ctx.agent_input
+        messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
+
+        stripped = 0
+        for msg in messages:
+            if not isinstance(msg, AIMessage):
+                continue
+            content = msg.content
+            if isinstance(content, list):
+                new_content = [
+                    b for b in content if not (isinstance(b, dict) and b.get("type") in _THINKING_BLOCK_TYPES)
+                ]
+                if len(new_content) != len(content):
+                    msg.content = new_content  # type: ignore[assignment]
+                    stripped += 1
+            kwargs: dict[str, object] = msg.additional_kwargs or {}
+            if "reasoning_content" in kwargs:
+                del kwargs["reasoning_content"]
+                stripped += 1
+            if "thinking_blocks" in kwargs:
+                del kwargs["thinking_blocks"]
+                stripped += 1
+
+        if stripped == 0:
+            return False
+
+        logger.warning(
+            " Thinking signature invalid — stripped %d thinking blocks, retrying",
+            stripped,
+        )
+        await self._emit_recovery_event("thinking_signature_recovery", restart=True)
+        self.streaming_final_answer = False
+        return True
+
+    async def _handle_reasoning_mandatory(
+        self,
+        exc: Exception,
+        attempted: bool = False,
+    ) -> bool:
+        """Recover from 400 mandatory reasoning / unsupported reasoning_effort rejections.
+
+        When a provider mandates reasoning (e.g. GLM-5.3, DeepSeek-R1, Claude 3.7)
+        and rejects disabling reasoning or an unsupported effort level, step up to
+        the floor effort or drop back to route default.
+
+        CRITICAL: Never alter or truncate the messages sequence or prompt prefix,
+        guaranteeing 100% Prompt Cache Key preservation on the upstream provider.
+        """
+        ctx = self._ctx
+        retry_state = getattr(ctx, "retry_state", None)
+        if attempted or (retry_state and retry_state.reasoning_mandatory_attempted):
+            return False
+
+        reason = classify_failover_reason(exc)
+        if reason != FailoverReason.REASONING_MANDATORY:
+            return False
+
+        if retry_state is not None:
+            ctx.retry_state = retry_state.with_reasoning_floor(effort="low")
+
+        logger.warning(
+            " Mandatory reasoning constraint rejected (400) — stepping reasoning to floor/default while strictly preserving Prompt Cache Key, retrying"
+        )
+        await self._emit_recovery_event("reasoning_mandatory_recovery", restart=True)
+        self.streaming_final_answer = False
+        return True
+
+    async def _handle_duplicate_tool_use_id(
+        self,
+        exc: Exception,
+        attempted: bool,
+    ) -> bool:
+        """Sanitize duplicate tool_call_ids in history and retry once.
+
+        Anthropic and some OpenAI-compatible gateways reject requests when the
+        same tool_use / tool_call_id appears in multiple AIMessages.
+        """
+        if attempted:
+            return False
+        reason = classify_failover_reason(exc)
+        if reason != FailoverReason.DUPLICATE_TOOL_USE_ID:
+            return False
+
+        from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import (
+            sanitize_tool_history,
+        )
+
+        ctx = self._ctx
+        if isinstance(ctx.agent_input, Command):
+            return False
+
+        messages_dict = ctx.agent_input
+        messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
+        sanitized = sanitize_tool_history(messages)
+        if sanitized is messages:
+            return False
+
+        messages_dict["messages"] = sanitized
+        logger.warning(
+            " Duplicate tool_use id — sanitized tool history (%d messages), retrying",
+            len(sanitized),
+        )
+        await self._emit_recovery_event("tool_history_recovery", restart=True)
+        self.streaming_final_answer = False
+        return True
+
+    async def _handle_image_shrink(self, exc: Exception, attempted: bool) -> bool:
+        """Shrink oversized base64 images in-place and retry once.
+
+        Triggered by provider per-image byte/dimension limits
+        (e.g. Anthropic 5 MB / 8000px per side, 2000px in multi-image).
+        Only processes data: URLs; http URLs are fetched server-side.
+
+        Parses provider-reported max_dimension from the error message so
+        pixel-only oversized images (e.g. Retina screenshots tiny in bytes
+        but exceeding the dimension cap) are also recovered.
+        """
+        if attempted:
+            return False
+        reason = classify_failover_reason(exc)
+        if reason != FailoverReason.IMAGE_TOO_LARGE:
+            return False
+
+        ctx = self._ctx
+        if isinstance(ctx.agent_input, Command):
+            return False
+
+        messages_dict = ctx.agent_input
+        messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
+
+        max_dim = parse_image_max_dimension(exc)
+        shrunk = shrink_oversized_images(messages, max_dimension=max_dim)
+        if shrunk == 0:
+            return False
+
+        recovery_step = "image_shrink_recovery"
+        logger.warning(
+            " Image(s) exceeded provider/gateway limit (%s) — shrank %d image(s) (max_dimension=%s), retrying",
+            recovery_step,
+            shrunk,
+            max_dim,
+        )
+        await self._emit_recovery_event(recovery_step, restart=True)
+        self.streaming_final_answer = False
+        return True
+
+    async def _handle_media_rejected(self, exc: Exception, attempted: bool) -> bool:
+        """Try vision fallback first; strip media only when auxiliary vision is unavailable.
+
+        Triggered when the model rejects multimodal input entirely
+        (e.g., sending images to a text-only model). Records the
+        capability via ModelCapabilityLearner when stripping is required.
+        """
+        if attempted:
+            return False
+        reason = classify_failover_reason(exc)
+        if reason != FailoverReason.MEDIA_REJECTED:
+            return False
+
+        ctx = self._ctx
+        if isinstance(ctx.agent_input, Command):
+            return False
+
+        messages_dict = ctx.agent_input
+        messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
+
+        merged_ctx = getattr(ctx, "merged_context", None)
+        supports_vision = bool(merged_ctx.get("supports_vision", True)) if isinstance(merged_ctx, dict) else True
+        vision_fallback_cfg = merged_ctx.get("vision_fallback_model_cfg") if isinstance(merged_ctx, dict) else None
+        vision_fallback_cfgs = merged_ctx.get("vision_fallback_model_cfgs") if isinstance(merged_ctx, dict) else None
+
+        if (vision_fallback_cfg is not None or vision_fallback_cfgs is not None) and not supports_vision:
+            from myrm_agent_harness.agent.context_management.pipeline.processors.media_resolver import (
+                FileContentReader,
+            )
+            from myrm_agent_harness.agent.context_management.pipeline.processors.vision_fallback_processor import (
+                apply_vision_fallback_to_messages,
+            )
+
+            file_content_reader: FileContentReader | None = getattr(ctx, "file_content_reader", None)
+
+            converted = await apply_vision_fallback_to_messages(
+                messages,
+                (vision_fallback_cfg if vision_fallback_cfg is not None else vision_fallback_cfgs),
+                supports_vision=supports_vision,
+                file_content_reader=file_content_reader,
+                vision_fallback_model_cfgs=vision_fallback_cfgs,
+            )
+            if converted > 0:
+                logger.warning(
+                    "Model rejected multimodal input — applied vision fallback to %d message(s), retrying",
+                    converted,
+                )
+                await self._emit_recovery_event("vision_fallback_recovery", converted_count=converted, restart=True)
+                self.streaming_final_answer = False
+                return True
+
+        stripped = _strip_all_media_from_messages(messages)
+        if stripped == 0:
+            return False
+
+        model_name = _resolve_model_name_from_ctx(ctx)
+        merged_ctx = getattr(ctx, "merged_context", None)
+        supports_vision = bool(merged_ctx.get("supports_vision", True)) if isinstance(merged_ctx, dict) else True
+        if supports_vision:
+            logger.warning(
+                "Model marked supports_vision but rejected multimodal input. "
+                "Capability flag may be inaccurate (model=%s).",
+                model_name or "unknown",
+            )
+
+        if model_name:
+            from myrm_agent_harness.toolkits.llms.capability_learner import (
+                get_capability_learner,
+            )
+
+            learner = get_capability_learner()
+            learner.learn(str(model_name), "rejects_media", True)
+            logger.info(
+                "Learned: model %s rejects media — future requests will proactively strip",
+                model_name,
+            )
+
+        logger.warning(
+            " Model rejected multimodal input — stripped media from %d message(s), retrying",
+            stripped,
+        )
+        await self._emit_recovery_event("media_rejected_recovery", stripped_count=stripped, restart=True)
+        self.streaming_final_answer = False
+        return True
+
+    async def _handle_allowed_tools_tool_choice_rejected(
+        self,
+        exc: Exception,
+        attempted: bool,
+    ) -> bool:
+        """Learn unsupported allowed_tools and retry once without model-layer hint."""
+        if attempted:
+            return False
+        if not _TOOL_CHOICE_REJECTED_RE.search(str(exc)):
+            return False
+
+        model_name = _resolve_model_name_from_ctx(self._ctx)
+        if model_name:
+            from myrm_agent_harness.toolkits.llms.allowed_tools_capability import (
+                CAPABILITY_REJECTS_ALLOWED_TOOLS,
+                normalize_model_capability_key,
+            )
+            from myrm_agent_harness.toolkits.llms.capability_learner import (
+                get_capability_learner,
+            )
+
+            api_base = _resolve_api_base_from_ctx(self._ctx)
+            learner = get_capability_learner()
+            capability_key = normalize_model_capability_key(
+                str(model_name),
+                api_base=api_base,
+            )
+            learner.learn(
+                capability_key,
+                CAPABILITY_REJECTS_ALLOWED_TOOLS,
+                True,
+            )
+            logger.info(
+                "Learned: model %s rejects allowed_tools tool_choice — future requests skip model-layer hint",
+                capability_key,
+            )
+
+        logger.warning(" Provider rejected allowed_tools tool_choice — retrying without model-layer hint")
+        await self._emit_recovery_event("allowed_tools_rejected_recovery", restart=True)
+        self.streaming_final_answer = False
+        return True
+
+    async def _handle_long_context_tier(self, exc: Exception) -> bool:
+        """Handle Anthropic subscription tier gate by compressing context.
+
+        HTTP 429 "Extra usage is required for long context requests" is NOT
+        a transient rate limit — backoff retries will always fail.  Instead,
+        trigger context compression to reduce below the 200k standard tier.
+        """
+        reason = classify_failover_reason(exc)
+        if reason != FailoverReason.LONG_CONTEXT_TIER:
+            return False
+
+        ctx = self._ctx
+        if isinstance(ctx.agent_input, Command):
+            return False
+
+        messages_dict = ctx.agent_input
+        messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
+
+        saved = await _emergency_compact(messages)
+        if saved == 0:
+            saved = _truncate_oldest_rounds(messages)
+
+        logger.warning(
+            " Long-context tier gate — compressed context (freed %d tokens), retrying",
+            saved,
+        )
+        await self._emit_recovery_event("long_context_tier_recovery", restart=True)
+        self.streaming_final_answer = False
+        return True
+
+    async def _emit_recovery_event(self, step_key: str, **extra: object) -> None:
+        """Emit a STATUS event for recovery actions."""
+        event: dict[str, object] = {
+            "type": AgentEventType.STATUS.value,
+            "step_key": step_key,
+            "tool_name": None,
+            "messageId": self._ctx.message_id,
+        }
+        event.update(extra)
+        await self._compactor.put(event)
+
+
+def _resolve_model_name_from_ctx(ctx: object) -> str | None:
+    """Resolve model name from StreamContext (llm_info first, then merged_context)."""
+    llm_info = getattr(ctx, "llm_info", None)
+    if isinstance(llm_info, dict):
+        name = llm_info.get("model_name")
+        if name:
+            return str(name)
+
+    merged_ctx = getattr(ctx, "merged_context", None)
+    if isinstance(merged_ctx, dict):
+        name = merged_ctx.get("model_name")
+        if name:
+            return str(name)
+
+    return None
+
+
+def _resolve_api_base_from_ctx(ctx: object) -> str | None:
+    """Resolve API base URL from StreamContext (llm_info first, then merged_context)."""
+    llm_info = getattr(ctx, "llm_info", None)
+    if isinstance(llm_info, dict):
+        api_base = llm_info.get("api_base") or llm_info.get("base_url")
+        if isinstance(api_base, str) and api_base.strip():
+            return api_base.strip()
+
+    merged_ctx = getattr(ctx, "merged_context", None)
+    if isinstance(merged_ctx, dict):
+        for key in ("api_base", "base_url"):
+            value = merged_ctx.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+    return None
+
+
+def _strip_all_media_from_messages(messages: list[BaseMessage]) -> int:
+    """Walk messages and replace all media items with text placeholders.
+
+    Returns the number of messages that had media stripped.
+    """
+    from myrm_agent_harness.utils.image_utils import (
+        content_has_media,
+        strip_all_media_from_content,
+    )
+
+    stripped_count = 0
+    for msg in messages:
+        content = getattr(msg, "content", None)
+        if not isinstance(content, list):
+            continue
+        if not content_has_media(content):
+            continue
+        new_content = strip_all_media_from_content(content)
+        if new_content is not content:
+            msg.content = new_content  # type: ignore[assignment]
+            stripped_count += 1
+    return stripped_count
+

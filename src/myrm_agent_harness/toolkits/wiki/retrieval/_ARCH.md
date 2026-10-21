@@ -1,0 +1,37 @@
+# retrieval/
+
+## Overview
+Wiki search and graph analysis. FTS5+Qdrant hybrid search with CJK bigram support,
+edges weighted by the links their ends share, LPA community detection, graph-based query expansion,
+and sidecar-first hierarchical retrieval (L0/L1 route + L2 article grounding).
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Wiki 检索域入口包：导出 `WikiIndexer` 与 `WikiQueryEngine` | ✅ |
+| indexer.py | Core | Wiki indexer lifecycle: FTS5 schema bootstrap + one-time index migrations, page-key canonicalization (`_index_key`), weighted edge storage whose targets are resolved to page keys at write time (markdown links and Wikilinks; frontmatter fields such as `source_systems` are metadata, never edges) with forward-reference relinking and re-reading of the pages whose links a page sharing an alias, title or canonical id makes ambiguous; a page write replaces its edges and re-derives the weight of every edge that starts or ends at it (`edge_weights.py`); `get_outgoing_edges` lists highest weight first, equal weights by name; `graph_store` property, and `get_concept_links` delegation (returns the typed `ConceptLinks`) | ✅ |
+| fts_search.py | Core | FtsSearchMixin: FTS5 search/get_truth with the `search_terms` CJK index column, the publish_status gate, vector search under RRF fusion (vector hits under another spelling collapse onto the page key), and `migrate_wiki_fts_schema` | ✅ |
+| fts_write.py | Core | FtsWriteMixin: FTS5 truth upsert/delete with one row per page under its on-disk key; delete accepts any spelling and keeps the links other pages hold to the page (re-weighting them, since the page no longer links anywhere), except that links which named it together with a same-named page converge to the survivor; edge extraction on upsert (the only place a page write stores its links; publication, reindex and move call `upsert` once; backlink generation, which changes links alone, calls `extract_and_upsert_edges` directly); raw-text interim indexing; vector upsert/delete | ✅ |
+| edge_links.py | Core | Edge-target canonicalization (`canonical_edge_target`, markdown links relative to the linking page), `store_edge` (edge row at the direct-link weight plus the casefolded and sanitized spelling of its target, indexed), and `relink_dangling_edges` for links written before their target page existed (a written page re-resolves only the edges spelled like it; a vault re-read re-resolves all; the pages whose links were rewritten get their edge weights re-derived), and `linkers_to_reread` (the pages whose links a same-named page that appeared or went away may read differently, since a stored edge does not keep the text it came from) | ✅ |
+| edge_weights.py | Core | Edge weight as a function of the stored edges: 3.0 for the link plus 0.5 per page both ends link to (cap 1.5). `refresh_edge_weights` re-derives the edges that start or end at the given pages (the only ones a change to those pages' links can affect, in chunks under the bound-parameter limit), `refresh_all_edge_weights` the whole index; one idempotent UPDATE that reads only `source` / `target`, on the local `main` table. The weight never depends on the order pages were written in. Every writer of `wiki_edges` re-derives the pages whose links it changed (`indexer.py`, `edge_links.py`, `fts_write.py`, `identity_migration.py`); a new writer does the same | ✅ |
+| identity_migration.py | Core | Versioned `PRAGMA user_version` migrations: v1 merges index rows keyed by compile names into on-disk page keys (rows without a backing page are left untouched); v2 records the spellings of every edge target and re-resolves all unresolved edges under the current link rules; v3 re-derives every edge weight from the stored edges | ✅ |
+| sidecar_index.py | Core | SidecarIndexMixin: L0/L1 directory sidecar FTS5+Qdrant indexing, search, and lifecycle (inherited by WikiIndexer) | ✅ |
+| tokenizer.py | Core | FTS5 query tokenizer with CJK bigram support; `extract_query_terms()` shared with index routing | ✅ |
+| graph_store.py | Core | Knowledge graph BFS traversal, alias asset lookup, bidirectional concept link aggregation returned as the typed `ConceptLinks` (lookup key canonicalized like writes; outlinks carry `name`/`exists`, backlinks add `context_snippet`/`heading`; each direction is ordered by weight with ties broken by page name, so links of equal weight keep a fixed order whatever order the pages were written in, and is cut at `MAX_CONCEPT_LINKS`; a one-row probe past the cap sets `outlinks_has_more` / `backlinks_has_more` so callers can show "N+"). A backlink's snippet and heading come from the first `[[wikilink]]` that names the page under any spelling the link resolver accepts (path, title, alias, canonical id, bare file name; read from the whole page once per lookup), else from a markdown link or plain-text mention of the page key or an alias; Unicode CJK safe, with a clean markdown-stripped heading. Insight delegation | ✅ |
+| concept_links.py | Core | Typed payload of the concept link lookup: `ConceptLink` (`name`, `exists`), `ConceptBacklink` (adds `context_snippet`, `heading`) and `ConceptLinks` (`concept_name`, both directions, `outlinks_has_more` / `backlinks_has_more`); callers read keys the type checker verifies | ✅ |
+| graph_tables.py | Core | Federated node/edge SQL over the local and attached public indexes; `raw:` interim and sidecar rows are not graph nodes. Shared by the viewer graph and the insights | ✅ |
+| graph_analysis.py | Core | LPA community detection and graph insights over the viewer's node/edge set: mutual links count once, cohesion ≤ 1, clusters need ≥ 2 pages, isolated and bridge gaps capped separately, members listed hub-first | ✅ |
+| best_first.py | Core | Best-first priority-queue convergence + raw_claim frontmatter rerank + claim-health multipliers (supported/contested/stale) | ✅ |
+| query.py | Core | Query engine: hot + recent log prefix, index-first seeds → sidecar scope → FTS rerank → best-first graph converge; derived `confidence_score`; fail-closed `refused` verdict (`_refused_verdict` — out-of-bounds `min_answer_confidence` refuses); `retrieval_trace` metadata; SourceSnippet incl. claims + raw evidence excerpt + `claim_text` + `claim_confidence` + snapshot_status + evidence SHA + asset hits | ✅ |
+| source_citations.py | Core | Shared LLM-Wiki citation SSOT; `snippet` (raw excerpt) + `claim_text` + `resource_uri` + `superseded_from_uri` for claim snippets with `evidence_path`; `format_evidence_cards_context` for line-level Evidence Card anchor injection and answer contract | ✅ |
+| asset_index.py | Core | Wiki asset caption indexer: FTS5 + Qdrant `wiki_assets`, SHA256 skip, provenance scan, orphan purge | ✅ |
+| vector_chunks.py | Core | Embed-window-aware multi-chunk vector upsert/delete + search hit collapse (shared by indexer/sidecar/asset) | ✅ |
+| reindex_vectors.py | Core | Rebuild published concept, sidecar, and optional asset vectors after embedding model or chunk policy changes | ✅ |
+
+
+## Key Dependencies
+
+- `core` (config, structure, link_extraction, link_resolver)
+- `vector` (Qdrant)
+- `retriever` (RRF fusion)

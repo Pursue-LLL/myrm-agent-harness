@@ -1,0 +1,276 @@
+"""Tests for SkillForgettingStrategy."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+from myrm_agent_harness.backends.skills.curator_config import CuratorConfig
+from myrm_agent_harness.backends.skills.forgetting_strategy import (
+    DefaultForgettingStrategy,
+    ForgettingReason,
+)
+from myrm_agent_harness.backends.skills.types import (
+    SkillLifecycleStatus,
+    SkillMetadata,
+    SkillUsageStats,
+)
+
+
+def create_skill_metadata(name: str, usage_stats: SkillUsageStats | None = None) -> SkillMetadata:
+    """Helper to create SkillMetadata for testing."""
+    skill = SkillMetadata(name=name, description="Test skill")
+    if usage_stats:
+        object.__setattr__(skill, "usage_stats", usage_stats)
+    return skill
+
+
+def test_should_forget_stale_skill() -> None:
+    """Test that never-used skills past stale threshold are marked for forgetting."""
+    config = CuratorConfig(stale_after_days=30)
+    strategy = DefaultForgettingStrategy(config)
+
+    old_created = datetime.now(UTC) - timedelta(days=60)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old_created)
+    skill = create_skill_metadata("stale_skill", usage_stats=stats)
+    reason = strategy.should_forget(skill)
+
+    assert reason is not None
+    assert reason.reason_type == "stale"
+
+
+def test_should_not_forget_never_used_within_stale_threshold() -> None:
+    """Never-used skills younger than stale_after_days must not be marked stale."""
+    config = CuratorConfig(stale_after_days=30, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+
+    recent_created = datetime.now(UTC) - timedelta(days=5)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=recent_created)
+    skill = create_skill_metadata("young_skill", usage_stats=stats)
+    assert strategy.should_forget(skill) is None
+
+
+def test_should_forget_low_quality_skill() -> None:
+    """Test that low quality skills are marked for forgetting."""
+    config = CuratorConfig(min_call_count_for_quality_check=5, min_success_rate=0.5)
+    strategy = DefaultForgettingStrategy(config)
+
+    # Skill with low success rate
+    stats = SkillUsageStats(
+        call_count=10,
+        success_count=2,
+        failure_count=8,
+        last_used_at=datetime.now(UTC),
+    )
+    skill = create_skill_metadata("low_quality_skill", usage_stats=stats)
+    reason = strategy.should_forget(skill)
+
+    assert reason is not None
+    assert reason.reason_type == "low_quality"
+    assert ("20" in reason.reason_message or "0.2" in reason.reason_message) and "%" in reason.reason_message
+
+
+def test_should_not_forget_high_quality_skill() -> None:
+    """Test that high quality skills are not forgotten."""
+    config = CuratorConfig(stale_after_days=30)
+    strategy = DefaultForgettingStrategy(config)
+
+    # Skill with high success rate and recent usage
+    stats = SkillUsageStats(
+        call_count=10,
+        success_count=9,
+        failure_count=1,
+        last_used_at=datetime.now(UTC),
+    )
+    skill = create_skill_metadata("good_skill", usage_stats=stats)
+    reason = strategy.should_forget(skill)
+
+    assert reason is None
+
+
+def test_should_forget_inactive_skill() -> None:
+    """Test that inactive skills are marked for forgetting."""
+    config = CuratorConfig(stale_after_days=30)
+    strategy = DefaultForgettingStrategy(config)
+
+    # Skill used long ago
+    old_date = datetime.now(UTC) - timedelta(days=60)
+    stats = SkillUsageStats(
+        call_count=10,
+        success_count=8,
+        failure_count=2,
+        last_used_at=old_date,
+    )
+    skill = create_skill_metadata("inactive_skill", usage_stats=stats)
+    reason = strategy.should_forget(skill)
+
+    assert reason is not None
+    assert reason.reason_type == "inactive"
+    assert "60" in reason.reason_message or "inactive" in reason.reason_message.lower()
+
+
+def test_low_quality_threshold_not_met() -> None:
+    """Test that skills with few calls are not judged by quality."""
+    config = CuratorConfig(min_call_count_for_quality_check=10, min_success_rate=0.5)
+    strategy = DefaultForgettingStrategy(config)
+
+    # Skill with low success rate but few calls
+    stats = SkillUsageStats(
+        call_count=3,
+        success_count=0,
+        failure_count=3,
+        last_used_at=datetime.now(UTC),
+    )
+    skill = create_skill_metadata("new_skill", usage_stats=stats)
+    reason = strategy.should_forget(skill)
+
+    # Should not be forgotten due to quality (not enough calls)
+    if reason:
+        assert reason.reason_type != "low_quality"
+
+
+def test_low_quality_needs_observed_outcomes_not_just_uses() -> None:
+    """Uses without an observed outcome carry no quality evidence, however many there are."""
+    config = CuratorConfig(min_call_count_for_quality_check=5, min_success_rate=0.5)
+    strategy = DefaultForgettingStrategy(config)
+
+    never_observed = SkillUsageStats(call_count=50, last_used_at=datetime.now(UTC))
+    few_observed = SkillUsageStats(call_count=50, failure_count=3, last_used_at=datetime.now(UTC))
+
+    for stats in (never_observed, few_observed):
+        reason = strategy.should_forget(create_skill_metadata("busy_skill", usage_stats=stats))
+        assert reason is None
+
+
+def test_curator_config_round_trip() -> None:
+    """CuratorConfig to_dict / from_dict preserves consolidation default false."""
+    config = CuratorConfig(stale_after_days=14, consolidation_enabled=False)
+    data = config.to_dict()
+    assert data["stale_after_days"] == 14
+    assert data["consolidation_enabled"] is False
+
+    restored = CuratorConfig.from_dict(data)
+    assert restored.stale_after_days == 14
+    assert restored.consolidation_enabled is False
+
+    defaults = CuratorConfig.from_dict(None)
+    assert defaults.consolidation_enabled is False
+
+
+def test_should_not_forget_pinned() -> None:
+    """A pinned skill is the one exemption: it never transitions automatically."""
+    config = CuratorConfig(stale_after_days=7, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+    old = datetime.now(UTC) - timedelta(days=100)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old, pinned=True)
+    pinned = create_skill_metadata("pinned_skill", usage_stats=stats)
+    assert strategy.should_forget(pinned) is None
+
+
+def test_evolution_locked_skill_still_ages_out() -> None:
+    """The evolution lock guards content rewrites, not the lifecycle sweep."""
+    config = CuratorConfig(stale_after_days=7, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+    old = datetime.now(UTC) - timedelta(days=100)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old)
+    locked = SkillMetadata(
+        name="locked_skill",
+        description="Evolution locked",
+        usage_stats=stats,
+        evolution_locked=True,
+    )
+    reason = strategy.should_forget(locked)
+    assert reason is not None
+    assert reason.reason_type == "stale"
+    assert reason.target_status == SkillLifecycleStatus.STALE
+
+
+def test_evolution_locked_faulty_skill_gets_the_same_verdict_as_unlocked() -> None:
+    """The lock must not become a hidden quality-cleanup exemption.
+
+    A frequently-run, mostly-failing skill is the population the health probe flags. If the lock
+    suppressed the low-quality verdict here, faulty skills would read as protected while the sweep
+    did nothing, and the probe's "exempt" count would be a fiction.
+    """
+    config = CuratorConfig(min_call_count_for_quality_check=5, min_success_rate=0.5, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+    faulty = SkillUsageStats(call_count=15, success_count=1, failure_count=14, last_used_at=datetime.now(UTC))
+
+    verdicts = {}
+    for locked in (True, False):
+        skill = SkillMetadata(
+            name="faulty_skill",
+            description="Runs often, keeps failing",
+            usage_stats=faulty,
+            evolution_locked=locked,
+        )
+        reason = strategy.should_forget(skill)
+        assert reason is not None, "a faulty skill must not be exempted by the lock"
+        verdicts[locked] = (reason.reason_type, reason.target_status)
+
+    assert verdicts[True] == verdicts[False] == ("low_quality", SkillLifecycleStatus.STALE)
+
+
+def test_grace_period_exempt() -> None:
+    config = CuratorConfig(stale_after_days=7, grace_period_days=30)
+    strategy = DefaultForgettingStrategy(config)
+    recent = datetime.now(UTC) - timedelta(days=5)
+    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=recent)
+    skill = create_skill_metadata("grace_skill", usage_stats=stats)
+    assert strategy.should_forget(skill) is None
+
+
+def test_archived_skill_skipped() -> None:
+    config = CuratorConfig(stale_after_days=7, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+    old = datetime.now(UTC) - timedelta(days=200)
+    stats = SkillUsageStats(
+        call_count=1,
+        success_count=1,
+        failure_count=0,
+        created_at=old,
+        last_used_at=old,
+        lifecycle_status=SkillLifecycleStatus.ARCHIVED,
+    )
+    skill = create_skill_metadata("archived_skill", usage_stats=stats)
+    assert strategy.should_forget(skill) is None
+
+
+def test_stale_skill_promoted_to_archive() -> None:
+    config = CuratorConfig(stale_after_days=30, archive_after_days=60, grace_period_days=0)
+    strategy = DefaultForgettingStrategy(config)
+    stale_since = datetime.now(UTC) - timedelta(days=90)
+    stats = SkillUsageStats(
+        call_count=5,
+        success_count=5,
+        failure_count=0,
+        created_at=stale_since,
+        last_used_at=stale_since,
+        lifecycle_status=SkillLifecycleStatus.STALE,
+    )
+    skill = create_skill_metadata("stale_to_archive", usage_stats=stats)
+    reason = strategy.should_forget(skill)
+    assert reason is not None
+    assert reason.reason_type == "archive"
+    assert reason.target_status == SkillLifecycleStatus.ARCHIVED
+
+
+def test_strategy_config_property() -> None:
+    config = CuratorConfig(stale_after_days=45)
+    strategy = DefaultForgettingStrategy(config)
+    assert strategy.config.stale_after_days == 45
+
+
+def test_forgetting_reason_dataclass() -> None:
+    """Test ForgettingReason dataclass."""
+    stats = SkillUsageStats(call_count=1, success_count=0, failure_count=1)
+    reason = ForgettingReason(
+        skill_name="test_skill",
+        reason_type="stale",
+        reason_message="Never used for 37+ days",
+        stats=stats,
+    )
+
+    assert reason.skill_name == "test_skill"
+    assert reason.reason_type == "stale"
+    assert reason.reason_message == "Never used for 37+ days"
+    assert reason.stats.call_count == 1

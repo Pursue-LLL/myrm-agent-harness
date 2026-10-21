@@ -1,0 +1,846 @@
+"""Search-side orchestration for memory retrieval.
+
+
+[INPUT]
+- memory._internal.storage::{doc_to_*, load_context} (POS: internal vector storage operations)
+- memory._internal.scope::{build_scope, apply_channel_affinity} (POS: scope and namespace helpers)
+- memory.retriever::MemoryRetriever (POS: RRF retriever for memory search)
+
+[OUTPUT]
+- MemorySearchService: Search-side orchestrator (query cleanup, type routing, RRF fusion, graph enrichment, bounded-time retrieval with wall-clock timeout fail-open, retrieval trace)
+
+[POS]
+Search-side orchestration for memory retrieval. Handles query cleanup, type routing,
+RRF fusion, graph enrichment, bounded retrieval (wall-clock deadline, partial-result
+collect, degradation observability), and business-neutral retrieval trace emission.
+Not part of the public API.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections.abc import Callable, Coroutine
+from dataclasses import replace
+from datetime import UTC, datetime
+from time import perf_counter
+from typing import TYPE_CHECKING, Any, Literal
+from uuid import uuid4
+
+from myrm_agent_harness.toolkits.memory._assistant_retrieval import search_conversation_two_pass
+from myrm_agent_harness.toolkits.memory._internal.channel_pruning import ChannelPruner
+from myrm_agent_harness.toolkits.memory._internal.maintenance import enrich_with_graph
+from myrm_agent_harness.toolkits.memory._internal.rerank_gate import apply_cross_rerank
+from myrm_agent_harness.toolkits.memory._internal.scope import apply_channel_affinity
+from myrm_agent_harness.toolkits.memory._internal.storage import (
+    embed_single,
+    search_bm25,
+    search_conversation,
+    search_episodic,
+    search_procedural,
+    search_profile,
+    search_semantic,
+)
+from myrm_agent_harness.toolkits.memory._internal.temporal_window import TemporalWindow, derive_temporal_window
+from myrm_agent_harness.toolkits.memory.adaptive import should_use_dual_channel
+from myrm_agent_harness.toolkits.memory.config import MemoryConfig
+from myrm_agent_harness.toolkits.memory.metrics import get_search_metrics
+from myrm_agent_harness.toolkits.memory.observability import (
+    GATHER_BM25_FAILED,
+    GATHER_BM25_TIMEOUT,
+    GATHER_CONVERSATION_FAILED,
+    GATHER_CONVERSATION_TIMEOUT,
+    GATHER_EPISODIC_FAILED,
+    GATHER_EPISODIC_TIMEOUT,
+    GATHER_GRAPH_FAILED,
+    GATHER_GRAPH_TIMEOUT,
+    GATHER_PROCEDURAL_FAILED,
+    GATHER_PROCEDURAL_TIMEOUT,
+    GATHER_PROFILE_FAILED,
+    GATHER_PROFILE_TIMEOUT,
+    GATHER_QUERY_EMBEDDING_FAILED,
+    GATHER_QUERY_EMBEDDING_TIMEOUT,
+    GATHER_RERANK_TIMEOUT,
+    GATHER_SEMANTIC_FAILED,
+    GATHER_SEMANTIC_TIMEOUT,
+    JsonValue,
+    MemoryRetrievalTrace,
+    MemoryTraceStep,
+)
+from myrm_agent_harness.toolkits.memory.protocols.cache import EmbeddingCacheProtocol
+from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
+from myrm_agent_harness.toolkits.memory.protocols.graph import GraphStoreProtocol
+from myrm_agent_harness.toolkits.memory.protocols.relational import RelationalStoreProtocol
+from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
+from myrm_agent_harness.toolkits.memory.query_analyzer import analyze_query, is_assistant_reference_query
+from myrm_agent_harness.toolkits.memory.query_sanitizer import QuerySanitizer
+from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
+from myrm_agent_harness.toolkits.memory.types import (
+    ConversationMemory,
+    MemorySearchResult,
+    MemoryType,
+    ProceduralMemory,
+)
+from myrm_agent_harness.utils.runtime.cancellation import reraise_if_cancelled
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.retriever.reranker.base import RerankerService
+
+logger = logging.getLogger(__name__)
+
+FTS5SearcherFunc = Callable[
+    [str, int, datetime | None, datetime | None],
+    Coroutine[None, None, list[MemorySearchResult]],
+]
+
+_STREAM_WARNING_MAP: dict[str, tuple[str, str]] = {
+    "query_embedding": (GATHER_QUERY_EMBEDDING_TIMEOUT, GATHER_QUERY_EMBEDDING_FAILED),
+    "profile": (GATHER_PROFILE_TIMEOUT, GATHER_PROFILE_FAILED),
+    "procedural": (GATHER_PROCEDURAL_TIMEOUT, GATHER_PROCEDURAL_FAILED),
+    "semantic": (GATHER_SEMANTIC_TIMEOUT, GATHER_SEMANTIC_FAILED),
+    "episodic": (GATHER_EPISODIC_TIMEOUT, GATHER_EPISODIC_FAILED),
+    "conversation": (GATHER_CONVERSATION_TIMEOUT, GATHER_CONVERSATION_FAILED),
+    "bm25": (GATHER_BM25_TIMEOUT, GATHER_BM25_FAILED),
+    "graph": (GATHER_GRAPH_TIMEOUT, GATHER_GRAPH_FAILED),
+}
+
+
+def _temporal_window_metadata(window: TemporalWindow | None) -> dict[str, str] | None:
+    """Trace-friendly view of a derived temporal window (None when not derived)."""
+    if window is None:
+        return None
+    return {
+        "marker": window.marker,
+        "kind": window.window_kind,
+        "since": window.since.isoformat(),
+        "until": window.until.isoformat(),
+    }
+
+
+def _stream_warning_code(stream: str, failure_type: Literal["timeout", "failed"]) -> str:
+    codes = _STREAM_WARNING_MAP.get(stream)
+    if not codes:
+        return f"GATHER_{stream.upper()}_{failure_type.upper()}"
+    return codes[0] if failure_type == "timeout" else codes[1]
+
+
+def _deadline_remaining(deadline: float) -> float:
+    """Seconds left before ``deadline``, floored at zero.
+
+    Lets every network-touching retrieval stage (embed / collect / graph) share one
+    wall-clock budget, so partial results collected before the deadline survive while
+    the whole pipeline still returns in bounded time.
+    """
+    return max(0.0, deadline - perf_counter())
+
+
+def _log_background_task_failure(task: asyncio.Task[object]) -> None:
+    if task.cancelled():
+        return
+    try:
+        exc = task.exception()
+    except Exception as err:
+        logger.warning("Memory background task exception lookup failed: %s", err)
+        return
+    if exc is not None:
+        logger.warning("Memory background task failed: %s", exc)
+
+
+_SUPERSEDED_KEY = "superseded"
+
+
+class MemorySearchService:
+    """Owns query sanitization, source fan-out, fusion, and graph enrichment."""
+
+    __slots__ = (
+        "_cache",
+        "_config",
+        "_current_channel_id",
+        "_embedding",
+        "_fts5_searcher",
+        "_graph",
+        "_last_trace",
+        "_namespaces",
+        "_relational",
+        "_reranker",
+        "_retriever",
+        "_vector",
+    )
+
+    def __init__(
+        self,
+        *,
+        namespaces: list[str],
+        current_channel_id: str | None,
+        config: MemoryConfig,
+        vector: VectorStoreProtocol | None,
+        graph: GraphStoreProtocol | None,
+        relational: RelationalStoreProtocol | None,
+        embedding: EmbeddingProtocol | None,
+        cache: EmbeddingCacheProtocol | None,
+        retriever: MemoryRetriever,
+        fts5_searcher: FTS5SearcherFunc | None,
+        reranker: RerankerService | None = None,
+    ) -> None:
+        self._namespaces = list(namespaces)
+        self._current_channel_id = current_channel_id
+        self._config = config
+        self._vector = vector
+        self._graph = graph
+        self._relational = relational
+        self._embedding = embedding
+        self._cache = cache
+        self._retriever = retriever
+        self._fts5_searcher = fts5_searcher
+        self._reranker = reranker
+        self._last_trace: MemoryRetrievalTrace | None = None
+
+    @property
+    def last_trace(self) -> MemoryRetrievalTrace | None:
+        return self._last_trace
+
+    async def search(
+        self,
+        query: str,
+        *,
+        memory_types: list[MemoryType],
+        memory_types_unspecified: bool,
+        limit: int,
+        use_rrf: bool,
+        include_raw: bool,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        current_chat_id: str | None = None,
+        dynamic_signal_weights: dict[str, float] | None = None,
+    ) -> list[MemorySearchResult]:
+        trace_start = perf_counter()
+        steps: list[MemoryTraceStep] = []
+        sanitized_query = QuerySanitizer().sanitize(query)
+        steps.append(
+            MemoryTraceStep(
+                phase="sanitize",
+                title="query_sanitize",
+                summary="Retrieval query sanitized before storage lookup.",
+                input_count=1 if query else 0,
+                output_count=1 if sanitized_query else 0,
+                metadata={"changed": sanitized_query != query},
+            )
+        )
+        pruning_res = ChannelPruner.resolve_channels(
+            self._config,
+            sanitized_query,
+            memory_types,
+            memory_types_unspecified=memory_types_unspecified,
+        )
+        search_types = pruning_res.search_types
+        runtime_config = pruning_res.runtime_config
+        # Temporal hard-filter derivation: only when the caller passed neither
+        # bound (explicit scope always wins, mirroring ChannelPruner invariance).
+        effective_since, effective_until = since, until
+        temporal_window: TemporalWindow | None = None
+        if since is None and until is None and runtime_config.retrieval.enable_temporal_window:
+            temporal_window = derive_temporal_window(sanitized_query)
+            if temporal_window is not None:
+                effective_since = temporal_window.since
+                effective_until = temporal_window.until
+        claim_requested = self._graph is not None and (
+            memory_types_unspecified or MemoryType.CLAIM in memory_types or MemoryType.SEMANTIC in search_types
+        )
+        if dynamic_signal_weights:
+            runtime_config = replace(
+                runtime_config,
+                retrieval=replace(
+                    runtime_config.retrieval,
+                    dynamic_signal_weights=dynamic_signal_weights,
+                ),
+            )
+        tracked_types = list(dict.fromkeys([*search_types, *([MemoryType.CLAIM] if claim_requested else [])]))
+        metrics = get_search_metrics()
+        route_metadata: dict[str, Any] = {
+            "claim_requested": claim_requested,
+            "use_rrf": use_rrf,
+            "intent": pruning_res.decision.intent.value if pruning_res.decision else None,
+            "confidence": pruning_res.decision.confidence if pruning_res.decision else None,
+            "routing_mode": pruning_res.decision.routing_mode if pruning_res.decision else "broadcast",
+            "pruned_channels": [t.value for t in pruning_res.pruned_types],
+            "target_subgraphs": pruning_res.decision.target_subgraphs if pruning_res.decision else [],
+            "temporal_window": _temporal_window_metadata(temporal_window),
+        }
+        steps.append(
+            MemoryTraceStep(
+                phase="route",
+                title="channel_routing_and_pruning",
+                summary=(
+                    f"Resolved {len(search_types)} search types; pruned {len(pruning_res.pruned_types)} channels."
+                    if pruning_res.pruned_types
+                    else "Memory types and claim graph eligibility resolved."
+                ),
+                input_count=len(memory_types),
+                output_count=len(tracked_types),
+                metadata=route_metadata,
+            )
+        )
+
+        with metrics.track_search(searched_types=tracked_types, current_chat_id=current_chat_id) as tracker:
+            degraded = False
+            warning_codes: list[str] = []
+            deadline = perf_counter() + runtime_config.retrieval.timeout_seconds
+            embedding_required = self._embedding is not None and any(
+                memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CONVERSATION)
+                for memory_type in search_types
+            )
+            embed_start = perf_counter()
+            query_vector = None
+            if embedding_required:
+                try:
+                    query_vector = await asyncio.wait_for(
+                        self._embed_query_if_needed(sanitized_query, search_types),
+                        timeout=_deadline_remaining(deadline),
+                    )
+                except TimeoutError:
+                    degraded = True
+                    warning_codes.append(GATHER_QUERY_EMBEDDING_TIMEOUT)
+                    get_search_metrics().record_degradation("timeout")
+                    logger.warning(
+                        "Memory query embedding timed out after %.1fs; continuing with local-only recall",
+                        runtime_config.retrieval.timeout_seconds,
+                    )
+                except BaseException as exc:
+                    if isinstance(exc, asyncio.CancelledError):
+                        reraise_if_cancelled(exc)
+                    degraded = True
+                    warning_codes.append(GATHER_QUERY_EMBEDDING_FAILED)
+                    get_search_metrics().record_degradation("error")
+                    logger.warning("Memory query embedding failed: %s; continuing with local-only recall", exc)
+            embed_metadata: dict[str, Any] = {}
+            if query_vector is None and embedding_required:
+                embed_metadata["degraded"] = True
+                embed_metadata["kind"] = "timeout" if GATHER_QUERY_EMBEDDING_TIMEOUT in warning_codes else "error"
+                embed_metadata["warning_codes"] = [c for c in warning_codes if c.startswith("GATHER_QUERY_EMBEDDING")]
+            steps.append(
+                MemoryTraceStep(
+                    phase="embed",
+                    status="success"
+                    if query_vector is not None
+                    else "skipped"
+                    if not embedding_required
+                    else "warning",
+                    title="query_embedding",
+                    summary="Dense query vector prepared when vector-backed memory types are searched.",
+                    duration_ms=_elapsed_ms(embed_start),
+                    input_count=1,
+                    output_count=1 if query_vector is not None else 0,
+                    metadata=embed_metadata,
+                )
+            )
+            collect_start = perf_counter()
+            result_lists, collect_degraded, collect_warnings, source_names = await self._collect_result_lists(
+                query=sanitized_query,
+                memory_types=search_types,
+                limit=limit,
+                include_raw=include_raw,
+                config=runtime_config,
+                query_vector=query_vector,
+                deadline=deadline,
+                since=effective_since,
+                until=effective_until,
+            )
+            degraded = degraded or collect_degraded
+            warning_codes.extend(collect_warnings)
+            candidate_count = sum(len(result_list) for result_list in result_lists)
+            collect_metadata: dict[str, Any] = {"result_lists": len(result_lists), "sources": source_names}
+            if collect_degraded:
+                collect_metadata["degraded"] = True
+                collect_metadata["kind"] = (
+                    "timeout" if any(w.endswith("_TIMEOUT") for w in collect_warnings) else "error"
+                )
+            if collect_warnings:
+                collect_metadata["warning_codes"] = list(collect_warnings)
+            steps.append(
+                MemoryTraceStep(
+                    phase="collect",
+                    status="warning" if collect_degraded else "success",
+                    title="candidate_collect",
+                    summary="Candidate memories collected from configured stores.",
+                    duration_ms=_elapsed_ms(collect_start),
+                    input_count=len(search_types),
+                    output_count=candidate_count,
+                    metadata=collect_metadata,
+                )
+            )
+            rank_start = perf_counter()
+            query_context = analyze_query(sanitized_query)
+            final = self._rank_results(
+                result_lists=result_lists,
+                query=sanitized_query,
+                limit=limit,
+                use_rrf=use_rrf,
+                config=runtime_config,
+                query_context=query_context,
+                source_names=source_names,
+            )
+            steps.append(
+                MemoryTraceStep(
+                    phase="rank",
+                    title="candidate_rank",
+                    summary="Candidates fused, suppressed, diversified, and normalized.",
+                    duration_ms=_elapsed_ms(rank_start),
+                    input_count=candidate_count,
+                    output_count=len(final),
+                    metadata={"limit": limit, "use_rrf": use_rrf},
+                )
+            )
+            if self._graph is not None and claim_requested:
+                graph_start = perf_counter()
+                graph_degraded = False
+                graph_warnings: list[str] = []
+                try:
+                    final = await asyncio.wait_for(
+                        enrich_with_graph(
+                            final,
+                            sanitized_query,
+                            limit,
+                            self._graph,
+                            self._vector,
+                            runtime_config,
+                            current_channel_id=self._current_channel_id,
+                            namespaces=self._namespaces,
+                            reraise_graph_errors=True,
+                        ),
+                        timeout=_deadline_remaining(deadline),
+                    )
+                except TimeoutError:
+                    graph_degraded = True
+                    degraded = True
+                    warning_codes.append(GATHER_GRAPH_TIMEOUT)
+                    graph_warnings.append(GATHER_GRAPH_TIMEOUT)
+                    get_search_metrics().record_degradation("timeout")
+                    logger.warning(
+                        "Memory claim graph enrichment timed out after %.1fs; skipping graph results",
+                        runtime_config.retrieval.timeout_seconds,
+                    )
+                except BaseException as exc:
+                    if isinstance(exc, asyncio.CancelledError):
+                        reraise_if_cancelled(exc)
+                    graph_degraded = True
+                    degraded = True
+                    warning_codes.append(GATHER_GRAPH_FAILED)
+                    graph_warnings.append(GATHER_GRAPH_FAILED)
+                    get_search_metrics().record_degradation("error")
+                    logger.warning("Memory claim graph enrichment error: %s", exc)
+                graph_metadata: dict[str, Any] = {}
+                if graph_degraded:
+                    graph_metadata["degraded"] = True
+                    graph_metadata["kind"] = "timeout" if GATHER_GRAPH_TIMEOUT in graph_warnings else "error"
+                    graph_metadata["warning_codes"] = graph_warnings
+                steps.append(
+                    MemoryTraceStep(
+                        phase="graph",
+                        status="warning" if graph_degraded else "success",
+                        title="graph_enrich",
+                        summary="Claim graph enrichment applied to retrieval candidates.",
+                        duration_ms=_elapsed_ms(graph_start),
+                        input_count=candidate_count,
+                        output_count=len(final),
+                        metadata=graph_metadata,
+                    )
+                )
+            else:
+                steps.append(
+                    MemoryTraceStep(
+                        phase="graph",
+                        status="skipped",
+                        title="graph_enrich",
+                        summary="Graph enrichment skipped for this query.",
+                        input_count=candidate_count,
+                        output_count=len(final),
+                    )
+                )
+            rerank_input_count = len(final)
+            rerank_outcome = await apply_cross_rerank(
+                final,
+                sanitized_query,
+                reranker=self._reranker,
+                config=runtime_config,
+                deadline=deadline,
+            )
+            final = rerank_outcome.results
+            if rerank_outcome.degraded:
+                degraded = True
+                warning_codes.extend(rerank_outcome.warning_codes)
+                get_search_metrics().record_degradation(
+                    "timeout" if GATHER_RERANK_TIMEOUT in rerank_outcome.warning_codes else "error"
+                )
+            rerank_metadata: dict[str, JsonValue] = {
+                "applied": rerank_outcome.applied,
+                "degraded": rerank_outcome.degraded,
+                "reranked_count": rerank_outcome.reranked_count,
+                "skip_reason": rerank_outcome.skip_reason,
+            }
+            if rerank_outcome.warning_codes:
+                rerank_metadata["warning_codes"] = list(rerank_outcome.warning_codes)
+            steps.append(
+                MemoryTraceStep(
+                    phase="rerank",
+                    status=(
+                        "warning" if rerank_outcome.degraded else "success" if rerank_outcome.applied else "skipped"
+                    ),
+                    title="cross_rerank",
+                    summary=(
+                        "Cross-encoder rerank unified fused and graph scores into one relevance order."
+                        if rerank_outcome.applied
+                        else "Cross-encoder rerank skipped for this query."
+                    ),
+                    duration_ms=rerank_outcome.duration_ms,
+                    input_count=rerank_input_count,
+                    output_count=len(final),
+                    metadata=rerank_metadata,
+                )
+            )
+            if not include_raw:
+                final = self._strip_raw_exchange(final)
+            tracker.record(final)
+        deduped_warning_codes = list(dict.fromkeys(warning_codes))
+        self._last_trace = MemoryRetrievalTrace(
+            id=uuid4().hex,
+            query_preview=sanitized_query[:180],
+            occurred_at=datetime.now(UTC),
+            result_count=len(final),
+            degraded=degraded,
+            warning_codes=deduped_warning_codes,
+            steps=[
+                *steps,
+                MemoryTraceStep(
+                    phase="budget",
+                    title="output_budget",
+                    summary="Raw exchanges stripped when recall output requested a compact result.",
+                    status="success" if not include_raw else "skipped",
+                    duration_ms=_elapsed_ms(trace_start),
+                    input_count=candidate_count if "candidate_count" in locals() else 0,
+                    output_count=len(final),
+                    metadata={"include_raw": include_raw},
+                ),
+            ],
+        )
+        return final
+
+    async def _embed_query_if_needed(self, query: str, memory_types: list[MemoryType]) -> list[float] | None:
+        needs_vector = any(
+            memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CONVERSATION)
+            for memory_type in memory_types
+        )
+        if not needs_vector or self._embedding is None:
+            return None
+        return await embed_single(query, self._embedding, self._cache)
+
+    async def _collect_result_lists(
+        self,
+        *,
+        query: str,
+        memory_types: list[MemoryType],
+        limit: int,
+        include_raw: bool,
+        config: MemoryConfig,
+        query_vector: list[float] | None,
+        deadline: float,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> tuple[list[list[MemorySearchResult]], bool, list[str], list[str]]:
+        """Fan out per-type store searches and collect results under one deadline.
+
+        Returns ``(result_lists, degraded, warning_codes, source_names)``. Store tasks that outlive the
+        shared wall-clock deadline are cancelled and completed results kept, so a hanging store degrades
+        recall; a stop aimed at this task cancels the store tasks it awaits, then lets the stop continue.
+        """
+        tasks: list[asyncio.Task[list[MemorySearchResult]]] = []
+        task_stream_map: dict[asyncio.Task[Any], str] = {}
+        for memory_type in memory_types:
+            self._append_type_search_tasks(
+                tasks,
+                task_stream_map,
+                memory_type=memory_type,
+                query=query,
+                limit=limit,
+                include_raw=include_raw,
+                config=config,
+                query_vector=query_vector,
+                since=since,
+                until=until,
+            )
+
+        needs_vector = any(
+            memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CONVERSATION)
+            for memory_type in memory_types
+        )
+        if self._vector is not None and needs_vector:
+            bm25_task = asyncio.create_task(
+                search_bm25(
+                    query,
+                    self._vector,
+                    config,
+                    namespaces=self._namespaces,
+                    since=since,
+                    until=until,
+                )
+            )
+            tasks.append(bm25_task)
+            task_stream_map[bm25_task] = "bm25"
+
+        if self._fts5_searcher is not None:
+            fts_t = asyncio.create_task(self._fts5_searcher(query, limit, since, until))
+            tasks.append(fts_t)
+            task_stream_map[fts_t] = "fts5"
+
+        if not tasks:
+            return [], False, [], []
+
+        try:
+            done, pending = await asyncio.wait(
+                tasks,
+                timeout=_deadline_remaining(deadline),
+                return_when=asyncio.ALL_COMPLETED,
+            )
+        except asyncio.CancelledError:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
+        degraded = False
+        warning_codes: list[str] = []
+        if pending:
+            degraded = True
+            timeout_seconds = self._config.retrieval.timeout_seconds
+            for task in pending:
+                task.cancel()
+                stream = task_stream_map.get(task, "unknown")
+                warning_codes.append(_stream_warning_code(stream, "timeout"))
+            await asyncio.gather(*pending, return_exceptions=True)
+            get_search_metrics().record_degradation("timeout")
+            logger.warning(
+                "Memory search collect timed out after %.1fs; returning %d/%d completed store results",
+                timeout_seconds,
+                len(done),
+                len(tasks),
+            )
+
+        result_lists: list[list[MemorySearchResult]] = []
+        source_names: list[str] = []
+        for task in done:
+            stream = task_stream_map.get(task, "unknown")
+            try:
+                result = task.result()
+            except BaseException as exc:
+                degraded = True
+                warning_codes.append(_stream_warning_code(stream, "failed"))
+                get_search_metrics().record_degradation("error")
+                logger.warning("Memory search error (%s): %s", stream, exc)
+                continue
+            if isinstance(result, list) and result:
+                filtered = self._filter_results(result)
+                if filtered:
+                    result_lists.append(apply_channel_affinity(filtered, current_channel_id=self._current_channel_id))
+                    source_names.append(stream)
+        return result_lists, degraded, warning_codes, source_names
+
+    @staticmethod
+    def _filter_results(results: list[MemorySearchResult]) -> list[MemorySearchResult]:
+        """Hide internal L2 task digests, archive checkpoints, and subsumed memories from normal recall results.
+
+        Task digests are compilation artifacts for the L2 -> L3 pipeline.
+        Archive checkpoints are internal prune milestones for pre-compaction inject.
+        Subsumed memories are redundant memories that have been incorporated into skills/wiki.
+        """
+        filtered: list[MemorySearchResult] = []
+        for result in results:
+            mem = result.memory
+            status = getattr(mem, "status", None)
+            status_str = str(getattr(status, "value", status or "")).strip().lower()
+            if status_str in ("archived", "disabled"):
+                continue
+            meta = getattr(mem, "metadata", None)
+            if isinstance(meta, dict):
+                meta_status = str(meta.get("status", "")).strip().lower()
+                if meta.get("archived") is True or meta_status in ("archived", "disabled"):
+                    continue
+                # A choice the user explicitly withdrew. Every search stream passes
+                # through here, so one place stops the agent repeating it.
+                if meta.get(_SUPERSEDED_KEY) is True:
+                    continue
+            if isinstance(mem, ProceduralMemory) and not mem.is_active:
+                continue
+
+            if result.memory_type != MemoryType.EPISODIC:
+                filtered.append(result)
+                continue
+
+            event_type = str(getattr(result.memory, "event_type", "")).strip()
+            if event_type in {MemoryType.TASK_DIGEST.value, "archive_checkpoint"}:
+                continue
+            filtered.append(result)
+        return filtered
+
+    def _append_type_search_tasks(
+        self,
+        tasks: list[asyncio.Task[list[MemorySearchResult]]],
+        task_stream_map: dict[asyncio.Task[Any], str],
+        *,
+        memory_type: MemoryType,
+        query: str,
+        limit: int,
+        include_raw: bool,
+        config: MemoryConfig,
+        query_vector: list[float] | None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> None:
+        if memory_type == MemoryType.PROFILE and self._relational is not None:
+            t = asyncio.create_task(search_profile(query, limit, self._relational, namespaces=self._namespaces))
+            tasks.append(t)
+            task_stream_map[t] = "profile"
+            return
+        if memory_type == MemoryType.PROCEDURAL and self._relational is not None:
+            t = asyncio.create_task(search_procedural(query, limit, self._relational, namespaces=self._namespaces))
+            tasks.append(t)
+            task_stream_map[t] = "procedural"
+            return
+        if memory_type == MemoryType.SEMANTIC and self._vector is not None and query_vector is not None:
+            t = asyncio.create_task(
+                search_semantic(
+                    query_vector,
+                    limit,
+                    self._vector,
+                    config,
+                    namespaces=self._namespaces,
+                    since=since,
+                    until=until,
+                )
+            )
+            tasks.append(t)
+            task_stream_map[t] = "semantic"
+            return
+        if memory_type == MemoryType.EPISODIC and self._vector is not None and query_vector is not None:
+            t = asyncio.create_task(
+                search_episodic(
+                    query_vector,
+                    limit,
+                    self._vector,
+                    config,
+                    namespaces=self._namespaces,
+                    since=since,
+                    until=until,
+                )
+            )
+            tasks.append(t)
+            task_stream_map[t] = "episodic"
+            return
+        if memory_type == MemoryType.CONVERSATION and self._vector is not None and query_vector is not None:
+            self._append_conversation_tasks(
+                tasks,
+                task_stream_map,
+                query=query,
+                limit=limit,
+                include_raw=include_raw,
+                config=config,
+                query_vector=query_vector,
+                vector=self._vector,
+                since=since,
+                until=until,
+            )
+
+    def _append_conversation_tasks(
+        self,
+        tasks: list[asyncio.Task[list[MemorySearchResult]]],
+        task_stream_map: dict[asyncio.Task[Any], str],
+        *,
+        query: str,
+        limit: int,
+        include_raw: bool,
+        config: MemoryConfig,
+        query_vector: list[float],
+        vector: VectorStoreProtocol,
+        since: datetime | None = None,
+        until: datetime | None = None,
+    ) -> None:
+        if self._config.retrieval.enable_two_pass_assistant_retrieval and is_assistant_reference_query(query):
+            get_search_metrics().record_assistant_reference_query()
+            use_dual = self._should_use_dual_channel(query)
+            query_raw = query_vector if use_dual else None
+            t = asyncio.create_task(
+                search_conversation_two_pass(
+                    query_raw or query_vector,
+                    query_vector,
+                    query,
+                    limit,
+                    vector,
+                    config,
+                    namespaces=self._namespaces,
+                    include_raw=include_raw,
+                    since=since,
+                    until=until,
+                )
+            )
+            tasks.append(t)
+            task_stream_map[t] = "conversation"
+            return
+
+        use_dual = self._should_use_dual_channel(query)
+        query_raw = query_vector if use_dual else None
+        t = asyncio.create_task(
+            search_conversation(
+                query_raw,
+                query_vector,
+                limit,
+                vector,
+                config,
+                namespaces=self._namespaces,
+                include_raw=include_raw,
+                since=since,
+                until=until,
+            )
+        )
+        tasks.append(t)
+        task_stream_map[t] = "conversation"
+
+    def _should_use_dual_channel(self, query: str) -> bool:
+        if not self._config.retrieval.enable_adaptive_channel:
+            return True
+        return should_use_dual_channel(query, self._config.retrieval)
+
+    def _rank_results(
+        self,
+        *,
+        result_lists: list[list[MemorySearchResult]],
+        query: str,
+        limit: int,
+        use_rrf: bool,
+        config: MemoryConfig,
+        query_context: object | None = None,
+        source_names: list[str] | None = None,
+    ) -> list[MemorySearchResult]:
+        retriever = MemoryRetriever(config.retrieval) if config != self._config else self._retriever
+        if use_rrf and len(result_lists) > 1:
+            return retriever.fuse(
+                result_lists,
+                limit=limit,
+                query=query,
+                query_context=query_context,
+                source_names=source_names,
+            )
+        merged = [memory for result_list in result_lists for memory in result_list]
+        return retriever.rank(merged, limit=limit, query=query, query_context=query_context)
+
+    def _strip_raw_exchange(self, results: list[MemorySearchResult]) -> list[MemorySearchResult]:
+        return [
+            (
+                MemorySearchResult(
+                    memory=result.memory.without_raw(), score=result.score, memory_type=result.memory_type
+                )
+                if isinstance(result.memory, ConversationMemory)
+                else result
+            )
+            for result in results
+        ]
+
+
+def _elapsed_ms(start: float) -> float:
+    return round((perf_counter() - start) * 1000, 3)

@@ -1,0 +1,256 @@
+"""Tests for unified capability discovery meta-tool."""
+
+from unittest.mock import MagicMock
+
+import pytest
+from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
+
+from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
+    create_discover_capability_tool,
+)
+from myrm_agent_harness.backends.skills.types import SkillMetadata
+
+
+class DummyInput(BaseModel):
+    arg1: str = Field(description="A dummy argument")
+
+
+class DummyTool(BaseTool):
+    name: str = "dummy_native_tool"
+    description: str = "Browse websites and open webpages for the user"
+    args_schema: type[BaseModel] = DummyInput
+
+    def _run(self, arg1: str) -> str:
+        return "dummy"
+
+
+@pytest.fixture
+def mock_skills():
+    return [
+        SkillMetadata(name="bound_skill_1", description="A bound skill"),
+        SkillMetadata(name="bound_skill_2", description="Another bound skill"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_create_tool_no_engines():
+    tool = create_discover_capability_tool()
+    assert tool.name == "skill_search_tool"
+    result = await tool.ainvoke({"query": "test"})
+    assert "No capabilities found" in result
+
+
+@pytest.mark.asyncio
+async def test_discover_bound_skill(mock_skills):
+    tool = create_discover_capability_tool(skills=mock_skills)
+    result = await tool.ainvoke({"query": ".*", "mode": "regex"})
+    assert "Found bound skills" in result
+    assert "<BoundSkills>" in result
+    assert "bound_skill_1" in result
+
+
+@pytest.mark.asyncio
+async def test_no_matches(mock_skills):
+    tool = create_discover_capability_tool(skills=mock_skills)
+    result = await tool.ainvoke({"query": "nonexistent_capability_xyz123"})
+    assert "No capabilities found" in result
+
+
+@pytest.mark.asyncio
+async def test_miss_returns_plain_not_found_without_gap() -> None:
+    tool = create_discover_capability_tool()
+    result = await tool.ainvoke({"query": "please browse this website"})
+    assert "No capabilities found" in result
+    assert "<CapabilityGap>" not in result
+    assert "<SkillGap>" not in result
+
+
+@pytest.mark.asyncio
+async def test_hit_returns_bound_skills_without_gap() -> None:
+    skills = [
+        SkillMetadata(name="browse_helper_skill", description="Browse websites and extract content"),
+        SkillMetadata(name="other_skill", description="Another skill"),
+    ]
+    tool = create_discover_capability_tool(skills=skills)
+    result = await tool.ainvoke({"query": "browse", "mode": "regex"})
+    assert "Found bound skills" in result
+    assert "<BoundSkills>" in result
+    assert "<CapabilityGap>" not in result
+    assert "<SkillGap>" not in result
+
+
+@pytest.mark.asyncio
+async def test_miss_does_not_dispatch_gap_events(monkeypatch: pytest.MonkeyPatch) -> None:
+    events: list[tuple[str, object]] = []
+
+    async def _capture(event_name: str, payload: object, config: object | None = None) -> None:
+        events.append((event_name, payload))
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+        _capture,
+    )
+    tool = create_discover_capability_tool()
+    await tool.ainvoke({"query": "browse website with github_pr_skill"})
+    event_names = [name for name, _ in events]
+    assert "capability_gap" not in event_names
+    assert "skill_gap" not in event_names
+
+
+@pytest.mark.asyncio
+async def test_description_mentions_skill_market_tool_when_mounted() -> None:
+    tool = create_discover_capability_tool(market_tool_mounted=True)
+    assert "skill_market_tool" in tool.description
+    assert "Settings" not in tool.description
+
+
+@pytest.mark.asyncio
+async def test_description_points_to_settings_when_market_not_mounted() -> None:
+    tool = create_discover_capability_tool(market_tool_mounted=False)
+    assert "skill_market_tool" not in tool.description
+    assert "Settings" in tool.description
+    assert "Discover" in tool.description
+
+
+@pytest.mark.asyncio
+async def test_description_is_stable_without_dynamic_tool_names():
+    """Stable index: discover description must not embed per-tool names (prefix cache)."""
+    tool = create_discover_capability_tool()
+    assert "dummy_native_tool" not in tool.description
+
+
+@pytest.mark.asyncio
+async def test_description_omits_native_tool_list_when_registry_empty():
+    """When registry has no Turn1 tools, description omits the native tools list."""
+    tool = create_discover_capability_tool()
+    assert "Discoverable native tools" not in tool.description
+
+
+@pytest.mark.asyncio
+async def test_description_contains_must_search_before_declining():
+    """Verify tool description enforces proactive search before declining."""
+    tool = create_discover_capability_tool()
+    assert "MUST search here BEFORE declining" in tool.description
+    assert "IMPORTANT" in tool.description
+
+
+@pytest.mark.asyncio
+async def test_bound_skill_output_format(mock_skills):
+    """Verify bound skill results use only name and description (no source/version)."""
+    tool = create_discover_capability_tool(skills=mock_skills)
+    result = await tool.ainvoke({"query": ".*", "mode": "regex"})
+    assert "bound_skill_1" in result
+    assert "A bound skill" in result
+    assert "source:" not in result
+    assert "version:" not in result
+
+
+@pytest.mark.asyncio
+async def test_bm25_mode_default(mock_skills):
+    """Verify default mode is bm25 (not regex)."""
+    tool = create_discover_capability_tool(skills=mock_skills)
+    result = await tool.ainvoke({"query": "bound"})
+    assert "bound_skill" in result or "No capabilities" in result
+
+
+@pytest.mark.asyncio
+async def test_skill_output_format(mock_skills):
+    """Verify skill output uses BoundSkills XML format."""
+    tool = create_discover_capability_tool(skills=mock_skills)
+    result = await tool.ainvoke({"query": ".*", "mode": "regex"})
+    assert "<BoundSkills>" in result
+    assert "</BoundSkills>" in result
+    assert "<ExternalSkills>" not in result
+    assert "bound_skill_1" in result
+
+
+@pytest.mark.asyncio
+async def test_description_contains_skill_select_instruction():
+    """Verify description mentions skill_select_tool for bound skills."""
+    tool = create_discover_capability_tool()
+    assert "skill_select_tool" in tool.description
+
+
+@pytest.mark.asyncio
+async def test_wildcard_query(mock_skills):
+    """Verify query='*' lists all skills."""
+    tool = create_discover_capability_tool(skills=mock_skills)
+    result = await tool.ainvoke({"query": "*"})
+    assert "bound_skill_1" in result or "No capabilities" in result
+
+
+@pytest.mark.asyncio
+async def test_hybrid_engine_path(mock_skills):
+    """Cover HybridSkillSearchEngine initialization path (lines 79-83) and await path (line 141)."""
+    from unittest.mock import AsyncMock, patch
+
+    from myrm_agent_harness.agent.meta_tools.skills.search.types import SkillSearchResult
+
+    mock_engine_instance = MagicMock()
+    mock_engine_instance.search_bm25 = AsyncMock(
+        return_value=[SkillSearchResult(name="bound_skill_1", description="A bound skill", score=1.0)]
+    )
+    mock_hybrid_cls = MagicMock(return_value=mock_engine_instance)
+
+    mock_embedding_config = MagicMock()
+
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.skills.search.hybrid_engine.HybridSkillSearchEngine",
+        mock_hybrid_cls,
+    ):
+        tool = create_discover_capability_tool(
+            skills=mock_skills,
+            embedding_config=mock_embedding_config,
+        )
+
+    result = await tool.ainvoke({"query": "bound"})
+    assert "bound_skill_1" in result
+
+
+@pytest.mark.asyncio
+async def test_async_engine_isawaitable():
+    """Verify discover_capability handles async engines (HybridSkillSearchEngine).
+
+    Before the fix, HybridSkillSearchEngine.search_bm25 returns a coroutine,
+    and the tool would fail with 'coroutine object is not iterable'.
+    This test validates the isawaitable() guard works correctly.
+    """
+    import inspect
+
+    from myrm_agent_harness.agent.meta_tools.skills.search.types import SkillSearchResult
+
+    class AsyncMockEngine:
+        """Mimics HybridSkillSearchEngine with async search methods."""
+
+        async def search_bm25(self, query: str, top_k: int = 10) -> list[SkillSearchResult]:
+            return [SkillSearchResult(name="skill_a", description="Async skill A", score=1.0)]
+
+        async def search_regex(self, pattern: str, top_k: int = 10) -> list[SkillSearchResult]:
+            return [SkillSearchResult(name="skill_b", description="Async skill B", score=1.0)]
+
+    engine = AsyncMockEngine()
+
+    # BM25 path: calling async method returns a coroutine
+    bm25_result = engine.search_bm25("test", top_k=10)
+    assert inspect.isawaitable(bm25_result), "Async engine.search_bm25 should return awaitable"
+    matches = await bm25_result
+    assert len(matches) == 1
+    assert matches[0].name == "skill_a"
+
+    # Regex path
+    regex_result = engine.search_regex("test")
+    assert inspect.isawaitable(regex_result), "Async engine.search_regex should return awaitable"
+    matches = await regex_result
+    assert len(matches) == 1
+    assert matches[0].name == "skill_b"
+
+    # Sync engine should NOT be awaitable
+    class SyncMockEngine:
+        def search_bm25(self, query: str, top_k: int = 10) -> list[SkillSearchResult]:
+            return [SkillSearchResult(name="sync_skill", description="Sync", score=1.0)]
+
+    sync_engine = SyncMockEngine()
+    sync_result = sync_engine.search_bm25("test")
+    assert not inspect.isawaitable(sync_result), "Sync engine result should not be awaitable"
+    assert sync_result[0].name == "sync_skill"

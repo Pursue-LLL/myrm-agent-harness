@@ -1,0 +1,339 @@
+"""Reciprocal Rank Fusion (RRF) retriever for multi-source memory search.
+
+
+[INPUT]
+- memory.config::RetrievalConfig (POS: retrieval configuration)
+- memory.retriever_scoring::RetrievalScoringMixin (POS: per-candidate geometric scoring and boosts)
+- memory.signals::SignalCalculator (POS: context signal calculator)
+- memory.types::{MemorySearchResult, SemanticMemory} (POS: memory data models)
+
+[OUTPUT]
+- MemoryRetriever: RRF retriever with hard cutoff, correction-chain suppression, MMR diversity (content + source decay), dual-channel fusion
+
+[POS]
+RRF retriever for multi-source memory search.
+rank() pipeline: geometric scoring → correction-chain suppression → hard cutoff
+(min_relevance_score) → MMR diversity reranking → normalization.
+fuse() pipeline: RRF scoring → correction-chain suppression → MMR diversity reranking →
+normalization. Hard cutoff is intentionally omitted from fuse() because RRF scores are
+relative rank-based values where absolute thresholds have no meaning.
+Supports dual-channel (raw + summary embedding) fusion for ConversationMemory.
+"""
+
+from __future__ import annotations
+
+from myrm_agent_harness.toolkits.memory.config import RetrievalConfig
+from myrm_agent_harness.toolkits.memory.retriever_scoring import RetrievalScoringMixin
+from myrm_agent_harness.toolkits.memory.signals import SignalCalculator
+from myrm_agent_harness.toolkits.memory.text_utils import tokenize
+from myrm_agent_harness.toolkits.memory.types import (
+    HitSource,
+    MemorySearchResult,
+    RecallDebugTrace,
+    SemanticMemory,
+)
+
+
+def _jaccard_similarity(a: frozenset[str], b: frozenset[str]) -> float:
+    """Jaccard similarity between two token sets. Returns 0.0 for empty sets."""
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+class MemoryRetriever(RetrievalScoringMixin):
+    """Stateless retriever with RRF fusion, hard cutoff (rank path only), correction-chain suppression, and MMR diversity."""
+
+    def __init__(self, config: RetrievalConfig | None = None) -> None:
+        self._config = config or RetrievalConfig()
+        self._signal_calc = SignalCalculator()
+
+    def rank(
+        self,
+        results: list[MemorySearchResult],
+        *,
+        limit: int = 10,
+        query: str = "",
+        query_context: object | None = None,
+        similarity_threshold: float | None = None,
+    ) -> list[MemorySearchResult]:
+        """Apply geometric mean scoring, correction suppression, and MMR diversity."""
+        if not results:
+            return []
+        sim_threshold = (
+            similarity_threshold if similarity_threshold is not None else self._config.raw_similarity_threshold
+        )
+        query_tokens = tokenize(query)
+        scores: dict[str, float] = {}
+        items: dict[str, MemorySearchResult] = {}
+        max_raw_scores: dict[str, float] = {}
+        for r in results:
+            mid = r.id
+            r_raw = (
+                r.raw_score
+                if r.raw_score is not None
+                else (r.raw_similarity if r.raw_similarity is not None else r.score)
+            )
+            max_raw_scores[mid] = r_raw
+            scores[mid] = self._boost(r.score, r, query_tokens, query_context, raw_query=query)
+            items[mid] = r
+        if sim_threshold > 0:
+            self._similarity_cutoff(scores, items, max_raw_scores, sim_threshold)
+        self._suppress_corrected(scores, items)
+        self._hard_cutoff(scores, items)
+        scores, items = self._mmr_select(scores, items, limit)
+        return self._normalise(scores, items, limit, max_raw_scores=max_raw_scores)
+
+    def fuse(
+        self,
+        result_lists: list[list[MemorySearchResult]],
+        *,
+        limit: int = 10,
+        query: str = "",
+        query_context: object | None = None,
+        source_names: list[str] | None = None,
+        similarity_threshold: float | None = None,
+    ) -> list[MemorySearchResult]:
+        """Fuse multiple result lists using RRF, deterministic tie-breaking, and MMR diversity.
+
+        Supports dual-channel fusion for ConversationMemory:
+        - Raw channel (raw_embedding): high precision for exact wording
+        - Summary channel (summary_embedding): broad coverage for semantic meaning
+        - Channel weights applied via type_weights configuration
+
+        Deterministic 3-tier tie-breaking:
+        1. Fused/boosted score descending
+        2. Hit count (number of distinct streams hitting the candidate) descending
+        3. Stable string candidate ID ascending (eliminates hash seed/iteration order jitter)
+        """
+        scores: dict[str, float] = {}
+        items: dict[str, MemorySearchResult] = {}
+        hit_attributions: dict[str, list[HitSource]] = {}
+        max_raw_scores: dict[str, float] = {}
+        sim_threshold = (
+            similarity_threshold if similarity_threshold is not None else self._config.raw_similarity_threshold
+        )
+        k = self._config.rrf_k
+        query_tokens = tokenize(query)
+        query_lower = query.lower()
+
+        for list_idx, results in enumerate(result_lists):
+            src_name = source_names[list_idx] if source_names and list_idx < len(source_names) else f"stream_{list_idx}"
+            for rank_idx, r in enumerate(results):
+                mid = r.id
+                r_raw = (
+                    r.raw_score
+                    if r.raw_score is not None
+                    else (r.raw_similarity if r.raw_similarity is not None else r.score)
+                )
+                if mid not in max_raw_scores or r_raw > max_raw_scores[mid]:
+                    max_raw_scores[mid] = r_raw
+
+                rrf = 1.0 / (k + rank_idx + 1)
+                type_w = self._config.type_weights.get(r.memory_type, 1.0)
+                boosted = self._boost(rrf * type_w, r, query_tokens, query_context, raw_query=query)
+                if getattr(r.memory, "is_exact_fact", False) and getattr(r.memory, "exact_identifiers", None):
+                    for ident in r.memory.exact_identifiers:
+                        ident_lower = ident.lower()
+                        if ident_lower in query_tokens or (query_lower and ident_lower in query_lower):
+                            boosted += 5.0
+                            break
+                scores[mid] = scores.get(mid, 0.0) + boosted
+                if mid not in items:
+                    items[mid] = r
+                if mid not in hit_attributions:
+                    hit_attributions[mid] = []
+                hit_attributions[mid].append(HitSource(source=src_name, rank=rank_idx, score=r.score))
+
+        if sim_threshold > 0:
+            self._similarity_cutoff(scores, items, max_raw_scores, sim_threshold)
+        self._suppress_corrected(scores, items)
+        scores, items = self._mmr_select(scores, items, limit)
+        return self._normalise(scores, items, limit, hit_attributions=hit_attributions, max_raw_scores=max_raw_scores)
+
+    def _similarity_cutoff(
+        self,
+        scores: dict[str, float],
+        items: dict[str, MemorySearchResult],
+        max_raw_scores: dict[str, float],
+        threshold: float,
+    ) -> None:
+        """Discard memories whose raw physical similarity falls below threshold."""
+        if threshold <= 0 or not scores:
+            return
+
+        to_remove = [mid for mid in scores if max_raw_scores.get(mid, 0.0) < threshold]
+        if len(to_remove) >= len(scores):
+            best_id = max(scores, key=lambda mid: max_raw_scores.get(mid, 0.0))
+            to_remove = [mid for mid in to_remove if mid != best_id]
+
+        for mid in to_remove:
+            del scores[mid]
+            del items[mid]
+
+    def _hard_cutoff(self, scores: dict[str, float], items: dict[str, MemorySearchResult]) -> None:
+        """Discard memories below min_relevance_score to prevent noise injection.
+
+        Operates in-place on *scores* and *items* dicts.  When all candidates
+        fall below the threshold the top-1 result is preserved so the caller
+        never receives an unexpectedly empty list.
+        """
+        threshold = self._config.min_relevance_score
+        if threshold <= 0 or not scores:
+            return
+
+        to_remove = [mid for mid, s in scores.items() if s < threshold]
+        if len(to_remove) >= len(scores):
+            # Keep the single best result to avoid returning nothing
+            best_id = max(scores, key=scores.__getitem__)
+            to_remove = [mid for mid in to_remove if mid != best_id]
+
+        for mid in to_remove:
+            del scores[mid]
+            del items[mid]
+
+    def _mmr_select(
+        self, scores: dict[str, float], items: dict[str, MemorySearchResult], limit: int
+    ) -> tuple[dict[str, float], dict[str, MemorySearchResult]]:
+        """Select diverse results using Maximal Marginal Relevance with source decay.
+
+        MMR(d) = λ * relevance(d) - (1-λ) * (content_sim + β * source_overlap)
+
+        Uses Jaccard text similarity as the inter-document similarity measure.
+        Source decay penalizes results from sessions already represented in the
+        selected set, promoting cross-session diversity without hard cutoffs.
+
+        When λ=1.0, degrades to pure relevance ranking (no-op).
+        When source_diversity_weight=0, degrades to standard content-only MMR.
+
+        Returns:
+            Filtered (scores, items) containing only the selected documents.
+        """
+        lam = self._config.mmr_lambda
+        if lam >= 1.0 or len(scores) <= limit:
+            return scores, items
+
+        max_score = max(scores.values()) if scores else 1.0
+        if max_score <= 0:
+            return scores, items
+        norm_scores = {mid: s / max_score for mid, s in scores.items()}
+
+        token_sets: dict[str, frozenset[str]] = {mid: tokenize(items[mid].content) for mid in scores}
+
+        remaining = set(scores.keys())
+        selected: list[str] = []
+        selected_tokens: list[frozenset[str]] = []
+        source_counts: dict[str | None, int] = {}
+        source_weight = self._config.source_diversity_weight
+
+        for selected_count in range(min(limit, len(scores))):
+            best_id = ""
+            best_mmr = -1.0
+
+            for mid in remaining:
+                relevance = norm_scores[mid]
+                if selected_tokens:
+                    max_sim = max(_jaccard_similarity(token_sets[mid], st) for st in selected_tokens)
+                else:
+                    max_sim = 0.0
+
+                source_penalty = 0.0
+                if source_weight > 0 and selected_count > 0:
+                    source_id = getattr(items[mid].memory, "source_chat_id", None)
+                    if source_id:
+                        source_penalty = source_weight * (source_counts.get(source_id, 0) / selected_count)
+
+                penalty = max_sim + source_penalty
+                mmr = lam * relevance - (1.0 - lam) * penalty
+                if mmr > best_mmr:
+                    best_mmr = mmr
+                    best_id = mid
+
+            if not best_id:
+                break
+
+            selected.append(best_id)
+            selected_tokens.append(token_sets[best_id])
+            best_source = getattr(items[best_id].memory, "source_chat_id", None)
+            if best_source:
+                source_counts[best_source] = source_counts.get(best_source, 0) + 1
+            remaining.discard(best_id)
+
+        selected_set = set(selected)
+        return ({mid: scores[mid] for mid in selected_set}, {mid: items[mid] for mid in selected_set})
+
+    def _normalise(
+        self,
+        scores: dict[str, float],
+        items: dict[str, MemorySearchResult],
+        limit: int,
+        hit_attributions: dict[str, list[HitSource]] | None = None,
+        max_raw_scores: dict[str, float] | None = None,
+    ) -> list[MemorySearchResult]:
+        """Normalize scores to [0, 1] range and return top-k results with 3-tier deterministic tie-breaking.
+
+        Tie-breaking hierarchy:
+        1. Score descending (-score)
+        2. Hit count descending (-hit_count)
+        3. Stable string candidate ID ascending (mid)
+        """
+        if not scores:
+            return []
+
+        def _sort_key(item: tuple[str, float]) -> tuple[float, int, str]:
+            mid, score = item
+            hit_count = len(hit_attributions[mid]) if hit_attributions and mid in hit_attributions else 1
+            # Sort order: highest score first, highest hit_count first, lowest ID alphabetically first
+            return (-score, -hit_count, mid)
+
+        ranked = sorted(scores.items(), key=_sort_key)[:limit]
+        if not ranked:
+            return []
+
+        max_score = max(ranked[0][1], 1e-9)
+        out: list[MemorySearchResult] = []
+        for rank_pos, (mid, score) in enumerate(ranked):
+            item_orig = items[mid]
+            final_raw = (
+                max_raw_scores.get(mid)
+                if max_raw_scores and mid in max_raw_scores
+                else (
+                    item_orig.raw_score
+                    if item_orig.raw_score is not None
+                    else (item_orig.raw_similarity if item_orig.raw_similarity is not None else item_orig.score)
+                )
+            )
+            normalized_rank = min(score / max_score, 1.0)
+            debug_trace: RecallDebugTrace | None = None
+            if hit_attributions and mid in hit_attributions:
+                hits = hit_attributions[mid]
+                debug_trace = RecallDebugTrace(
+                    hit_sources=hits,
+                    hit_count=len(hits),
+                    fused_score=round(score, 6),
+                    raw_score=final_raw,
+                    tie_break_rank=rank_pos,
+                )
+            out.append(
+                MemorySearchResult(
+                    memory=item_orig.memory,
+                    score=normalized_rank,
+                    raw_score=final_raw,
+                    raw_similarity=final_raw,
+                    ranking_score=normalized_rank,
+                    memory_type=item_orig.memory_type,
+                    recall_debug=debug_trace,
+                    score_breakdown=item_orig.score_breakdown,
+                )
+            )
+        return out
+
+    def _suppress_corrected(self, scores: dict[str, float], items: dict[str, MemorySearchResult]) -> None:
+        """Demote memories that have been superseded by a correction."""
+        corrected_ids: set[str] = set()
+        for r in items.values():
+            mem = r.memory
+            if isinstance(mem, SemanticMemory) and mem.correction_of and mem.correction_of in scores:
+                corrected_ids.add(mem.correction_of)
+        for cid in corrected_ids:
+            scores[cid] *= self._config.correction_penalty

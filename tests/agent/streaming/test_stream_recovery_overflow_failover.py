@@ -1,0 +1,985 @@
+"""stream_recovery.py 的 overflow / failover / safety refusal / steering / subagent 测试。
+
+覆盖 stream_recovery.py 中 _handle_overflow、_handle_failover、
+_handle_safety_refusal_fallback、_handle_steering、_handle_subagent_notifications 等方法。
+"""
+
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.types import Command
+
+from myrm_agent_harness.agent.streaming.stream_executor import (
+    StreamContext,
+    StreamExecutor,
+)
+from myrm_agent_harness.agent.streaming.types import AgentEventType
+from myrm_agent_harness.agent.types import AgentRunStatistics
+
+
+class FakeCompactor:
+    def __init__(self) -> None:
+        self.events: list[object] = []
+
+    async def put(self, event: object) -> None:
+        self.events.append(event)
+
+    async def flush(self) -> None:
+        pass
+
+
+@pytest.fixture
+def ctx():
+    stats = AgentRunStatistics()
+    return StreamContext(
+        agent=MagicMock(),
+        agent_input={"messages": [HumanMessage(content="test")]},
+        merged_context={"locale": "en"},
+        run_config={},
+        stats=stats,
+        message_id="recovery_test",
+        cancel_token=None,
+        steering_token=None,
+        source_tracker=MagicMock(),
+        output_queue=asyncio.Queue(),
+    )
+
+
+def _make_executor(ctx: StreamContext) -> StreamExecutor:
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=None,
+        safety_fallback_llm=None,
+        rebuild_agent_fn=MagicMock(),
+    )
+    executor._compactor = FakeCompactor()
+    return executor
+
+
+# ─── _handle_overflow ────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_overflow_not_overflow_error(ctx):
+    """Non-overflow errors are not handled."""
+    executor = _make_executor(ctx)
+    exc = RuntimeError("not overflow")
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
+        return_value=False,
+    ):
+        result = await executor._handle_overflow(exc, 0)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_overflow_retries_exhausted(ctx):
+    """When retries >= MAX, marks compression_exhausted."""
+    executor = _make_executor(ctx)
+    exc = RuntimeError("context length exceeded")
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
+        return_value=True,
+    ):
+        result = await executor._handle_overflow(exc, 2)
+
+    assert result is False
+    assert ctx.stats.compression_exhausted is True
+
+
+@pytest.mark.asyncio
+async def test_overflow_stage1_structured_summary_success(ctx):
+    """Tier 1 (retries=0): calls generate_structured_summary when llm is present."""
+    from langchain_core.messages import HumanMessage
+
+    from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
+
+    ctx.llm = MagicMock()
+    ctx.agent_input = {"messages": [HumanMessage(content="A" * 1000)]}
+    executor = _make_executor(ctx)
+    exc = RuntimeError("context length exceeded")
+
+    mock_summary = StructuredSummary(user_goal="Test Goal")
+    compacted_msgs = [HumanMessage(content="Compacted short")]
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
+            return_value=True,
+        ),
+        patch(
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.generate_structured_summary",
+            new_callable=AsyncMock,
+            return_value=(compacted_msgs, mock_summary),
+        ) as summary_mock,
+    ):
+        result = await executor._handle_overflow(exc, 0)
+
+    assert result is True
+    summary_mock.assert_called_once()
+    assert ctx.agent_input["messages"] == compacted_msgs
+    events = executor._compactor.events
+    status_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "context_compaction"]
+    assert len(status_events) == 1
+    assert status_events[0]["restart"] is True
+
+
+@pytest.mark.asyncio
+async def test_overflow_stage1_compact(ctx):
+    """Tier 2 fallback: calls _emergency_compact when Tier 1 is skipped/yields 0."""
+    executor = _make_executor(ctx)
+    exc = RuntimeError("context length exceeded")
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
+            return_value=True,
+        ),
+        patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
+            new_callable=AsyncMock,
+            return_value=500,
+        ) as compact_mock,
+    ):
+        result = await executor._handle_overflow(exc, 0)
+
+    assert result is True
+    compact_mock.assert_called_once()
+    events = executor._compactor.events
+    status_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "context_compaction"]
+    assert len(status_events) == 1
+    assert status_events[0]["restart"] is True
+
+
+@pytest.mark.asyncio
+async def test_overflow_stage1_fallthrough_to_truncate(ctx):
+    """Stage 1 with saved=0 falls through to truncation."""
+    executor = _make_executor(ctx)
+    exc = RuntimeError("context length exceeded")
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
+            return_value=True,
+        ),
+        patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
+            new_callable=AsyncMock,
+            return_value=0,
+        ),
+        patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._truncate_oldest_rounds",
+            return_value=200,
+        ) as truncate_mock,
+    ):
+        result = await executor._handle_overflow(exc, 0)
+
+    assert result is True
+    truncate_mock.assert_called_once()
+    events = executor._compactor.events
+    status_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "context_truncation"]
+    assert len(status_events) == 1
+    assert status_events[0]["restart"] is True
+
+
+@pytest.mark.asyncio
+async def test_overflow_resume_mode_rejected(ctx):
+    """Resume mode (Command) cannot be compacted."""
+    ctx.agent_input = Command(resume="some_value")
+    executor = _make_executor(ctx)
+    exc = RuntimeError("context length exceeded")
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
+        return_value=True,
+    ):
+        result = await executor._handle_overflow(exc, 0)
+
+    assert result is False
+
+
+# ─── _handle_failover ────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_failover_no_fallback(ctx):
+    """No fallback LLM → failover not triggered."""
+    executor = _make_executor(ctx)
+    exc = RuntimeError("model error")
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.RATE_LIMIT,
+    ):
+        result = await executor._handle_failover(exc)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_failover_unconfigured_emits_status(ctx):
+    """Failoverable error without fallback LLM emits unconfigured STATUS once."""
+    executor = _make_executor(ctx)
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.MODEL_NOT_FOUND,
+    ):
+        result = await executor._handle_failover(RuntimeError("no tool use"))
+
+    assert result is False
+    events = executor._compactor.events
+    unconfigured = [e for e in events if isinstance(e, dict) and e.get("step_key") == "model_failover_unconfigured"]
+    assert len(unconfigured) == 1
+    assert unconfigured[0]["error_kind"] == ErrorKind.MODEL_NOT_FOUND.value
+    # Unconfigured is a hint only — the turn does NOT restart, so no restart flag.
+    assert "restart" not in unconfigured[0]
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.MODEL_NOT_FOUND,
+    ):
+        result2 = await executor._handle_failover(RuntimeError("no tool use again"))
+
+    assert result2 is False
+    unconfigured2 = [
+        e
+        for e in executor._compactor.events
+        if isinstance(e, dict) and e.get("step_key") == "model_failover_unconfigured"
+    ]
+    assert len(unconfigured2) == 1
+
+
+@pytest.mark.asyncio
+async def test_failover_quota_exhausted_unconfigured_emits_status(ctx):
+    """Quota exhausted error (even if classified as RATE_LIMIT) emits model_failover_unconfigured."""
+    executor = _make_executor(ctx)
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    # Classified as RATE_LIMIT, but error message has quota exhausted signature
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.RATE_LIMIT,
+    ):
+        result = await executor._handle_failover(
+            RuntimeError("429 insufficient_quota: You exceeded your current quota")
+        )
+
+    assert result is False
+    events = executor._compactor.events
+    unconfigured = [e for e in events if isinstance(e, dict) and e.get("step_key") == "model_failover_unconfigured"]
+    assert len(unconfigured) == 1
+    assert unconfigured[0]["error_kind"] == ErrorKind.RATE_LIMIT.value
+
+
+
+@pytest.mark.asyncio
+async def test_safety_fallback_unconfigured_emits_status(ctx):
+    """Safety block without safety_fallback_llm emits safety_fallback_unconfigured STATUS."""
+    executor = _make_executor(ctx)
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.SAFETY_BLOCK,
+    ):
+        result = await executor._handle_failover(RuntimeError("content blocked"))
+
+    assert result is False
+    events = executor._compactor.events
+    assert any(isinstance(e, dict) and e.get("step_key") == "safety_fallback_unconfigured" for e in events)
+
+
+@pytest.mark.asyncio
+async def test_failover_success(ctx):
+    """Failover with available fallback LLM succeeds (using TIMEOUT, a non-deferred kind)."""
+    fallback_llm = MagicMock()
+    fallback_llm.model_name = "gpt-4o-mini"
+    rebuild_fn = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=fallback_llm,
+        safety_fallback_llm=None,
+        rebuild_agent_fn=rebuild_fn,
+    )
+    executor._compactor = FakeCompactor()
+
+    exc = RuntimeError("model error")
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.TIMEOUT,
+    ):
+        result = await executor._handle_failover(exc)
+
+    assert result is True
+    assert executor.failover_used is True
+    rebuild_fn.assert_called_once_with(fallback_llm)
+
+    events = executor._compactor.events
+    failover_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "model_failover"]
+    assert len(failover_events) == 1
+    assert failover_events[0]["fallback_model"] == "gpt-4o-mini"
+    assert failover_events[0]["restart"] is True
+
+
+@pytest.mark.asyncio
+async def test_failover_auth_with_fallback(ctx):
+    """Primary auth failure with a configured fallback should still failover."""
+    fallback_llm = MagicMock()
+    fallback_llm.model_name = "MiniMax-M3"
+    rebuild_fn = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=fallback_llm,
+        safety_fallback_llm=None,
+        rebuild_agent_fn=rebuild_fn,
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    mock_emitter = AsyncMock()
+    with (
+        patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+            return_value=ErrorKind.AUTH,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.llms.fallback.context.get_active_failover_emitter",
+            return_value=mock_emitter,
+        ),
+    ):
+        result = await executor._handle_failover(RuntimeError("401 Unauthorized invalid api key"))
+
+    assert result is True
+    assert executor.failover_used is True
+    rebuild_fn.assert_called_once_with(fallback_llm)
+    events = executor._compactor.events
+    failover_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "model_failover"]
+    assert len(failover_events) == 1
+    assert failover_events[0]["error_kind"] == ErrorKind.AUTH.value
+    assert failover_events[0]["restart"] is True
+    mock_emitter.emit_failover.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_failover_already_used(ctx):
+    """Failover cannot be used twice."""
+    fallback_llm = MagicMock()
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=fallback_llm,
+        safety_fallback_llm=None,
+        rebuild_agent_fn=MagicMock(),
+    )
+    executor._compactor = FakeCompactor()
+    executor.failover_used = True
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.TIMEOUT,
+    ):
+        result = await executor._handle_failover(RuntimeError("error"))
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_multi_tier_failover_cascade(ctx):
+    """Multi-tier fallback candidates cascade in order across consecutive failures."""
+    fb1 = MagicMock()
+    fb1.model_name = "gpt-4o"
+    fb2 = MagicMock()
+    fb2.model_name = "deepseek-v3"
+    rebuild_fn = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llms=[fb1, fb2],
+        safety_fallback_llm=None,
+        rebuild_agent_fn=rebuild_fn,
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.TIMEOUT,
+    ):
+        # 1st failover -> switches to fb1
+        res1 = await executor._handle_failover(RuntimeError("error 1"))
+        assert res1 is True
+        assert executor.failover_used is False
+        assert executor._fallback_index == 1
+        rebuild_fn.assert_called_with(fb1)
+
+        # 2nd failover -> switches to fb2
+        res2 = await executor._handle_failover(RuntimeError("error 2"))
+        assert res2 is True
+        assert executor.failover_used is True
+        assert executor._fallback_index == 2
+        rebuild_fn.assert_called_with(fb2)
+
+        # 3rd failover -> exhausted -> returns False
+        res3 = await executor._handle_failover(RuntimeError("error 3"))
+        assert res3 is False
+
+
+@pytest.mark.asyncio
+async def test_safety_fallback(ctx):
+    """Safety block error triggers safety_fallback_llm."""
+    safety_llm = MagicMock()
+    safety_llm.model_name = "claude-safe"
+    rebuild_fn = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=None,
+        safety_fallback_llm=safety_llm,
+        rebuild_agent_fn=rebuild_fn,
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.SAFETY_BLOCK,
+    ):
+        result = await executor._handle_failover(RuntimeError("content blocked"))
+
+    assert result is True
+    rebuild_fn.assert_called_once_with(safety_llm)
+    events = executor._compactor.events
+    safety_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "safety_fallback_active"]
+    assert len(safety_events) == 1
+    assert safety_events[0]["restart"] is True
+
+
+# ─── _handle_safety_refusal_fallback ─────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_safety_refusal_fallback_triggers_on_refusal(ctx):
+    """HTTP 200 safety refusal finish_reason triggers safety_fallback_llm."""
+    safety_llm = MagicMock()
+    safety_llm.model_name = "gpt-4o-safe"
+    rebuild_fn = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=None,
+        safety_fallback_llm=safety_llm,
+        rebuild_agent_fn=rebuild_fn,
+    )
+    executor._compactor = FakeCompactor()
+
+    tracker_mock = MagicMock()
+    tracker_mock.last_finish_reason = "refusal"
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker_mock,
+    ):
+        result = await executor._handle_safety_refusal_fallback()
+
+    assert result is True
+    assert executor.failover_used is True
+    rebuild_fn.assert_called_once_with(safety_llm)
+    events = executor._compactor.events
+    safety_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "safety_fallback_active"]
+    assert len(safety_events) == 1
+    assert safety_events[0]["restart"] is True
+
+
+@pytest.mark.asyncio
+async def test_safety_refusal_fallback_skips_normal_finish_reason(ctx):
+    """Normal finish_reason (e.g. 'stop') does NOT trigger refusal fallback."""
+    executor = _make_executor(ctx)
+
+    tracker_mock = MagicMock()
+    tracker_mock.last_finish_reason = "stop"
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker_mock,
+    ):
+        result = await executor._handle_safety_refusal_fallback()
+
+    assert result is False
+    assert executor.failover_used is False
+
+
+@pytest.mark.asyncio
+async def test_safety_refusal_fallback_skips_when_already_failed_over(ctx):
+    """Refusal fallback must NOT fire twice (failover_used=True)."""
+    safety_llm = MagicMock()
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=None,
+        safety_fallback_llm=safety_llm,
+        rebuild_agent_fn=MagicMock(),
+    )
+    executor._compactor = FakeCompactor()
+    executor.failover_used = True
+
+    tracker_mock = MagicMock()
+    tracker_mock.last_finish_reason = "content_filter"
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker_mock,
+    ):
+        result = await executor._handle_safety_refusal_fallback()
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_safety_refusal_fallback_skips_without_safety_llm(ctx):
+    """No safety_fallback_llm configured → silently skip."""
+    executor = _make_executor(ctx)
+
+    tracker_mock = MagicMock()
+    tracker_mock.last_finish_reason = "refusal"
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker_mock,
+    ):
+        result = await executor._handle_safety_refusal_fallback()
+
+    assert result is False
+    assert executor.failover_used is False
+
+
+# ─── _handle_steering ────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_steering_injection(ctx):
+    """Steering token with pending messages injects new HumanMessage."""
+    steering = MagicMock()
+    steering.steering_applied = True
+    steering.has_pending = True
+    steering.collect_all_steering_messages.return_value = ["Do this instead"]
+    ctx.steering_token = steering
+
+    executor = _make_executor(ctx)
+    collected = [AIMessage(content="previous response")]
+
+    result = await executor._handle_steering(collected)
+
+    assert result is True
+    messages = ctx.agent_input["messages"]
+    assert any(isinstance(m, HumanMessage) and "Do this instead" in m.content for m in messages)
+
+
+@pytest.mark.asyncio
+async def test_steering_no_pending(ctx):
+    """No pending steering → returns False."""
+    steering = MagicMock()
+    steering.steering_applied = False
+    steering.has_pending = False
+    ctx.steering_token = steering
+
+    executor = _make_executor(ctx)
+    result = await executor._handle_steering([])
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_steering_resume_mode(ctx):
+    """Resume mode (Command) rejects steering."""
+    ctx.agent_input = Command(resume="val")
+    steering = MagicMock()
+    steering.steering_applied = True
+    steering.has_pending = True
+    steering.collect_all_steering_messages.return_value = ["msg"]
+    ctx.steering_token = steering
+
+    executor = _make_executor(ctx)
+    result = await executor._handle_steering([])
+
+    assert result is False
+
+
+# ─── _handle_subagent_notifications ──────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_subagent_notifications_emits_event(ctx):
+    """Subagent notification emits SUBAGENT_COMPLETION event."""
+    ctx.drain_subagent_notifications = lambda: "Task done: summary"
+
+    executor = _make_executor(ctx)
+    result = await executor._handle_subagent_notifications([])
+
+    assert result is False  # Does not trigger new iteration
+    events = executor._compactor.events
+    subagent_events = [
+        e for e in events if isinstance(e, dict) and e.get("type") == AgentEventType.SUBAGENT_COMPLETION.value
+    ]
+    assert len(subagent_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_subagent_notifications_none_returns_false(ctx):
+    """No notification data → returns False without emitting."""
+    ctx.drain_subagent_notifications = lambda: None
+
+    executor = _make_executor(ctx)
+    result = await executor._handle_subagent_notifications([])
+
+    assert result is False
+    assert len(executor._compactor.events) == 0
+
+
+@pytest.mark.asyncio
+async def test_subagent_notifications_no_callback(ctx):
+    """No drain callback → returns False."""
+    ctx.drain_subagent_notifications = None
+
+    executor = _make_executor(ctx)
+    result = await executor._handle_subagent_notifications([])
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_subagent_notifications_resume_mode(ctx):
+    """Resume mode (Command) → returns False."""
+    ctx.agent_input = Command(resume="val")
+    ctx.drain_subagent_notifications = lambda: "something"
+
+    executor = _make_executor(ctx)
+    result = await executor._handle_subagent_notifications([])
+
+    assert result is False
+
+
+# ─── _emit_recovery_event ────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_emit_recovery_event(ctx):
+    """_emit_recovery_event puts a STATUS dict into compactor."""
+    executor = _make_executor(ctx)
+    await executor._emit_recovery_event("test_step", extra_field="value")
+
+    events = executor._compactor.events
+    assert len(events) == 1
+    assert events[0]["type"] == AgentEventType.STATUS.value
+    assert events[0]["step_key"] == "test_step"
+    assert events[0]["extra_field"] == "value"
+
+
+# ─── Rate-limit / Overloaded deferred failover ───────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_cascades_when_fallback_available(ctx):
+    """RATE_LIMIT cascades to fallback after KeyPool exhausts (aligned with Vision chain)."""
+    fallback_llm = MagicMock()
+    fallback_llm.model_name = "gpt-4o-mini"
+    rebuild_fn = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=fallback_llm,
+        safety_fallback_llm=None,
+        rebuild_agent_fn=rebuild_fn,
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.RATE_LIMIT,
+    ):
+        result = await executor._handle_failover(RuntimeError("429"))
+
+    assert result is True
+    rebuild_fn.assert_called_once_with(fallback_llm)
+    assert executor._fallback_index == 1
+
+
+@pytest.mark.asyncio
+async def test_overloaded_defers_below_threshold(ctx):
+    """OVERLOADED defers to transient retry when consecutive count < 3."""
+    fallback_llm = MagicMock()
+    fallback_llm.model_name = "gpt-4o-mini"
+
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=fallback_llm,
+        safety_fallback_llm=None,
+        rebuild_agent_fn=MagicMock(),
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.OVERLOADED,
+    ):
+        for i in range(2):
+            result = await executor._handle_failover(RuntimeError("529"))
+            assert result is False, f"iteration {i}: should defer"
+            assert executor.failover_used is False
+
+    assert executor._consecutive_overloaded == 2
+
+
+@pytest.mark.asyncio
+async def test_overloaded_failovers_at_threshold(ctx):
+    """OVERLOADED triggers failover after 3 consecutive errors."""
+    fallback_llm = MagicMock()
+    fallback_llm.model_name = "gpt-4o-mini"
+    rebuild_fn = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=fallback_llm,
+        safety_fallback_llm=None,
+        rebuild_agent_fn=rebuild_fn,
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.OVERLOADED,
+    ):
+        for _ in range(2):
+            assert await executor._handle_failover(RuntimeError("529")) is False
+
+        result = await executor._handle_failover(RuntimeError("529"))
+
+    assert result is True
+    assert executor.failover_used is True
+    assert executor._consecutive_overloaded == 3
+    rebuild_fn.assert_called_once_with(fallback_llm)
+
+
+@pytest.mark.asyncio
+async def test_consecutive_overloaded_resets_on_success(ctx):
+    """_consecutive_overloaded resets when set to 0 (simulating successful astream)."""
+    fallback_llm = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llm=fallback_llm,
+        safety_fallback_llm=None,
+        rebuild_agent_fn=MagicMock(),
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.OVERLOADED,
+    ):
+        await executor._handle_failover(RuntimeError("529"))
+        await executor._handle_failover(RuntimeError("529"))
+
+    assert executor._consecutive_overloaded == 2
+
+    executor._consecutive_overloaded = 0
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.OVERLOADED,
+    ):
+        result = await executor._handle_failover(RuntimeError("529"))
+
+    assert result is False
+    assert executor._consecutive_overloaded == 1
+
+
+# ─── End-to-end: real classify → _handle_overflow (no mock on is_context_overflow) ──
+
+
+class TestOverflowE2EClassifier:
+    """Verify the full classify_error → is_context_overflow → _handle_overflow
+    chain with REAL litellm exceptions — no mock on is_context_overflow."""
+
+    @pytest.fixture
+    def executor(self, ctx):
+        return _make_executor(ctx)
+
+    @staticmethod
+    def _make_litellm_400(message: str) -> Exception:
+        """Build a litellm-style BadRequestError (status 400)."""
+        try:
+            from litellm.exceptions import BadRequestError as LiteBadRequest
+
+            return LiteBadRequest(
+                message=message,
+                model="test-model",
+                llm_provider="openai",
+                response=MagicMock(status_code=400),
+            )
+        except ImportError:
+            exc = Exception(message)
+            exc.status_code = 400
+            return exc
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error_msg",
+        [
+            "Prompt exceeds max length",
+            "tokens in request more than max tokens allowed",
+            "total message size 5943865 exceeds limit 2097152",
+            "This model's maximum context length is 128000 tokens. However, your messages resulted in 130000 tokens.",
+        ],
+    )
+    async def test_real_overflow_triggers_compact(self, ctx, executor, error_msg):
+        """Real provider errors (Z.AI, Kimi, OpenAI) go through full classify chain."""
+        exc = self._make_litellm_400(error_msg)
+
+        with patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
+            new_callable=AsyncMock,
+            return_value=500,
+        ) as compact_mock:
+            result = await executor._handle_overflow(exc, 0)
+
+        assert result is True, f"Expected overflow recovery for: {error_msg}"
+        compact_mock.assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error_msg",
+        [
+            "invalid json in request body",
+            "model not found: gpt-99",
+            "rate limit exceeded",
+        ],
+    )
+    async def test_non_overflow_not_triggered(self, ctx, executor, error_msg):
+        """Non-overflow errors should NOT trigger overflow recovery."""
+        exc = self._make_litellm_400(error_msg)
+
+        result = await executor._handle_overflow(exc, 0)
+
+        assert result is False, f"Should NOT trigger overflow for: {error_msg}"
+
+    @pytest.mark.asyncio
+    async def test_stage2_truncation_on_retry1(self, ctx, executor):
+        """Stage 2 (retries=1): real overflow triggers _truncate_oldest_rounds."""
+        exc = self._make_litellm_400("Prompt exceeds max length")
+
+        with patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._truncate_oldest_rounds",
+            return_value=300,
+        ) as truncate_mock:
+            result = await executor._handle_overflow(exc, 1)
+
+        assert result is True
+        truncate_mock.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_retries_exhausted_with_real_error(self, ctx, executor):
+        """retries >= MAX_OVERFLOW_RETRIES → compression_exhausted, no recovery."""
+        exc = self._make_litellm_400("tokens in request more than max tokens allowed")
+
+        result = await executor._handle_overflow(exc, 2)
+
+        assert result is False
+        assert ctx.stats.compression_exhausted is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error_msg",
+        [
+            "上下文过长",
+            "请压缩上下文后重试",
+            "上下文超出限制",
+            "上下文长度超过模型最大限制",
+            "超出最大上下文窗口",
+        ],
+    )
+    async def test_chinese_overflow_keywords(self, ctx, executor, error_msg):
+        """Chinese overflow keywords are correctly detected."""
+        exc = self._make_litellm_400(error_msg)
+
+        with patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
+            new_callable=AsyncMock,
+            return_value=200,
+        ):
+            result = await executor._handle_overflow(exc, 0)
+
+        assert result is True, f"Chinese overflow not detected: {error_msg}"
+
+    @pytest.mark.asyncio
+    async def test_http_413_compound_overflow(self, ctx, executor):
+        """HTTP 413 + 'too large' compound check triggers overflow."""
+        exc = self._make_litellm_400("413 Request Entity Too Large")
+        exc.status_code = 413
+
+        with patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
+            new_callable=AsyncMock,
+            return_value=100,
+        ):
+            result = await executor._handle_overflow(exc, 0)
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_compact_zero_falls_through_to_truncate(self, ctx, executor):
+        """When _emergency_compact returns 0, falls through to _truncate_oldest_rounds."""
+        exc = self._make_litellm_400("total message size 9999999 exceeds limit 2097152")
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
+                new_callable=AsyncMock,
+                return_value=0,
+            ),
+            patch(
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery._truncate_oldest_rounds",
+                return_value=400,
+            ) as truncate_mock,
+        ):
+            result = await executor._handle_overflow(exc, 0)
+
+        assert result is True
+        truncate_mock.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_resume_mode_rejects_real_overflow(self, ctx, executor):
+        """Resume mode (Command input) rejects recovery even for real overflow."""
+        ctx.agent_input = Command(resume="some_val")
+        exc = self._make_litellm_400("Prompt exceeds max length")
+
+        result = await executor._handle_overflow(exc, 0)
+
+        assert result is False

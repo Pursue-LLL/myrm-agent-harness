@@ -1,0 +1,664 @@
+"""web_searcher 模块测试
+
+测试 WebSearcher 的核心搜索功能
+"""
+
+import asyncio
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from myrm_agent_harness.core.config.gateway import ToolGatewayConfig
+from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import (
+    bucket_search_limit,
+    normalize_search_query,
+    reset_search_coalescing_state_for_tests,
+)
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
+    AllQueriesFailedError,
+    ErrorContext,
+    SearchAPIError,
+    SearchConfigError,
+)
+from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
+    SearchServiceConfig,
+    WebSearcher,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_search_coalescing_state():
+    reset_search_coalescing_state_for_tests()
+    yield
+    reset_search_coalescing_state_for_tests()
+
+
+class TestSearchServiceConfig:
+    """测试搜索服务配置"""
+
+    def test_basic_config(self):
+        """测试基本配置"""
+        config = SearchServiceConfig(
+            search_service="tavily",
+            api_key="test_key",
+        )
+        assert config.search_service == "tavily"
+        assert config.api_key == "test_key"
+
+    def test_searxng_config(self):
+        """测试SearxNG配置"""
+        config = SearchServiceConfig(
+            search_service="searxng",
+            api_base="http://localhost:8081",
+        )
+        assert config.search_service == "searxng"
+        assert config.api_base == "http://localhost:8081"
+
+    def test_config_with_extra_params(self):
+        """测试额外参数"""
+        config = SearchServiceConfig(
+            search_service="tavily",
+            api_key="key",
+            extra_params={"categories": ["general"], "language": "en"},
+        )
+        assert config.extra_params["categories"] == ["general"]
+
+    def test_config_mutable(self):
+        """测试配置可运行时修改"""
+        config = SearchServiceConfig(search_service="tavily", api_key="key")
+        # 配置应该可以修改（移除了 frozen=True）
+        config.search_service = "exa_ai"
+        assert config.search_service == "exa_ai"
+
+    def test_config_defaults(self):
+        """测试默认值"""
+        config = SearchServiceConfig(search_service="tavily", api_key="key")
+        assert config.timeout_seconds == 20
+        assert config.api_base is None
+        assert config.extra_params is None
+        assert config.search_max_retries == 2
+        assert config.retry_backoff_base_seconds == 0.5
+        assert config.retry_backoff_max_seconds == 8.0
+        assert config.total_timeout_seconds is None
+
+    def test_config_with_gateway(self):
+        """测试网关配置"""
+        gateway_config = ToolGatewayConfig(use_gateway=True, gateway_url="http://gw", auth_token="token")
+        config = SearchServiceConfig(
+            search_service="tavily",
+            gateway_config=gateway_config,
+        )
+        assert config.gateway_config is not None
+        assert config.gateway_config.use_gateway is True
+        assert config.gateway_config.gateway_url == "http://gw"
+        assert config.gateway_config.auth_token == "token"
+
+
+class TestWebSearcherInit:
+    """测试WebSearcher初始化"""
+
+    def test_init_with_config(self):
+        """测试使用配置初始化"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        assert searcher.config == config
+        assert searcher._search_service is None
+
+    def test_init_searxng(self):
+        """测试SearxNG初始化"""
+        config = SearchServiceConfig(search_service="searxng")
+        searcher = WebSearcher(config)
+
+        assert searcher.config.search_service == "searxng"
+
+
+class TestWebSearcherGetService:
+    """测试搜索服务获取"""
+
+    @pytest.mark.asyncio
+    async def test_get_service_tavily(self):
+        """测试获取Tavily服务"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        service = await searcher._get_search_service()
+
+        assert service is not None
+        assert searcher._search_service is service
+
+    @pytest.mark.asyncio
+    async def test_get_service_cached(self):
+        """测试服务缓存"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        service1 = await searcher._get_search_service()
+        service2 = await searcher._get_search_service()
+
+        # 应该返回同一个实例
+        assert service1 is service2
+
+    @pytest.mark.asyncio
+    async def test_get_service_searxng_with_url(self):
+        """测试SearxNG服务获取（带URL）"""
+        config = SearchServiceConfig(
+            search_service="searxng",
+            api_base="http://localhost:8081",
+        )
+        searcher = WebSearcher(config)
+
+        service = await searcher._get_search_service()
+        assert service is not None
+
+    @pytest.mark.asyncio
+    async def test_get_service_searxng_requires_api_base(self):
+        """SearxNG without api_base raises SearchConfigError (no env fallback)."""
+        config = SearchServiceConfig(search_service="searxng")
+        searcher = WebSearcher(config)
+
+        with pytest.raises(SearchConfigError, match="api_base"):
+            await searcher._get_search_service()
+
+    @pytest.mark.asyncio
+    async def test_get_service_missing_api_key(self):
+        """测试其他服务缺少API key时报错"""
+        config = SearchServiceConfig(search_service="tavily")
+        searcher = WebSearcher(config)
+
+        with pytest.raises(SearchConfigError, match="requires API key"):
+            await searcher._get_search_service()
+
+    @pytest.mark.asyncio
+    async def test_get_service_with_gateway(self):
+        """测试使用网关时的服务获取"""
+        gateway_config = ToolGatewayConfig(use_gateway=True, gateway_url="http://gw", auth_token="token")
+        config = SearchServiceConfig(
+            search_service="tavily",
+            gateway_config=gateway_config,
+        )
+        searcher = WebSearcher(config)
+
+        service = await searcher._get_search_service()
+        assert service is not None
+        assert searcher.config.gateway_config.use_gateway is True
+        # The underlying service should have its api_base and api_key overridden
+        # We can test this by checking the service's internal state if accessible,
+        # but since it's an interface, we just ensure it doesn't raise SearchConfigError for missing api_key.
+
+
+class TestWebSearcherSearch:
+    """测试基本搜索功能"""
+
+    @pytest.mark.asyncio
+    async def test_search_basic(self):
+        """测试基本搜索"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        # Mock搜索服务
+        mock_service = AsyncMock()
+        mock_results = [
+            SearchResult(link="https://test.com", title="Test", snippet="Snippet"),
+        ]
+        mock_service.search = AsyncMock(return_value=mock_results)
+
+        with patch.object(searcher, "_get_search_service", return_value=mock_service):
+            results = await searcher.search("unique test query basic", num_results=5)
+
+            assert len(results) == 1
+            assert results[0].link == "https://test.com"
+            mock_service.search.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_with_num_results(self):
+        """测试指定结果数量"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(return_value=[])
+        searcher._search_service = mock_service
+
+        await searcher.search("unique_query_123", num_results=10)
+
+        # 验证search被调用
+        assert mock_service.search.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_search_with_extra_params(self):
+        """测试额外参数传递"""
+        config = SearchServiceConfig(
+            search_service="searxng",
+            extra_params={"categories": ["general"], "language": "zh"},
+        )
+        searcher = WebSearcher(config)
+
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(return_value=[])
+        searcher._search_service = mock_service
+
+        await searcher.search("query")
+
+        # 验证extra_params被传递
+        call_args = mock_service.search.call_args
+        assert "categories" in call_args[1]
+
+
+class TestWebSearcherRetryAndErrors:
+    """重试与结构化错误"""
+
+    @pytest.mark.asyncio
+    async def test_retry_then_success(self):
+        """可重试错误后成功应触发一次退避并最终成功"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key", search_max_retries=2)
+        searcher = WebSearcher(config)
+        mock_service = AsyncMock()
+        ok = [SearchResult(link="https://ok.com", title="OK", snippet="S")]
+        mock_service.search = AsyncMock(side_effect=[Exception("503 Service Unavailable"), ok])
+        searcher._search_service = mock_service
+
+        unique_q = f"retry_ok_{id(searcher)}"
+        results = await searcher.search(unique_q, num_results=5)
+
+        assert len(results) == 1
+        assert mock_service.search.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_search_api_error_includes_context(self):
+        """不可重试错误应立即失败并携带 ErrorContext"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key", search_max_retries=0)
+        searcher = WebSearcher(config)
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(side_effect=Exception("HTTP 401 Unauthorized"))
+        searcher._search_service = mock_service
+
+        with pytest.raises(SearchAPIError) as exc_info:
+            await searcher.search(f"auth_fail_{id(searcher)}", 5)
+
+        assert exc_info.value.context.query is not None
+        assert exc_info.value.context.retryable is False
+        mock_service.search.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_all_queries_failed_primary_context(self):
+        """全部查询失败时应填充 failed_queries 与 primary_context"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        async def fake_process(
+            q: str, n: int, override: dict[str, str] | None = None
+        ) -> tuple[str, list, Exception | None]:
+            ctx = ErrorContext(query=q, error_code="TestErr", metadata={"provider": "tavily"})
+            return q, [], SearchAPIError("failed", context=ctx)
+
+        with (
+            patch.object(
+                searcher,
+                "search_and_process",
+                new_callable=AsyncMock,
+                side_effect=fake_process,
+            ),
+            pytest.raises(AllQueriesFailedError) as exc_info,
+        ):
+            await searcher.multi_query_parallel_search(["a", "b"], 5)
+
+        assert len(exc_info.value.failed_queries) == 2
+        assert exc_info.value.primary_context is not None
+        assert exc_info.value.primary_context.query == "a"
+
+
+class TestWebSearcherMultiQuery:
+    """测试多查询并行搜索"""
+
+    @pytest.mark.asyncio
+    async def test_multi_query_parallel(self):
+        """测试并行搜索多个查询"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        # Mock搜索服务
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(
+            side_effect=[
+                [SearchResult(link="https://test1.com", title="R1", content="C1", snippet="S1")],
+                [SearchResult(link="https://test2.com", title="R2", content="C2", snippet="S2")],
+            ]
+        )
+        searcher._search_service = mock_service
+
+        results = await searcher.multi_query_parallel_search(
+            queries=["query1", "query2"],
+            results_per_query=5,
+        )
+
+        # 返回格式是 [(query, docs, error), ...]
+        assert len(results) == 2
+
+        # 解包元组
+        query1, docs1, err1 = results[0]
+        query2, docs2, err2 = results[1]
+
+        # 验证查询和错误
+        assert query1 == "query1"
+        assert query2 == "query2"
+        assert err1 is None
+        assert err2 is None
+
+        # 验证文档列表
+        assert len(docs1) == 1
+        assert len(docs2) == 1
+        assert docs1[0].metadata["url"] == "https://test1.com"
+        assert docs2[0].metadata["url"] == "https://test2.com"
+
+    @pytest.mark.asyncio
+    async def test_multi_query_empty_list(self):
+        """测试空查询列表"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        # 空查询列表应该抛出异常
+        with pytest.raises(AllQueriesFailedError, match="no queries were executed"):
+            await searcher.multi_query_parallel_search(queries=[], results_per_query=5)
+
+    @pytest.mark.asyncio
+    async def test_multi_query_with_exception(self):
+        """测试并行搜索中某个查询失败"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        # 使用唯一查询避免缓存
+        unique_q1 = f"success_query_{id(searcher)}"
+        unique_q2 = f"fail_query_{id(searcher)}"
+
+        # Mock一个成功一个失败
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(
+            side_effect=[
+                [SearchResult(link="https://test1.com", title="R1", content="C1", snippet="S1")],
+                Exception("Search failed"),
+            ]
+        )
+        searcher._search_service = mock_service
+
+        results = await searcher.multi_query_parallel_search(
+            queries=[unique_q1, unique_q2],
+            results_per_query=5,
+        )
+
+        # 返回格式是 [(query, docs, error), ...]
+        assert len(results) == 2
+        # 验证有一个成功一个失败
+        errors = [r[2] for r in results]
+        assert errors.count(None) == 1  # 一个成功
+        assert sum(1 for e in errors if e is not None) == 1  # 一个失败
+
+
+class TestWebSearcherCache:
+    """测试搜索缓存"""
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_skips_network(self):
+        """Cache hit must skip the network call entirely."""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        mock_service = AsyncMock()
+        mock_results = [SearchResult(link="https://cached.com", title="Cached", content="C", snippet="S")]
+        mock_service.search = AsyncMock(return_value=mock_results)
+        searcher._search_service = mock_service
+
+        unique_query = f"cache_test_query_{id(searcher)}"
+
+        results1 = await searcher.search(unique_query, num_results=5)
+        results2 = await searcher.search(unique_query, num_results=5)
+
+        assert results1 == results2
+        assert mock_service.search.call_count == 1, "Second call should hit cache, not network"
+
+    @pytest.mark.asyncio
+    async def test_cache_miss_different_query(self):
+        """测试不同查询不命中缓存"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(
+            side_effect=[
+                [SearchResult(link="https://r1.com", title="R1", content="C1", snippet="S1")],
+                [SearchResult(link="https://r2.com", title="R2", content="C2", snippet="S2")],
+            ]
+        )
+        searcher._search_service = mock_service
+
+        # 使用唯一查询避免全局缓存冲突
+        unique_q1 = f"unique_query_1_{id(searcher)}"
+        unique_q2 = f"unique_query_2_{id(searcher)}"
+
+        await searcher.search(unique_q1)
+        await searcher.search(unique_q2)
+
+        # 应该调用两次API
+        assert mock_service.search.call_count == 2
+
+
+class TestSearchLimitBucketing:
+    """Limit bucketing helpers"""
+
+    def test_bucket_search_limit_rounds_up(self):
+        assert bucket_search_limit(1) == 10
+        assert bucket_search_limit(5) == 10
+        assert bucket_search_limit(10) == 10
+        assert bucket_search_limit(11) == 20
+        assert bucket_search_limit(100) == 100
+        assert bucket_search_limit(200) == 100
+
+    def test_normalize_search_query(self):
+        assert normalize_search_query("  Hello   World  ") == "hello world"
+
+
+class TestWebSearcherCoalescing:
+    """Single-flight coalescing and limit-bucket cache sharing"""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_same_query_single_api_call(self):
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        call_count = 0
+
+        async def slow_search(query: str, num_results: int, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            await asyncio.sleep(0.05)
+            return [SearchResult(link=f"https://r{i}.com", title=f"R{i}", snippet=f"S{i}") for i in range(num_results)]
+
+        mock_service = AsyncMock()
+        mock_service.search = slow_search
+        searcher._search_service = mock_service
+
+        unique_query = f"coalesce_query_{id(searcher)}"
+        results = await asyncio.gather(
+            searcher.search(unique_query, num_results=5),
+            searcher.search(unique_query, num_results=5),
+            searcher.search(unique_query, num_results=5),
+        )
+
+        assert call_count == 1
+        assert all(len(r) == 5 for r in results)
+
+    @pytest.mark.asyncio
+    async def test_limit_bucket_shares_cache_and_slices(self):
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        mock_results = [SearchResult(link=f"https://r{i}.com", title=f"R{i}", snippet=f"S{i}") for i in range(10)]
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(return_value=mock_results)
+        searcher._search_service = mock_service
+
+        unique_query = f"bucket_query_{id(searcher)}"
+        small = await searcher.search(unique_query, num_results=5)
+        large = await searcher.search(unique_query, num_results=8)
+
+        assert mock_service.search.call_count == 1
+        assert len(small) == 5
+        assert len(large) == 8
+        assert small[0].link == "https://r0.com"
+        assert large[7].link == "https://r7.com"
+
+    @pytest.mark.asyncio
+    async def test_query_normalization_shares_cache(self):
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        mock_results = [SearchResult(link="https://r0.com", title="R0", snippet="S0")]
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(return_value=mock_results)
+        searcher._search_service = mock_service
+
+        base = f"norm_query_{id(searcher)}"
+        await searcher.search(f"  {base.upper()}  ", num_results=5)
+        await searcher.search(base, num_results=5)
+
+        assert mock_service.search.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_coalescing_propagates_leader_failure(self):
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key", search_max_retries=0)
+        searcher = WebSearcher(config)
+
+        call_count = 0
+
+        async def failing_search(*_args, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            await asyncio.sleep(0.02)
+            raise RuntimeError("provider down")
+
+        mock_service = AsyncMock()
+        mock_service.search = failing_search
+        searcher._search_service = mock_service
+
+        unique_query = f"fail_coalesce_{id(searcher)}"
+        outcomes = await asyncio.gather(
+            searcher.search(unique_query, num_results=5),
+            searcher.search(unique_query, num_results=5),
+            return_exceptions=True,
+        )
+
+        assert call_count == 1
+        assert all(isinstance(o, SearchAPIError) for o in outcomes)
+
+
+class TestWebSearcherIntegration:
+    """集成测试"""
+
+    @pytest.mark.asyncio
+    async def test_full_search_flow(self):
+        """测试完整搜索流程"""
+        config = SearchServiceConfig(
+            search_service="tavily",
+            api_key="test_key",
+            timeout_seconds=30,
+            extra_params={"search_depth": "advanced"},
+        )
+        searcher = WebSearcher(config)
+
+        # Mock完整搜索流程
+        mock_service = AsyncMock()
+        mock_results = [
+            SearchResult(
+                link="https://python.org",
+                title="Python",
+                content="Python is a programming language.",
+                snippet="Python intro",
+            ),
+        ]
+        mock_service.search = AsyncMock(return_value=mock_results)
+        searcher._search_service = mock_service
+
+        results = await searcher.search("python programming", num_results=5)
+
+        assert len(results) == 1
+        assert results[0].title == "Python"
+
+    @pytest.mark.asyncio
+    async def test_multi_query_to_documents(self):
+        """测试多查询转文档流程"""
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(
+            side_effect=[
+                [SearchResult(link="https://r1.com", title="R1", content="C1", snippet="S1")],
+                [SearchResult(link="https://r2.com", title="R2", content="C2", snippet="S2")],
+            ]
+        )
+        searcher._search_service = mock_service
+
+        results = await searcher.multi_query_parallel_search(["q1", "q2"], results_per_query=5)
+
+        # 返回格式是 [(query, docs, error), ...]
+        assert len(results) == 2
+        assert results[0][0] == "q1"
+        assert results[1][0] == "q2"
+        assert len(results[0][1]) >= 1  # docs
+        assert len(results[1][1]) >= 1
+
+
+class TestResultCacheCredentialScope:
+    """A cached payload belongs to the credential that produced it."""
+
+    @pytest.mark.asyncio
+    async def test_rotated_api_key_does_not_replay_the_old_payload(self):
+        counted = AsyncMock()
+        counted.search = AsyncMock(return_value=[SearchResult(title="T", link="https://ok.com", snippet="S")])
+
+        with patch.object(WebSearcher, "_get_search_service", AsyncMock(return_value=counted)):
+            await WebSearcher(SearchServiceConfig(search_service="tavily", api_key="old-key")).search("same query", 5)
+            await WebSearcher(SearchServiceConfig(search_service="tavily", api_key="new-key")).search("same query", 5)
+            # Same credential keeps hitting the cache: the key change is the only variable.
+            await WebSearcher(SearchServiceConfig(search_service="tavily", api_key="new-key")).search("same query", 5)
+
+        assert counted.search.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_searxng_ignores_gateway_routing_when_scoping_the_cache(self):
+        """SearxNG is always reached directly, so its own endpoint is its identity, not the gateway's."""
+        counted = AsyncMock()
+        counted.search = AsyncMock(return_value=[SearchResult(title="T", link="https://ok.com", snippet="S")])
+        gateway = ToolGatewayConfig(
+            use_gateway=True, gateway_url="https://gw.example/tool-relay", auth_token="vk-shared"
+        )
+
+        with patch.object(WebSearcher, "_get_search_service", AsyncMock(return_value=counted)):
+            await WebSearcher(
+                SearchServiceConfig(search_service="searxng", api_base="http://localhost:8081", gateway_config=gateway)
+            ).search("same query", 5)
+            await WebSearcher(
+                SearchServiceConfig(search_service="searxng", api_base="http://localhost:9999", gateway_config=gateway)
+            ).search("same query", 5)
+
+        assert counted.search.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_gateway_byok_fallback_scopes_the_cache_to_the_direct_key(self):
+        """A routed config that keeps its own provider key can fall back to it mid-request, so that key scopes too."""
+        counted = AsyncMock()
+        counted.search = AsyncMock(return_value=[SearchResult(title="T", link="https://ok.com", snippet="S")])
+        gateway = ToolGatewayConfig(
+            use_gateway=True, gateway_url="https://gw.example/tool-relay", auth_token="vk-shared"
+        )
+
+        with patch.object(WebSearcher, "_get_search_service", AsyncMock(return_value=counted)):
+            await WebSearcher(
+                SearchServiceConfig(search_service="tavily", api_key="account-a", gateway_config=gateway)
+            ).search("same query", 5)
+            await WebSearcher(
+                SearchServiceConfig(search_service="tavily", api_key="account-b", gateway_config=gateway)
+            ).search("same query", 5)
+
+        assert counted.search.await_count == 2

@@ -1,0 +1,79 @@
+"""LangChain tools for interactive browser automation.
+
+Eight semantically grouped tools covering browser capabilities:
+- browser_navigate — open a URL
+- browser_inspect  — analyze page structure quickly (lightweight metadata, ~15ms, ~100 tokens)
+- browser_snapshot — perceive the page via ARIA accessibility tree (with diff, scope, compact)
+- browser_interact — act on elements by ref (15 actions: click, dblclick, type, fill, fill_credential, press, hover, focus, select, scroll, scroll_to_bottom, upload_file, drag, check, uncheck)
+- browser_extract  — get page text, screenshot, media URLs, or diff screenshot (5 modes: text, screenshot, media, diff_fast, diff_accurate)
+- browser_manage   — tabs, JS eval, history, dialogs, PDF, resize, session vault, recording, site experience, downloads (29 actions)
+- browser_execute_script_tool — execute a Python script for batch browser actions using Code-as-Action paradigm
+- browser_ask_human — request user takeover when automation is insufficient (2FA, payment, MFA)
+
+Screenshot Diff Features:
+- Fast strategy: dHash perceptual hash (~2ms), ideal for quick change detection
+- Accurate strategy: Canvas API pixel-level comparison (~100ms), with YIQ color space and anti-aliasing detection
+- Auto strategy: automatically selects based on image size (<800x600 → accurate, ≥800x600 → fast)
+- Configurable parameters: similarity_threshold, color_tolerance, mismatch_threshold, include_aa
+
+
+[INPUT]
+- session::BrowserSession (POS: session manager, based on SOLID principles)
+- langchain.tools::tool (POS: LangChain tool decorator)
+- cancel_boundary::apply_cancel_boundary (POS: cancel-aware execution boundary for the browser tools)
+- pydantic::BaseModel (POS: tool parameter schema base class)
+
+[OUTPUT]
+- create_browser_tools: factory function, binds BrowserSession and returns 8 cancel-aware LangChain tools
+
+[POS]
+API layer of the browser toolkit. Maps BrowserSession capabilities to 8 LangChain @tool functions,
+loaded on-demand by the Agent runtime. Thin layer: every tool call additionally runs behind the cancel
+boundary, so stopping a run releases the browser even while a driver call is stuck.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from .cancel_boundary import apply_cancel_boundary
+from .common import mark_untrusted
+from .execute_script import create_execute_script_tool
+from .extract import create_extract_tool
+from .inspect import create_inspect_tool
+from .interact import create_interact_tool
+from .manage import create_manage_tool
+from .navigate import create_navigate_tool
+from .snapshot import create_snapshot_tool
+from .takeover import create_takeover_tool
+
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
+    from ..session import BrowserSession
+
+__all__ = ["create_browser_tools", "mark_untrusted"]
+
+
+def create_browser_tools(session: BrowserSession) -> list[BaseTool]:
+    """Create the 8 browser tools bound to *session*.
+
+    Args:
+        session: BrowserSession instance
+
+    Returns:
+        List of 8 LangChain tools
+    """
+    return apply_cancel_boundary(
+        [
+            create_navigate_tool(session),
+            create_inspect_tool(session),
+            create_snapshot_tool(session),
+            create_interact_tool(session),
+            create_extract_tool(session),
+            create_manage_tool(session),
+            create_execute_script_tool(session),
+            create_takeover_tool(session),
+        ],
+        session,
+    )

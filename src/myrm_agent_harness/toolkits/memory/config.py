@@ -1,0 +1,483 @@
+"""Memory configuration — functional switches and retrieval params only.
+
+[INPUT]
+- memory.threshold_strategy::{AdaptiveThresholdStrategy, CountBasedThresholdStrategy} (POS: library-size dependent
+  similarity threshold)
+
+[OUTPUT]
+- RecallMode: Controls how memory context is delivered to the agent.
+- MemoryScopeLevel: Typed namespace levels for agent memory policy.
+- MemoryWritePolicy: Write target for agent-bound memory managers.
+
+[POS]
+Memory configuration — functional switches and retrieval params only.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import re
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import TYPE_CHECKING
+
+from myrm_agent_harness.toolkits.memory._internal.hash_utils import NormalizationLevel
+from myrm_agent_harness.toolkits.memory.strategies.forgetting import ForgettingConfig
+from myrm_agent_harness.toolkits.memory.threshold_strategy import (
+    AdaptiveThresholdStrategy,
+    CountBasedThresholdStrategy,
+)
+from myrm_agent_harness.toolkits.memory.types import MemoryType
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.memory.adaptive import AdaptiveChannelStrategy
+    from myrm_agent_harness.toolkits.memory.intent_recognizers import (
+        QueryIntentRecognizer,
+    )
+
+
+_MODEL_SUFFIX_MAX = 40
+_MODEL_SUFFIX_DIGEST_LEN = 8
+
+
+def _normalize_model_name(model: str) -> str:
+    """Normalize an embedding model name into a collection-name-safe suffix.
+
+    Qdrant collection names allow alphanumerics, hyphens, and underscores.
+    Model names like "openai/BAAI/bge-m3" become "openai-baai-bge-m3".
+
+    Two different models must never share a suffix: the collection name is the only thing
+    separating one model's vectors from another's, so a collision silently mixes two vector
+    spaces in one collection and hides the older one from orphan detection. A name this
+    transformation cannot keep whole — longer than the suffix budget once non-alphanumerics
+    are collapsed, or emptied by it (e.g. a CJK-only name) — therefore carries a short digest
+    of the raw name. A name that survives intact keeps its exact suffix, so existing
+    collections of ordinary models are unaffected.
+    """
+    collapsed = re.sub(r"[^a-zA-Z0-9]+", "-", model).strip("-").lower()
+    if collapsed and len(collapsed) <= _MODEL_SUFFIX_MAX:
+        return collapsed
+    digest = hashlib.sha256(model.encode("utf-8")).hexdigest()[:_MODEL_SUFFIX_DIGEST_LEN]
+    head = collapsed[: _MODEL_SUFFIX_MAX - _MODEL_SUFFIX_DIGEST_LEN - 1].rstrip("-")
+    return f"{head}-{digest}" if head else digest
+
+
+class RecallMode(StrEnum):
+    """Controls how memory context is delivered to the agent.
+
+    - HYBRID: context injection + memory tools (default, full capability)
+    - CONTEXT: context injection only, memory tools hidden (API/headless scenarios)
+    - TOOLS: memory tools only, no auto-injection (minimal token overhead)
+    """
+
+    HYBRID = "hybrid"
+    CONTEXT = "context"
+    TOOLS = "tools"
+
+
+class MemoryScopeLevel(StrEnum):
+    """Typed namespace levels for agent memory policy."""
+
+    GLOBAL = "global"
+    CLIENT = "client"
+    AGENT = "agent"
+    CHANNEL = "channel"
+    CONVERSATION = "conversation"
+    TASK = "task"
+
+
+class MemoryWritePolicy(StrEnum):
+    """Write target for agent-bound memory managers."""
+
+    INHERIT = "inherit"
+    GLOBAL = "global"
+    CLIENT = "client"
+    AGENT = "agent"
+    CHANNEL = "channel"
+    CONVERSATION = "conversation"
+    TASK = "task"
+
+
+@dataclass(frozen=True, slots=True)
+class AgentMemoryPolicy:
+    """Formal read/write boundary for an agent-bound memory manager.
+
+    ``read_scopes`` controls which namespaces are visible during retrieval.
+    ``write_policy`` controls where newly written private memories land.
+
+    - ``INHERIT`` preserves existing behavior: write with the full derived scope chain.
+    - Explicit write levels narrow writes to a single namespace, e.g. task-only.
+    - ``allow_l3_extraction`` controls whether background LLM extraction is allowed.
+    - ``auto_cleanup`` controls whether ephemeral session/task state is cleaned up upon task end.
+    """
+
+    client_id: str | None = None
+    agent_id: str | None = None
+    channel_id: str | None = None
+    conversation_id: str | None = None
+    task_id: str | None = None
+    read_scopes: tuple[MemoryScopeLevel, ...] | None = None
+    write_policy: MemoryWritePolicy = MemoryWritePolicy.INHERIT
+    allow_l3_extraction: bool = True
+    auto_cleanup: bool = False
+
+    @classmethod
+    def preset_l2_flow(
+        cls,
+        *,
+        agent_id: str | None = None,
+        task_id: str | None = None,
+        auto_cleanup: bool = True,
+    ) -> AgentMemoryPolicy:
+        """L2-only flow agent preset (forms, tickets, workflow execution).
+
+        Restricts writes to task scope, disables L3 long-term auto-extraction,
+        allows reading global knowledge and local task scope.
+        """
+        return cls(
+            agent_id=agent_id,
+            task_id=task_id,
+            read_scopes=(MemoryScopeLevel.GLOBAL, MemoryScopeLevel.TASK),
+            write_policy=MemoryWritePolicy.TASK,
+            allow_l3_extraction=False,
+            auto_cleanup=auto_cleanup,
+        )
+
+    @classmethod
+    def preset_faq_retrieval(
+        cls,
+        *,
+        agent_id: str | None = None,
+        auto_cleanup: bool = True,
+    ) -> AgentMemoryPolicy:
+        """FAQ / realtime search agent preset (news, weather, documentation).
+
+        Restricts writes to conversation scope, disables L3 long-term auto-extraction,
+        reads global knowledge and active conversation.
+        """
+        return cls(
+            agent_id=agent_id,
+            read_scopes=(MemoryScopeLevel.GLOBAL, MemoryScopeLevel.CONVERSATION),
+            write_policy=MemoryWritePolicy.CONVERSATION,
+            allow_l3_extraction=False,
+            auto_cleanup=auto_cleanup,
+        )
+
+    @classmethod
+    def preset_standard(
+        cls,
+        *,
+        agent_id: str | None = None,
+    ) -> AgentMemoryPolicy:
+        """Standard assistant preset with full multi-tier long-term memory."""
+        return cls(
+            agent_id=agent_id,
+            read_scopes=None,
+            write_policy=MemoryWritePolicy.INHERIT,
+            allow_l3_extraction=True,
+            auto_cleanup=False,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalConfig:
+    """Retrieval scoring configuration.
+
+    Attributes:
+        rrf_k: RRF constant (higher = more uniform distribution)
+        type_weights: Memory type weights for RRF fusion
+        correction_penalty: Penalty multiplier for corrected memories
+        frequency_saturation: Access count at which frequency factor reaches 1.0
+        mmr_lambda: MMR diversity balance (1.0 = pure relevance, 0.0 = pure diversity)
+        enable_conversation_raw_channel: Enable raw_embedding channel for ConversationMemory
+        raw_channel_weight: Weight for raw_embedding channel (summary_channel_weight = 1 - this)
+        keyword_overlap_weight: Keyword overlap boost weight (MemPalace hybrid enhancement)
+        keyword_overlap_min_tokens: Minimum token overlap to apply boost
+        enable_adaptive_channel: Enable adaptive dual-channel selection (saves ~35% query cost)
+        adaptive_threshold: Token count threshold for dual-channel (queries < threshold use summary only)
+        adaptive_diversity_threshold: Word diversity ratio threshold (unique_words/total_words)
+        adaptive_strategy: Optional custom strategy for adaptive channel selection (overrides default 3-factor logic)
+        enable_two_pass_assistant_retrieval: Enable Two-Pass for assistant-reference queries (MemPalace enhancement)
+        two_pass_first_stage_limit: Pass 1 top-K sessions to consider in Pass 2
+        enable_keyword_boost: Enable keyword overlap boost in ResultBooster
+        keyword_boost_weight: Keyword boost weight (multiplicative factor)
+        enable_temporal_boost: Enable temporal proximity boost in ResultBooster
+        temporal_boost_max_weight: Maximum temporal boost weight (for same-day matches)
+        enable_person_name_boost: Enable person name match boost in ResultBooster
+        person_name_boost_weight: Person name boost weight (multiplicative factor)
+        enable_quoted_phrase_boost: Enable quoted phrase match boost in ResultBooster
+        quoted_phrase_boost_weight: Quoted phrase boost weight (multiplicative factor)
+        enable_preference_boost: Enable preference boost for preference-tagged memories (MemPalace enhancement)
+        preference_boost_weight: Preference boost weight (multiplicative factor, applied to preference_strength)
+        source_diversity_weight: Source diversity penalty weight for MMR session diversification
+        min_relevance_score: Absolute minimum RRF score threshold (anti-hallucination hard cutoff)
+        enable_temporal_window: Derive since/until hard-filter bounds from past-facing temporal
+            markers ("上个月", "last spring") when the caller passes neither bound; pure local regex
+        enable_cross_rerank: Rerank the fused candidate head with a cross-encoder after graph
+            enrichment (effective only when a RerankerService is injected at construction)
+        cross_rerank_top_n: Maximum head candidates reranked per query (cost ceiling)
+        cross_rerank_min_candidates: Skip reranking at or below this candidate count
+        cross_rerank_batch_size: Query-document pairs per rerank call (provider batch limit)
+        cross_rerank_timeout: Wall-clock ceiling (seconds) for the whole rerank gate
+        timeout_seconds: Wall-clock ceiling for one retrieval pipeline. When a backing
+            store (remote embedding/vector) hangs, the collect stage returns whatever
+            completed first and the whole pipeline is cut at this budget, failing open
+            instead of blocking the agent turn indefinitely.
+    """
+
+    rrf_k: int = 60
+    type_weights: dict[MemoryType, float] = field(
+        default_factory=lambda: {
+            MemoryType.PROFILE: 1.0,
+            MemoryType.SEMANTIC: 1.0,
+            MemoryType.EPISODIC: 0.8,
+            MemoryType.CONVERSATION: 0.95,
+            MemoryType.PROCEDURAL: 0.9,
+            MemoryType.CLAIM: 1.05,
+        }
+    )
+    correction_penalty: float = 0.1
+    frequency_saturation: int = 50
+    mmr_lambda: float = 0.7
+    enable_conversation_raw_channel: bool = True
+    raw_channel_weight: float = 0.4
+    keyword_overlap_weight: float = 0.15
+    keyword_overlap_min_tokens: int = 2
+    temporal_boost_weight: float = 0.40
+    temporal_boost_threshold_hours: float = 24.0
+    quoted_phrase_boost: float = 1.5
+    person_name_boost: float = 0.67
+    preference_min_confidence: float = 0.7
+    enable_adaptive_channel: bool = True
+    adaptive_threshold: int = 5
+    adaptive_diversity_threshold: float = 0.7
+    adaptive_strategy: AdaptiveChannelStrategy | None = None
+    enable_two_pass_assistant_retrieval: bool = True
+    two_pass_first_stage_limit: int = 10
+    enable_keyword_boost: bool = True
+    keyword_boost_weight: float = 0.30
+    enable_temporal_boost: bool = True
+    temporal_boost_max_weight: float = 0.40
+    enable_person_name_boost: bool = True
+    person_name_boost_weight: float = 0.20
+    enable_quoted_phrase_boost: bool = True
+    quoted_phrase_boost_weight: float = 0.25
+    enable_preference_boost: bool = True
+    preference_boost_weight: float = 0.15
+    source_diversity_weight: float = 0.5
+    """Source diversity penalty weight for MMR session diversification.
+    Controls how much to penalize results from already-selected source sessions.
+    0.0 = disabled (pure content MMR), 1.0 = strong source diversification."""
+    min_relevance_score: float = 0.35
+    """Absolute minimum score threshold for retrieved memories.
+    Memories below this score are discarded before normalization to prevent
+    irrelevant content from being injected into context (anti-hallucination).
+    Set to 0.0 to disable. Default 0.35 is conservative for BGE-M3 embeddings."""
+    raw_similarity_threshold: float = 0.0
+    """Admission threshold for underlying physical similarity (e.g. cosine/BM25).
+    Candidates with raw_score below this threshold are filtered out at the admission stage.
+    0.0 = disabled (accept all candidates into the ranking pipeline)."""
+    enable_intent_recognition: bool = True
+    intent_recognizer: QueryIntentRecognizer | None = None
+    enable_temporal_window: bool = True
+    """Derive since/until hard-filter bounds from past-facing temporal markers
+    (“上个月”, “last spring”) when the caller passes neither bound. Pure local
+    regex, zero-cost when no marker matches; explicit bounds always win."""
+    enable_cross_rerank: bool = True
+    """Rerank the fused candidate head with a cross-encoder after graph
+    enrichment, unifying the RRF and graph score systems into one relevance
+    order. Effective only when a RerankerService is injected at construction
+    (instance injection gates it, config alone never flips it on)."""
+    cross_rerank_top_n: int = 24
+    """Maximum head candidates reranked per query; the tail keeps fused order."""
+    cross_rerank_min_candidates: int = 3
+    """Skip the gate at or below this candidate count (no signal on tiny lists)."""
+    cross_rerank_batch_size: int = 32
+    """Query-document pairs per rerank call, aligned with RerankingPipeline."""
+    cross_rerank_timeout: float = 8.0
+    """Wall-clock ceiling (seconds) for the rerank gate, also bounded by the
+    pipeline deadline remainder; timeout degrades to the fused order."""
+    timeout_seconds: float = 10.0
+    enable_gravity_decay: bool = False
+    gravity_power: float = 1.8
+    gravity_time_scale_hours: float = 24.0
+    dynamic_signal_weights: dict[str, float] | None = None
+    """Wall-clock ceiling (seconds) for the full retrieval pipeline and its
+    candidate-collect stage. Aligned with CoPaw's 10s memory fallback; remote
+    embedding/vector providers that hang past this budget are cut with partial
+    results retained and the search marked as degraded (fail-open)."""
+
+
+@dataclass(frozen=True, slots=True)
+class DeduplicationParams:
+    """Three-layer deduplication parameters.
+
+    Attributes:
+        enabled: Enable smart deduplication (requires LLM)
+        high_threshold: Similarity ≥ this → obvious duplicate
+        low_threshold: Similarity < this → obviously new
+        time_window_hours: Recent window for stricter judgment
+        hash_cache_capacity: Maximum number of content hashes to keep in memory (FIFO eviction)
+        normalization_level: Hash normalization strategy (NONE/BASIC/FULL)
+        adaptive_capacity: Enable adaptive capacity management (auto-adjusts based on memory count)
+        capacity_multiplier: Target cache size = memory_count * multiplier (when adaptive enabled)
+        persist_hash_cache: Enable hash cache persistence to disk for cross-instance deduplication
+        hash_cache_path: Path to persist hash cache (defaults to ~/.cache/myrm/hash_cache.json)
+        warmup_cache: Enable embedding cache warmup on initialization (preloads recent memories)
+        warmup_limit: Number of recent memories to preload into embedding cache
+    """
+
+    enabled: bool = True
+    high_threshold: float = 0.95
+    low_threshold: float = 0.60
+    time_window_hours: int = 24
+    hash_cache_capacity: int = 10000
+    normalization_level: NormalizationLevel = NormalizationLevel.FULL
+    adaptive_capacity: bool = True
+    capacity_multiplier: float = 1.5
+    persist_hash_cache: bool = False
+    hash_cache_path: str = ""
+    warmup_cache: bool = True
+    warmup_limit: int = 100
+
+
+@dataclass(frozen=True, slots=True)
+class ConsolidationConfig:
+    """Cross-session memory consolidation configuration.
+
+    Attributes:
+        enabled: Enable periodic memory consolidation (requires consolidation_llm)
+        interval_hours: Minimum hours between consolidation runs
+        max_memories: Maximum memories to process per consolidation run
+        soft_lock_hours: Skip if consolidated within this many hours (concurrency guard)
+        enrich_max_similar: Max similar memories to fetch when only 1 new memory exists
+        conflict_importance_threshold: Minimum importance to route a contradiction to user review
+        conflict_confidence_threshold: Route to user when LLM accuracy is below this value
+        conflict_auto_resolve_days: Days before an unresolved conflict auto-resolves as keep_new
+    """
+
+    enabled: bool = True
+    interval_hours: int = 24
+    max_memories: int = 100
+    soft_lock_hours: float = 1.0
+    enrich_max_similar: int = 3
+    message_count_trigger: int = 50
+    conflict_importance_threshold: float = 0.6
+    conflict_confidence_threshold: float = 0.85
+    conflict_auto_resolve_days: int = 7
+
+
+@dataclass(frozen=True, slots=True)
+class RecurrenceConfig:
+    """Recurrence-triggered memory consolidation configuration.
+
+    Detects topics that appear repeatedly across sessions via embedding similarity,
+    then triggers LLM refinement to produce high-quality long-term memories.
+
+    Attributes:
+        enabled: Enable recurrence detection on session end
+        similarity_threshold: Cosine similarity threshold to consider two sessions as covering the same topic
+        recurrence_k: Number of recurrences needed to trigger consolidation
+        buffer_capacity: Maximum entries in the recurrence buffer (excess evicted when over capacity)
+        importance_preemption: Bypass recurrence counting for safety/health/identity signals
+    """
+
+    enabled: bool = True
+    similarity_threshold: float = 0.70
+    recurrence_k: int = 4
+    buffer_capacity: int = 200
+    importance_preemption: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryConfig:
+    """Memory system configuration.
+
+    Hybrid retrieval strategy:
+    - Vector search: semantic similarity matching
+    - BM25 search: keyword/proper noun matching (auto-enabled, degrades when >5000 memories)
+    - RRF fusion: combines both channels for optimal recall
+
+    BM25 parameters:
+    - bm25_top_k: Number of BM25 results to retrieve for RRF fusion
+    - bm25_max_corpus_size: Auto-degradation threshold (disables BM25 when exceeded)
+
+    Deduplication:
+    - dedup: Three-layer smart deduplication configuration
+
+    Context injection:
+    - max_learned_context_chars: Budget for auto-injected learned memories (preferences + rules)
+
+    Consolidation:
+    - consolidation: Cross-session memory consolidation (dream mechanism)
+
+    Recurrence:
+    - recurrence: Recurrence-triggered consolidation (sleep-like topic detection)
+    """
+
+    embedding_model: str
+    collection_prefix: str = "memory"
+    default_search_limit: int = 10
+    similarity_threshold: float = 0.5
+    enable_adaptive_threshold: bool = True
+    adaptive_threshold_strategy: AdaptiveThresholdStrategy = field(default_factory=CountBasedThresholdStrategy)
+    forgetting_interval: int = 10
+    retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
+    bm25_top_k: int = 50
+    bm25_max_corpus_size: int = 5000
+    bm25_max_query_terms: int = 15
+    """Maximum query tokens evaluated during BM25 search. Queries exceeding this
+    budget trigger IDF-aware selective pruning to prevent fan-out calculation explosion."""
+    dedup: DeduplicationParams = field(default_factory=DeduplicationParams)
+    max_learned_context_chars: int = 2000
+    max_corrections: int = 10
+    """Maximum correction memories to inject. Corrections are prioritized over
+    preferences and capped to prevent stale corrections from flooding context."""
+    model_context_tokens: int | None = None
+    """Model's total context window in tokens. When set, learned context budget
+    scales as max(max_learned_context_chars, model_context_tokens // 30)."""
+    consolidation: ConsolidationConfig = field(default_factory=ConsolidationConfig)
+    recurrence: RecurrenceConfig = field(default_factory=RecurrenceConfig)
+    forgetting: ForgettingConfig = field(default_factory=ForgettingConfig)
+    rating_alpha: float = 0.3
+    """EMA smoothing factor for positive user_rating updates (normalized >= old_rating).
+    Formula: rating_new = rating_old + alpha * (normalized_score - rating_old)"""
+    rating_alpha_negative: float = 0.5
+    """EMA smoothing factor for negative user_rating updates (normalized < old_rating).
+    Asymmetric by design: negative feedback causes faster rating decay, requiring
+    more positive validations to recover trust. Inspired by loss-aversion bias."""
+    security_scan_enabled: bool = True
+    """Scan memory content for injection/credential/invisible-unicode before persistence."""
+    injection_block_threshold: float = 0.8
+    """Prompt injection score >= this value blocks the memory write entirely.
+    SaaS deployments may lower to 0.7 for stricter protection."""
+    neglect_importance_threshold: float = 0.6
+    """Importance threshold for neglected-memory detection during maintenance."""
+    neglect_stale_days: int = 14
+    """Days since last access to consider a high-importance memory as neglected."""
+    neglect_max_items: int = 10
+    """Maximum number of neglected memories to report per maintenance cycle."""
+    blob_storage_enabled: bool = True
+    """Enable transparent external BLOB storage for large raw_exchange payloads."""
+    blob_storage_threshold: int = 4096
+    """Minimum size in bytes to trigger external BLOB storage (default 4KB)."""
+    blob_storage_path: str = "~/.myrm/blobs"
+    """Directory path for external BLOB storage."""
+    graph_sibling_limit: int = 10
+    """Maximum number of graph siblings to retrieve during enrichment."""
+    graph_max_depth: int = 2
+    """Maximum graph traversal depth for multi-hop discovery (1=direct only, 2=two-hop)."""
+    graph_distance_decay: float = 0.5
+    """Score decay factor per hop depth. depth=1 gets base score, depth=2 gets base*decay."""
+
+    @property
+    def semantic_collection(self) -> str:
+        return f"{self.collection_prefix}_semantic_{_normalize_model_name(self.embedding_model)}"
+
+    @property
+    def episodic_collection(self) -> str:
+        return f"{self.collection_prefix}_episodic_{_normalize_model_name(self.embedding_model)}"
+
+    @property
+    def conversation_collection(self) -> str:
+        return f"{self.collection_prefix}_conversation_{_normalize_model_name(self.embedding_model)}"

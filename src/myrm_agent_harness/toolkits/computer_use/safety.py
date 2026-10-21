@@ -1,0 +1,384 @@
+"""Safety guardrails for desktop control tools.
+
+Covered guardrails:
+- Blocked key combos: prevents dangerous system shortcuts (macOS + Windows)
+- Operator-as-key rejection: printable operators must not be used as vision `key` names
+- Dangerous type-text patterns: prevents shell injection via typed text
+- Sensitive app guard: prevents interaction with financial, communication, and password management applications
+- Screen lock and physical sleep gate: hard interruption on locked or asleep desktop
+
+[INPUT]
+- myrm_agent_harness.toolkits.computer_use.iphone_mirror::is_iphone_mirror_app (POS: iPhone Mirroring probe and viewport gate)
+- myrm_agent_harness.toolkits.computer_use.types::ModifierKey (POS: Shared type definitions consumed by all computer_use submodules)
+- myrm_agent_harness.toolkits.computer_use.screen_detector::get_default_screen_detector (POS: Desktop lock-screen and physical sleep detection gate)
+
+[OUTPUT]
+- ScreenLockedInterruptionError, PhysicalSleepInterruptionError, check_screen_lock_safety, ensure_screen_safe
+- SCREEN_LOCKED_REFUSAL, DISPLAY_SLEEPING_REFUSAL, SNAPSHOT_SCREEN_LOCKED_REFUSAL, SNAPSHOT_DISPLAY_SLEEPING_REFUSAL (model-facing refusal wording for an unusable screen)
+- is_blocked_key_combo, is_dangerous_type_text, is_sensitive_app, check_vision_key_safety
+
+[POS]
+Desktop safety guardrail layer. Intercepts dangerous keystrokes, sensitive applications, and screen lock/sleep states.
+"""
+
+from __future__ import annotations
+
+import re
+
+from myrm_agent_harness.toolkits.computer_use.iphone_mirror import (
+    is_iphone_mirror_app,
+    is_iphone_mirror_connect_window,
+)
+from myrm_agent_harness.toolkits.computer_use.types import ModifierKey
+
+# Sole key tokens that models mistake for "key names" (KimiCU calculator pitfall).
+# Use type / click @dref instead — never vision key= or keyboard press of these alone.
+_OPERATOR_AS_KEY_TOKENS: frozenset[str] = frozenset({"*", "/", "+", "-", "%", "="})
+
+_KEY_ALIASES: dict[str, str] = {
+    "command": "cmd",
+    "control": "ctrl",
+    "alt": "option",
+    "meta": "cmd",
+    "super": "cmd",
+    "opt": "option",
+    "windows": "win",
+}
+
+_BLOCKED_KEY_COMBOS: frozenset[frozenset[str]] = frozenset(
+    {
+        frozenset({"cmd", "shift", "backspace"}),
+        frozenset({"cmd", "option", "backspace"}),
+        frozenset({"cmd", "ctrl", "q"}),
+        frozenset({"cmd", "shift", "q"}),
+        frozenset({"cmd", "option", "shift", "q"}),
+        frozenset({"win", "l"}),
+        frozenset({"ctrl", "option", "delete"}),
+        frozenset({"ctrl", "option", "del"}),
+        frozenset({"option", "f4"}),
+    }
+)
+
+_DANGEROUS_TYPE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"curl\s+[^|]*\|\s*(?:ba)?sh", re.IGNORECASE),
+    re.compile(r"wget\s+[^|]*\|\s*(?:ba)?sh", re.IGNORECASE),
+    re.compile(r"\bsudo\s+rm\s+-[rf]", re.IGNORECASE),
+    re.compile(r"\brm\s+-rf\s+(?:/|~/|\$HOME)", re.IGNORECASE),
+    re.compile(r":\s*\(\)\s*\{[^}]*\}\s*;?\s*:", re.IGNORECASE),
+)
+
+
+def canonicalize_key_combo(keys: str) -> frozenset[str]:
+    # Split on "+" and "-" (cua-driver accepts hyphenated combos; a bare "-" token must not bypass blocks).
+    parts = [p.strip().lower() for p in re.split(r"\s*[+\-]\s*", keys) if p.strip()]
+    return frozenset(_KEY_ALIASES.get(part, part) for part in parts)
+
+
+def is_blocked_key_combo(keys: str) -> str | None:
+    canon = canonicalize_key_combo(keys)
+    if canon in _BLOCKED_KEY_COMBOS:
+        return f"Blocked dangerous key combination: {keys}"
+    return None
+
+
+def is_operator_as_key_name(keys: str) -> str | None:
+    """Reject sole printable operators used as vision ``key`` / keyboard key names.
+
+    Combos that include modifiers (e.g. ``ctrl+/``, ``ctrl+-``) are allowed.
+    Lone ``+`` is matched on the stripped string first: ``canonicalize_key_combo``
+    splits on ``+`` and would otherwise drop the token.
+    """
+    stripped = keys.strip()
+    if stripped in _OPERATOR_AS_KEY_TOKENS:
+        token = stripped
+    else:
+        canon = canonicalize_key_combo(keys)
+        if len(canon) != 1 or next(iter(canon)) not in _OPERATOR_AS_KEY_TOKENS:
+            return None
+        token = next(iter(canon))
+    return (
+        f"Rejected printable operator {token!r} as a key name. "
+        "Use desktop_vision_tool action=type (or desktop_interact_tool type/set_value), "
+        "or click the matching calculator/@dref button via desktop_interact_tool."
+    )
+
+
+def is_dangerous_type_text(text: str) -> str | None:
+    for pattern in _DANGEROUS_TYPE_PATTERNS:
+        if pattern.search(text):
+            return f"Blocked dangerous text input matching pattern: {pattern.pattern}"
+    return None
+
+
+_SELF_APP_BUNDLE_IDS: frozenset[str] = frozenset(
+    {
+        "com.myrmagent.app",
+        "com.myrm.agent",
+        "com.myrm.agent.desktop",
+    }
+)
+
+_SELF_APP_NAME_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "myrm",
+        "myrmagent",
+        "myrm agent",
+        "cursor",
+    }
+)
+
+_SELF_WINDOW_TITLE_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "myrm",
+        "desktop control",
+        "desktop inspector",
+        "control approval",
+    }
+)
+
+_SENSITIVE_APPS: frozenset[str] = frozenset(
+    {
+        # Financial
+        "alipay",
+        "\u652f\u4ed8\u5b9d",
+        "bank",
+        "\u94f6\u884c",
+        "\u62db\u5546\u94f6\u884c",
+        "\u5de5\u5546\u94f6\u884c",
+        "\u5efa\u8bbe\u94f6\u884c",
+        "\u519c\u4e1a\u94f6\u884c",
+        "\u4ea4\u901a\u94f6\u884c",
+        "\u4e2d\u4fe1\u94f6\u884c",
+        "\u6c11\u751f\u94f6\u884c",
+        "\u5174\u4e1a\u94f6\u884c",
+        "\u540c\u82b1\u987a",
+        "\u4e1c\u65b9\u8d22\u5bcc",
+        "\u96ea\u7403",
+        "chase",
+        "wells fargo",
+        "bank of america",
+        "citi",
+        # Communication / privacy
+        "wechat",
+        "\u5fae\u4fe1",
+        "wecom",
+        "\u4f01\u4e1a\u5fae\u4fe1",
+        "telegram",
+        "signal",
+        "whatsapp",
+        "\u9489\u9489",
+        "dingtalk",
+        "\u98de\u4e66",
+        "feishu",
+        "lark",
+        # Password managers
+        "1password",
+        "bitwarden",
+        "lastpass",
+        "keepass",
+        "dashlane",
+        "keychain access",
+        "\u94a5\u5319\u4e32\u8bbf\u95ee",
+        # Terminal / shell — block GUI automation to prevent command injection
+        "terminal",
+        "iterm",
+        "iterm2",
+        "warp",
+        "cmd",
+        "powershell",
+        "windows terminal",
+        "wt",
+        "konsole",
+        "gnome-terminal",
+        "xterm",
+        "alacritty",
+        "kitty",
+        "hyper",
+    }
+)
+
+
+def is_self_app(
+    app_name: str,
+    window_title: str = "",
+    app_id: str = "",
+) -> str | None:
+    """Block automation of the agent product UI (Myrm / Cursor host windows)."""
+    lower_id = app_id.strip().lower()
+    if lower_id:
+        if lower_id in _SELF_APP_BUNDLE_IDS:
+            return (
+                f"Blocked: Agent cannot control its own application UI ({app_id}). "
+                "Use chat approval buttons directly instead of desktop automation."
+            )
+        if "todesktop" in lower_id and "cursor" in app_name.lower():
+            return (
+                "Blocked: Agent cannot control the Cursor host application. Complete approvals in the chat UI instead."
+            )
+
+    lower_name = app_name.lower()
+    for keyword in _SELF_APP_NAME_KEYWORDS:
+        if keyword in lower_name:
+            return f"Blocked: Agent cannot control application '{app_name}'. This appears to be the agent host UI."
+
+    lower_title = window_title.lower() if window_title else ""
+    for keyword in _SELF_WINDOW_TITLE_KEYWORDS:
+        if lower_title and keyword in lower_title:
+            return (
+                f"Blocked: Window '{window_title}' appears to be the agent UI. "
+                "Use chat controls instead of desktop automation."
+            )
+    return None
+
+
+def is_iphone_mirror_blocked_action(
+    app_name: str,
+    window_title: str = "",
+    app_id: str = "",
+    action_text: str = "",
+) -> str | None:
+    """Block unauthorized automated clicks on iPhone Mirroring connect/pairing dialogs."""
+    if not is_iphone_mirror_app(app_name, app_id):
+        return None
+
+    lower_title = window_title.lower() if window_title else ""
+    lower_action = action_text.lower() if action_text else ""
+
+    # Check if window is waiting for manual connect/passcode confirmation
+    if is_iphone_mirror_connect_window(lower_title) and any(
+        k in lower_action for k in ["connect", "连接", "confirm", "确认", "ok"]
+    ):
+        return (
+            f"Blocked: Agent must NOT automatically click connect/pairing prompt on '{app_name}'. "
+            "User must manually confirm connection and unlock their iPhone."
+        )
+    return None
+
+
+def is_sensitive_app(
+    app_name: str,
+    window_title: str = "",
+    app_id: str = "",
+    custom_blocked: frozenset[str] | None = None,
+    custom_allowed: frozenset[str] | None = None,
+) -> str | None:
+    """Check if the foreground app or window title matches the sensitive blocklist.
+
+    Matches against both *app_name* and *window_title* to catch scenarios where
+    sensitive content is opened inside a generic app (e.g. banking site in Chrome).
+
+    Returns a human-readable block reason, or ``None`` if safe to proceed.
+    """
+    if not app_name:
+        return None
+
+    self_blocked = is_self_app(app_name, window_title, app_id)
+    if self_blocked:
+        return self_blocked
+
+    lower_name = app_name.lower()
+    lower_title = window_title.lower() if window_title else ""
+
+    if custom_allowed and any(a.lower() in lower_name for a in custom_allowed):
+        return None
+
+    effective_blocked = _SENSITIVE_APPS | (custom_blocked or frozenset())
+    for keyword in effective_blocked:
+        kw = keyword.lower()
+        if kw in lower_name:
+            return (
+                f"Blocked: Agent cannot interact with sensitive application '{app_name}'. "
+                "Switch to a non-sensitive application to continue the task."
+            )
+        if lower_title and kw in lower_title:
+            return (
+                f"Blocked: Window title '{window_title}' indicates sensitive content "
+                f"(matched '{keyword}'). Switch away to continue the task."
+            )
+    return None
+
+
+def normalize_modifiers(
+    modifiers: list[ModifierKey] | None,
+) -> list[ModifierKey] | None:
+    if not modifiers:
+        return None
+    return list(modifiers)
+
+
+_BACKGROUND_SAFE_ACTIONS: frozenset[str] = frozenset(
+    {
+        "capture",
+        "screenshot",
+        "wait",
+    }
+)
+
+
+def is_foreground_required(action: str) -> bool:
+    """Determine whether an action requires foreground focus (mouse/keyboard control)."""
+    return action.lower() not in _BACKGROUND_SAFE_ACTIONS
+
+
+# Model-facing refusals for an unusable physical screen. The input pair is what
+# check_screen_lock_safety returns, what ScreenGuard returns and the default message of the
+# interruption errors, so every desktop entry point refuses with identical wording.
+# Snapshots refuse to capture rather than to type.
+SCREEN_LOCKED_REFUSAL = (
+    "Safety: Screen is locked. Automated inputs are halted to prevent password leakage and account lockout."
+)
+DISPLAY_SLEEPING_REFUSAL = "Safety: Display is sleeping. Automated inputs are halted to prevent unintended actions."
+SNAPSHOT_SCREEN_LOCKED_REFUSAL = (
+    "Safety: Desktop screen is locked. Snapshot aborted to prevent capturing private lock-screen content."
+)
+SNAPSHOT_DISPLAY_SLEEPING_REFUSAL = "Safety: Display is sleeping. Snapshot aborted."
+
+
+class ScreenLockedInterruptionError(RuntimeError):
+    """Raised when an automated input action is attempted while the screen is locked."""
+
+    def __init__(self, message: str = SCREEN_LOCKED_REFUSAL) -> None:
+        super().__init__(message)
+
+
+class PhysicalSleepInterruptionError(RuntimeError):
+    """Raised when an automated input action is attempted while the host display/system is sleeping."""
+
+    def __init__(self, message: str = DISPLAY_SLEEPING_REFUSAL) -> None:
+        super().__init__(message)
+
+
+def check_screen_lock_safety(detector: object | None = None) -> str | None:
+    """Check if the physical screen is safe for automated input.
+
+    Returns an error message if locked or sleeping, or None if safe.
+    """
+    from myrm_agent_harness.toolkits.computer_use.screen_detector import (
+        ScreenDetector,
+        ScreenLockState,
+        get_default_screen_detector,
+    )
+
+    det: ScreenDetector = detector if isinstance(detector, ScreenDetector) else get_default_screen_detector()
+    state = det.get_state()
+    if state == ScreenLockState.LOCKED:
+        return SCREEN_LOCKED_REFUSAL
+    if state == ScreenLockState.SLEEPING:
+        return DISPLAY_SLEEPING_REFUSAL
+    return None
+
+
+def ensure_screen_safe(detector: object | None = None) -> None:
+    """Ensure screen is unlocked and awake before physical input; raises on violation."""
+    from myrm_agent_harness.toolkits.computer_use.screen_detector import (
+        ScreenDetector,
+        ScreenLockState,
+        get_default_screen_detector,
+    )
+
+    det: ScreenDetector = detector if isinstance(detector, ScreenDetector) else get_default_screen_detector()
+    state = det.get_state()
+    if state == ScreenLockState.LOCKED:
+        raise ScreenLockedInterruptionError()
+    if state == ScreenLockState.SLEEPING:
+        raise PhysicalSleepInterruptionError()

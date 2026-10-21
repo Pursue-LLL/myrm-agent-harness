@@ -1,0 +1,309 @@
+"""Hook system type definitions — framework-agnostic.
+
+Defines lifecycle events, hook definitions, payloads, and results.
+Usable by both agent/ and toolkits/ without coupling to the agent runtime.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Literal, Protocol, runtime_checkable
+
+from pydantic import BaseModel, Field
+
+# ---------------------------------------------------------------------------
+# Lifecycle Events
+# ---------------------------------------------------------------------------
+
+
+class HookEvent(StrEnum):
+    """Built-in lifecycle events that trigger hooks.
+
+    HookRegistry also accepts arbitrary string keys for custom events.
+    """
+
+    PRE_TOOL_USE = "pre_tool_use"
+    POST_TOOL_USE = "post_tool_use"
+    POST_TOOL_USE_FAILURE = "post_tool_use_failure"
+    POST_TOOL_USE_CANCELLED = "post_tool_use_cancelled"
+    SESSION_START = "session_start"
+    SESSION_END = "session_end"
+    SUBAGENT_START = "subagent_start"
+    SUBAGENT_STOP = "subagent_stop"
+    SUBAGENT_CANCEL_START = "subagent_cancel_start"
+    SUBAGENT_CANCEL_COMPLETE = "subagent_cancel_complete"
+    USER_TURN = "user_turn"
+    TRACE_SLICE_READY = "trace_slice_ready"
+    APPROVAL_CORRECTION = "approval_correction"
+
+
+# ---------------------------------------------------------------------------
+# Hook Governance (priority & provenance)
+# ---------------------------------------------------------------------------
+
+
+class HookSource(StrEnum):
+    """Provenance of a hook registration — drives governance and audit."""
+
+    BUILTIN = "builtin"  # framework built-in hooks (incl. safety hooks)
+    SKILL = "skill"  # hooks declared in third-party SKILL.md frontmatter
+    PLUGIN = "plugin"  # hooks from installed plugins
+    USER_CONFIG = "user_config"  # hooks from user hook config files
+
+
+#: Safety hooks run before everything else and lock their decisions: hooks
+#: registered with this priority cannot have their ``updated_input`` or block
+#: verdict flipped by lower-priority (user-authored) hooks.
+HOOK_PRIORITY_SECURITY = 1000
+
+
+# ---------------------------------------------------------------------------
+# Hook Definitions (4 types)
+# ---------------------------------------------------------------------------
+
+
+class _HookBase(BaseModel):
+    """Shared fields for all hook types."""
+
+    matcher: str | None = Field(
+        default=None,
+        description="fnmatch pattern to filter tool names (e.g. 'bash_*'); '|' separates alternatives ('bash_*|write_file_tool')",
+    )
+    block_on_failure: bool = Field(default=False, description="If true, a failed hook blocks the main flow")
+    timeout_seconds: int = Field(default=30, ge=1, le=600)
+    priority: int = Field(
+        default=0,
+        ge=0,
+        description="Execution order within an event: higher runs first; ties keep registration order (onion model). Safety hooks must use HOOK_PRIORITY_SECURITY.",
+    )
+    source: HookSource = Field(
+        default=HookSource.BUILTIN,
+        description="Registration provenance, used for governance, audit, and gate policies.",
+    )
+
+
+HookCallable = Callable[[str, dict[str, object]], Awaitable["HookResult"]]
+
+
+class CallableHookDefinition(_HookBase):
+    """Python async callable registered programmatically."""
+
+    type: Literal["callable"] = "callable"
+    fn: HookCallable
+
+    model_config = {"arbitrary_types_allowed": True}
+
+
+class CommandHookDefinition(_HookBase):
+    """Shell command hook.
+
+    ``$ARGUMENTS`` expands to the JSON event payload as a single word. It is
+    bound through the ``$HOOK_PAYLOAD`` environment variable, never pasted into
+    the command text, so event data cannot be parsed as shell code.
+    """
+
+    type: Literal["command"] = "command"
+    command: str
+
+
+class HttpHookDefinition(_HookBase):
+    """Webhook POST hook for SaaS audit integration.
+
+    When *secret* is set, every request includes an ``X-Webhook-Signature``
+    header (``sha256=<hex-digest>``) computed over the raw JSON body — the
+    same convention used by GitHub / Stripe / Hermes webhooks.
+
+    When *fire_and_forget* is ``True`` the HTTP call is scheduled via
+    ``asyncio.create_task`` and never awaited by the executor, so
+    notification-type events (SESSION_END, SUBAGENT_STOP, …) do not
+    block the main flow.
+    """
+
+    type: Literal["http"] = "http"
+    url: str
+    headers: dict[str, str] = Field(default_factory=dict)
+    secret: str | None = Field(default=None, description="HMAC-SHA256 signing secret for X-Webhook-Signature")
+    fire_and_forget: bool = Field(default=False, description="If true, send without awaiting the response")
+
+
+class LLMHookDefinition(_HookBase):
+    """LLM-based intelligent validation hook."""
+
+    type: Literal["llm"] = "llm"
+    prompt: str = Field(description="Prompt template, supports $ARGUMENTS")
+    model: str | None = Field(default=None, description="Model name, None = default")
+    depth: Literal["quick", "thorough"] = Field(
+        default="quick", description="quick ≈ fast validation, thorough ≈ deep reasoning"
+    )
+
+
+HookDefinition = CallableHookDefinition | CommandHookDefinition | HttpHookDefinition | LLMHookDefinition
+
+
+# ---------------------------------------------------------------------------
+# Hook Results
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class HookResult:
+    """Result from a single hook execution."""
+
+    hook_type: str
+    success: bool
+    output: str = ""
+    blocked: bool = False
+    reason: str = ""
+    updated_input: dict[str, object] | None = None
+    metadata: dict[str, object] = field(default_factory=dict)
+    elapsed_ms: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class AggregatedHookResult:
+    """Aggregated result from multiple hooks for a single event."""
+
+    results: tuple[HookResult, ...] = ()
+
+    @property
+    def blocked(self) -> bool:
+        return any(r.blocked for r in self.results)
+
+    @property
+    def reason(self) -> str:
+        for r in self.results:
+            if r.blocked:
+                return r.reason or r.output
+        return ""
+
+    @property
+    def updated_input(self) -> dict[str, object] | None:
+        """Last hook providing updated_input wins (cascade override)."""
+        for r in reversed(self.results):
+            if r.updated_input is not None:
+                return r.updated_input
+        return None
+
+    @property
+    def all_succeeded(self) -> bool:
+        return all(r.success for r in self.results)
+
+
+# ---------------------------------------------------------------------------
+# Event Payloads
+# ---------------------------------------------------------------------------
+
+EMPTY_RESULT = AggregatedHookResult()
+
+
+@dataclass(frozen=True, slots=True)
+class PreToolUsePayload:
+    tool_name: str
+    tool_input: dict[str, object]
+    tool_call_id: str
+    session_id: str = ""
+    agent_id: str | None = None
+    agent_type: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PostToolUsePayload:
+    tool_name: str
+    tool_input: dict[str, object]
+    tool_output: str
+    tool_call_id: str
+    session_id: str = ""
+    agent_id: str | None = None
+    agent_type: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PostToolUseFailurePayload:
+    tool_name: str
+    tool_input: dict[str, object]
+    error: str
+    tool_call_id: str
+    session_id: str = ""
+    agent_id: str | None = None
+    agent_type: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SessionStartPayload:
+    session_id: str
+    workspace_path: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class SessionEndPayload:
+    session_id: str
+    total_tokens: int = 0
+    total_cost_usd: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class SubagentStartPayload:
+    task_id: str
+    agent_type: str
+    task_description: str
+    trace_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class SubagentStopPayload:
+    task_id: str
+    agent_type: str
+    success: bool
+    status: str = ""
+    result: str = ""
+    error: str = ""
+    duration_seconds: float = 0.0
+    trace_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class SubagentMergeConflictPayload:
+    task_id: str
+    agent_type: str
+    branch: str
+    conflicting_files: tuple[str, ...] = ()
+    error: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class TraceSliceReadyPayload:
+    session_id: str
+    tool_call_ids: list[str]
+    agent_id: str | None = None
+    agent_type: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ApprovalCorrectionPayload:
+    """Payload emitted when a user edits tool-call arguments in the approval flow.
+
+    Each correction is a dict with ``tool_name``, ``original_args`` and ``edited_args``.
+    Rejections carry no corrected value and are not emitted.
+    """
+
+    session_id: str
+    corrections: tuple[dict[str, object], ...]
+    agent_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UserTurnPayload:
+    session_id: str
+    user_input: str
+    agent_id: str | None = None
+
+
+@runtime_checkable
+class HookRegistryProtocol(Protocol):
+    """Minimal hook registry interface for cross-layer dependency injection."""
+
+    _hooks: dict[str, list[HookDefinition]]
+
+    def register(self, event: str | HookEvent, hook: HookDefinition) -> None: ...

@@ -1,0 +1,305 @@
+"""Eval Reporters — format and persist evaluation results.
+
+[INPUT]
+- protocol::EvalResult (POS: Eval framework type system and AgentExecutor protocol.)
+
+[OUTPUT]
+- JsonlReporter: writes results as JSON Lines.
+- MarkdownReporter: writes results as a human-readable Markdown report.
+
+[POS]
+Provides out-of-the-box reporting capabilities for the Eval framework.
+Ensures developers can easily persist and review test results without
+writing custom parsing logic.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from .ablation_rules import derive_ablation_recommendations
+from .trajectory_analysis import aggregate_failure_modes
+
+if TYPE_CHECKING:
+    from .protocols import EvalResult
+
+
+class JsonlReporter:
+    """Writes evaluation results to a JSON Lines file."""
+
+    def __init__(self, output_path: str | Path) -> None:
+        self.output_path = Path(output_path)
+
+    def report(self, result: EvalResult) -> None:
+        """Write the EvalResult to the output path."""
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        total_tokens_sum = 0
+        total_time_secs = 0.0
+        case_count = len(result.turn_results)
+
+        with self.output_path.open("w", encoding="utf-8") as f:
+            # Collect per-turn data first for summary aggregation
+            turn_lines: list[str] = []
+            for turn in result.turn_results:
+                time_secs = turn.timings.total_ms / 1000.0
+                total_time_secs += time_secs
+                turn_tokens = turn.response.token_usage.get("total_tokens", 0)
+                total_tokens_sum += turn_tokens
+
+                turn_data = {
+                    "type": "turn",
+                    "passed": turn.assertion_passed,
+                    "case": {
+                        "message": turn.case.message,
+                        "expected_tools": turn.case.expected_tools,
+                        "state_assertions": [
+                            {
+                                "type": a.type,
+                                "expected": a.expected,
+                                "threshold": a.threshold,
+                            }
+                            for a in getattr(turn.case, "state_assertions", [])
+                        ],
+                        "sandbox_assertions": [
+                            {
+                                "type": a.type,
+                                "target": a.target,
+                                "expected": a.expected,
+                                "result_file": a.result_file,
+                                "timeout": a.timeout,
+                                "readonly_paths": list(a.readonly_paths),
+                            }
+                            for a in getattr(turn.case, "sandbox_assertions", [])
+                        ],
+                        "compaction_assertions": [
+                            {
+                                "type": a.type,
+                                "expected_constraints": list(a.expected_constraints),
+                                "forbidden_claims": list(a.forbidden_claims),
+                                "required_artifacts": list(a.required_artifacts),
+                                "expected_tools": list(a.expected_tools),
+                                "min_fidelity_score": a.min_fidelity_score,
+                            }
+                            for a in getattr(turn.case, "compaction_assertions", [])
+                        ],
+                        "retrieval_assertions": [
+                            {
+                                "type": a.type,
+                                "expected_spans": list(a.expected_spans),
+                                "expected_doc_ids": list(a.expected_doc_ids),
+                                "min_recall": a.min_recall,
+                                "max_duplicate_rate": a.max_duplicate_rate,
+                                "min_distinct_sources": a.min_distinct_sources,
+                                "top_k": a.top_k,
+                                "strip_headers": a.strip_headers,
+                            }
+                            for a in getattr(turn.case, "retrieval_assertions", [])
+                        ],
+                        "post_episode_assertions": [
+                            {
+                                "assertion_id": a.assertion_id,
+                                "assertion_type": a.assertion_type,
+                                "command": a.command,
+                                "expected_output": a.expected_output,
+                                "timeout_seconds": a.timeout_seconds,
+                                "is_hidden": a.is_hidden,
+                            }
+                            for a in getattr(turn.case, "post_episode_assertions", [])
+                        ],
+                        "canary_protected": getattr(turn.case, "canary_protected", False),
+                        "canary_token": getattr(turn.case, "canary_token", ""),
+                    },
+                    "actual_tools": turn.response.tools_called,
+                    "tool_call_details": turn.response.tool_call_details,
+                    "limit_reached": turn.response.limit_reached,
+                    "blocked_count": turn.response.blocked_count,
+                    "canary_verified": turn.canary_verified,
+                    "post_episode_passed": turn.post_episode_passed,
+                    "contamination_audit": turn.contamination_audit,
+                    "actual_output": turn.response.answer,
+                    "usage": turn.response.token_usage,
+                    "time_secs": round(time_secs, 3),
+                    "details": turn.assertion_details,
+                    "scores": turn.scores,
+                    "error": turn.error,
+                }
+                turn_lines.append(json.dumps(turn_data, ensure_ascii=False))
+
+            summary = {
+                "type": "summary",
+                "total_cases": result.total_cases,
+                "pass_count": result.pass_count,
+                "fail_count": result.fail_count,
+                "error_count": result.error_count,
+                "skip_count": result.skip_count,
+                "pass_rate": result.pass_rate,
+                "all_passed": result.all_passed,
+                "total_ms": result.total_ms,
+                "avg_time_secs": (round(total_time_secs / case_count, 3) if case_count else 0.0),
+                "avg_total_tokens": (round(total_tokens_sum / case_count) if case_count else 0),
+            }
+            if result.avg_pass_rate is not None:
+                summary["avg_pass_rate"] = result.avg_pass_rate
+            if result.manifest is not None:
+                summary["manifest"] = result.manifest.to_dict()
+            if result.fail_count > 0 or result.error_count > 0:
+                failure_agg = aggregate_failure_modes(result)
+                if failure_agg["total_failures"] > 0:
+                    summary["failure_analysis"] = failure_agg
+                    recs = derive_ablation_recommendations(failure_agg["failure_distribution"])
+                    summary["ablation_recommendations"] = [r.to_dict() for r in recs]
+                    from .failure_clustering import cluster_failure_signatures
+
+                    sig_clusters = cluster_failure_signatures(result)
+                    summary["signature_clusters"] = [c.to_dict() for c in sig_clusters]
+            f.write(json.dumps(summary, ensure_ascii=False) + "\n")
+            for line in turn_lines:
+                f.write(line + "\n")
+
+
+class MarkdownReporter:
+    """Writes evaluation results to a Markdown file."""
+
+    def __init__(self, output_path: str | Path) -> None:
+        self.output_path = Path(output_path)
+
+    def report(self, result: EvalResult) -> None:
+        """Write the EvalResult to the output path."""
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        total_tokens = result.total_tokens
+        total_cost = result.total_cost
+
+        lines = [
+            "# Evaluation Report",
+            "",
+            "## Summary",
+            "",
+            f"- **Total Cases**: {result.total_cases}",
+            f"- **Passed**: {result.pass_count}",
+            f"- **Failed**: {result.fail_count}",
+            f"- **Errors**: {result.error_count}",
+            f"- **Skipped**: {result.skip_count}",
+            f"- **Pass Rate**: {result.pass_rate * 100:.1f}%",
+            f"- **Total Time**: {result.total_ms:.0f}ms",
+        ]
+        if result.avg_pass_rate is not None:
+            lines.append(f"- **Avg Test Pass Rate**: {result.avg_pass_rate * 100:.1f}%")
+
+        if total_tokens > 0:
+            avg_tokens = total_tokens // result.total_cases if result.total_cases else 0
+            lines.append(f"- **Total Tokens**: {total_tokens:,} (avg {avg_tokens:,}/case)")
+        if total_cost > 0:
+            lines.append(f"- **Total Cost**: ${total_cost:.4f}")
+
+        if result.manifest is not None:
+            m = result.manifest
+            lines.extend(
+                [
+                    "",
+                    "## Environment",
+                    "",
+                    f"- **Model**: `{m.model_provider}/{m.model_id}`",
+                    f"- **Thinking Effort**: `{m.thinking_effort}`",
+                    f"- **Harness Version**: `{m.harness_version}`",
+                    f"- **Tools**: `{', '.join(m.tool_policy)}`",
+                    f"- **Dataset**: `{m.task_set_id}` (hash: `{m.task_set_hash[:12]}...`)",
+                    f"- **Prompt Fingerprint**: `{m.prompt_fingerprint[:16]}...`",
+                    f"- **Budget**: `{m.budget_max_tokens}` tokens / `{m.timeout_seconds}`s timeout",
+                    f"- **Created**: `{m.created_at}`",
+                ]
+            )
+
+        if result.fail_count > 0 or result.error_count > 0:
+            failure_agg = aggregate_failure_modes(result)
+            if failure_agg["total_failures"] > 0:
+                recs = derive_ablation_recommendations(failure_agg["failure_distribution"])
+                if recs:
+                    lines.extend(
+                        [
+                            "",
+                            "## Component Ablation & Harness Edit Recommendations",
+                            "",
+                        ]
+                    )
+                    for rec in recs:
+                        lines.append(
+                            f"- **[{rec.component.upper()} · Tier {rec.priority}]** {rec.title}: {rec.reason} (Affects {rec.affected_case_count} cases)"
+                        )
+
+        lines.extend(
+            [
+                "",
+                "## Details",
+                "",
+            ]
+        )
+
+        for i, turn in enumerate(result.turn_results, 1):
+            status = " PASS" if turn.assertion_passed else (" FAIL" if turn.assertion_passed is False else " SKIP")
+            if turn.error:
+                status = " ERROR"
+
+            lines.extend(
+                [
+                    f"### Case {i}: {status}",
+                    "",
+                    f"**Message**: `{turn.case.message}`",
+                    "",
+                    f"- **Expected Tools**: `{turn.case.expected_tools}`",
+                    f"- **Tools Called**: `{turn.response.tools_called}`",
+                    f"- **Time**: `{turn.timings.total_ms:.0f}ms`",
+                    "",
+                ]
+            )
+
+            if turn.scores:
+                score_desc = ", ".join(f"{k}: {v:g}" for k, v in sorted(turn.scores.items()))
+                lines.extend(
+                    [
+                        f"- **Scores**: `{score_desc}`",
+                        "",
+                    ]
+                )
+
+            if turn.canary_verified is not None:
+                canary_status = "VERIFIED" if turn.canary_verified else "FAILED"
+                lines.extend([f"- **Canary Protected**: `{canary_status}`", ""])
+
+            if turn.contamination_audit:
+                audit_info = turn.contamination_audit
+                cheat = audit_info.get("cheat_detected", False)
+                lines.extend(
+                    [
+                        f"- **Anti-Contamination**: `{'VIOLATION' if cheat else 'CLEAN'}`",
+                        "",
+                    ]
+                )
+
+            if turn.assertion_details:
+                lines.extend(
+                    [
+                        "**Assertion Details**:",
+                        "```text",
+                        turn.assertion_details,
+                        "```",
+                        "",
+                    ]
+                )
+
+            if turn.error:
+                lines.extend(
+                    [
+                        "**Error**:",
+                        "```text",
+                        turn.error,
+                        "```",
+                        "",
+                    ]
+                )
+
+        with self.output_path.open("w", encoding="utf-8") as f:
+            f.write("\n".join(lines))

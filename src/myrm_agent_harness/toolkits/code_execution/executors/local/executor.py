@@ -1,0 +1,759 @@
+"""Local code executor orchestrator.
+
+[INPUT]
+local._file_ops::LocalFileOpsMixin (POS: Native file I/O via pathlib with read-only guard)
+local._python_subprocess::run_python_subprocess (POS: Python subprocess with sandbox and timeout)
+local._background_spawn::spawn_background_process (POS: Background process spawning with sandbox)
+executors.common::CommandRewriter, VenvManager, ExecutionHelper (POS: Shared execution utilities)
+executors.base::CodeExecutor (POS: Code executor abstract base)
+code_execution.config::ExecutionConfig (POS: Execution configuration layer)
+code_execution.session::LocalPersistentSession (POS: Concrete persistent shell session)
+myrm_agent_harness.core.context_vars::user_timezone_var (POS: Cross-layer ContextVar registry)
+
+[OUTPUT]
+LocalExecutor: Unified local executor for Python code and Bash commands.
+
+[POS]
+Local code execution orchestrator. Coordinates Python/Bash execution,
+persistent session lifecycle, workspace binding, and composed services
+(VenvManager, CommandRewriter, FileScanner, ExecutionHelper).
+"""
+
+import asyncio  # noqa: F401  # exposed as ``executor.asyncio`` for test monkey-patching
+import logging
+import os
+import tempfile
+import time
+from collections.abc import AsyncIterator
+from dataclasses import replace
+from pathlib import Path
+from typing import TYPE_CHECKING, Self
+
+from myrm_agent_harness.core.security.ocap import CapabilityAction, check_capability_access, enforce_capability_access
+from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
+from myrm_agent_harness.toolkits.code_execution.executors.base import (
+    CodeExecutor,
+    ExecutionContext,
+    ExecutionResult,
+)
+from myrm_agent_harness.toolkits.code_execution.executors.common import (
+    CommandRewriter,
+    ExecutionHelper,
+    LocalFilesScanner,
+    VenvManager,
+    extract_short_error,
+    generate_wrapper_script,
+    handle_execution_error,
+)
+from myrm_agent_harness.toolkits.code_execution.executors.execution_evidence import record_execution
+from myrm_agent_harness.toolkits.code_execution.executors.local._file_ops import (
+    LocalFileOpsMixin,
+)
+from myrm_agent_harness.toolkits.code_execution.executors.models import (
+    AsyncProcessProtocol,
+)
+from myrm_agent_harness.toolkits.code_execution.utils import WorkspacePathResolver
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.code_execution.session import (
+        LocalPersistentSession,
+    )
+
+logger = logging.getLogger(__name__)
+
+
+from myrm_agent_harness.toolkits.code_execution.interceptor import (  # noqa: E402 — deferred import to avoid circular dependency
+    trigger_bash_action_hook,
+)
+
+
+class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
+    """Local code executor.
+
+    Responsibilities:
+    - Execute Python code and Bash commands
+    - Manage workspace binding
+    - Coordinate composed services
+
+    Composed services:
+    - VenvManager: virtual environment management
+    - CommandRewriter: command path rewriting
+    - FileScanner: generated file scanning
+    - ExecutionHelper: logging and formatting utilities
+    - LocalPersistentSession: persistent Bash sessions
+
+    File operations (read/write/grep/glob) are provided by LocalFileOpsMixin.
+    """
+
+    def __init__(self, config: ExecutionConfig, workspace_path: str | None = None):
+        super().__init__(config)
+        # Narrow ``CodeExecutor.config: ExecutionConfig | None`` to the strict
+        # ``ExecutionConfig`` we just received so mypy can resolve ``.local``
+        # without union-attr noise.
+        self.config: ExecutionConfig = config
+
+        self._venv_manager = VenvManager(config)
+        self._command_rewriter = CommandRewriter()
+        self._file_scanner = LocalFilesScanner()
+        self._helper = ExecutionHelper()
+
+        self._current_workspace: Path | None = None
+        self._readonly_paths: list[str] = []
+        self._bash_sessions: dict[str, LocalPersistentSession] = {}
+        self._egress_proxy: object | None = None
+        self._closed: bool = False
+
+        if workspace_path:
+            self.bind_workspace(workspace_path)
+
+    def bind_workspace(self, workspace_path: str) -> None:
+        path = Path(workspace_path)
+        if self._current_workspace == path:
+            return
+
+        super().bind_workspace(workspace_path)
+        self._current_workspace = path
+        path.mkdir(parents=True, exist_ok=True)
+
+        logger.debug(f" LocalExecutor: bound to workspace {workspace_path}")
+
+    def add_readonly_path(self, path: str) -> None:
+        """Register a read-only path (local mode)."""
+        self._readonly_paths.append(path)
+
+    def _resolve_work_dir(self, work_dir: str, workspace_root: Path | None) -> Path | None:
+        """Resolve abstract paths (e.g. /workspace/...) to local filesystem paths.
+
+        In container environments these paths are used directly; LocalExecutor
+        adapts them to the host filesystem via WorkspacePathResolver.
+
+        Args:
+            work_dir: Abstract working directory path.
+            workspace_root: Actual workspace root directory.
+
+        Returns:
+            Resolved local path, or None if resolution fails.
+        """
+        return WorkspacePathResolver.to_local_path(work_dir, workspace_root)
+
+    @staticmethod
+    def _scoped_context(context: ExecutionContext) -> ExecutionContext:
+        """Make the workspace read-only for a run whose capability handle carries no WRITE."""
+        if context.readonly_workspace or check_capability_access(CapabilityAction.WRITE):
+            return context
+        return replace(context, readonly_workspace=True)
+
+    @handle_execution_error("LocalExecutor")
+    async def execute(self, context: ExecutionContext) -> ExecutionResult:
+        """Execute Python code (stateless — each call runs in a fresh subprocess)."""
+        from myrm_agent_harness.core.security.missing_semantics import (
+            SemanticsCategory,
+            evaluate_missing_capability,
+        )
+
+        # Enforce Missing Semantics contract on sandbox isolation
+        if self.config.local.require_sandbox_isolation:
+            evaluate_missing_capability(
+                SemanticsCategory.SANDBOX_ISOLATION,
+                is_available=self.config.local.sandbox_available,
+                detail="Python execution requires sandbox isolation, but provider is unavailable",
+            )
+
+        context = self._scoped_context(context)
+        start_time = time.time()
+
+        self._helper.log_execution_start("LocalExecutor", "Python", context.code)
+
+        self._setup_workspace(context.workspace_root)
+
+        # Audit potential environment variable secret leaks in python code
+        try:
+            from myrm_agent_harness.toolkits.code_execution.security.shell_bleed import (
+                scan_content_for_env_leaks,
+            )
+
+            leak_warnings = scan_content_for_env_leaks(context.code)
+            for leak_warn in leak_warnings:
+                logger.warning(
+                    " [LocalExecutor] Python env leak warning: reference to sensitive environment variable '%s' (pattern: '%s') in user code",
+                    leak_warn.var_name,
+                    leak_warn.access_pattern,
+                )
+        except Exception as bleed_err:
+            logger.debug("Failed to perform shell bleed check on python code: %s", bleed_err)
+
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix="_user_code.py",
+            delete=False,
+            encoding="utf-8",
+        ) as code_file:
+            code_file.write(context.code)
+            code_file_path = Path(code_file.name)
+
+        wrapper_content = generate_wrapper_script(
+            str(code_file_path),
+            allow_network=context.allow_network,
+            allowed_hosts=context.allowed_hosts,
+            timeout=context.timeout or self.config.local.max_execution_time,
+            memory_limit_mb=self.config.local.max_memory_mb,
+            max_output_bytes=self.config.local.max_output_bytes,
+            readonly_workspace=context.readonly_workspace,
+        )
+
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix="_wrapper.py",
+            delete=False,
+            encoding="utf-8",
+        ) as wrapper_file:
+            wrapper_file.write(wrapper_content)
+            wrapper_path = Path(wrapper_file.name)
+
+        try:
+            effective_cwd = self._resolve_work_dir(
+                context.work_dir,
+                (Path(context.workspace_root) if context.workspace_root else self._current_workspace),
+            )
+
+            record_execution()
+            result = await self._run_subprocess(
+                wrapper_path,
+                context.timeout or 300,
+                cwd=effective_cwd,
+                env=context.env,
+                allow_network=context.allow_network,
+                context=context,
+            )
+
+            execution_time = time.time() - start_time
+
+            generated_files = await self._file_scanner.scan(
+                start_time,
+                self._current_workspace,
+            )
+
+            if result.success:
+                self._helper.log_execution_success("LocalExecutor", execution_time)
+
+            final_result = ExecutionResult(
+                success=result.success,
+                result=result.result,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                error=extract_short_error(result.error) if result.error else None,
+                execution_time=execution_time,
+                container_id=context.session_id,
+                generated_files=generated_files,
+            )
+
+            self.metrics.record(final_result, "python")
+            return final_result
+        finally:
+            code_file_path.unlink(missing_ok=True)
+            wrapper_path.unlink(missing_ok=True)
+
+    async def _run_subprocess(
+        self,
+        script_path: Path,
+        timeout: int,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
+        allow_network: bool = True,
+        context: ExecutionContext | None = None,
+    ) -> ExecutionResult:
+        """Execute a Python script via subprocess with sandbox and timeout."""
+        from myrm_agent_harness.toolkits.code_execution.executors.local._python_subprocess import (
+            run_python_subprocess,
+        )
+
+        python_executable = await self._venv_manager.get_python_executable()
+        return await run_python_subprocess(
+            script_path=script_path,
+            timeout=timeout,
+            python_executable=python_executable,
+            cwd=cwd,
+            env=env,
+            allow_network=allow_network,
+            context=context,
+        )
+
+    @handle_execution_error("LocalExecutor")
+    async def execute_bash(self, context: ExecutionContext) -> ExecutionResult:
+        """Execute a Bash command in a persistent session (state persists across calls)."""
+        from myrm_agent_harness.core.security.missing_semantics import (
+            SemanticsCategory,
+            evaluate_missing_capability,
+        )
+        from myrm_agent_harness.toolkits.code_execution.security.validator import (
+            validate_command,
+        )
+
+        # Enforce Missing Semantics contract on sandbox isolation
+        if self.config.local.require_sandbox_isolation:
+            evaluate_missing_capability(
+                SemanticsCategory.SANDBOX_ISOLATION,
+                is_available=self.config.local.sandbox_available,
+                detail="Bash execution requires sandbox isolation, but provider is unavailable",
+            )
+
+        context = self._scoped_context(context)
+        start_time = time.time()
+        command = context.code
+        validation_command = getattr(context, "original_code", command) or command
+
+        self._helper.log_execution_start("LocalExecutor", "Bash (Persistent)", command)
+
+        # Resolve working directory
+        workspace = Path(context.workspace_root) if context.workspace_root else self._current_workspace
+        effective_cwd = self._resolve_work_dir(context.work_dir, workspace)
+
+        # Security validation
+        effective_allowed_hosts = None
+        if context.allow_network and context.allowed_hosts is not None:
+            effective_allowed_hosts = context.allowed_hosts
+
+        validation_result = validate_command(
+            validation_command,
+            workspace_path=effective_cwd,
+            additional_paths=self._venv_manager.command_whitelist_paths(context.additional_readonly_paths),
+            allowed_hosts=effective_allowed_hosts,
+        )
+
+        enforce_capability_access(CapabilityAction.EXECUTE, str(effective_cwd))
+
+        # Audit potential environment variable secret leaks in command
+        try:
+            from myrm_agent_harness.toolkits.code_execution.security.shell_bleed import (
+                scan_content_for_env_leaks,
+            )
+
+            leak_warnings = scan_content_for_env_leaks(validation_command)
+            for leak_warn in leak_warnings:
+                logger.warning(
+                    " [LocalExecutor] Shell bleed warning: reference to sensitive environment variable '%s' (pattern: '%s') in command",
+                    leak_warn.var_name,
+                    leak_warn.access_pattern,
+                )
+        except Exception as bleed_err:
+            logger.debug("Failed to perform shell bleed check on command: %s", bleed_err)
+
+        if not validation_result.is_safe:
+            error_msg = f"Command blocked for security reasons: {validation_result.reason}"
+            logger.warning(f" [LocalExecutor] {error_msg}")
+            blocked_result = ExecutionResult(
+                success=False,
+                error=error_msg,
+                error_category="permission_denied",
+                stderr=error_msg,
+                execution_time=time.time() - start_time,
+            )
+            self.metrics.record(blocked_result, "bash")
+            return blocked_result
+
+        await trigger_bash_action_hook(
+            workspace_path=(str(self._current_workspace) if self._current_workspace else "/tmp"),
+            command=command,
+            session_id=context.session_id,
+        )
+
+        self._setup_workspace(str(effective_cwd) if effective_cwd else None)
+
+        command = await self._prepare_bash_command(command)
+
+        # Build environment
+        env = self._build_bash_env(
+            context.env,
+            context.allowed_credential_issuers,
+            command=command,
+        )
+
+        session = await self._get_or_create_bash_session(context, env)
+
+        timeout = context.timeout or self.config.local.max_execution_time
+        record_execution()
+        session_result = await session.execute(command, timeout)
+
+        execution_time = time.time() - start_time
+
+        generated_files = await self._file_scanner.scan(
+            start_time,
+            self._current_workspace,
+        )
+
+        if session_result.success:
+            self._helper.log_execution_success("LocalExecutor", execution_time)
+        else:
+            cmd_preview = command[:200] + "..." if len(command) > 200 else command
+            logger.warning(
+                " [LocalExecutor] Bash exit code: %d (%s) | cmd: %s",
+                session_result.exit_code,
+                self._helper.format_execution_time(execution_time),
+                cmd_preview,
+            )
+            if session_result.stderr:
+                logger.warning(f" [LocalExecutor] Bash stderr: {session_result.stderr}")
+            if session_result.stdout:
+                logger.info(f" [LocalExecutor] Bash stdout: {session_result.stdout}")
+
+        from myrm_agent_harness.core.security.redact import redact_sensitive_text
+        from myrm_agent_harness.toolkits.code_execution.utils.stderr_filter import filter_stderr_text
+
+        clean_stdout = redact_sensitive_text(session_result.stdout) if session_result.stdout else session_result.stdout
+        clean_stderr = redact_sensitive_text(session_result.stderr) if session_result.stderr else session_result.stderr
+        error_detail = session_result.error
+
+        if clean_stderr:
+            filtered_stderr = filter_stderr_text(clean_stderr)
+            if filtered_stderr.has_critical_error and not error_detail:
+                error_detail = filtered_stderr.filtered_error_text or clean_stderr
+
+        final_result = ExecutionResult(
+            success=session_result.success,
+            result=session_result.exit_code,
+            stdout=clean_stdout,
+            stderr=clean_stderr,
+            error=error_detail,
+            execution_time=execution_time,
+            container_id=context.session_id,
+            generated_files=generated_files,
+            exit_code=session_result.exit_code,
+        )
+        self.metrics.record(final_result, "bash")
+        return final_result
+
+    async def execute_bash_stream(self, context: ExecutionContext) -> AsyncIterator[str]:
+        """Execute a Bash command with real-time line-by-line output streaming."""
+        from myrm_agent_harness.toolkits.code_execution.security.validator import (
+            validate_command,
+        )
+
+        context = self._scoped_context(context)
+        command = context.code
+        workspace = Path(context.workspace_root) if context.workspace_root else self._current_workspace
+        effective_cwd = self._resolve_work_dir(context.work_dir, workspace)
+
+        effective_allowed_hosts = None
+        if context.allow_network and context.allowed_hosts is not None:
+            effective_allowed_hosts = context.allowed_hosts
+
+        validation_result = validate_command(
+            command,
+            workspace_path=effective_cwd,
+            additional_paths=self._venv_manager.command_whitelist_paths(context.additional_readonly_paths),
+            allowed_hosts=effective_allowed_hosts,
+        )
+
+        if not validation_result.is_safe:
+            yield f"[ERROR] Command blocked: {validation_result.reason}\n"
+            return
+
+        enforce_capability_access(CapabilityAction.EXECUTE, str(effective_cwd))
+
+        self._setup_workspace(str(effective_cwd) if effective_cwd else None)
+        command = await self._prepare_bash_command(command)
+        env = self._build_bash_env(
+            context.env,
+            context.allowed_credential_issuers,
+            command=command,
+        )
+
+        session = await self._get_or_create_bash_session(context, env)
+
+        timeout = context.timeout or self.config.local.max_execution_time
+        record_execution()
+        async for chunk in session.execute_stream(command, timeout):
+            yield chunk
+
+    async def spawn_background_process(self, context: ExecutionContext) -> AsyncProcessProtocol:
+        """Spawn a long-running background process with full-duplex streams.
+
+        Sandbox, environment isolation and process-tree handling live in ``_background_spawn``.
+        """
+        from myrm_agent_harness.toolkits.code_execution.executors.local._background_spawn import (
+            spawn_background_process,
+        )
+
+        return await spawn_background_process(
+            context=context,
+            current_workspace=self._current_workspace,
+            resolve_work_dir=self._resolve_work_dir,
+            setup_workspace=self._setup_workspace,
+            venv_path=self._venv_manager.get_venv_path(),
+            scope_context=self._scoped_context,
+        )
+
+    async def _get_or_create_bash_session(
+        self, context: ExecutionContext, env: dict[str, str]
+    ) -> "LocalPersistentSession":
+        """Get the healthy persistent shell for this context or start one.
+
+        A shell's sandbox is fixed when it starts, so a read-only run keeps its own shell and never
+        reuses the writable run's under the same session id.
+        """
+        from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
+            SandboxPolicy,
+        )
+        from myrm_agent_harness.toolkits.code_execution.session import (
+            LocalPersistentSession,
+            SessionConfig,
+        )
+
+        session_key = f"{context.session_id or 'default'}{'_readonly' if context.readonly_workspace else ''}"
+        workspace_path = str(self._current_workspace) if self._current_workspace else "/tmp"
+        if session_key in self._bash_sessions:
+            session = self._bash_sessions[session_key]
+            if session.is_alive:
+                is_healthy = await session.check_health()
+                if is_healthy:
+                    logger.debug(f" [LocalExecutor] Reusing Bash session: {session_key}")
+                    return session
+                else:
+                    logger.warning(f" [LocalExecutor] Unhealthy Bash session, restarting: {session_key}")
+                    await session.close()
+                    del self._bash_sessions[session_key]
+
+        logger.info(f" [LocalExecutor] Creating new Bash session: {session_key}")
+        # Sentinel Egress Guard: automatically wire loopback egress proxy when sentinels exist
+        proxy_url = await self._ensure_egress_proxy()
+        if proxy_url:
+            env["HTTP_PROXY"] = proxy_url
+            env["HTTPS_PROXY"] = proxy_url
+            env["http_proxy"] = proxy_url
+            env["https_proxy"] = proxy_url
+            env["ALL_PROXY"] = proxy_url
+            env["all_proxy"] = proxy_url
+            env["NODE_USE_ENV_PROXY"] = "1"
+            no_proxy_val = "localhost,127.0.0.1,::1,[::1],_MYRM_PTC_*"
+            env["NO_PROXY"] = no_proxy_val
+            env["no_proxy"] = no_proxy_val
+            from myrm_agent_harness.core.security.egress.proxy_server import LoopbackEgressProxy
+
+            if isinstance(self._egress_proxy, LoopbackEgressProxy) and self._egress_proxy.ca_bundle_path:
+                ca_path = self._egress_proxy.ca_bundle_path
+                env["SSL_CERT_FILE"] = ca_path
+                env["REQUESTS_CA_BUNDLE"] = ca_path
+                env["CURL_CA_BUNDLE"] = ca_path
+                env["NODE_EXTRA_CA_CERTS"] = ca_path
+
+        config = SessionConfig(
+            session_id=session_key,
+            work_dir=workspace_path,
+            timeout=context.timeout or 300,
+            env=env,
+            max_memory_mb=self.config.local.max_memory_mb,
+        )
+
+        sandbox_policy = SandboxPolicy(
+            writable_paths=() if context.readonly_workspace else (workspace_path,),
+            allow_network=context.allow_network,
+        )
+
+        session = LocalPersistentSession(config, sandbox_policy=sandbox_policy)
+        await session.start()
+        self._bash_sessions[session_key] = session
+        return session
+
+    async def cleanup_bash_sessions(self) -> None:
+        """Clean up all persistent Bash sessions."""
+        if not self._bash_sessions:
+            return
+
+        logger.info(f" [LocalExecutor] Cleaning up {len(self._bash_sessions)} Bash sessions")
+        for session_key, session in list(self._bash_sessions.items()):
+            try:
+                await session.close()
+            except Exception as e:
+                logger.warning(f" [LocalExecutor] Failed to close session {session_key}: {e}")
+            finally:
+                self._bash_sessions.pop(session_key, None)
+
+    async def close(self) -> None:
+        """Explicitly release bash sessions and local resources."""
+        if self._closed:
+            return
+        self._closed = True
+        await self.cleanup_bash_sessions()
+        if self._egress_proxy is not None:
+            try:
+                from myrm_agent_harness.core.security.egress.proxy_server import LoopbackEgressProxy
+
+                if isinstance(self._egress_proxy, LoopbackEgressProxy):
+                    await self._egress_proxy.stop()
+            except Exception as e:
+                logger.warning(f" [LocalExecutor] Failed to stop egress proxy: {e}")
+            finally:
+                self._egress_proxy = None
+
+    async def _ensure_egress_proxy(self) -> str | None:
+        """Ensure loopback egress proxy is running if sentinels are tracked."""
+        from myrm_agent_harness.core.security.egress.sentinel import get_global_sentinel_manager
+
+        sentinel_mgr = get_global_sentinel_manager()
+        if not sentinel_mgr.has_sentinels():
+            return None
+
+        if self._egress_proxy is None:
+            from myrm_agent_harness.core.security.egress.proxy_server import LoopbackEgressProxy
+
+            proxy = LoopbackEgressProxy(sentinel_manager=sentinel_mgr)
+            await proxy.start()
+            self._egress_proxy = proxy
+
+        from myrm_agent_harness.core.security.egress.proxy_server import LoopbackEgressProxy
+
+        if isinstance(self._egress_proxy, LoopbackEgressProxy):
+            return self._egress_proxy.proxy_url
+        return None
+
+    async def _prepare_bash_command(self, command: str) -> str:
+        """Rewrite workspace paths, search commands, and pip commands for the local environment."""
+        command = self._command_rewriter.rewrite_workspace_paths(
+            command,
+            self._current_workspace,
+        )
+        command = self._command_rewriter.rewrite_search_commands(command)
+        return await self._venv_manager.rewrite_pip_command(command)
+
+    def _build_bash_env(
+        self,
+        user_env: dict[str, str] | None,
+        allowed_credential_issuers: list[str] | None = None,
+        command: str | None = None,
+    ) -> dict[str, str]:
+        """Build sanitized environment with venv and user overrides."""
+        from myrm_agent_harness.toolkits.code_execution.security.validator import (
+            sanitize_env,
+        )
+
+        env = sanitize_env(os.environ.copy())
+
+        venv_path = self._venv_manager.get_venv_path()
+        if venv_path.exists():
+            env["VIRTUAL_ENV"] = str(venv_path)
+            venv_bin = str(venv_path / "bin")
+            env["PATH"] = venv_bin + os.pathsep + env.get("PATH", "")
+
+        if user_env:
+            env.update(sanitize_env(user_env))
+            logger.debug(f" User env vars: {list(user_env.keys())}")
+
+        # Post-override scrubbing guarantee: strip any non-inheritable host secrets from base/user env (Codex #38941)
+        from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+            is_non_inheritable_env_var,
+        )
+
+        for k in list(env.keys()):
+            if is_non_inheritable_env_var(k, env.get(k)):
+                env.pop(k, None)
+
+        from myrm_agent_harness.core.security.safe_exec import credential_env_overrides
+        from myrm_agent_harness.core.security.types import user_credentials_ctx
+
+        try:
+            credentials = user_credentials_ctx.get()
+            if credentials:
+                env.update(
+                    credential_env_overrides(
+                        credentials,
+                        allowed_issuers=allowed_credential_issuers,
+                    )
+                )
+        except LookupError:
+            pass
+
+        # Ephemeral credential injection with zeroization guarantees & action digest validation
+        try:
+            import hashlib
+
+            from myrm_agent_harness.core.context_vars import approval_session_var
+            from myrm_agent_harness.core.security.ephemeral_credentials import (
+                get_ephemeral_credential_store,
+                validate_credential_key,
+            )
+
+            current_session = approval_session_var.get()
+            if current_session:
+                store = get_ephemeral_credential_store()
+                summaries = store.list_summaries(current_session)
+                current_action_digest = (
+                    hashlib.sha256(command.strip().encode("utf-8")).hexdigest() if command and command.strip() else None
+                )
+                for s in summaries:
+                    if not s.is_consumed and not s.is_expired:
+                        try:
+                            val = store.consume_credential(
+                                current_session,
+                                s.handle_id,
+                                action_digest=current_action_digest,
+                            )
+                            sanitized_key = validate_credential_key(s.key)
+                            env[f"MYRM_CREDENTIAL_{sanitized_key}"] = val
+                            env[sanitized_key] = val
+                        except ValueError as val_err:
+                            logger.warning(
+                                "[LOCAL_EXECUTOR] Ephemeral credential handle '%s' skipped: %s",
+                                s.handle_id,
+                                val_err,
+                            )
+        except Exception as e:
+            logger.debug("[LOCAL_EXECUTOR] Ephemeral credential injection skipped: %s", e)
+
+        try:
+            from myrm_agent_harness.core.context_vars import user_timezone_var
+
+            user_tz = user_timezone_var.get()
+            if user_tz:
+                env["MYRM_USER_TIMEZONE"] = user_tz
+        except LookupError:
+            pass
+
+        # Inject Egress Proxy environment if proxy is running
+        egress_proxy_url = os.getenv("MYRM_EGRESS_PROXY_URL")
+        if egress_proxy_url:
+            env["http_proxy"] = egress_proxy_url
+            env["https_proxy"] = egress_proxy_url
+            env["HTTP_PROXY"] = egress_proxy_url
+            env["HTTPS_PROXY"] = egress_proxy_url
+            env["ALL_PROXY"] = egress_proxy_url
+            env["all_proxy"] = egress_proxy_url
+            env["NODE_USE_ENV_PROXY"] = "1"
+            no_proxy_val = "localhost,127.0.0.1,::1,[::1],_MYRM_PTC_*"
+            env["NO_PROXY"] = no_proxy_val
+            env["no_proxy"] = no_proxy_val
+
+        ca_bundle = os.getenv("MYRM_EGRESS_CA_BUNDLE")
+        if ca_bundle:
+            env["REQUESTS_CA_BUNDLE"] = ca_bundle
+            env["SSL_CERT_FILE"] = ca_bundle
+            env["CURL_CA_BUNDLE"] = ca_bundle
+            env["NODE_EXTRA_CA_CERTS"] = ca_bundle
+
+        return env
+
+    def _setup_workspace(self, workspace_path: str | None) -> None:
+        """Set up the workspace directory, creating it if needed."""
+        if workspace_path:
+            self._current_workspace = Path(workspace_path)
+            self._current_workspace.mkdir(parents=True, exist_ok=True)
+
+    async def is_available(self) -> bool:
+        """Local executor is always available."""
+        return True
+
+    def get_executor_name(self) -> str:
+        """Return the executor name."""
+        return "LocalExecutor"
+
+    async def __aenter__(self) -> Self:
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
+        """Async context manager exit: clean up sessions."""
+        await self.cleanup_bash_sessions()

@@ -1,0 +1,847 @@
+"""Security preflight checks for bash command execution.
+
+[INPUT]
+utils.url_utils::check_url_exfiltration, sanitize_url_for_error (POS: URL security validation)
+utils.errors::ToolError (POS: Agent tool error with format_for_llm protocol)
+_security.shell_parse::extract_shell_c_payload (POS: quote-aware inline `sh -c` script extraction)
+
+[OUTPUT]
+check_command_url_exfiltration: Block commands with URL data exfiltration.
+check_destructive_commands: Block destructive commands that irreversibly wipe workspace state.
+check_myrm_tools_import: Block myrm_tools in bash via AST, shell `-c`, `-m`, pipe stdin, cat|pipe `.py`, and referenced `.py` files.
+check_unquoted_background_ampersand: Detect unquoted background ampersand operators that would detach orphan processes.
+check_interactive_command: Detect commands requiring interactive stdin.
+check_install_packages: Verify install package names exist on public registries.
+
+[POS]
+Security preflight for bash commands. Validates URLs against data exfiltration,
+blocks destructive workspace commands (git reset --hard, rm -rf *, git clean, etc.),
+blocks myrm_tools in bash (command AST, referenced script files under workspace),
+detects interactive commands that would hang in a non-TTY environment, and verifies
+package names in install commands against public registries (anti-slopsquatting).
+
+Path protection lives in the sibling `path_guard` module, which shares
+`extract_shell_c_payload` with the myrm_tools guard above.
+"""
+
+from __future__ import annotations
+
+import ast
+import asyncio
+import logging
+import re
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+from myrm_agent_harness.agent.meta_tools.bash._security.shell_parse import extract_shell_c_payload
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# myrm_tools guard (bash only; Dynamic Workflow inject_ptc is separate)
+# ---------------------------------------------------------------------------
+
+_SHELL_MYRM_TOOLS_IMPORT_RE = re.compile(
+    r"(?:^|\n)\s*(?:import\s+myrm_tools\b|from\s+myrm_tools\s+import\b)",
+    re.MULTILINE,
+)
+
+_PYTHON_SCRIPT_INVOCATION_RE = re.compile(
+    r"(?:^|[\s;&|])python3?(?:\s+-[^\s]+)*\s+([^\s;&|]+\.py)\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+_PYTHON_M_MYRM_TOOLS_RE = re.compile(
+    r"\bpython3?\s+(?:-[^\s]+\s+)*-m\s+myrm_tools(?:[.\s]|$)",
+    re.IGNORECASE,
+)
+
+_MAX_REFERENCED_PY_SCAN_BYTES = 512 * 1024
+
+_MYRM_TOOLS_BLOCK_MESSAGE = (
+    "Command blocked: `import myrm_tools` is not available in bash_code_execute_tool. "
+    "Use native tools for single calls; use `from skills.* import ...` "
+    "for MCP batch scripts; persist cross-bash data under `/workspace` JSON files."
+)
+_MYRM_TOOLS_BLOCK_HINT = (
+    "Do not use myrm_tools in bash. Single calls: native tools "
+    "(file_read_tool, web_search_tool, …). MCP batch: from skills.* import …. "
+    "Cross-bash data: write `/workspace` JSON (json.dump or file_write_tool). "
+    "Long-script progress: MYRM_PROGRESS echo."
+)
+
+
+def _ast_root_name(node: ast.AST) -> str | None:
+    current = node
+    while isinstance(current, ast.Attribute):
+        current = current.value
+    if isinstance(current, ast.Name):
+        return current.id
+    return None
+
+
+def _shell_command_references_myrm_tools(command: str) -> bool:
+    if _SHELL_MYRM_TOOLS_IMPORT_RE.search(command):
+        return True
+    shell_c_payload = extract_shell_c_payload(command)
+    if shell_c_payload is None:
+        return False
+    return _python_ast_references_myrm_tools(shell_c_payload) or bool(
+        _SHELL_MYRM_TOOLS_IMPORT_RE.search(shell_c_payload)
+    )
+
+
+def _python_ast_references_myrm_tools(code: str) -> bool:
+    """Return True when parsed Python references the ``myrm_tools`` namespace."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".", 1)[0] == "myrm_tools":
+                    return True
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module.split(".", 1)[0] == "myrm_tools":
+                return True
+        elif isinstance(node, ast.Attribute) and _ast_root_name(node) == "myrm_tools":
+            return True
+    return False
+
+
+def _raise_myrm_tools_blocked(command: str) -> None:
+    from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
+    from myrm_agent_harness.utils.errors import ToolError
+
+    logger.warning("Blocked myrm_tools reference in bash command: %s", command[:120])
+    raise ToolError(
+        _MYRM_TOOLS_BLOCK_MESSAGE,
+        user_hint=_MYRM_TOOLS_BLOCK_HINT,
+        error_code="MYRM_TOOLS_BLOCKED",
+        diagnostic_info={"error_category": ToolErrorCategory.GUARDRAIL_BLOCKED.value},
+    )
+
+
+def _scan_python_file_path(script_path: Path, command: str) -> None:
+    if not script_path.is_file():
+        return
+    if script_path.stat().st_size > _MAX_REFERENCED_PY_SCAN_BYTES:
+        logger.warning(
+            "Skipping myrm_tools scan for oversized script reference: %s",
+            script_path,
+        )
+        return
+    try:
+        source = script_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.warning("Unable to read referenced python script %s: %s", script_path, exc)
+        return
+    if _python_ast_references_myrm_tools(source):
+        _raise_myrm_tools_blocked(command)
+
+
+def _command_runs_myrm_tools_module(command: str) -> bool:
+    return _PYTHON_M_MYRM_TOOLS_RE.search(command) is not None
+
+
+def _extract_referenced_python_scripts(command: str) -> list[str]:
+    return list(dict.fromkeys(_PYTHON_SCRIPT_INVOCATION_RE.findall(command)))
+
+
+def _resolve_referenced_python_path(script_ref: str, workspace_root: str | None) -> Path | None:
+    from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
+        WorkspacePathResolver,
+    )
+
+    cleaned = script_ref.strip().strip("'\"")
+    if not cleaned.endswith(".py"):
+        return None
+
+    if cleaned.startswith("/workspace"):
+        local_path = WorkspacePathResolver.to_local_path(cleaned, workspace_root)
+        return local_path.resolve() if local_path is not None else None
+
+    if cleaned.startswith("/"):
+        if not workspace_root:
+            return None
+        candidate = Path(cleaned)
+        if not candidate.is_absolute():
+            return None
+        resolved = candidate.resolve()
+        root = Path(workspace_root).resolve()
+        if root not in resolved.parents and resolved != root:
+            return None
+        return resolved
+
+    if workspace_root:
+        return (Path(workspace_root).resolve() / cleaned).resolve()
+
+    container_path = f"/workspace/{cleaned.lstrip('./')}"
+    local_path = WorkspacePathResolver.to_local_path(container_path, None)
+    return local_path.resolve() if local_path is not None else None
+
+
+def _scan_referenced_python_files(command: str, workspace_root: str | None) -> None:
+    for script_ref in _extract_referenced_python_scripts(command):
+        script_path = _resolve_referenced_python_path(script_ref, workspace_root)
+        if script_path is None:
+            continue
+        _scan_python_file_path(script_path, command)
+
+
+def _scan_cat_pipe_feeder_python_files(command: str, workspace_root: str | None) -> None:
+    from myrm_agent_harness.toolkits.code_execution.python_extractor import (
+        extract_cat_py_paths_from_pipe_feeders,
+    )
+
+    for script_ref in extract_cat_py_paths_from_pipe_feeders(command):
+        script_path = _resolve_referenced_python_path(script_ref, workspace_root)
+        if script_path is None:
+            continue
+        _scan_python_file_path(script_path, command)
+
+
+def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) -> None:
+    """Block ``myrm_tools`` in bash — reserved for Dynamic Workflow inject_ptc only.
+
+    Python snippets: AST inspects imports and attribute access.
+    Shell commands: line-leading ``import`` / ``from myrm_tools import``, plus
+    ``bash|sh -c '…'`` inline payloads, ``quoted | python3`` stdin payloads,
+    ``python -m myrm_tools``, ``cat *.py | python3`` feeder scans,
+    and ``python *.py`` references scan file AST.
+    Incidental ``myrm_tools`` in ``echo``/``grep`` allowed.
+
+    Raises:
+        ToolError: If command references ``myrm_tools`` in an executable Python path.
+    """
+    from myrm_agent_harness.toolkits.code_execution.code_detector import (
+        CodeType,
+        code_detector,
+    )
+
+    detection = code_detector.detect(command)
+    code = detection.extracted_code if detection.code_type == CodeType.PYTHON else command
+
+    if _python_ast_references_myrm_tools(code):
+        _raise_myrm_tools_blocked(command)
+        return
+
+    if _command_runs_myrm_tools_module(command):
+        _raise_myrm_tools_blocked(command)
+        return
+
+    if detection.code_type == CodeType.BASH and _shell_command_references_myrm_tools(command):
+        _raise_myrm_tools_blocked(command)
+        return
+
+    from myrm_agent_harness.toolkits.code_execution.python_extractor import (
+        extract_python_from_pipe_stdin,
+    )
+
+    pipe_stdin_code = extract_python_from_pipe_stdin(command)
+    if pipe_stdin_code is not None and _python_ast_references_myrm_tools(pipe_stdin_code):
+        _raise_myrm_tools_blocked(command)
+        return
+
+    _scan_cat_pipe_feeder_python_files(command, workspace_root)
+    _scan_referenced_python_files(command, workspace_root)
+
+
+# ---------------------------------------------------------------------------
+# URL Exfiltration Detection
+# ---------------------------------------------------------------------------
+
+_URL_EXTRACTION_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in [
+        r'curl\s+[^|;&]*?(https?://[^\s\'"]+)',
+        r'wget\s+[^|;&]*?(https?://[^\s\'"]+)',
+        r'fetch\s+[^|;&]*?(https?://[^\s\'"]+)',
+        r'http-get\s+[^|;&]*?(https?://[^\s\'"]+)',
+        r'(https?://[^\s\'"]+)',
+    ]
+)
+
+
+def check_command_url_exfiltration(command: str) -> None:
+    """Block commands containing URLs with sensitive data (API keys, credentials).
+
+    Raises:
+        ToolError: If URL contains data exfiltration patterns.
+    """
+    from myrm_agent_harness.utils.errors import ToolError
+    from myrm_agent_harness.utils.url_utils import (
+        check_url_exfiltration,
+        sanitize_url_for_error,
+    )
+
+    detected_urls: list[str] = []
+    for pattern in _URL_EXTRACTION_PATTERNS:
+        detected_urls.extend(pattern.findall(command))
+
+    for url in set(detected_urls):
+        warnings = check_url_exfiltration(url, allow_private_networks=True)
+        if warnings:
+            safe_url = sanitize_url_for_error(url)
+            logger.warning(f" Data exfiltration detected in bash command: {command[:100]}")
+            for warning in warnings:
+                logger.warning(f" - {warning} in URL: {safe_url}")
+            raise ToolError(
+                f"Command blocked (data exfiltration): {'; '.join(warnings)} — URL: {safe_url}",
+                user_hint="The command contains a URL with sensitive data (API keys, file paths, or credentials). Remove sensitive data from the URL.",
+            )
+
+
+# ---------------------------------------------------------------------------
+# Destructive Command Preflight
+# ---------------------------------------------------------------------------
+
+_DESTRUCTIVE_COMMAND_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"\bgit\s+reset\s+--(?:hard|merge)\b", re.IGNORECASE),
+        "git reset --hard / --merge",
+    ),
+    (
+        re.compile(
+            r"\bgit\s+checkout\s+(?:-[a-zA-Z]+\s+|--force\s+)*(?:--\s+)?\.(?:[\s;&|]|$)",
+            re.IGNORECASE,
+        ),
+        "git checkout .",
+    ),
+    (
+        re.compile(
+            r"\bgit\s+restore\s+(?:[^\n;&|]*\s+)?(?:\.|\*)(?:[\s;&|]|$)",
+            re.IGNORECASE,
+        ),
+        "git restore . / *",
+    ),
+    (
+        re.compile(r"\bgit\s+clean\s+-[a-zA-Z]*[fdx]", re.IGNORECASE),
+        "git clean -fd / -xdf",
+    ),
+    (
+        re.compile(
+            r"\brm\s+-[a-zA-Z]*[rf][a-zA-Z]*\s+(?:\*|\.|\/|\.\/)(?:[\s;&|]|$)",
+            re.IGNORECASE,
+        ),
+        "rm -rf * / . / /",
+    ),
+)
+
+
+def _strip_quotes_for_destructive_check(text: str) -> str:
+    """Strip quoted literals so harmless mentions in echo/grep pass without false alarms."""
+    cleaned = re.sub(r"\\.", " ", text)
+    cleaned = re.sub(r"'[^']*'", "''", cleaned)
+    cleaned = re.sub(r'"[^"]*"', '""', cleaned)
+    return cleaned
+
+
+def _detect_destructive_tokens(segment: str) -> str | None:
+    """Token-based semantic detection to catch flag permutations and argument displacement."""
+    tokens = segment.strip().split()
+    if not tokens:
+        return None
+
+    # Git command inspection
+    if "git" in tokens:
+        git_idx = tokens.index("git")
+        args = tokens[git_idx + 1 :]
+        if args:
+            subcmd_idx = 0
+            while subcmd_idx < len(args) and args[subcmd_idx].startswith("-"):
+                if args[subcmd_idx] in ("-C", "-c", "--git-dir", "--work-tree") and subcmd_idx + 1 < len(args):
+                    subcmd_idx += 2
+                else:
+                    subcmd_idx += 1
+
+            if subcmd_idx < len(args):
+                subcmd = args[subcmd_idx]
+                sub_args = args[subcmd_idx + 1 :]
+
+                if subcmd == "reset":
+                    for arg in sub_args:
+                        if arg in ("--hard", "--merge"):
+                            return f"git reset {arg}"
+
+                elif subcmd == "checkout":
+                    target_tokens = set(sub_args)
+                    if "." in target_tokens and "-b" not in sub_args and "-B" not in sub_args:
+                        return "git checkout ."
+
+                elif subcmd == "restore":
+                    target_tokens = set(sub_args)
+                    if "." in target_tokens or "*" in target_tokens:
+                        return "git restore ."
+
+                elif subcmd == "clean":
+                    flags: set[str] = set()
+                    for arg in sub_args:
+                        if arg.startswith("-") and not arg.startswith("--"):
+                            flags.update(arg[1:])
+                        elif arg in ("--force", "-f"):
+                            flags.add("f")
+                    if "f" in flags and ("d" in flags or "x" in flags):
+                        return "git clean -fd"
+
+    # rm command inspection
+    if "rm" in tokens:
+        rm_idx = tokens.index("rm")
+        if (
+            rm_idx == 0
+            or tokens[rm_idx - 1] in ("sudo", "env", "xargs", "do", "then")
+            or any(t == "xargs" for t in tokens[:rm_idx])
+        ):
+            rm_args = tokens[rm_idx + 1 :]
+            rm_flags: set[str] = set()
+            targets: list[str] = []
+            for arg in rm_args:
+                if arg == "--":
+                    continue
+                if arg.startswith("-") and not arg.startswith("--"):
+                    rm_flags.update(arg[1:])
+                elif arg in ("--recursive", "-r", "-R"):
+                    rm_flags.add("r")
+                elif arg in ("--force", "-f"):
+                    rm_flags.add("f")
+                else:
+                    targets.append(arg)
+
+            if "r" in rm_flags and "f" in rm_flags:
+                for t in targets:
+                    if t in ("*", ".", "/", "./", "./*", ".*"):
+                        return f"rm -rf {t}"
+
+    return None
+
+
+def evaluate_high_impact_command(command: str) -> tuple[bool, str | None, str]:
+    """Evaluate whether a shell command constitutes a high-impact irreversible workspace operation.
+
+    Returns:
+        tuple of (is_high_impact, pattern_label, risk_category)
+    """
+    candidates = [command]
+    if payload := extract_shell_c_payload(command):
+        candidates.append(payload)
+
+    for candidate in candidates:
+        sanitized = _strip_quotes_for_destructive_check(candidate)
+
+        # 1. Fast regex scan
+        for pattern, pattern_label in _DESTRUCTIVE_COMMAND_PATTERNS:
+            if pattern.search(sanitized):
+                category = "WORKSPACE_PURGE" if "rm -rf" in pattern_label else "UNCOMMITTED_RESET"
+                return True, pattern_label, category
+
+        # 2. Token-based semantic scan for displaced flags and permutations
+        segments = re.split(r"[;&|\n]+", sanitized)
+        for segment in segments:
+            if detected := _detect_destructive_tokens(segment):
+                category = "WORKSPACE_PURGE" if "rm -rf" in detected else "UNCOMMITTED_RESET"
+                return True, detected, category
+
+    return False, None, "SAFE"
+
+
+def check_destructive_commands(command: str) -> None:
+    """Block destructive commands that irreversibly wipe workspace state.
+
+    Raises:
+        ToolError: If destructive workspace command is detected.
+    """
+    from myrm_agent_harness.utils.errors import ToolError
+
+    is_high_impact, detected_label, category = evaluate_high_impact_command(command)
+    if is_high_impact and detected_label:
+        logger.warning(
+            "Destructive workspace command blocked (%s): %s in %s",
+            category,
+            detected_label,
+            command[:100],
+        )
+        raise ToolError(
+            f"Command blocked (destructive workspace command): Detected '{detected_label}' in command '{command.strip()}'. "
+            "Destructive commands that permanently discard uncommitted changes or wipe workspace files are prohibited. "
+            "If the user explicitly requested resetting the workspace, please ask the user for confirmation.",
+            user_hint=(
+                f"Destructive command '{detected_label}' is prohibited to protect uncommitted changes. "
+                "Inspect errors and resolve issues without wiping the workspace. "
+                "If you need to discard changes in a specific file, use git checkout -- <file> or target the specific file."
+            ),
+            diagnostic_info={
+                "destructive_command_prohibited": True,
+                "command_label": detected_label,
+                "risk_category": category,
+            },
+        )
+
+
+# ---------------------------------------------------------------------------
+# Interactive Command Preflight
+# ---------------------------------------------------------------------------
+
+_SCAFFOLD_MARKERS: tuple[str, ...] = (
+    "create-next-app",
+    "npm create ",
+    "npm init",
+    "pnpm create ",
+    "pnpm init",
+    "yarn create ",
+    "yarn init",
+    "bun create ",
+    "bunx create-",
+    "npx create-",
+)
+
+_SCAFFOLD_NON_INTERACTIVE_RE = re.compile(
+    r"(?:--yes\b|(?:^|\s)-y(?:\s|$)|--skip-install\b|--defaults\b|--non-interactive\b|--ci\b)",
+    re.IGNORECASE,
+)
+
+_GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
+_GIT_COMMIT_MSG_RE = re.compile(r"(?:\s-[a-zA-Z]*m[\s\"']|\s--message[\s=]|\s-F\s|\s--file[\s=])")
+_GIT_INTERACTIVE_RE = re.compile(r"\bgit\s+(?:rebase\s+(?:-i|--interactive)|add\s+(?:-i|-p|--interactive|--patch))\b")
+_POETRY_INIT_RE = re.compile(r"\bpoetry\s+init\b")
+
+
+def check_interactive_command(command: str) -> str | None:
+    """Detect commands that require interactive stdin and would hang.
+
+    Returns an error message if interactive, None if safe.
+    """
+    lowered = command.lower()
+
+    if any(marker in lowered for marker in _SCAFFOLD_MARKERS) and not _SCAFFOLD_NON_INTERACTIVE_RE.search(lowered):
+        return (
+            "This command requires interactive input (template/option selection). "
+            "The bash tool cannot answer prompts. "
+            "Use non-interactive flags: --yes, -y, --defaults, or specify all options inline."
+        )
+
+    if _GIT_COMMIT_RE.search(lowered) and not _GIT_COMMIT_MSG_RE.search(command):
+        return (
+            'git commit without -m/--message opens an editor for interactive input. Use: git commit -m "your message"'
+        )
+
+    if _GIT_INTERACTIVE_RE.search(lowered):
+        return (
+            "This git command opens an interactive editor/UI. The bash tool cannot handle interactive git operations."
+        )
+
+    if _POETRY_INIT_RE.search(lowered) and "--no-interaction" not in lowered:
+        return "poetry init requires interactive input. Use: poetry init --no-interaction"
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Install Package Registry Verification (Anti-Slopsquatting)
+# ---------------------------------------------------------------------------
+
+_PIP_INSTALL_RE = re.compile(
+    r"(?:pip3?|python3?\s+-m\s+pip|uv\s+pip)\s+install\s+(.+?)(?:\s*(?:&&|;|\||2>&1|1>&2|2>|1>|>|<)\s*|$)",
+    re.IGNORECASE,
+)
+_UV_ADD_RE = re.compile(
+    r"uv\s+add\s+(.+?)(?:\s*(?:&&|;|\|)\s*|$)",
+    re.IGNORECASE,
+)
+_NPM_INSTALL_RE = re.compile(
+    r"(?:npm|pnpm)\s+(?:install|i|add)\s+(.+?)(?:\s*(?:&&|;|\|)\s*|$)",
+    re.IGNORECASE,
+)
+_YARN_ADD_RE = re.compile(
+    r"yarn\s+add\s+(.+?)(?:\s*(?:&&|;|\|)\s*|$)",
+    re.IGNORECASE,
+)
+_BUN_ADD_RE = re.compile(
+    r"bun\s+(?:add|install)\s+(.+?)(?:\s*(?:&&|;|\|)\s*|$)",
+    re.IGNORECASE,
+)
+
+_PRIVATE_REGISTRY_RE = re.compile(
+    r"--(?:index-url|extra-index-url|registry)\b",
+    re.IGNORECASE,
+)
+
+_LOCAL_PACKAGE_PREFIXES = ("./", "../", "file://", "git+", "/")
+_REQUIREMENTS_FILE_RE = re.compile(r"^.+\.(?:txt|cfg|toml|in)$")
+
+_PIP_FLAGS_WITH_VALUE: frozenset[str] = frozenset(
+    {
+        "-r",
+        "--requirement",
+        "-c",
+        "--constraint",
+        "-e",
+        "--editable",
+        "-f",
+        "--find-links",
+        "-i",
+        "--index-url",
+        "--extra-index-url",
+        "--no-index",
+        "--prefix",
+        "--root",
+        "--target",
+        "-t",
+    }
+)
+
+_PIP_VERSION_SPEC_RE = re.compile(r"[>=<~!;\[]")
+_NPM_VERSION_SPEC_RE = re.compile(r"@(?![\w-]+/)")
+
+_PYPI_NORMALIZE_RE = re.compile(r"[-_.]+")
+
+_PROBE_TIMEOUT_S = 5
+
+_verified_packages: set[str] = set()
+
+
+def _normalize_pypi_name(name: str) -> str:
+    """PEP 503 normalization: underscores, dots, hyphens all become ``-``."""
+    return _PYPI_NORMALIZE_RE.sub("-", name).lower()
+
+
+def _strip_python_version_spec(token: str) -> str:
+    parts = _PIP_VERSION_SPEC_RE.split(token, maxsplit=1)
+    return parts[0]
+
+
+def _strip_npm_version_spec(token: str) -> str:
+    if token.startswith("@") and "/" in token:
+        scope_end = token.index("/") + 1
+        rest = token[scope_end:]
+        parts = _NPM_VERSION_SPEC_RE.split(rest, maxsplit=1)
+        return token[:scope_end] + parts[0]
+    parts = _NPM_VERSION_SPEC_RE.split(token, maxsplit=1)
+    return parts[0]
+
+
+def _extract_pip_packages(args_str: str) -> list[str]:
+    """Extract package names from pip install arguments."""
+    packages: list[str] = []
+    skip_next = False
+    tokens = args_str.split()
+    for i, token in enumerate(tokens):
+        if skip_next:
+            skip_next = False
+            continue
+        token = token.strip("'\"")
+        if token.startswith("-"):
+            if token in _PIP_FLAGS_WITH_VALUE:
+                skip_next = i + 1 < len(tokens)
+            continue
+        if token in ("2>&1", "1>&2", "2>", "1>", ">", "<", "|", "||", "&&", ";"):
+            break
+        if any(token.startswith(prefix) for prefix in _LOCAL_PACKAGE_PREFIXES):
+            continue
+        if _REQUIREMENTS_FILE_RE.match(token):
+            continue
+        name = _strip_python_version_spec(token)
+        if name:
+            packages.append(name)
+    return packages
+
+
+def _extract_npm_packages(args_str: str) -> list[str]:
+    """Extract package names from npm/pnpm/yarn/bun install arguments."""
+    packages: list[str] = []
+    for token in args_str.split():
+        token = token.strip("'\"")
+        if token.startswith("-"):
+            continue
+        if any(token.startswith(prefix) for prefix in _LOCAL_PACKAGE_PREFIXES):
+            continue
+        name = _strip_npm_version_spec(token)
+        if name:
+            packages.append(name)
+    return packages
+
+
+async def _probe_registry(package: str, url: str, cache_key: str) -> tuple[str, bool]:
+    """HEAD-probe a registry URL. Returns (package_name, exists).
+
+    Network errors gracefully fallback to ``exists=True`` so the install is not blocked.
+    """
+    if cache_key in _verified_packages:
+        return package, True
+
+    try:
+        loop = asyncio.get_running_loop()
+        # S310 cannot fire: both callers pass an f-string whose scheme is the
+        # literal "https://" prefix, so no caller-controlled scheme reaches urlopen.
+        request = urllib.request.Request(  # noqa: S310
+            url, headers={"User-Agent": "myrm-slopcheck"}, method="HEAD"
+        )
+        response = await loop.run_in_executor(
+            None,
+            lambda: urllib.request.urlopen(  # noqa: S310
+                request, timeout=_PROBE_TIMEOUT_S
+            ),
+        )
+        exists = response.status == 200
+    except urllib.error.HTTPError as exc:
+        exists = exc.code != 404
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return package, True
+
+    if exists:
+        _verified_packages.add(cache_key)
+    return package, exists
+
+
+def _probe_pypi(package: str) -> asyncio.Task[tuple[str, bool]]:
+    normalized = _normalize_pypi_name(package)
+    return asyncio.create_task(
+        _probe_registry(package, f"https://pypi.org/pypi/{normalized}/json", f"pypi:{normalized}")
+    )
+
+
+def _probe_npm(package: str) -> asyncio.Task[tuple[str, bool]]:
+    return asyncio.create_task(_probe_registry(package, f"https://registry.npmjs.org/{package}", f"npm:{package}"))
+
+
+async def check_install_packages(command: str) -> None:
+    """Verify that packages in install commands exist on public registries.
+
+    Blocks commands that attempt to install non-existent packages, preventing
+    both wasted time on failed installs and potential slopsquatting attacks
+    where LLM-hallucinated package names may be registered with malicious payloads.
+
+    Raises:
+        ToolError: If any package does not exist on its respective registry.
+    """
+    if _PRIVATE_REGISTRY_RE.search(command):
+        return
+
+    command = command.replace("\\\n", " ")
+
+    pip_packages: list[str] = []
+    npm_packages: list[str] = []
+
+    for match in _PIP_INSTALL_RE.finditer(command):
+        pip_packages.extend(_extract_pip_packages(match.group(1)))
+    for match in _UV_ADD_RE.finditer(command):
+        pip_packages.extend(_extract_pip_packages(match.group(1)))
+
+    for match in _NPM_INSTALL_RE.finditer(command):
+        npm_packages.extend(_extract_npm_packages(match.group(1)))
+    for match in _YARN_ADD_RE.finditer(command):
+        npm_packages.extend(_extract_npm_packages(match.group(1)))
+    for match in _BUN_ADD_RE.finditer(command):
+        npm_packages.extend(_extract_npm_packages(match.group(1)))
+
+    if not pip_packages and not npm_packages:
+        return
+
+    tasks: list[asyncio.Task[tuple[str, bool]]] = []
+    for pkg in pip_packages:
+        tasks.append(_probe_pypi(pkg))
+    for pkg in npm_packages:
+        tasks.append(_probe_npm(pkg))
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    missing: list[tuple[str, str]] = []
+    for result in results:
+        if isinstance(result, BaseException):
+            continue
+        name, exists = result
+        if not exists:
+            registry = "PyPI" if name in pip_packages else "npm"
+            missing.append((name, registry))
+
+    if missing:
+        from myrm_agent_harness.utils.errors import ToolError
+
+        details = "; ".join(f"'{name}' not found on {reg}" for name, reg in missing)
+        logger.warning("Slopcheck blocked install: %s (command: %s)", details, command[:120])
+        raise ToolError(
+            f"Package verification failed: {details}. "
+            "Please verify the package name(s) — AI models sometimes hallucinate non-existent packages.",
+            user_hint=f"The following packages do not exist: {details}. "
+            "Double-check the package name or search the registry for the correct one.",
+        )
+
+
+def check_unquoted_background_ampersand(command: str) -> str | None:
+    """Detect unquoted background ampersand operators that would detach orphan processes.
+
+    Skips:
+    - Double ampersands: ``&&`` (logical AND)
+    - Redirection targets/syntax: ``2>&1``, ``>&``, ``&>``
+    - Quoted ampersands: ``"..."``, ``'...'``
+    - Trailing background ampersand (which is safely handled by ``strip_trailing_background_ampersand``)
+
+    Returns:
+        An error message if a detached/intermediate background ampersand is detected, else None.
+    """
+    cleaned = command.rstrip()
+    if cleaned.endswith("&") and not cleaned.endswith("&&"):
+        cleaned = cleaned[:-1].rstrip()
+
+    in_single_quote = False
+    in_double_quote = False
+    escaped = False
+    length = len(cleaned)
+    i = 0
+
+    while i < length:
+        char = cleaned[i]
+
+        if escaped:
+            escaped = False
+            i += 1
+            continue
+
+        if char == "\\":
+            escaped = True
+            i += 1
+            continue
+
+        if char == "'" and not in_double_quote:
+            in_single_quote = not in_single_quote
+            i += 1
+            continue
+
+        if char == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+            i += 1
+            continue
+
+        if not in_single_quote and not in_double_quote and char == "&":
+            # Check if this is '&&'
+            if i + 1 < length and cleaned[i + 1] == "&":
+                i += 2
+                continue
+
+            # Check if this is part of redirection: '>&', '2>&1', '&>', '&>>'
+            # Preceding '>'
+            if i > 0 and cleaned[i - 1] == ">":
+                i += 1
+                continue
+            # Following '>'
+            if i + 1 < length and cleaned[i + 1] == ">":
+                i += 1
+                continue
+
+            # Preceding digit before '>' (e.g. 2>&1) - covered by cleaned[i-1] == '>' above
+
+            # Found an unquoted intermediate background operator '&'
+            return (
+                "Detached background operator '&' detected inside compound command. "
+                "In foreground execution, intermediate '&' creates orphaned background processes "
+                "that escape process group tracking. "
+                "For long-running background services, use bash_code_execute_tool with run_in_background=True. "
+                "For sequential commands, use '&&' or separate tool invocations."
+            )
+
+        i += 1
+
+    return None

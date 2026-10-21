@@ -1,0 +1,277 @@
+import pytest
+from pydantic import ValidationError
+
+from myrm_agent_harness.agent.meta_tools.clarification.ask_question import (
+    AskQuestionInput,
+    OptionItem,
+    QuestionItem,
+)
+from myrm_agent_harness.agent.meta_tools.clarification.clarification_agent_tools import (
+    AskQuestionTool,
+    create_ask_question_tool,
+)
+
+
+def test_create_ask_question_tool_factory() -> None:
+    async def mock_callback(form: AskQuestionInput) -> str:
+        return "ok"
+
+    tool = create_ask_question_tool(mock_callback)
+    assert isinstance(tool, AskQuestionTool)
+    assert tool.name == "ask_question_tool"
+
+
+@pytest.mark.asyncio
+async def test_ask_question_tool_basic():
+    async def mock_callback(form: AskQuestionInput) -> str:
+        return "User skipped the clarification."
+
+    tool = AskQuestionTool(callback=mock_callback)
+
+    assert tool.name == "ask_question_tool"
+
+    result = await tool._arun(
+        questions=[
+            {
+                "id": "q1",
+                "prompt": "What is your favorite color?",
+                "options": [
+                    {"id": "red", "label": "Red"},
+                    {"id": "blue", "label": "Blue"},
+                ],
+            }
+        ]
+    )
+
+    assert result == "User skipped the clarification."
+
+
+@pytest.mark.asyncio
+async def test_ask_question_tool_title():
+    async def mock_callback(form: AskQuestionInput) -> str:
+        assert form.title == "My Custom Title"
+        return "Custom response"
+
+    tool = AskQuestionTool(callback=mock_callback)
+
+    result = await tool._arun(
+        title="My Custom Title",
+        questions=[
+            {
+                "id": "q1",
+                "prompt": "Question 1",
+                "options": [
+                    {"id": "o1", "label": "Option 1"},
+                    {"id": "o2", "label": "Option 2"},
+                ],
+                "allow_multiple": True,
+            }
+        ],
+    )
+
+    assert result == "Custom response"
+
+
+@pytest.mark.asyncio
+async def test_ask_question_tool_validation_error():
+    async def mock_callback(form: AskQuestionInput) -> str:
+        return "Should not reach here"
+
+    tool = AskQuestionTool(callback=mock_callback)
+
+    with pytest.raises(ValidationError):
+        await tool._arun(
+            questions=[
+                {
+                    "id": "q1",
+                    "options": [
+                        {"id": "o1", "label": "Option 1"},
+                    ],
+                }
+            ]
+        )
+
+
+@pytest.mark.asyncio
+async def test_multi_question_form():
+    """Multiple questions are passed through correctly."""
+
+    async def mock_callback(form: AskQuestionInput) -> str:
+        assert len(form.questions) == 3
+        assert form.questions[0].id == "q1"
+        assert form.questions[1].allow_multiple is True
+        assert form.questions[2].options == []
+        return "multi-ok"
+
+    tool = AskQuestionTool(callback=mock_callback)
+    result = await tool._arun(
+        questions=[
+            {
+                "id": "q1",
+                "prompt": "Single choice?",
+                "options": [{"id": "a", "label": "A"}],
+            },
+            {
+                "id": "q2",
+                "prompt": "Multi choice?",
+                "options": [{"id": "x", "label": "X"}, {"id": "y", "label": "Y"}],
+                "allow_multiple": True,
+            },
+            {"id": "q3", "prompt": "Open ended?"},
+        ],
+    )
+    assert result == "multi-ok"
+
+
+@pytest.mark.asyncio
+async def test_open_ended_question():
+    """Questions without options work as open-ended questions."""
+
+    async def mock_callback(form: AskQuestionInput) -> str:
+        q = form.questions[0]
+        assert q.options == []
+        assert q.allow_multiple is False
+        return "open-ended-ok"
+
+    tool = AskQuestionTool(callback=mock_callback)
+    result = await tool._arun(
+        questions=[{"id": "q1", "prompt": "Describe your issue in detail."}],
+    )
+    assert result == "open-ended-ok"
+
+
+@pytest.mark.asyncio
+async def test_option_with_description():
+    """OptionItem.description field is correctly parsed."""
+
+    async def mock_callback(form: AskQuestionInput) -> str:
+        opt = form.questions[0].options[0]
+        assert opt.description == "Detailed explanation"
+        return "desc-ok"
+
+    tool = AskQuestionTool(callback=mock_callback)
+    result = await tool._arun(
+        questions=[
+            {
+                "id": "q1",
+                "prompt": "Choose",
+                "options": [
+                    {
+                        "id": "o1",
+                        "label": "Option 1",
+                        "description": "Detailed explanation",
+                    }
+                ],
+            }
+        ],
+    )
+    assert result == "desc-ok"
+
+
+def test_sync_run_delegates_to_async_callback() -> None:
+    """Sync _run bridges to async callback (signoff clarify ToolNode _func path)."""
+
+    async def mock_callback(form: AskQuestionInput) -> str:
+        assert form.questions[0].id == "q1"
+        return "sync-ok"
+
+    tool = AskQuestionTool(callback=mock_callback)
+    result = tool._run(
+        title="t",
+        requires_confirmation=False,
+        questions=[{"id": "q1", "prompt": "test", "allow_multiple": False}],
+    )
+    assert result == "sync-ok"
+
+
+@pytest.mark.asyncio
+async def test_sync_run_works_inside_running_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sync _run must invoke interrupt on this thread when astream owns the loop."""
+
+    def fake_interrupt(payload: dict[str, object]) -> dict[str, str]:
+        assert payload["type"] == "ask_question"
+        return {"stack": "a"}
+
+    monkeypatch.setattr(
+        "langgraph.types.interrupt",
+        fake_interrupt,
+    )
+
+    async def mock_callback(form: AskQuestionInput) -> str:
+        raise AssertionError("sync path must not delegate to async callback under running loop")
+
+    tool = AskQuestionTool(callback=mock_callback)
+    result = tool._run(
+        title="t",
+        requires_confirmation=False,
+        questions=[{"id": "q1", "prompt": "test", "allow_multiple": False}],
+    )
+    assert result == '{"stack": "a"}'
+
+
+def test_empty_questions_validation():
+    """Empty questions list must fail Pydantic validation."""
+    with pytest.raises(ValidationError):
+        AskQuestionInput(questions=[])
+
+
+def test_pydantic_models_direct():
+    """Direct construction of Pydantic models for schema correctness."""
+    opt = OptionItem(id="o1", label="Label", description=None)
+    assert opt.id == "o1"
+    assert opt.description is None
+
+    q = QuestionItem(id="q1", prompt="Hello?", options=[opt], allow_multiple=False)
+    assert q.prompt == "Hello?"
+    assert len(q.options) == 1
+
+    form = AskQuestionInput(
+        title="Test Form",
+        requires_confirmation=True,
+        context="This will delete files.",
+        questions=[q],
+    )
+    assert form.title == "Test Form"
+    assert form.requires_confirmation is True
+    assert form.context == "This will delete files."
+
+    form_no_title = AskQuestionInput(questions=[q])
+    assert form_no_title.title is None
+    assert form_no_title.requires_confirmation is False
+
+
+def test_ask_question_input_model_dump_contract() -> None:
+    """Interrupt SSE payload uses model_dump(); requires_confirmation must be present."""
+    form = AskQuestionInput(
+        requires_confirmation=True,
+        context="Irreversible delete",
+        questions=[QuestionItem(id="confirm", prompt="Proceed?")],
+    )
+    dumped = form.model_dump()
+    assert dumped["requires_confirmation"] is True
+    assert dumped["context"] == "Irreversible delete"
+    assert "clarification_type" not in dumped
+
+
+def test_ask_question_tool_locale_resolution() -> None:
+    """AskQuestionTool supports English and Chinese localized descriptions."""
+    from myrm_agent_harness.agent.meta_tools.clarification import (
+        ASK_QUESTION_TOOL_DESCRIPTION_EN,
+        ASK_QUESTION_TOOL_DESCRIPTION_ZH,
+        resolve_ask_question_tool_description,
+    )
+
+    async def mock_callback(form: AskQuestionInput) -> str:
+        return "ok"
+
+    tool_en = create_ask_question_tool(mock_callback, locale="en")
+    assert tool_en.description == ASK_QUESTION_TOOL_DESCRIPTION_EN
+
+    tool_zh = create_ask_question_tool(mock_callback, locale="zh-CN")
+    assert tool_zh.description == ASK_QUESTION_TOOL_DESCRIPTION_ZH
+
+    assert resolve_ask_question_tool_description("zh_CN") == ASK_QUESTION_TOOL_DESCRIPTION_ZH
+    assert resolve_ask_question_tool_description("en-US") == ASK_QUESTION_TOOL_DESCRIPTION_EN
+

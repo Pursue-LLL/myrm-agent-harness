@@ -1,0 +1,20 @@
+# browser/action_capture/
+
+## Overview
+
+Agent-agnostic browser DOM action recorder — captures click/dblclick/fill/select/check/uncheck/press/hover/navigate into structured `ActionStep` sequences for the server Browser Skill Recording Wizard. Text input is recorded session-based (final value emitted once on commit), avoiding fragmented type steps. Supports IME composition protection (fill fragments and candidate-selection presses suppressed), empty-value pruning, keyboard-activation click dedup (Enter submit target resolved from the enclosing form so the synthetic submit click is folded), autocomplete/search-chrome folding, shadow-DOM event targets, SPA navigation capture (history pushState/replaceState/hash), hover steps emitted right before the click they enable (10s window, per-element dedup, aria-haspopup/cursor:pointer gating), press steps carrying keyboard modifiers (Ctrl+Enter), multi-select steps carrying every selected option value plus readable labels (`Select "en; zh" (English, Chinese)`), select element context disambiguation (getText resolves labels in priority order — aria-label, `label[for]` association, wrapping `<label>` (covers the classic inline form `<label>Username <input></label>`; any associated label is cloned and stripped of form controls so option/text-nested control texts never leak), placeholder, adjacent sibling, or the currently selected option's label; whitespace is collapsed to a single line and natural-language output embeds that context: `Select "en" from select "Language"`), and navigation folding (redirect collapse + action-triggered merge).
+
+## File Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Public exports: engine, types, serializer | ✅ |
+| capture_engine.py | Core | Playwright event listener + bridge (loads JS resource, injects it into the page's main world via `evaluate` because the `expose_function` bridge only reaches Python from there; HOVER steps skip screenshot) | ✅ |
+| capture_script.js | Resource | Injected capture JS (event listeners + SPA/shadow-DOM/hover/press/select-getText logic) | ✅ |
+| types.py | Config | ActionType, ActionStep (incl. `modifiers`, `label`), CaptureSession | ✅ |
+| serializer.py | Core | Session/step JSON (incl. `modifiers`, `label`; credential fill/type values masked) + natural-language export | ✅ |
+
+## Key Dependencies
+
+- `toolkits/browser/` (Patchright Page)
+- No imports from `agent/`, `runtime/`, or `backends/`

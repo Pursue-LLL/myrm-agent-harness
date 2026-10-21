@@ -1,0 +1,439 @@
+[project]
+name = "myrm-agent-harness"
+version = "0.1.0rc6"
+description = "Myrm Agent Harness: Professional Agent framework built on LangChain with advanced skill system and MCP integration"
+authors = [{ name = "Myrm Agent Harness Contributors" }]
+requires-python = ">=3.13"
+readme = "README.md"
+license = { text = "MIT" }
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Application Frameworks",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
+]
+
+dependencies = [
+  # --- LangChain 生态 (Agent 框架基础) ---
+  "langchain>=1.4.4",                  # Agent 编排核心
+  "langchain-core>=1.6.9",              # LangChain 基础抽象
+  "langgraph>=1.2.14",                  # 图状态机 Agent 运行时
+  "langgraph-checkpoint-sqlite>=3.1.1", # SQLite 状态持久化 (checkpoint factory)
+  "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
+  "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
+  # --- LLM 多供应商适配 ---
+  "litellm>=1.105.0", # 统一 LLM API 代理 (100+ 供应商)
+  # --- 数据验证与序列化 ---
+  "pydantic>=2.14.1", # 数据模型验证
+  "PyYAML>=6.0.3",    # YAML 配置解析
+  "json_repair>=0.64.0", # LLM 脏 JSON 修复兜底 (chat_utils 解析链末层)
+  # --- HTTP 与异步 I/O ---
+  "httpx>=0.28.1",        # 异步 HTTP 客户端（统一网络栈；SOCKS 由 server/渠道层按需安装）
+  "httpx2>=2.13.1",        # MCP SDK v2 传输层 HTTP 客户端（TLS/mTLS、auth headers）
+  "aiofiles>=25.1.0",     # 异步文件 I/O
+  # --- 图片处理 (7 模块跨 4 层使用) ---
+  "Pillow>=12.3.0",       # 图片读写/resize/压缩 (image_reader + image_compressor + browser/diff + file_parsers + computer_use)
+  # --- Token 计数 ---
+  "tiktoken>=0.14.0", # OpenAI tokenizer (上下文窗口管理)
+  "regex>=2026.9.29", # 隐私自定义规则的正则引擎（Unicode 属性类 + 单次匹配超时保护；tiktoken 亦依赖）
+  # --- 系统监控 (健康诊断核心依赖) ---
+  "psutil>=7.2.2", # 进程与系统监控 (CPU/Memory health probes)
+  # --- 监控与可观测性 (仅保留轻量级 API，SDK 移至 optional) ---
+  "opentelemetry-api>=1.45.1",
+  # --- Cron 定时任务 ---
+  "croniter>=6.2.4", # Cron 表达式解析与计算
+  # --- 网页爬取与内容提取（基础） ---
+  "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
+  "lxml>=6.1.3",            # bs4 lxml parser (content_pruning + tree_truncator)
+  # --- Agent 协议与基础设施 ---
+  "mcp>=2.3.0",        # MCP 协议 SDK 2.x (2026-07-28 spec: stateless HTTP, Client API)
+  "watchdog>=6.0.0",   # 文件系统变更监控 (backends/skills/watcher.py)
+  "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_read_tool CORE; pypdfium2 由 pdfplumber 传递依赖)
+]
+
+[project.urls]
+Repository = "https://github.com/Pursue-LLL/myrm-agent-harness"
+
+[project.scripts]
+verify-harness-distribution = "myrm_agent_harness.runtime.install_guard.verify:main"
+
+[project.optional-dependencies]
+# toolkits/browser/ - 浏览器自动化（需要 Patchright）
+browser = [
+  "patchright>=1.63.0",   # CDP 泄露修补浏览器引擎
+  "camoufox>=0.5.8", # Firefox stealth fallback (auto-upgrade ladder)
+  "orjson>=3.13.0",       # session vault / persistence JSON (browser toolkit only)
+]
+# toolkits/vector/ - 向量存储（Qdrant 嵌入式/远程）
+qdrant = [
+  "qdrant-client>=1.19.1", # Qdrant SDK (embedded + remote)
+]
+# toolkits/retriever/ - 高级检索功能（中文分词、向量检索、稀疏检索）
+retrieval = [
+  "langchain-text-splitters>=1.1.3", # 代码感知文本分块 (retriever/splitter/code_utils.py)
+  "numpy>=2.5.4",     # embedding 序列化 + BM25 数值计算
+  "tenacity>=9.2.1",  # cloud embedding retries
+  "jieba>=0.42.1",    # 中文分词 (BM25 tokenizer)
+  "rank-bm25>=0.2.2", # BM25 稀疏检索算法
+]
+# toolkits/acp/ - ACP 协议（外部 Agent 委托 + ACP Server）
+acp = [
+  "agent-client-protocol>=0.12.1",
+]
+# utils/media/image_compressor - PNG 量化压缩（延迟导入，失败回退 Pillow）
+image-processing = [
+  "imagequant>=1.1.5",  # PNG 量化压缩 (pngquant 算法，Pillow 已在主依赖)
+]
+# toolkits/computer_use/ - 系统桌面控制（截图 + 键鼠模拟）
+computer-use = [
+  "pyautogui>=0.9.54; sys_platform == 'win32'",  # Windows 键鼠输入模拟 (ctypes, 无 rubicon-objc)
+  "pyobjc-framework-Quartz>=12.2.2; sys_platform == 'darwin'",  # macOS 原生 CGEvent（绕开 rubicon-objc arm64 缺陷）
+]
+# toolkits/web_fetch/ - L1 HTTP / L3 stealth 爬取 + YouTube 字幕快路径
+web = [
+  "scrapling[fetchers]>=0.4.15",      # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
+  "youtube-transcript-api>=1.2.4",   # YouTube 字幕提取 (youtube_extractor; HTML fallback when missing)
+]
+
+# toolkits/file_parsers/ - Office 扩展（pdfplumber + pypdfium2 已在 core / pdfplumber 传递依赖）
+file-parsers = [
+  "python-docx>=1.2.0", # Word 文档解析
+  "openpyxl>=3.1.5",    # Excel 文件读写
+  "python-pptx>=1.0.2", # PowerPoint 文档解析
+]
+# toolkits/file_parsers/ocr.py - 扫描 PDF / 图片 OCR 兜底（RapidOCR + ONNX Runtime，CJK 原生支持）
+pdf-ocr = [
+  "rapidocr>=3.10.0",  # OCR 引擎（PP-OCR 检测+识别+方向分类，模型随包分发）
+  # ONNX Runtime 是 RapidOCR 的默认推理后端。Pyodide 无 wheel，须排除以保证跨平台锁可解。
+  "onnxruntime>=1.20.0; sys_platform != 'emscripten'",
+]
+# FastAPI pin for hosts that embed the harness behind FastAPI (no harness module imports it)
+fastapi = [
+  "fastapi>=0.143.0",
+]
+
+# 全链路追踪与指标 (SaaS 级监控)
+observability = [
+  "prometheus-client>=0.26.0",
+  "opentelemetry-sdk>=1.45.1",
+  "opentelemetry-exporter-otlp-proto-grpc>=1.45.1",
+  "openinference-instrumentation-langchain>=0.1.79",
+]
+compiled-core = [
+# BEGIN compiled-core (generated — do not edit)
+"myrm-agent-harness-core-darwin-arm64==0.1.0rc6; platform_system == 'Darwin' and platform_machine == 'arm64'",
+  "myrm-agent-harness-core-darwin-x64==0.1.0rc6; platform_system == 'Darwin' and platform_machine == 'x86_64'",
+  "myrm-agent-harness-core-linux-x64==0.1.0rc6; platform_system == 'Linux' and platform_machine == 'x86_64'",
+  "myrm-agent-harness-core-linux-arm64==0.1.0rc6; platform_system == 'Linux' and platform_machine == 'aarch64'",
+  "myrm-agent-harness-core-win32-x64==0.1.0rc6; platform_system == 'Windows' and platform_machine == 'AMD64'",
+  "myrm-agent-harness-core-win32-arm64==0.1.0rc6; platform_system == 'Windows' and platform_machine == 'ARM64'",
+# END compiled-core
+]
+compiled-core-musl = [
+# BEGIN compiled-core-musl (generated — do not edit)
+"myrm-agent-harness-core-linux-x64-musl==0.1.0rc6; platform_system == 'Linux' and platform_machine == 'x86_64'",
+  "myrm-agent-harness-core-linux-arm64-musl==0.1.0rc6; platform_system == 'Linux' and platform_machine == 'aarch64'",
+# END compiled-core-musl
+]
+all = [
+  "myrm-agent-harness[acp,browser,computer-use,image-processing,qdrant,retrieval,file-parsers,pdf-ocr,fastapi,observability,web]",
+]
+
+[tool.uv]
+# Universal lock for the Python 3.13 interpreter used by development and CI.
+environments = ["python_full_version >= '3.13' and python_full_version < '3.14' and sys_platform != 'emscripten'"]
+# jieba (retrieval extra) ships invalid escape sequences: compiling it at first import emits a SyntaxWarning that
+# pytest's `filterwarnings = ["error"]` escalates to a SyntaxError. Compiling at install time keeps that import clean.
+compile-bytecode = true
+# Platform core wheels (the compiled-core* extras above) exist on PyPI only after a release is
+# published, so the dev lock never resolves them; the published wheel metadata keeps the pins.
+# One entry per platform in harness_packaging/platforms.py (PUBLISH_PLATFORMS): a platform missing here makes `uv lock` fail.
+exclude-dependencies = [
+  "myrm-agent-harness-core-darwin-arm64",
+  "myrm-agent-harness-core-darwin-x64",
+  "myrm-agent-harness-core-linux-x64",
+  "myrm-agent-harness-core-linux-arm64",
+  "myrm-agent-harness-core-linux-x64-musl",
+  "myrm-agent-harness-core-linux-arm64-musl",
+  "myrm-agent-harness-core-win32-x64",
+  "myrm-agent-harness-core-win32-arm64",
+]
+override-dependencies = [
+  "click>=8.5.0",
+  "patchright>=1.59.1",
+  "openai>=3.24.0",
+  "opentelemetry-semantic-conventions>=0.61b0",
+  "mcp>=2.0.0",                   # MCP SDK 2.x
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Src layout: importable package lives under src/ (PyPA / Hatch 推荐实践)
+[tool.hatch.build.targets.wheel]
+packages = ["src/myrm_agent_harness"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/myrm_agent_harness/toolkits/browser/assets/ad_domains.txt" = "myrm_agent_harness/toolkits/browser/assets/ad_domains.txt"
+"src/myrm_agent_harness/toolkits/browser/action_capture/capture_script.js" = "myrm_agent_harness/toolkits/browser/action_capture/capture_script.js"
+
+[tool.hatch.build]
+exclude = [
+  "tests/",
+  "docs/",
+  ".github/",
+  "**/node_modules",
+  "**/.venv",
+  "**/__pycache__",
+  "**/*.pyc",
+  "**/*.pyo",
+  "**/.DS_Store",
+  "**/*.swp",
+  "**/*~",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+extend-exclude = []
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "S", "SIM", "RUF"]
+ignore = [
+  "E501", "B008", "SIM108", "RUF001", "RUF002", "RUF003", "RUF022",
+  # S 规则噪音抑制：LangChain/subprocess/pickle 等场景在 agent 框架中是刚需，逐条评估后排除误报。
+  "S101",  # assert — 运行时不变量检查
+  "S105", "S106", "S107",  # hardcoded-password — 变量名含 SECRET/TOKEN 但非真实密码
+  "S108",  # hardcoded-temp-file — /tmp 路径在沙箱内是安全的
+  "S110", "S112",  # try-except-pass/continue — best-effort 模式是框架设计选择
+  "S311",  # non-cryptographic-random — 用于采样/ID 而非安全场景
+  "S324",  # hashlib-insecure — 用于内容哈希而非加密
+  "S603", "S607",  # subprocess — 代码执行工具必须用 subprocess
+  "S608",  # hardcoded-sql — SQLite 本地文件非网络注入风险
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+  "S101",
+  "INP001",
+  "E402",
+  "B011",
+] # Allow assert, imports after sys.path in tests
+"tools/**/*.py" = [
+  "T201",
+  "INP001",
+  "S101",
+  "B011",
+] # Allow print/assert in CLI tools
+"src/**/routing/router.py" = [
+  "RUF006",
+  "SIM102",
+  "SIM105",
+] # Fire-and-forget tasks are intentional in command dispatch
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+mypy_path = "src"
+explicit_package_bases = true
+files = ["src/myrm_agent_harness"]
+
+[[tool.mypy.overrides]]
+# pyobjc Quartz 无类型 stubs（官方包未带 py.typed）；仅在 backends/macos_input.py 惰性导入。
+module = "Quartz"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# jieba 无类型 stubs（上游停更，未带 py.typed）；仅在 bm25/tokenizer.py 惰性导入。
+module = "jieba"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# colorama 无类型 stubs（未带 py.typed）；仅在 doctor 报告渲染（browser/doctor/report.py、runtime/diagnostics/doctor_cli.py）中惰性导入。
+module = "colorama"
+ignore_missing_imports = true
+
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
+include = ["src/myrm_agent_harness"]
+venvPath = "."
+venv = ".venv"
+reportMissingImports = false
+reportMissingTypeStubs = false
+reportMissingModuleSource = false
+reportUnsupportedDunderAll = false
+# pyright 1.1.348+ 将 reportGeneralTypeIssues 拆分为细粒度规则。
+# LangChain/LiteLLM 等第三方库类型定义不完善产生大量噪音，逐个抑制（与 OpenAI Agents SDK 同等策略）。
+reportGeneralTypeIssues = false
+reportAttributeAccessIssue = false
+reportArgumentType = false
+reportCallIssue = false
+reportReturnType = false
+reportAssignmentType = false
+reportOperatorIssue = false
+reportInvalidTypeForm = false
+reportPrivateImportUsage = false
+reportInvalidTypeVarUse = false
+reportInvalidTypeArguments = false
+reportIndexIssue = false
+reportTypedDictNotRequiredAccess = false
+reportRedeclaration = false
+# 保留有价值的规则（默认 error）：Optional 家族 + UndefinedVariable 已证明能发现真实 bug。
+reportUnnecessaryTypeIgnoreComment = "warning"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Browser integration tests keep a module-scoped async fixture (e.g. GlobalBrowserPool)
+# whose patchright connection binds to the fixture's event loop. With the default
+# "function" test loop scope, tests run on a different loop and cross-loop awaits
+# hang forever. Pin both fixture and test loop scope to "module" so async fixtures
+# and their consuming tests always share the same loop.
+asyncio_default_test_loop_scope = "module"
+asyncio_default_fixture_loop_scope = "module"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--import-mode=importlib -n0 --timeout=300 -m 'not integration and not e2e and not performance'"
+filterwarnings = [
+    "error",
+    "ignore:The default value of `allowed_objects` will change:langchain_core._api.deprecation.LangChainPendingDeprecationWarning",
+    "ignore::DeprecationWarning:litellm",
+    # LiteLLM >= 1.103 types use typing_extensions.ReadOnly in a TypedDict; pydantic warns when it builds the schema.
+    "ignore:Item .* on TypedDict class .* is using the .ReadOnly. qualifier:UserWarning:pydantic",
+    "ignore::DeprecationWarning:pydantic",
+    "ignore::DeprecationWarning:google",
+    "ignore::DeprecationWarning:pkg_resources",
+    "ignore::DeprecationWarning:websockets",
+    "ignore::ResourceWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+markers = [
+  "api: Public API surface smoke tests (myrm_agent_harness.api)",
+  "architecture: Architecture consistency tests (boundary checks, dependency rules)",
+  "e2e: End-to-end tests (complete user workflows)",
+  "integration: Integration tests (run with real browser)",
+  "performance: Performance regression tests",
+  "slow: Slow tests that are still part of the regular suite",
+  "benchmark: Benchmark-style tests that compare implementations",
+  "allow_blocking_io: Opt out of the blockbuster blocking-IO gate for this test",
+]
+
+# 覆盖率门禁：核心模块行覆盖率 ≥80%。
+# 依赖真实文件系统/数据库的基础设施模块由独立集成任务覆盖。
+# Default addopts already apply the memory-safe marker filter and -n0.
+# CI unit job: .github/workflows/test.yml (pytest -n 2). Browser: separate job.
+#     coverage report
+[tool.coverage.run]
+source = ["myrm_agent_harness"]
+omit = [
+  "**/providers/_win32_defs.py",
+  "**/providers/appcontainer.py",
+  "**/backends/skills/local.py",
+  "**/backends/skills/storage.py",
+  "**/backends/skills/composite.py",
+  "**/backends/skills/versioning.py",
+  "**/backends/skills/memory.py",
+  "**/backends/skills/factory.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+precision = 1
+show_missing = true
+skip_covered = false
+include = [
+  "*/myrm_agent_harness/api/hooks.py",
+  "*/myrm_agent_harness/api/skills.py",
+  "*/myrm_agent_harness/agent/goals/*",
+  "*/myrm_agent_harness/toolkits/llms/routing/*",
+  "*/myrm_agent_harness/toolkits/code_execution/session/*",
+  "*/myrm_agent_harness/toolkits/code_execution/executors/common/wrapper_script.py",
+  "*/myrm_agent_harness/observability/diagnostics/*",
+  "*/myrm_agent_harness/runtime/*",
+  "*/myrm_agent_harness/utils/*",
+  "*/myrm_agent_harness/eval/*.py",
+  "*/myrm_agent_harness/toolkits/memory/*",
+  "*/myrm_agent_harness/toolkits/web_fetch/fetchers/*",
+  "*/myrm_agent_harness/toolkits/web_fetch/youtube_extractor.py",
+  "*/myrm_agent_harness/toolkits/kanban/*",
+  "*/myrm_agent_harness/toolkits/tasks/*",
+  "*/myrm_agent_harness/toolkits/web_search/*",
+  "*/myrm_agent_harness/toolkits/wiki/*",
+  "*/myrm_agent_harness/toolkits/mcp/*",
+  "*/myrm_agent_harness/toolkits/code_execution/ptc/*",
+  "*/myrm_agent_harness/toolkits/code_execution/security/*",
+  "*/myrm_agent_harness/toolkits/code_execution/env_probe.py",
+  "*/myrm_agent_harness/toolkits/code_execution/platform.py",
+  "*/myrm_agent_harness/infra/sqlite_backup.py",
+  "*/myrm_agent_harness/infra/tracing/*",
+  "*/myrm_agent_harness/backends/skills/*",
+  "*/myrm_agent_harness/agent/meta_tools/*",
+  "*/myrm_agent_harness/agent/skills/*",
+  "*/myrm_agent_harness/agent/security/*",
+  "*/myrm_agent_harness/core/security/*",
+  "*/myrm_agent_harness/backends/secrets/*",
+  "*/myrm_agent_harness/agent/config/litellm_routing.py",
+  "*/myrm_agent_harness/agent/config/parsers.py",
+  "*/myrm_agent_harness/agent/tool_management/*",
+  "*/myrm_agent_harness/agent/_factory/*",
+  "*/myrm_agent_harness/agent/hooks/*",
+  "*/myrm_agent_harness/agent/_internals/*",
+  "*/myrm_agent_harness/agent/context_management/pipeline/*",
+  "*/myrm_agent_harness/agent/sub_agents/*",
+  "*/myrm_agent_harness/agent/middlewares/*",
+  "*/myrm_agent_harness/agent/streaming/*",
+  "*/myrm_agent_harness/agent/context_management/*",
+  "*/myrm_agent_harness/agent/event_log/*",
+  "*/myrm_agent_harness/agent/deep_research/*",
+  "*/myrm_agent_harness/agent/orchestration/*",
+  "*/myrm_agent_harness/agent/dynamic_workflow/*",
+  "*/myrm_agent_harness/agent/memory_extraction.py",
+  "*/myrm_agent_harness/toolkits/llms/adapters/*",
+  "*/myrm_agent_harness/toolkits/vector/*",
+  "*/myrm_agent_harness/toolkits/llms/video/*",
+  "*/myrm_agent_harness/toolkits/llms/image/*",
+  "*/myrm_agent_harness/toolkits/llms/media_task_types.py",
+  "*/myrm_agent_harness/toolkits/llms/core/*",
+  "*/myrm_agent_harness/toolkits/llms/vision/*",
+  "*/myrm_agent_harness/toolkits/acp/*",
+  "*/myrm_agent_harness/toolkits/cron/*",
+  "*/myrm_agent_harness/observability/*",
+  "*/myrm_agent_harness/toolkits/file_parsers/*",
+  "*/myrm_agent_harness/toolkits/computer_use/*",
+  "*/myrm_agent_harness/toolkits/llms/consensus/*",
+  "*/myrm_agent_harness/toolkits/code_execution/sandbox/*",
+]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "\\.\\.\\."]
+
+[dependency-groups]
+build = [
+  "nuitka>=4.1.2",
+  "build>=1.5.0",
+]
+dev = [
+  "pytest>=9.1.1",                   # 测试框架
+  "pytest-asyncio>=1.4.0",           # 异步测试支持
+  "pytest-cov>=7.1.0",               # 覆盖率报告
+  "pytest-benchmark>=5.3.0",         # 性能基准测试（5.2.3 在 pytest -n 2 + filterwarnings=error 下 INTERNALERROR）
+  "pytest-xdist>=3.8.0",             # 并行测试执行
+  "pytest-timeout>=2.4.0",           # 测试超时保护
+  "ruff>=0.15.18",                   # Linter + Formatter
+  "mypy>=2.1.0",                    # 静态类型检查
+  "pyright>=1.1.408",                # 双重类型检查（互补 mypy）
+  "sqlalchemy>=2.0.51",              # migration_engine unit tests
+  "greenlet>=3.5.1",                 # sqlalchemy async engine (dev/tests)
+  "respx>=0.23.1",                   # HTTPX mock
+  "scikit-learn>=1.9.0",             # ML utilities (test)
+  "types-aiofiles>=25.1.0.20251011", # Type stubs
+  "types-psutil>=7.2.2.20260130",
+  "types-regex>=2026.9.29.20261005",
+  "types-pyyaml>=6.0.12.20250915",
+  "blockbuster>=1.5.26",
+]

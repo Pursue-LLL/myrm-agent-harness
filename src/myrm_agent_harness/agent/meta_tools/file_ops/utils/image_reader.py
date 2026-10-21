@@ -1,0 +1,212 @@
+"""图片文件读取模块
+
+为 file_read_tool 提供图片文件的多模态读取能力。
+当 Agent 读取图片文件时，返回 LangChain content blocks，让模型直接"看到"图片。
+
+设计原则：
+- 支持 vision 的模型：返回 [文本描述, 图片内容块]（provider-agnostic）
+- 不支持 vision 的模型：返回纯文本描述（文件名、大小、格式）
+- <= 5MB：原始 base64 直传（零损失；Claude 直连 10MiB 上限安全，5MiB 类 provider 由发送时压缩或失败兜底处理）
+- 5-20MB：Reactive Compress — 压缩到 max_dimension=4096 后传给模型
+- > 20MB：降级为纯文本描述
+
+[INPUT]
+- toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
+
+[OUTPUT]
+- is_image_path: function — is_image_path
+- read_image_as_content_blocks: function — read_image_as_content_blocks
+
+[POS]
+Provides is_image_path, read_image_as_content_blocks.
+"""
+
+from __future__ import annotations
+
+import base64
+import io
+import logging
+from pathlib import PurePosixPath
+from typing import TYPE_CHECKING
+
+from langchain_core.messages.content import ContentBlock, create_image_block, create_text_block
+
+from myrm_agent_harness.utils.image_utils import MAX_IMAGE_PAYLOAD_BYTES, MAX_IMAGE_READ_BYTES
+from myrm_agent_harness.utils.media.image_compressor import MAX_DECODE_PIXELS, image_compressor
+from myrm_agent_harness.utils.mime_types import IMAGE_EXTENSIONS
+from myrm_agent_harness.utils.mime_types import IMAGE_MIME_TYPES as MIME_TYPES
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
+
+logger = logging.getLogger(__name__)
+
+_INLINE_THRESHOLD = 5 * 1024 * 1024
+_TARGET_PAYLOAD_THRESHOLD = 3 * 1024 * 1024  # 3MiB raw (inflates to ~4MiB in Base64 safe envelope)
+_QUALITY_LADDER: tuple[float, ...] = (0.95, 0.80, 0.60, 0.40, 0.20)
+_DIMENSION_LADDER: tuple[int, ...] = (4096, 2048, 1024)
+_REACTIVE_MAX_DIMENSION = 4096
+_REACTIVE_QUALITY = 0.8
+
+
+def is_image_path(path: str) -> bool:
+    """检测路径是否为图片文件"""
+    suffix = PurePosixPath(path).suffix.lower()
+    return suffix in IMAGE_EXTENSIONS
+
+
+async def read_image_as_content_blocks(
+    path: str, executor: CodeExecutor, supports_vision: bool
+) -> str | list[ContentBlock]:
+    """读取图片文件并返回适当格式的内容"""
+    suffix = PurePosixPath(path).suffix.lower()
+    mime_type = MIME_TYPES.get(suffix, "image/png")
+
+    try:
+        raw_bytes = await executor.read_file_bytes(path)
+    except FileNotFoundError:
+        raise
+    except Exception as e:
+        logger.warning("Failed to read image bytes: %s, error: %s", path, e)
+        return f"[Image file: {path}] (Failed to read)"
+
+    size_bytes = len(raw_bytes)
+    size_display = _format_size(size_bytes)
+
+    if not supports_vision:
+        return f"[Image file: {path}] ({mime_type}, {size_display}. Current model does not support vision.)"
+
+    if size_bytes > MAX_IMAGE_READ_BYTES:
+        return (
+            f"[Image file: {path}] ({mime_type}, {size_display}. "
+            f"Exceeds {_format_size(MAX_IMAGE_READ_BYTES)} limit for reading into memory. "
+            f"Use bash_code_execute_tool to process or resize.)"
+        )
+
+    orig_dim = _get_image_dimensions(raw_bytes)
+    attached_dim = orig_dim
+    scale_factor = 1.0
+
+    if _needs_compression(raw_bytes):
+        compressed_res = _ladder_compress(raw_bytes)
+        if compressed_res is None:
+            return (
+                f"[Image file: {path}] ({mime_type}, {size_display}. "
+                f"Compression failed. Use bash_code_execute_tool to process or resize.)"
+            )
+        compressed_bytes, attached_dim = compressed_res
+        raw_bytes = compressed_bytes
+        size_bytes = len(raw_bytes)
+        mime_type = "image/jpeg"
+        if orig_dim and attached_dim and orig_dim[0] > 0:
+            scale_factor = attached_dim[0] / orig_dim[0]
+
+        logger.info(
+            "Image %s compressed via ladder: %s -> %s (scale: %.4f)",
+            path,
+            size_display,
+            _format_size(size_bytes),
+            scale_factor,
+        )
+
+    if size_bytes > MAX_IMAGE_PAYLOAD_BYTES:
+        return (
+            f"[Image file: {path}] ({mime_type}, {_format_size(size_bytes)}. "
+            f"Exceeds {_format_size(MAX_IMAGE_PAYLOAD_BYTES)} API payload limit even after compression. "
+            f"Use bash_code_execute_tool to process or resize.)"
+        )
+
+    b64 = base64.standard_b64encode(raw_bytes).decode("ascii")
+
+    # 构建带坐标尺度因子的描述文本，赋能视觉模型精准坐标反算
+    if orig_dim and attached_dim and (orig_dim != attached_dim or scale_factor < 0.999):
+        desc_text = (
+            f"[Image: {path}] ({mime_type}, {_format_size(size_bytes)}, "
+            f"original: {orig_dim[0]}x{orig_dim[1]}, attached: {attached_dim[0]}x{attached_dim[1]}, "
+            f"scale: {scale_factor:.4f})"
+        )
+    elif orig_dim:
+        desc_text = f"[Image: {path}] ({mime_type}, {_format_size(size_bytes)}, size: {orig_dim[0]}x{orig_dim[1]})"
+    else:
+        desc_text = f"[Image: {path}] ({mime_type}, {_format_size(size_bytes)})"
+
+    return [
+        create_text_block(desc_text),
+        create_image_block(base64=b64, mime_type=mime_type),
+    ]
+
+
+def _get_image_dimensions(raw_bytes: bytes) -> tuple[int, int] | None:
+    """Safely extract image dimensions (width, height) without decoding full raster."""
+    try:
+        from PIL import Image
+
+        Image.MAX_IMAGE_PIXELS = MAX_DECODE_PIXELS
+        with Image.open(io.BytesIO(raw_bytes)) as img:
+            return img.size
+    except Exception:
+        return None
+
+
+def _needs_compression(raw_bytes: bytes) -> bool:
+    """Check if image needs compression based on file size or resolution."""
+    if len(raw_bytes) > _TARGET_PAYLOAD_THRESHOLD:
+        return True
+    try:
+        from PIL import Image
+
+        Image.MAX_IMAGE_PIXELS = MAX_DECODE_PIXELS  # Bounded decode guard against image bombs
+        with Image.open(io.BytesIO(raw_bytes)) as img:
+            w, h = img.size
+            return w > _REACTIVE_MAX_DIMENSION or h > _REACTIVE_MAX_DIMENSION
+    except Exception as e:
+        logger.debug("Failed to check image resolution: %s", e)
+        return False
+
+
+def _ladder_compress(raw_bytes: bytes) -> tuple[bytes, tuple[int, int] | None] | None:
+    """Progressively compress image using Quality Ladder (95->20) and dimension downsampling.
+
+    Guarantees payload converges within _TARGET_PAYLOAD_THRESHOLD (3MiB raw / ~4MiB Base64)
+    while preserving maximum possible visual fidelity.
+    Returns (compressed_bytes, attached_dimensions) or None if corrupt.
+    """
+    best_candidate: bytes | None = None
+    best_dim: tuple[int, int] | None = None
+
+    for max_dim in _DIMENSION_LADDER:
+        for q in _QUALITY_LADDER:
+            try:
+                res = image_compressor.compress(
+                    io.BytesIO(raw_bytes),
+                    output_path=None,
+                    quality=q,
+                    max_dimension=max_dim,
+                    output_format="jpeg",
+                )
+                if res:
+                    best_candidate = res
+                    best_dim = _get_image_dimensions(res)
+                    if len(res) <= _TARGET_PAYLOAD_THRESHOLD:
+                        return res, best_dim
+            except Exception as e:
+                logger.debug("Ladder compression attempt (dim=%s, q=%s) failed: %s", max_dim, q, e)
+
+    if best_candidate is not None:
+        return best_candidate, best_dim
+    return None
+
+
+def _reactive_compress(raw_bytes: bytes) -> bytes | None:
+    """Legacy helper fallback for backwards compatibility."""
+    res = _ladder_compress(raw_bytes)
+    return res[0] if res else None
+
+
+def _format_size(size_bytes: int) -> str:
+    """格式化文件大小"""
+    if size_bytes < 1024:
+        return f"{size_bytes}B"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f}KB"
+    return f"{size_bytes / (1024 * 1024):.1f}MB"

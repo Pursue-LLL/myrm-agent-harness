@@ -1,0 +1,183 @@
+"""StorageBackendStrategy - 存储提供者策略
+
+通过 StorageProvider 接口访问文件，支持多种底层存储。
+
+支持的存储类型：
+- ExecutorStorageAdapter: 将 CodeExecutor 适配为 StorageProvider
+- LocalStorageBackend: 本地存储（用于用户文件）
+- 业务层可实现自定义云存储后端
+
+[INPUT]
+- toolkits.storage.base::StorageProvider (POS: Storage provider abstract base class. Defines the unified storage interface contract for all storage backends. Supports file read/write, delete, list, and info query. Method names use read/write (not get/put).)
+
+[OUTPUT]
+- StorageBackendStrategy: FileSystemStrategy implementation that serves file tool operations through a StorageProvider
+
+[POS]
+File tool strategy over StorageProvider. Implements read, write, replace, delete, list and size operations
+on any StorageProvider (ExecutorStorageAdapter, LocalStorageBackend, business-layer backends).
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
+
+from .base import FileSystemStrategy
+
+logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.storage.base import StorageProvider
+
+    from ..core.operation_context import ViewRange
+
+
+class StorageBackendStrategy(FileSystemStrategy):
+    """存储提供者策略
+
+    通过 StorageProvider 接口访问文件，支持多种底层存储实现。
+
+    StorageProvider 可以是：
+    - ExecutorStorageAdapter（将 CodeExecutor 适配为 StorageProvider）
+    - LocalStorageBackend（用户文件存储）
+    - 业务层实现的云存储后端
+    """
+
+    def __init__(self, storage_backend: StorageProvider) -> None:
+        """初始化策略
+
+        Args:
+            storage_backend: StorageProvider 实例
+        """
+        self.storage = storage_backend
+
+    async def read_file(self, path: str, view_range: ViewRange | None = None) -> list[str]:
+        """读取文件内容"""
+        if not await self.storage.exists(path):
+            raise FileNotFoundError(f"File not found: {path}")
+
+        try:
+            content = await self.storage.read_text(path)
+            lines = content.split("\n")
+
+            # 应用视图范围（如果指定）
+            if view_range:
+                start = max(0, view_range.start - 1)
+                end = view_range.end if view_range.end != -1 else len(lines)
+                lines = lines[start:end]
+
+            return lines
+        except UnicodeDecodeError as e:
+            raise ValueError(f"File is not text format: {path}") from e
+
+    async def write_file(self, path: str, content: str) -> None:
+        """写入文件"""
+        await self.storage.write_text(path, content)
+
+    async def delete_file(self, path: str) -> None:
+        """删除文件"""
+        if not await self.storage.exists(path):
+            raise FileNotFoundError(f"File not found: {path}")
+        await self.storage.delete(path)
+
+    async def replace_text(self, path: str, old_str: str, new_str: str) -> None:
+        """Replace text in a file via the shared batch str-replace engine."""
+        if not await self.storage.exists(path):
+            raise FileNotFoundError(f"File not found: {path}")
+
+        content = await self.storage.read_text(path)
+
+        from ..core.batch_str_replace import apply_batch_str_replace
+        from ..core.operation_context import StrReplaceEdit
+
+        try:
+            new_content, strategies = apply_batch_str_replace(
+                content,
+                (StrReplaceEdit(old_str=old_str, new_str=new_str),),
+            )
+        except ValueError as error:
+            message = str(error)
+            if message.startswith("Edit 1: "):
+                message = message.removeprefix("Edit 1: ")
+            if "text not found" in message.lower() and path not in message:
+                message = f"Text not found in file: {path}\n{message}"
+            raise ValueError(message) from error
+
+        if strategies and strategies[0] != "exact":
+            logger.info(
+                "Fuzzy match succeeded via batch engine: strategy=%s path=%s",
+                strategies[0],
+                path,
+            )
+
+        await self.storage.write_text(path, new_content)
+
+    async def is_directory(self, path: str) -> bool:
+        """检查路径是否为目录"""
+        if hasattr(self.storage, "is_dir"):
+            return await self.storage.is_dir(path)
+        # 回退：以 / 结尾视为目录
+        return path.endswith("/")
+
+    async def list_directory(self, path: str) -> list[tuple[str, bool, int]]:
+        """列出目录内容"""
+        # 确保路径以 / 结尾
+        prefix = path if path.endswith("/") else f"{path}/"
+
+        try:
+            files = await self.storage.list(prefix=prefix, recursive=False)
+
+            result: list[tuple[str, bool, int]] = []
+            for file_path in files:
+                # 取 basename。backend 可能返回绝对路径（本地 executor）或
+                # 相对前缀路径（云存储），统一取路径最后一段最稳妥。
+                name = file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
+                name = name.split("/")[-1]
+                is_dir = file_path.endswith("/")
+
+                # 获取文件大小
+                size = 0
+                if not is_dir:
+                    try:
+                        info = await self.storage.info(file_path)
+                        size = info.size
+                    except Exception:
+                        pass
+
+                result.append((name, is_dir, size))
+
+            return result
+        except Exception as e:
+            raise FileNotFoundError(f"Failed to list directory: {path}") from e
+
+    async def exists(self, path: str) -> bool:
+        """检查路径是否存在"""
+        return await self.storage.exists(path)
+
+    async def get_file_size(self, path: str) -> int:
+        """获取文件大小"""
+        if not await self.storage.exists(path):
+            raise FileNotFoundError(f"File not found: {path}")
+
+        try:
+            info = await self.storage.info(path)
+            return info.size
+        except Exception:
+            # 回退：读取内容计算大小
+            content = await self.storage.read_text(path)
+            return len(content.encode("utf-8"))
+
+    def get_actual_path(self, path: str) -> str:
+        """获取实际文件路径
+
+        如果 storage_backend 支持路径解析（如 ExecutorStorageAdapter），返回实际路径。
+        否则返回相对路径（对于云存储等没有本地路径的存储）。
+        """
+        get_full_path = getattr(self.storage, "_get_full_path", None)
+        if callable(get_full_path):
+            return str(get_full_path(path))
+
+        # 对于其他 StorageProvider，返回路径本身
+        # （云存储等没有"实际路径"的概念）
+        return path

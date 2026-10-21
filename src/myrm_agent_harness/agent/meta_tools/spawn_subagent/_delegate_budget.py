@@ -1,0 +1,387 @@
+"""Budget admission, policy enforcement, call fingerprinting, and dynamic description for delegate_task.
+
+[INPUT]
+- sub_agents.types::ControlScope, DelegateRole, SubagentCatalog (POS: Subagent type definitions)
+- runtime.events.system_events::DelegationPolicyDecision (POS: System event DTOs)
+- utils.token_economics (POS: Budget guard and cost engine)
+
+[OUTPUT]
+- _get_hashable_value, _compute_payload_hash: Delegation call fingerprint (repeated-delegation loop detection)
+- _normalize_role: DelegateRole normalization
+- _BatchBudgetAdmission: Budget admission result
+- _emit_policy_denial_event, _policy_denied: Policy denial helpers
+- _resolve_model_name, _estimate_prompt_tokens, get_budget_checker: Budget utilities
+- _estimate_batch_cost: Generic batch cost estimation (shared by race + pre-flight)
+- _admit_race_budget: Batch budget admission (race-mode downgrade logic)
+- _build_dynamic_description: Dynamic tool description builder
+
+[POS]
+Budget, policy, fingerprint, and description utilities for the delegate_task tool family.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from myrm_agent_harness.agent.sub_agents.types import (
+    ControlScope,
+    DelegateRole,
+    SubagentCatalog,
+)
+from myrm_agent_harness.runtime.events.system_events import (
+    DelegationPolicyDecision,
+    SubagentLifecycleData,
+)
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.token_economics.budget_guard import BudgetStatus
+from myrm_agent_harness.utils.token_economics.cost_engine import compute_cost_by_tokens
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.base_agent import BaseAgent
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
+        TaskRequest,
+    )
+
+logger = get_agent_logger(__name__)
+
+
+def _get_hashable_value(v: object) -> object:
+    """Recursively ensure a value is JSON-serializable and order-independent."""
+    if isinstance(v, dict):
+        return {str(k): _get_hashable_value(val) for k, val in v.items()}
+    if isinstance(v, list | tuple):
+        return [_get_hashable_value(val) for val in v]
+    if isinstance(v, int | float | str | bool | type(None)):
+        return v
+    return str(v)
+
+
+def _compute_payload_hash(
+    agent_type: str,
+    task: str,
+    role_value: str,
+    context: dict[str, object] | None,
+    *,
+    effective_readonly: bool,
+    complexity_tier: str | None,
+    verifier_prompt: str | None,
+    verifier_agent_type: str | None,
+    max_verification_rounds: int,
+) -> str:
+    """Fingerprint everything that decides how a delegation runs, for repeated-delegation loop detection.
+
+    Two calls that differ in any of these fields do different work (another sandbox, model tier or
+    verification), so they must not be mistaken for a repeat. The verifier fields only count when a
+    verification is requested: without ``verifier_prompt`` they have no effect.
+    """
+    hashable_ctx = _get_hashable_value(context) if context else {}
+    verification = (
+        [str(verifier_prompt).strip(), str(verifier_agent_type or "").strip(), max_verification_rounds]
+        if verifier_prompt
+        else None
+    )
+    payload_str = json.dumps(
+        {
+            "type": str(agent_type).strip(),
+            "task": str(task).strip(),
+            "role": role_value,
+            "ctx": hashable_ctx,
+            "readonly": effective_readonly,
+            "tier": complexity_tier or None,
+            "verification": verification,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    # Model output can carry lone surrogates; they must fingerprint instead of failing the delegation.
+    return hashlib.sha256(payload_str.encode("utf-8", errors="surrogatepass")).hexdigest()
+
+
+def _normalize_role(role: DelegateRole | str) -> DelegateRole:
+    if isinstance(role, DelegateRole):
+        return role
+    try:
+        return DelegateRole(str(role))
+    except ValueError:
+        return DelegateRole.LEAF
+
+
+# ---------------------------------------------------------------------------
+# Budget admission
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class _BatchBudgetAdmission:
+    status: Literal["admitted", "downgraded", "unavailable"]
+    reason: str
+    estimated_cost_usd: float | None = None
+    remaining_budget_usd: float | None = None
+    cost_status: str = "unknown"
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "status": self.status,
+            "reason": self.reason,
+            "estimated_cost_usd": self.estimated_cost_usd,
+            "remaining_budget_usd": self.remaining_budget_usd,
+            "cost_status": self.cost_status,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Policy denial
+# ---------------------------------------------------------------------------
+
+
+def _emit_policy_denial_event(
+    *,
+    task_id: str,
+    session_id: str,
+    decision: DelegationPolicyDecision,
+) -> None:
+    try:
+        from myrm_agent_harness.runtime.events import (
+            SubagentLifecycleEvent,
+            get_event_bus,
+        )
+
+        get_event_bus().publish(
+            SubagentLifecycleEvent(
+                event_name="policy_denied",
+                task_id=task_id,
+                session_id=session_id,
+                data=SubagentLifecycleData(
+                    agent_type=decision.agent_type,
+                    role=decision.requested_role,
+                    control_scope=decision.effective_scope,
+                    status="policy_denied",
+                    policy=decision,
+                ),
+            )
+        )
+    except Exception as exc:
+        logger.warning("Failed to emit subagent policy denial event: %s", exc)
+
+
+def _policy_denied(
+    *,
+    reason: str,
+    requested_role: DelegateRole,
+    effective_scope: ControlScope,
+    agent_type: str,
+    task_id: str,
+    session_id: str,
+    details: str,
+) -> dict[str, object]:
+    decision = DelegationPolicyDecision(
+        allowed=False,
+        reason=reason,
+        requested_role=requested_role.value,
+        effective_scope=effective_scope.value,
+        agent_type=agent_type,
+        details=details,
+    )
+    _emit_policy_denial_event(
+        task_id=task_id,
+        session_id=session_id,
+        decision=decision,
+    )
+    return {
+        "success": False,
+        "status": "policy_denied",
+        "reason": reason,
+        "requested_role": requested_role.value,
+        "effective_scope": effective_scope.value,
+        "policy_decision": decision.to_dict(),
+        "error": details,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Model / token estimation
+# ---------------------------------------------------------------------------
+
+
+def _resolve_model_name(parent_agent: BaseAgent, config_model: str | None) -> str | None:
+    if config_model:
+        return config_model
+    llm = getattr(parent_agent, "llm", None)
+    for attr_name in ("model_name", "model", "model_id", "deployment_name"):
+        value = getattr(llm, attr_name, None)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _estimate_prompt_tokens(task: TaskRequest) -> int:
+    text = task.objective
+    if task.context_files:
+        text += "\n".join(task.context_files)
+    if task.context:
+        text += str(task.context)
+    return max(1, (len(text) + 3) // 4)
+
+
+def get_budget_checker(parent_agent: BaseAgent) -> object | None:
+    tracker = getattr(parent_agent, "token_tracker", None)
+    checker: object | None = getattr(tracker, "budget_checker", None)
+    if checker is not None and (
+        callable(getattr(checker, "check_budget", None)) or callable(getattr(checker, "get_remaining_budget", None))
+    ):
+        return checker
+    parent_checker: object | None = getattr(parent_agent, "budget_checker", None)
+    if parent_checker is not None and (
+        callable(getattr(parent_checker, "check_budget", None))
+        or callable(getattr(parent_checker, "get_remaining_budget", None))
+    ):
+        return parent_checker
+    return None
+
+
+async def _estimate_batch_cost(
+    *,
+    parent_agent: BaseAgent,
+    catalog: SubagentCatalog,
+    tasks: list[TaskRequest],
+) -> _BatchBudgetAdmission:
+    """Estimate total USD cost for a batch of tasks without making policy decisions.
+
+    Returns a ``_BatchBudgetAdmission`` with ``status`` reflecting only whether
+    cost estimation succeeded (``admitted`` / ``unavailable``).  Callers layer
+    their own policy on top (race-mode downgrade, pre-flight approval, etc.).
+    """
+    checker = get_budget_checker(parent_agent)
+    remaining_budget_usd = None
+    if checker is not None and hasattr(checker, "get_remaining_budget"):
+        remaining = checker.get_remaining_budget()
+        if isinstance(remaining, int | float):
+            remaining_budget_usd = float(remaining)
+
+    estimated_costs: list[float] = []
+    cost_status = "unknown"
+    for task in tasks:
+        config = await catalog.resolve(task.agent_type)
+        if config is None:
+            return _BatchBudgetAdmission(
+                status="unavailable",
+                reason="agent_config_unavailable",
+                remaining_budget_usd=remaining_budget_usd,
+            )
+        if config.max_cost_usd is not None:
+            estimated_costs.append(float(config.max_cost_usd))
+            cost_status = "configured_max_cost"
+            continue
+        if config.budget_tokens is None:
+            return _BatchBudgetAdmission(
+                status="unavailable",
+                reason="task_budget_unconfigured",
+                remaining_budget_usd=remaining_budget_usd,
+            )
+        model_name = _resolve_model_name(parent_agent, config.model)
+        prompt_tokens = _estimate_prompt_tokens(task)
+        completion_tokens = max(0, int(config.budget_tokens) - prompt_tokens)
+        cost = compute_cost_by_tokens(
+            model=model_name,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+        if not cost.is_known:
+            return _BatchBudgetAdmission(
+                status="unavailable",
+                reason="model_cost_unavailable",
+                remaining_budget_usd=remaining_budget_usd,
+            )
+        estimated_costs.append(cost.usd)
+        cost_status = cost.status.value
+
+    estimated_cost_usd = sum(estimated_costs)
+    return _BatchBudgetAdmission(
+        status="admitted",
+        reason="cost_estimated",
+        estimated_cost_usd=estimated_cost_usd,
+        remaining_budget_usd=remaining_budget_usd,
+        cost_status=cost_status,
+    )
+
+
+async def _admit_race_budget(
+    *,
+    parent_agent: BaseAgent,
+    catalog: SubagentCatalog,
+    tasks: list[TaskRequest],
+) -> _BatchBudgetAdmission:
+    """Budget admission for race mode — downgrades to sequential when over budget."""
+    estimate = await _estimate_batch_cost(
+        parent_agent=parent_agent,
+        catalog=catalog,
+        tasks=tasks,
+    )
+    if estimate.status == "unavailable":
+        return estimate
+
+    checker = get_budget_checker(parent_agent)
+    if checker is not None and hasattr(checker, "check_budget") and estimate.estimated_cost_usd is not None:
+        budget_status = checker.check_budget(estimate.estimated_cost_usd)
+        if isinstance(budget_status, str):
+            try:
+                budget_status = BudgetStatus(budget_status)
+            except ValueError:
+                budget_status = BudgetStatus.OK
+        if budget_status in {BudgetStatus.FINALIZATION, BudgetStatus.EXCEEDED}:
+            return _BatchBudgetAdmission(
+                status="downgraded",
+                reason=f"budget_status_{budget_status.value}",
+                estimated_cost_usd=estimate.estimated_cost_usd,
+                remaining_budget_usd=estimate.remaining_budget_usd,
+                cost_status=estimate.cost_status,
+            )
+    if (
+        estimate.remaining_budget_usd is not None
+        and estimate.estimated_cost_usd is not None
+        and estimate.remaining_budget_usd < estimate.estimated_cost_usd
+    ):
+        return _BatchBudgetAdmission(
+            status="downgraded",
+            reason="remaining_budget_insufficient",
+            estimated_cost_usd=estimate.estimated_cost_usd,
+            remaining_budget_usd=estimate.remaining_budget_usd,
+            cost_status=estimate.cost_status,
+        )
+    return estimate
+
+
+# ---------------------------------------------------------------------------
+# Dynamic tool description
+# ---------------------------------------------------------------------------
+
+
+async def _build_dynamic_description(catalog: SubagentCatalog, allowed_types: list[str] | None) -> str:
+    """Generate compact tool description with available subagent roster only."""
+    from myrm_agent_harness.agent.sub_agents.prompts import DELEGATION_TOOL_GUIDANCE
+
+    available_ids = await catalog.list_available()
+    visible_ids = [tid for tid in available_ids if tid in allowed_types] if allowed_types is not None else available_ids
+
+    lines = [
+        "Delegate tasks to specialized subagents. Use mode=single|batch|parallel|council|alternatives.",
+        "",
+        "## Available agent types",
+    ]
+
+    display_ids = visible_ids[:50]
+    for type_id in display_ids:
+        cfg = await catalog.resolve(type_id)
+        if cfg:
+            label = f"{cfg.display_name} ({type_id})" if cfg.display_name else type_id
+            desc = cfg.description or (cfg.system_prompt[:80] if cfg.system_prompt else type_id)
+            lines.append(f"- '{type_id}': [{label}] {desc}")
+
+    if len(visible_ids) > 50:
+        lines.append(f"... and {len(visible_ids) - 50} more custom agents.")
+
+    lines.extend(["", DELEGATION_TOOL_GUIDANCE])
+    return "\n".join(lines)

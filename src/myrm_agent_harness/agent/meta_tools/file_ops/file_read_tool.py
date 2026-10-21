@@ -1,0 +1,507 @@
+"""文件读取工具（Claude Code 兼容）
+
+[INPUT]
+- langchain.tools::tool (POS: LangChain 工具装饰器)
+- core::FileOperationService, OperationContext, OperationType (POS: 文件操作服务)
+- agent.security.redact::redact_sensitive_text (POS: 工具输出脱敏)
+- backends.skills.types::SkillMetadata (POS: MCP 技能元数据)
+- file_read_handlers::build_multimodal_result, append_media_text_parts, process_text_paths (POS: file_read 执行处理器)
+- file_search.path_hint::suggest_similar_paths, format_path_not_found_hint, find_existing_unicode_path (POS: 路径不存在提示与 Unicode 探测自愈)
+- file_search.skill_path_filter::get_disabled_skill_roots, is_under_disabled_skill_root (POS: disabled skill 路径拦截)
+- core.security.path::is_blocked_device_path (POS: Pre-IO 设备路径安全阻断)
+- context_management.infra.evicted::normalize_delivery_chat_id (POS: UECD 会话 id 归一化，读写侧对称)
+- utils.vault_read::is_vault_uri, path_base, read_vault_paths_to_parts (POS: vault:// URI 读取)
+- mcp_read_next_step_hint::append_mcp_docs_next_step_hint (POS: MCP 函数文档批量读取后的下一步操作提示)
+- utils.*_reader (POS: 多模态与文档读取)
+- utils.errors::ToolError (POS: 工具错误类型)
+
+[OUTPUT]
+- create_file_read_tool(): 工厂函数，创建 file_read_tool（可选 path_policy=evicted_uploaded）
+- file_read_tool: LangChain Tool（本地/MCP/File ID/vault:// 路径、批量读取、行号范围、多模态、Office/Jupyter 解析）
+
+[POS]
+File read tool factory and orchestration. Supports full workspace reads or Fast-track
+evicted_uploaded scope (UECD spill + chat uploads only). Heavy read logic lives in
+core/file_read_handlers.py.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from collections.abc import Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
+
+from langchain.tools import tool
+from langchain_core.messages.content import create_text_block
+from langchain_core.runnables import RunnableConfig
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from myrm_agent_harness.agent.context_management.context import (
+    extract_context_from_runnable_config,
+)
+from myrm_agent_harness.agent.context_management.infra.evicted.content import (
+    normalize_delivery_chat_id,
+)
+from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor
+from myrm_agent_harness.agent.meta_tools.file_search.path_hint import (
+    find_existing_unicode_path,
+    format_path_not_found_hint,
+    suggest_similar_paths,
+)
+from myrm_agent_harness.agent.meta_tools.file_search.skill_path_filter import (
+    get_disabled_skill_roots,
+    is_under_disabled_skill_root,
+)
+from myrm_agent_harness.agent.security.path_security import is_blocked_device_path
+from myrm_agent_harness.agent.security.redact import redact_sensitive_text
+from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
+from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
+from myrm_agent_harness.utils.errors import ToolError
+from myrm_agent_harness.utils.locale import is_chinese
+
+from .core.file_read_handlers import (
+    append_media_text_parts,
+    build_multimodal_result,
+    process_text_paths,
+)
+from .core.mcp_read_next_step_hint import append_mcp_docs_next_step_hint
+from .utils.document_reader import is_document_path
+from .utils.image_reader import is_image_path
+from .utils.pdf_reader import is_pdf_path
+from .utils.vault_read import is_vault_uri, path_base, read_vault_paths_to_parts
+from .utils.video_reader import is_video_path
+
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
+    from myrm_agent_harness.backends.skills.types import SkillMetadata
+
+logger = logging.getLogger(__name__)
+
+_URL_SCHEMES = ("http://", "https://", "ftp://", "ftps://")
+
+FileReadPathPolicy = Literal["full", "evicted_uploaded"]
+
+
+def _is_url(path: str) -> bool:
+    return path.lower().startswith(_URL_SCHEMES)
+
+
+def _normalize_path_hint(raw_path: str) -> str:
+    normalized = raw_path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
+def _path_hint_allowed_for_evicted_uploaded(raw_path: str, chat_id: str) -> bool:
+    normalized = _normalize_path_hint(raw_path)
+    if normalized.startswith(f".context/{chat_id}/evicted/"):
+        return True
+    return normalized == "_uploaded" or normalized.startswith("_uploaded/")
+
+
+async def _assert_evicted_uploaded_read_scope(
+    paths: list[str],
+    *,
+    chat_id: str,
+    executor: object | None,
+) -> None:
+    """Restrict reads to UECD spill files and chat uploads (Fast / search track)."""
+    # Persist side normalizes chat_<id> session keys to <id> (infra/evicted/content.py);
+    # mirror it here so saved paths match the read scope check.
+    session_chat_id = normalize_delivery_chat_id(chat_id.strip() or chat_id_var.get().strip())
+    if not session_chat_id:
+        raise ToolError(
+            message="file_read_tool blocked: missing chat_id for evicted-read scope",
+            user_hint="Cannot read evicted output without an active chat session.",
+        )
+    workspace_root = workspace_root_var.get().strip()
+    resolve_path = getattr(executor, "resolve_path", None) if executor else None
+    for raw in paths:
+        if is_vault_uri(raw):
+            continue
+        if _path_hint_allowed_for_evicted_uploaded(raw, session_chat_id):
+            continue
+        if not workspace_root or resolve_path is None:
+            raise ToolError(
+                message=f"file_read_tool blocked: {raw}",
+                user_hint=(
+                    "Fast search mode only allows reading UECD spill files under "
+                    f".context/{session_chat_id}/evicted/ and uploads under _uploaded/."
+                ),
+            )
+        base = path_base(raw)
+        try:
+            resolved = await resolve_path(base)
+        except ValueError:
+            resolved = base
+        resolved_path = Path(str(resolved)).resolve()
+        allowed_roots = [
+            (Path(workspace_root) / ".context" / session_chat_id / "evicted").resolve(),
+            (Path(workspace_root) / "_uploaded").resolve(),
+        ]
+        if not any(resolved_path == root or root in resolved_path.parents for root in allowed_roots):
+            raise ToolError(
+                message=f"file_read_tool blocked: {raw}",
+                user_hint=(
+                    "Fast search mode only allows reading UECD spill files under "
+                    f".context/{session_chat_id}/evicted/ and uploads under _uploaded/. "
+                    "Switch to Agent mode for full workspace file access."
+                ),
+            )
+
+
+async def _assert_paths_allowed_for_read(
+    paths: list[str],
+    config: RunnableConfig,
+    executor: object | None,
+) -> None:
+    disabled_roots = get_disabled_skill_roots(config)
+    if not disabled_roots or executor is None:
+        return
+    resolve_path = getattr(executor, "resolve_path", None)
+    if resolve_path is None:
+        return
+    for raw in paths:
+        if is_vault_uri(raw) or _is_url(raw):
+            continue
+        base = path_base(raw)
+        try:
+            resolved = await resolve_path(base)
+        except ValueError:
+            resolved = base
+        if is_under_disabled_skill_root(str(resolved), disabled_roots):
+            raise ToolError(
+                message=f"Path blocked: {raw}",
+                user_hint="This path belongs to a disabled skill and cannot be read.",
+            )
+
+
+class FileReadInput(BaseModel):
+    """文件读取工具输入参数"""
+
+    paths: list[str] = Field(
+        description=(
+            "文件路径列表（支持批量读取）。"
+            "支持：本地文件路径、MCP 路径（/mcp/.../*.md）、"
+            "File ID（@file_001）、vault 指针（vault://uuid）、行号范围（file.py:1-50）、目录。"
+            "不支持网络 URL（http/https，访问网页请用 web_fetch_tool）。"
+        )
+    )
+
+    mode: str = Field(
+        default="all",
+        description=(
+            "读取模式：\n"
+            "- 'all'（默认）：完整读取文件（<10MB推荐）\n"
+            "- 'preview'：仅读取前1000行 + 显示总行数（大文件快速预览）\n"
+            "- 'stream'：分块流式读取（>100MB文件推荐，防止内存溢出）"
+        ),
+    )
+
+    chunk_size_mb: int = Field(default=10, description="streaming模式下的块大小（MB），默认10MB")
+
+    parse_mode: str | None = Field(
+        default=None,
+        description=(
+            "文档解析模式（对 .docx/.pdf/.md/代码/Excel/PPTX 生效）：\n"
+            "- None（默认）：输出完整文本/Markdown（Excel 大文件 >50KB 自动切换 structure）\n"
+            "- 'content'：强制输出完整内容\n"
+            "- 'structure'：结构化渐进阅读模式。输出章节大纲与行号/页号（PDF书签/页码、Markdown/代码符号行范围、Word/Excel结构元数据），便于精准阅读\n"
+            "- 'audit'：输出 JSON 审计报告（仅 Excel 生效）"
+        ),
+    )
+
+    reason: str | None = Field(default=None, description="执行命令的原因（可选，用于日志）")
+
+    preserve_in_context: bool = Field(
+        default=False,
+        description="如果为 true，读取的内容将被打上保护标签，在长对话压缩时不会被遗忘。仅对核心规范、技能文件等极其重要的内容使用。",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_input_aliases(cls, data: object) -> object:
+        if isinstance(data, dict):
+            alias_keys = (
+                "filePath",
+                "file_path",
+                "path",
+                "file",
+                "files",
+                "filename",
+                "target",
+                "path_list",
+            )
+            if "paths" not in data or data["paths"] is None:
+                for k in alias_keys:
+                    if k in data and data[k] is not None:
+                        data["paths"] = data[k]
+                        break
+        return data
+
+    @field_validator("paths", mode="before")
+    @classmethod
+    def normalize_paths(cls, v: list[str] | str | None) -> list[str] | None:
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+            return [v]
+        return None
+
+
+_FILE_READ_TOOL_DESCRIPTION_ZH = """读取文件内容或目录列表。支持图片（png/jpg/gif/webp）、PDF、Office 文档（docx/xlsx/xls）和 Jupyter Notebook（ipynb）。
+参数：
+- paths: 文件路径列表（JSON 数组）。支持行号范围语法：
+  - `["file.py"]` - 读取整个文件
+  - `["file.py:1-50"]` - 读取第 1-50 行
+  - `["file.py:100-"]` - 从第 100 行读取到文件末尾
+  - `["src/"]` - 读取目录下的所有文件
+  - `["chart.png"]` / `["report.pdf"]` / `["contract.docx"]` / `["data.xlsx"]` / `["analysis.ipynb"]` - 多模态读取
+  - `["vault://<uuid>"]` - 读取 auto-vault 落盘的大结果
+  - `["vault://<uuid>:1-50"]` - 读取 vault 指定行范围
+- mode: 读取模式（'all'默认 | 'preview'快速预览 | 'stream'大文件防OOM）
+  - 大文件建议：>100MB 使用 mode='preview' 或行号范围
+- chunk_size_mb: streaming 块大小（默认 10MB）
+- parse_mode: 结构解析模式（'structure' 提取 PDF/Markdown/代码/Word/Excel 章节与符号大纲及行号，便于精准阅读；'content' 完整读取；'audit' 仅用于 Excel 审计）
+
+**注意**: 仅支持本地文件/沙箱路径，不支持网络 URL（网页请用 web_fetch_tool）。
+"""
+
+_FILE_READ_TOOL_DESCRIPTION_EN = """Read file contents or directory listing. Supports images (png/jpg/gif/webp), PDF, Office documents (docx/xlsx/xls), and Jupyter Notebooks (ipynb).
+Parameters:
+- paths: List of file paths (JSON array). Supports line range syntax:
+  - `["file.py"]` - Read entire file
+  - `["file.py:1-50"]` - Read lines 1-50
+  - `["file.py:100-"]` - Read from line 100 to EOF
+  - `["src/"]` - List all files under directory
+  - `["chart.png"]` / `["report.pdf"]` / `["contract.docx"]` / `["data.xlsx"]` / `["analysis.ipynb"]` - Multimodal read
+  - `["vault://<uuid>"]` - Read spilled auto-vault content
+  - `["vault://<uuid>:1-50"]` - Read specific line range from vault
+- mode: Read mode ('all' default | 'preview' fast preview | 'stream' large file chunking)
+  - Large files (>100MB): use mode='preview' or line ranges
+- chunk_size_mb: Streaming chunk size in MB (default 10)
+- parse_mode: Structure parsing mode ('structure' extracts outline and line numbers for PDF/Markdown/code/Word/Excel; 'content' reads full text; 'audit' for Excel audit)
+
+**Note**: Only supports local files / sandbox paths; does NOT support web URLs (use web_fetch_tool for webpages).
+"""
+
+
+def resolve_file_read_tool_description(locale: str | None = None) -> str:
+    """Resolve LLM-facing file_read_tool description."""
+    if is_chinese(locale):
+        return _FILE_READ_TOOL_DESCRIPTION_ZH
+    return _FILE_READ_TOOL_DESCRIPTION_EN
+
+
+def create_file_read_tool(
+    skills: list[SkillMetadata] | None = None,
+    *,
+    path_policy: FileReadPathPolicy = "full",
+    locale: str | None = None,
+) -> BaseTool:
+    """创建 file_read_tool（详见 file_read_handlers 与 FileOperationService）。"""
+
+    @tool(
+        "file_read_tool",
+        description=resolve_file_read_tool_description(locale),
+        args_schema=FileReadInput,
+    )
+    async def file_read_func(
+        paths: list[str],
+        mode: str = "all",
+        chunk_size_mb: int = 10,
+        parse_mode: str | None = None,
+        reason: str | None = None,
+        preserve_in_context: bool = False,
+        *,
+        config: RunnableConfig,
+    ) -> str | Sequence[object]:
+        valid_paths: list[str] = []
+        try:
+            # 1. Pre-IO Device path security intercept
+            for raw_p in paths:
+                base = path_base(raw_p) if not is_vault_uri(raw_p) else raw_p
+                if is_blocked_device_path(raw_p) or is_blocked_device_path(base):
+                    raise ToolError(
+                        message=f"Access to device path is blocked: {raw_p}",
+                        user_hint="Access to device paths and reserved system devices is forbidden.",
+                    )
+
+            url_paths = [p for p in paths if _is_url(p)]
+            valid_paths = [p for p in paths if not _is_url(p)]
+
+            url_errors: list[str] = []
+            if url_paths:
+                rejected = ", ".join(url_paths[:3])
+                suffix = f" (and {len(url_paths) - 3} more)" if len(url_paths) > 3 else ""
+                url_errors.append(
+                    f"file_read_tool cannot read URLs: {rejected}{suffix}. "
+                    "This tool only supports local file paths, not web URLs."
+                )
+
+            if not valid_paths:
+                if url_errors:
+                    return "\n".join(url_errors)
+                raise ValueError("No valid paths provided.")
+
+            # 2. Unicode normalization candidate probing & self-healing
+            workspace_root = workspace_root_var.get().strip() or None
+            healed_paths: list[str] = []
+            for p in valid_paths:
+                if is_vault_uri(p) or p.startswith("/mcp/"):
+                    healed_paths.append(p)
+                    continue
+                base = path_base(p)
+                range_suffix = p[len(base) :]
+                found = find_existing_unicode_path(base, base_dir=workspace_root)
+                if found and found != base:
+                    healed_paths.append(f"{found}{range_suffix}")
+                else:
+                    healed_paths.append(p)
+            valid_paths = healed_paths
+
+            ctx = extract_context_from_runnable_config(config)
+            try:
+                executor = ensure_executor(config)
+            except RuntimeError:
+                executor = get_executor()
+            await _assert_paths_allowed_for_read(valid_paths, config, executor)
+            if path_policy == "evicted_uploaded":
+                chat_id = str(ctx.get("chat_id") or "")
+                await _assert_evicted_uploaded_read_scope(valid_paths, chat_id=chat_id, executor=executor)
+            supports_vision = bool(ctx.get("supports_vision", False))
+            supports_video = bool(ctx.get("supports_video", False))
+            vision_fallback_model_cfg = ctx.get("vision_fallback_model_cfg")
+            vision_fallback_model_cfgs = ctx.get("vision_fallback_model_cfgs")
+            video_fallback_model_cfgs = ctx.get("video_fallback_model_cfgs")
+
+            image_paths = [p for p in valid_paths if is_image_path(path_base(p)) and not is_vault_uri(p)]
+            pdf_paths = [p for p in valid_paths if is_pdf_path(path_base(p)) and not is_vault_uri(p)]
+            document_paths = [p for p in valid_paths if is_document_path(path_base(p)) and not is_vault_uri(p)]
+            video_paths = [p for p in valid_paths if is_video_path(path_base(p)) and not is_vault_uri(p)]
+            vault_paths = [p for p in valid_paths if is_vault_uri(p)]
+            text_paths = [
+                p
+                for p in valid_paths
+                if not is_vault_uri(p)
+                and not is_image_path(path_base(p))
+                and not is_pdf_path(path_base(p))
+                and not is_document_path(path_base(p))
+                and not is_video_path(path_base(p))
+            ]
+
+            has_multimodal = (image_paths or pdf_paths or video_paths) and executor is not None
+            use_multimodal = has_multimodal and (
+                supports_vision
+                or supports_video
+                or vision_fallback_model_cfg is not None
+                or vision_fallback_model_cfgs is not None
+                or video_fallback_model_cfgs is not None
+            )
+            has_documents = bool(document_paths) and executor is not None
+
+            if (use_multimodal or has_documents) and executor is not None:
+                blocks = await build_multimodal_result(
+                    image_paths,
+                    pdf_paths,
+                    document_paths,
+                    text_paths,
+                    vault_paths,
+                    executor,
+                    skills,
+                    reason,
+                    url_errors,
+                    supports_vision=supports_vision,
+                    supports_video=supports_video,
+                    vision_fallback_model_cfg=vision_fallback_model_cfg,
+                    vision_fallback_model_cfgs=vision_fallback_model_cfgs,
+                    video_fallback_model_cfgs=video_fallback_model_cfgs,
+                    video_paths=video_paths,
+                    parse_mode=parse_mode,
+                    mode=mode,
+                    config=config,
+                )
+                if preserve_in_context:
+                    blocks.insert(0, create_text_block("<preserve_context>\n"))
+                    blocks.append(create_text_block("\n</preserve_context>"))
+                return blocks
+
+            text_parts: list[str] = list(url_errors)
+            await append_media_text_parts(
+                text_parts,
+                image_paths=image_paths,
+                pdf_paths=pdf_paths,
+                document_paths=document_paths,
+                video_paths=video_paths,
+                executor=executor,
+                supports_vision=supports_vision,
+                supports_video=supports_video,
+                vision_fallback_model_cfg=vision_fallback_model_cfg,
+                vision_fallback_model_cfgs=vision_fallback_model_cfgs,
+                video_fallback_model_cfgs=video_fallback_model_cfgs,
+                parse_mode=parse_mode,
+            )
+
+            if vault_paths:
+                text_parts.extend(await read_vault_paths_to_parts(vault_paths, executor, mode, config=config))
+
+            if text_paths:
+                text_parts.extend(
+                    await process_text_paths(
+                        text_paths,
+                        executor,
+                        skills,
+                        reason,
+                        mode,
+                        chunk_size_mb,
+                        config=config,
+                        parse_mode=parse_mode,
+                    )
+                )
+
+            result = "\n\n".join(text_parts) if text_parts else "No results."
+            result = append_mcp_docs_next_step_hint(result, text_paths)
+            final_text = redact_sensitive_text(result)
+            if preserve_in_context:
+                final_text = f"<preserve_context>\n{final_text}\n</preserve_context>"
+            return final_text
+
+        except ToolError:
+            raise
+        except FileNotFoundError as e:
+            hint_path = path_base(valid_paths[0]) if valid_paths else str(e)
+            suggestions = suggest_similar_paths(hint_path)
+            raise ToolError(
+                message=str(e),
+                user_hint=format_path_not_found_hint(hint_path, suggestions),
+            ) from e
+        except PermissionError as e:
+            raise ToolError(
+                message=str(e),
+                user_hint="Permission denied. You cannot perform this operation on this path.",
+            ) from e
+        except ValueError as e:
+            raise ToolError(
+                message=str(e),
+                user_hint="Invalid parameter. Please check the file path format and try again.",
+            ) from e
+        except Exception as e:
+            logger.exception("Unexpected error in file_read_tool: %s", e)
+            raise ToolError(
+                message=f"Unexpected error during file read: {e}",
+                user_hint="An unexpected error occurred. Please try again or check the file path.",
+            ) from e
+
+    return file_read_func

@@ -1,0 +1,21 @@
+# execution/
+
+## Overview
+Coordinate-based fallback execution when semantic AX invoke fails on a @dref element.
+
+## File Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Coordinate-based fallback execution package | — |
+| healer.py | Core | BBox center click/type fallback via ComputerBackend; macOS routes to snapshot pid with foreground guard | ✅ |
+
+## Dependencies
+
+- `computer_use/dref/types.py` (POS: ElementRef with BBox)
+- `types.py` (POS: ActionResult, ModifierKey)
+- Used by `desktop_session.py::desktop_interact` (POS: semantic desktop orchestrator)
+
+## Architecture Overview
+
+Detailed design: [DESKTOP_SYSTEM.md](../DESKTOP_SYSTEM.md)

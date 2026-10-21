@@ -1,0 +1,715 @@
+"""Context management shared data structures.
+
+ Self-update reminder: once this file is updated, also update:
+1. The INPUT/OUTPUT/POS comments in this file
+3. agent/context_management/PROMPT_CACHE_PRACTICE.md §4.2 compress_min_save
+
+[INPUT]
+- langchain_core.messages::BaseMessage (POS: LangChain message base class)
+
+[OUTPUT]
+- CacheUsageFeedback: Strongly typed provider cache usage feedback for pruning decisions
+- CompactToolCall: Compact tool call dataclass (compressed tool call format)
+- CompressionIntent: Structured compression focus (injected by server / plane)
+- StructuredSummary: Structured summary dataclass (deterministic output, not free-form; includes dropped_manifest audit metadata — excluded from to_json to keep prompts clean)
+- ContextConfig: Context configuration (compress_threshold, summarize_threshold, keep_recent_calls, compress_start_ratio, compaction_inactivity_timeout_s, compaction_total_ceiling_s)
+- ToolProtectionConfig: Tool protection configuration (defines non-compressible tools)
+- EvictedToolCall: Evicted tool call dataclass (contains original uncompressed content)
+- SummaryPersistCallback: Summary persistence callback protocol (dependency inversion)
+- ContextCompressOffloadCallback: Tool result offload callback for compression/pruning (optional)
+- ContextOffloadResult: Strongly typed offload result with failure taxonomy
+- ContextSnapshotCallback: Pre-compression full message snapshot callback (optional)
+- BUILTIN_PROTECTED_TOOLS: Built-in protected tools list
+- DEFAULT_BUSINESS_PROTECTED_TOOLS: Default business protected tools list
+- DEFAULT_CONTEXT_CONFIG: Default context configuration (128k window)
+- TOOL_PROTECTION_CONFIG: Default tool protection configuration
+- COMPRESS_MIN_SAVE_DEFAULT: Minimum compression savings threshold
+- get_compress_min_save_for_model(): Get compress_min_save value
+
+[POS]
+Context management shared data structures. Defines compact format types, summary schemas, and configuration constants as the type-system foundation for context management.
+
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Coroutine
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Literal, Protocol
+
+if TYPE_CHECKING:
+    from langchain_core.messages import BaseMessage
+
+# Minimum compression savings threshold (Prompt Cache protection).
+# See CONTEXT_ENGINEERING.md §5.2.
+# Assumes T_prefix=30k, T_cleared > T_prefix * (1-P), at 90% discount: 30k * 0.1 = 3k.
+# 3000 tokens balances cache protection without being overly conservative.
+COMPRESS_MIN_SAVE_DEFAULT: int = 3000
+
+
+def get_compress_min_save_for_model(model_name: str) -> int:
+    """Get compress_min_save value for a given model.
+
+    Currently returns a fixed value; interface reserved for per-provider tuning.
+
+    Args:
+        model_name: Model name (e.g. "anthropic/claude-3-opus")
+
+    Returns:
+        compress_min_save value (currently fixed at 3000)
+    """
+    _ = model_name
+    return COMPRESS_MIN_SAVE_DEFAULT
+
+
+@dataclass
+class ContextConfig:
+    """Context management configuration.
+
+    All thresholds scale dynamically from max_context_tokens using pure proportional ratios.
+    When compress_start_ratio is None (default), the classic fixed ratios apply:
+    - proactive_reset_threshold = max_context_tokens * 0.4 — early warning
+    - compress_threshold = max_context_tokens * 0.5 — start compression
+    - compress_force_threshold = max_context_tokens * 0.7 — force compression
+    - summarize_trigger_threshold = max_context_tokens * 0.9 — last resort
+
+    When compress_start_ratio is set (range [0.20, 0.85]), thresholds are derived using
+    proportional gaps to avoid overflow at any valid ratio:
+        gap = (0.95 - compress_start_ratio) / 3
+        proactive_reset = compress_start_ratio
+        compress = compress_start_ratio + gap
+        compress_force = compress_start_ratio + 2 * gap
+        summarize_trigger = 0.95 (hard ceiling)
+
+    Note: summarize_trigger_threshold is the hard ceiling; summarization failure raises and aborts.
+
+    Three-layer context defense:
+    1. Filter (instant) — truncate large outputs + smart preview
+    2. Compress (in-memory) — triggered at compress_threshold, 3-tier strategy (Dedup/Truncate/Remove)
+    3. Summarize (irreversible) — triggered at summarize_trigger_threshold, structured summary
+
+    Example:
+        config = ContextConfig(max_context_tokens=128000)   # GPT-4 (128k)
+        config = ContextConfig(max_context_tokens=200000)   # Claude Sonnet 4.5 (200k)
+        config = ContextConfig(max_context_tokens=1000000)  # DeepSeek V4 Pro (1M)
+        config = ContextConfig(max_context_tokens=200000, compress_start_ratio=0.6)  # delayed compression
+    """
+
+    max_context_tokens: int
+
+    # Optional user-configurable compression start ratio. When set, overrides the
+    # default fixed ratios with proportional gap scaling. Valid range: [0.20, 0.85].
+    # None means use default ratios (0.4/0.5/0.7/0.9).
+    compress_start_ratio: float | None = None
+
+    # Layer 1: single tool result truncation threshold (model-independent)
+    tool_result_evict_threshold: int = 5000
+
+    # Minimum compression savings (Prompt Cache protection, model-independent)
+    compress_min_save: int = 3000
+
+    # Batch compression: accumulate rounds before flushing (reduces cache break frequency).
+    # See CONTEXT_ENGINEERING.md §4.2.
+    compress_batch_rounds: int = 5
+
+    # Token budget ratio for tail protection (used in L3 Summarization).
+    # Defines the percentage of max_context_tokens to preserve verbatim before compressing.
+    tail_budget_ratio: float = 0.20
+
+    # Keep N most recent tool-call groups during Compress (see compactor.py).
+    # Filter/ActivePrune use separate thresholds; failed IDs come from compression_intent.
+    keep_recent_calls: int = 5
+
+    # Memory forgetting half-life in days. Frontend can tune the agent's forgetting curve.
+    time_decay_half_life_days: float = 90.0
+
+    # Summarization inactivity timeout: if no streaming token arrives within this
+    # window, the summarization call is considered hung and will be cancelled.
+    # The cancelled summarization degrades to deterministic fallback.
+    compaction_inactivity_timeout_s: float = 90.0
+
+    # Summarization total ceiling: absolute maximum wall-clock time for a single
+    # summarization call. Prevents degenerate trickle streams from holding a turn.
+    compaction_total_ceiling_s: float = 600.0
+
+    def _effective_ratio(self) -> float | None:
+        """Return clamped compress_start_ratio or None for default behavior."""
+        if self.compress_start_ratio is None:
+            return None
+        return max(0.20, min(0.85, self.compress_start_ratio))
+
+    @property
+    def compress_threshold(self) -> int:
+        """Compression trigger: 50% of model window (default), or proportional gap from start ratio.
+
+        Acts as the "start water level" for batch compression.
+        Pure ratio scaling ensures correct behavior for any context window size,
+        from 8K edge models to 1M+ large-window models.
+        """
+        max_tokens = self.max_context_tokens if self.max_context_tokens is not None else 120000
+        ratio = self._effective_ratio()
+        if ratio is not None:
+            gap = (0.95 - ratio) / 3.0
+            return int(max_tokens * (ratio + gap))
+        return int(max_tokens * 0.5)
+
+    @property
+    def compress_force_threshold(self) -> int:
+        """Force compression trigger: 70% of model window (default), or proportional gap.
+
+        Safety valve for batch compression:
+        - Within [compress_threshold, compress_force_threshold]: accumulation mode
+        - Above compress_force_threshold: immediate forced compression (ignores round count)
+
+        Prevents context explosion, controls API costs, and balances batch efficiency
+        with safety protection in extreme cases.
+        """
+        max_tokens = self.max_context_tokens if self.max_context_tokens is not None else 150000
+        ratio = self._effective_ratio()
+        if ratio is not None:
+            gap = (0.95 - ratio) / 3.0
+            return int(max_tokens * (ratio + 2 * gap))
+        return int(max_tokens * 0.7)
+
+    @property
+    def proactive_reset_threshold(self) -> int:
+        """Proactive reset trigger: 40% of model window (default), or compress_start_ratio.
+
+        Implements Proactive Stage Reset & Compaction. Instead of waiting until the 90%
+        error threshold, triggers compression at this healthy watermark to keep the model
+        in its optimal clarity zone — mitigating long-conversation degradation, amnesia,
+        and hallucination while flattening API token cost from O(n^2) to constant.
+
+        Fires before compress_threshold (50%) as an "early warning" layer.
+        """
+        max_tokens = self.max_context_tokens if self.max_context_tokens is not None else 120000
+        ratio = self._effective_ratio()
+        if ratio is not None:
+            return int(max_tokens * ratio)
+        return int(max_tokens * 0.4)
+
+    @property
+    def summarize_trigger_threshold(self) -> int:
+        """Summarization trigger (last resort): 95% of window when ratio set, else 90%.
+
+        Reserves 10% of the context window for the compaction summary itself,
+        ensuring the compaction mechanism can run even under maximum context
+        pressure without running out of output space.
+        """
+        max_tokens = self.max_context_tokens if self.max_context_tokens is not None else 120000
+        ratio = self._effective_ratio()
+        if ratio is not None:
+            return int(max_tokens * 0.95)
+        return int(max_tokens * 0.9)
+
+
+DEFAULT_CONTEXT_CONFIG = ContextConfig(max_context_tokens=128000)
+
+
+# ============ Tool protection configuration ============
+BUILTIN_FILTER_PROTECTED_TOOLS: frozenset[str] = frozenset(
+    {
+        "skill_select_tool",
+        "todo_write",
+        "file_read_tool",
+    }
+)
+
+BUILTIN_ACTIVE_PRUNE_NEVER_TOOLS: frozenset[str] = frozenset(
+    {
+        "skill_select_tool",
+        "todo_write",
+    }
+)
+
+# FilterProcessor + legacy references use the filter-exempt set (includes file_read).
+BUILTIN_PROTECTED_TOOLS: frozenset[str] = BUILTIN_FILTER_PROTECTED_TOOLS
+
+DEFAULT_BUSINESS_PROTECTED_TOOLS: set[str] = {
+    "memory_search",
+}
+
+DEFAULT_SOFT_ONLY_TOOLS: set[str] = set()
+
+ToolPruneMode = Literal["allow", "soft_only", "protect"]
+
+
+@dataclass
+class ToolProtectionConfig:
+    """Tool protection configuration.
+
+    Architecture: built-in + business tool protection.
+    - Filter-protected: skill_select, todo_write, file_read (no UECD re-spill / read loop)
+    - Active-prune-never: skill_select, todo_write (never archive placeholders)
+    - Business: application-level tools (memory_search, etc.) are user-configurable
+    - Soft-only: tools that can be trimmed but should not be fully archived
+
+    Cache-TTL pruning uses prune_mode(): protected tools are never touched,
+    soft-only tools can retain visible anchors, and the rest may be archived.
+    """
+
+    business_protected: set[str] = field(default_factory=lambda: DEFAULT_BUSINESS_PROTECTED_TOOLS.copy())
+    soft_only_tools: set[str] = field(default_factory=lambda: DEFAULT_SOFT_ONLY_TOOLS.copy())
+    enable_protection: bool = True
+
+    def is_filter_protected(self, tool_name: str) -> bool:
+        if not self.enable_protection:
+            return False
+        return tool_name in BUILTIN_FILTER_PROTECTED_TOOLS or tool_name in self.business_protected
+
+    def is_active_prune_never(self, tool_name: str) -> bool:
+        if not self.enable_protection:
+            return False
+        return tool_name in BUILTIN_ACTIVE_PRUNE_NEVER_TOOLS or tool_name in self.business_protected
+
+    def is_protected(self, tool_name: str) -> bool:
+        return self.is_filter_protected(tool_name)
+
+    def get_all_protected(self) -> set[str]:
+        return set(BUILTIN_PROTECTED_TOOLS) | self.business_protected
+
+    def prune_mode(self, tool_name: str) -> ToolPruneMode:
+        if self.is_protected(tool_name):
+            return "protect"
+        if self.enable_protection and tool_name in self.soft_only_tools:
+            return "soft_only"
+        return "allow"
+
+    def add_business_protection(self, tool_name: str) -> None:
+        self.business_protected.add(tool_name)
+
+    def remove_business_protection(self, tool_name: str) -> None:
+        self.business_protected.discard(tool_name)
+
+    @classmethod
+    def default(cls) -> ToolProtectionConfig:
+        return cls()
+
+    @classmethod
+    def builtin_only(cls) -> ToolProtectionConfig:
+        return cls(business_protected=set())
+
+    @classmethod
+    def disabled(cls) -> ToolProtectionConfig:
+        return cls(business_protected=set(), soft_only_tools=set(), enable_protection=False)
+
+
+TOOL_PROTECTION_CONFIG = ToolProtectionConfig.default()
+
+
+@dataclass(frozen=True, slots=True)
+class CacheTtlPruneConfig:
+    """Cache-TTL based context pruning configuration.
+
+    When prompt cache TTL expires, old tool results are no longer cached and
+    retaining them costs full price. This config controls rule-based pruning
+    that trims or archives expired tool results at zero API cost.
+    """
+
+    ttl_seconds: float = 300.0
+    """Cache TTL in seconds. Default 5min covers Anthropic/Google/DeepSeek."""
+
+    soft_trim_ratio: float = 0.3
+    """Context-to-window ratio at which soft trimming begins."""
+
+    hard_clear_ratio: float = 0.5
+    """Context-to-window ratio at which offloaded archival pruning begins."""
+
+    keep_last_assistant_turns: int = 3
+    """Number of most recent assistant turns whose tool results are protected."""
+
+    min_prunable_tokens: int = 12_500
+    """Minimum prunable tokens required to justify processing overhead."""
+
+    soft_trim_head_chars: int = 1500
+    """Characters to keep from the beginning of a tool result during soft trim."""
+
+    soft_trim_tail_chars: int = 1500
+    """Characters to keep from the end of a tool result during soft trim."""
+
+    max_archives_per_pass: int = 8
+    """Maximum archive offloads attempted by one pruning pass."""
+
+    max_offload_bytes_per_pass: int = 2_000_000
+    """Maximum original payload bytes offloaded by one pruning pass."""
+
+    max_prune_wall_ms: int = 200
+    """Best-effort wall-clock budget for one pruning pass."""
+
+    large_payload_fast_guard_chars: int = 200_000
+    """Payload size above which pruning uses bounded estimators and skips full JSON parsing."""
+
+    roi_refetch_ratio_backoff: float = 0.5
+    """Refetch ratio at which session-local pruning thresholds are raised."""
+
+    roi_restore_cost_ratio_backoff: float = 0.5
+    """Typed restore cost ratio at which session-local pruning thresholds are raised."""
+
+    roi_restore_roi_ratio_backoff: float = 0.5
+    """Retained pruning ROI ratio below which session-local pruning thresholds are raised."""
+
+    roi_soft_trim_ratio_bump: float = 0.1
+    """Threshold bump applied after poor pruning ROI."""
+
+    roi_backoff_window_size: int = 6
+    """Recent cache-TTL prune events evaluated for adaptive ROI backoff."""
+
+    roi_backoff_min_samples: int = 2
+    """Minimum recent prune samples required before activating ROI backoff."""
+
+    roi_backoff_recovery_samples: int = 3
+    """Healthy recent prune samples required before releasing prior ROI backoff."""
+
+    emergency_prune_ratio: float = 0.92
+    """Context ratio at which bounded prune may run during resume/HITL cache preservation."""
+
+    archive_summary_enabled: bool = True
+    """Enable background LLM summaries for high-value archived payloads."""
+
+    archive_summary_min_tokens: int = 4_000
+    """Minimum original payload tokens required before scheduling an archive summary."""
+
+    archive_summary_max_input_chars: int = 30_000
+    """Maximum archive characters sent to the summary LLM."""
+
+    archive_summary_max_queue_size: int = 8
+    """Maximum queued/running archive summary jobs per process."""
+
+    archive_summary_max_concurrency: int = 1
+    """Maximum concurrent archive summary LLM calls per process."""
+
+    archive_summary_max_tasks_per_chat: int = 2
+    """Maximum queued/running archive summary jobs for one chat."""
+
+
+DEFAULT_CACHE_TTL_PRUNE_CONFIG = CacheTtlPruneConfig()
+
+
+@dataclass(frozen=True, slots=True)
+class CacheUsageFeedback:
+    """Provider cache usage feedback used by cache-TTL pruning decisions."""
+
+    calls: int
+    input_tokens: int
+    cached_tokens: int
+    cache_hit_rate: float
+
+    @classmethod
+    def from_mapping(cls, value: object) -> CacheUsageFeedback | None:
+        if isinstance(value, CacheUsageFeedback):
+            return value
+        if not isinstance(value, dict):
+            return None
+
+        calls = _non_negative_int(value.get("calls"))
+        input_tokens = _non_negative_int(value.get("input_tokens"))
+        cached_tokens = _non_negative_int(value.get("cached_tokens"))
+        cache_hit_rate = _ratio(value.get("cache_hit_rate"))
+        if calls == 0 and input_tokens == 0 and cached_tokens == 0 and cache_hit_rate == 0.0:
+            return None
+
+        return cls(
+            calls=calls,
+            input_tokens=input_tokens,
+            cached_tokens=cached_tokens,
+            cache_hit_rate=cache_hit_rate,
+        )
+
+    @classmethod
+    def from_flat_metadata(cls, metadata: dict[str, object]) -> CacheUsageFeedback | None:
+        """Build feedback at the metadata boundary; processors consume the typed object only."""
+        return cls.from_mapping(
+            {
+                "calls": metadata.get("calls"),
+                "input_tokens": metadata.get("input_tokens"),
+                "cached_tokens": metadata.get("cached_tokens"),
+                "cache_hit_rate": metadata.get("cache_hit_rate"),
+            }
+        )
+
+    def has_stable_sample(self, *, min_calls: int, min_input_tokens: int) -> bool:
+        return self.calls >= min_calls or self.input_tokens >= min_input_tokens
+
+
+ContextOffloadFailureKind = Literal[
+    "temporary_failure",
+    "permission_denied",
+    "quota_exceeded",
+    "unsupported",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class ContextOffloadResult:
+    """Result of offloading full context content before compression/pruning."""
+
+    path: str = ""
+    failure_kind: ContextOffloadFailureKind | None = None
+    message: str = ""
+    reused: bool = False
+    original_bytes: int = 0
+    stored_bytes: int = 0
+
+    @property
+    def succeeded(self) -> bool:
+        return bool(self.path.strip()) and self.failure_kind is None
+
+    @classmethod
+    def success(
+        cls,
+        path: str,
+        *,
+        reused: bool = False,
+        original_bytes: int = 0,
+        stored_bytes: int = 0,
+    ) -> ContextOffloadResult:
+        return cls(
+            path=path.strip(),
+            reused=reused,
+            original_bytes=max(original_bytes, 0),
+            stored_bytes=max(stored_bytes, 0),
+        )
+
+    @classmethod
+    def failure(
+        cls,
+        failure_kind: ContextOffloadFailureKind,
+        message: str = "",
+    ) -> ContextOffloadResult:
+        return cls(failure_kind=failure_kind, message=message)
+
+
+def normalize_context_offload_result(value: str | ContextOffloadResult) -> ContextOffloadResult:
+    if isinstance(value, ContextOffloadResult):
+        return value
+    return ContextOffloadResult.success(value) if value.strip() else ContextOffloadResult.failure("temporary_failure")
+
+
+@dataclass
+class CompactToolCall:
+    """Compact tool call representation.
+
+    The identifier allows re-execution to recover full information.
+    Default: in-memory compression. With ContextCompressOffloadCallback injected,
+    original content is persisted to disk and the path is stored in evicted_path.
+    """
+
+    tool_name: str
+    identifier: str
+    identifier_type: Literal["file_path", "url", "query", "code", "other"]
+    timestamp: str = ""
+    original_tokens: int = 0
+    evicted_path: str | None = None
+
+
+@dataclass
+class CompressionIntent:
+    """Structured compression focus signal.
+
+    Generated by business layer or control plane as external input for compression planning.
+    Used for summary focusing and compression priority: protects failed tool call chains,
+    and preserves context for files and modules the current task is focused on.
+    """
+
+    focus_files: list[str] = field(default_factory=list)
+    focus_modules: list[str] = field(default_factory=list)
+    pinned_files: list[str] = field(default_factory=list)
+    failed_tool_call_ids: list[str] = field(default_factory=list)
+    user_goal_hint: str = ""
+
+    @classmethod
+    def from_object(cls, value: object) -> CompressionIntent | None:
+        if isinstance(value, CompressionIntent):
+            return value
+        if not isinstance(value, dict):
+            return None
+        return cls(
+            focus_files=[str(item) for item in value.get("focus_files", []) if str(item)],
+            focus_modules=[str(item) for item in value.get("focus_modules", []) if str(item)],
+            pinned_files=[str(item) for item in value.get("pinned_files", []) if str(item)],
+            failed_tool_call_ids=[str(item) for item in value.get("failed_tool_call_ids", []) if str(item)],
+            user_goal_hint=str(value.get("user_goal_hint", "")).strip(),
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "focus_files": self.focus_files,
+            "focus_modules": self.focus_modules,
+            "pinned_files": self.pinned_files,
+            "failed_tool_call_ids": self.failed_tool_call_ids,
+            "user_goal_hint": self.user_goal_hint,
+        }
+
+
+@dataclass
+class StructuredSummary:
+    """Structured summary schema (deterministic output, not free-form).
+
+    Implements a "lossy but traceable" strategy:
+    - The summary itself is irreversible — original message structure is replaced
+    - But full context is backed up to filesystem (context_dump_path)
+    - The model can use grep/cat to retrieve original details
+
+    Handoff fields (inspired by Hermes Context Compaction template):
+    - active_task: user's latest unfinished request (verbatim), ensures task continuity
+    - constraints_and_preferences: user preferences & constraints, prevents post-compression loss
+    - resolved_questions: answered questions, prevents the agent from re-answering
+    - pending_user_asks: unfinished requests, prevents omissions
+    - active_state: current work state (branch, tests, processes), reduces redundant exploration
+    - blocked_items: blockers and issues preventing progress, ensures the next agent can unblock
+    - next_steps: planned next actions, ensures task continuity and reduces re-planning overhead
+    """
+
+    user_goal: str
+    completed_actions: list[str] = field(default_factory=list)
+    key_findings: list[str] = field(default_factory=list)
+    errors_and_fixes: list[str] = field(default_factory=list)
+    files_modified: list[str] = field(default_factory=list)
+    last_action: str = ""
+    context_dump_path: str = ""
+    active_task: str = ""
+    constraints_and_preferences: list[str] = field(default_factory=list)
+    resolved_questions: list[str] = field(default_factory=list)
+    pending_user_asks: list[str] = field(default_factory=list)
+    active_state: str = ""
+    blocked_items: list[str] = field(default_factory=list)
+    next_steps: list[str] = field(default_factory=list)
+
+    # User constraints that were dropped by this compaction (not preserved in the
+    # summary, protected head, or recent tail). Audit-only metadata for the
+    # "compression dropped a constraint vs. the model failed to follow it"
+    # fault-side attribution. Deliberately EXCLUDED from to_json(): persisting it
+    # would leak internal pipeline details into prompts and inflate prompt-cache
+    # payloads. It is surfaced to the GUI via the compaction STATUS event instead.
+    dropped_manifest: list[str] = field(default_factory=list)
+
+    def to_json(self) -> str:
+        """Serialize to JSON string (for incremental merge prompts)."""
+        data: dict[str, object] = {
+            "user_goal": self.user_goal,
+            "active_task": self.active_task,
+            "completed_actions": self.completed_actions,
+            "key_findings": self.key_findings,
+            "errors_and_fixes": self.errors_and_fixes,
+            "files_modified": self.files_modified,
+            "last_action": self.last_action,
+        }
+        if self.constraints_and_preferences:
+            data["constraints_and_preferences"] = self.constraints_and_preferences
+        if self.resolved_questions:
+            data["resolved_questions"] = self.resolved_questions
+        if self.pending_user_asks:
+            data["pending_user_asks"] = self.pending_user_asks
+        if self.active_state:
+            data["active_state"] = self.active_state
+        if self.blocked_items:
+            data["blocked_items"] = self.blocked_items
+        if self.next_steps:
+            data["next_steps"] = self.next_steps
+        return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+class SummaryPersistCallback(Protocol):
+    """Summary persistence callback protocol (dependency inversion).
+
+    Framework layer defines this protocol; business layer injects the implementation.
+    After SummarizeProcessor produces a summary, ContextPipelineMiddleware invokes
+    this callback to hand the result to the business layer for persistence.
+
+    Typical business implementation: write summary to Chat.compacted_summary and
+    before_message_id to Chat.compacted_before_id.
+    """
+
+    def __call__(
+        self,
+        chat_id: str,
+        summary: StructuredSummary,
+        before_message_id: str,
+        tokens_saved: int,
+    ) -> Coroutine[object, object, None]: ...
+
+
+class ContextCompressOffloadCallback(Protocol):
+    """Full tool result offload callback (dependency inversion).
+
+    Called before compression or cache-TTL pruning converts a ToolMessage into a
+    compact/restorable reference. The scope is a framework-neutral isolation key;
+    business identity such as user/account IDs must stay outside this callback.
+    On error or empty return, callers must degrade without irreversible data loss.
+    """
+
+    def __call__(
+        self, *, content: str, tool_name: str, scope_id: str | None
+    ) -> Coroutine[object, object, str | ContextOffloadResult]: ...
+
+
+def _non_negative_int(value: object) -> int:
+    return max(int(value), 0) if isinstance(value, (int, float)) else 0
+
+
+def _ratio(value: object) -> float:
+    if not isinstance(value, (int, float)):
+        return 0.0
+    return min(max(float(value), 0.0), 1.0)
+
+
+@dataclass
+class EvictedToolCall:
+    """Evicted tool call data, containing original uncompressed content.
+
+    Attributes:
+        ai_msg: The AI message that initiated the tool call
+        tool_msg: Tool response message (compressed reference, used only for metadata like name)
+        original_content: Original tool output content before compression
+    """
+
+    ai_msg: BaseMessage
+    tool_msg: BaseMessage
+    original_content: str
+
+
+class ContextCompressEvictionCallback(Protocol):
+    """Compression eviction callback protocol (dependency inversion).
+
+    Triggered when tool calls are truncated/compressed (evicted from full context).
+    Can be used to implement Zero-cost Memory Extraction Boundary and similar logic.
+    """
+
+    def __call__(
+        self, evicted_pairs: list[EvictedToolCall], user_goal_hint: str
+    ) -> Coroutine[object, object, None]: ...
+
+
+class ContextSnapshotCallback(Protocol):
+    """Pre-compression full message snapshot callback (dependency inversion).
+
+    Called before compression triggers, serializing complete messages to a sanitized+gzipped
+    JSONL snapshot file. Symmetric design with ContextCompressOffloadCallback: framework
+    defines protocol, business layer injects implementation.
+    On error or empty return, compression continues (degrades to no-snapshot mode).
+
+    Returns:
+        Workspace-relative path to the snapshot file, or empty string on failure.
+    """
+
+    def __call__(
+        self, *, messages: list[BaseMessage], chat_id: str | None, user_id: str | None
+    ) -> Coroutine[object, object, str]: ...
+
+
+# Re-export pre-compact schema names as part of the public context-management API.
+# These are imported from the module path by downstream processors.  Kept at the
+# bottom to avoid a circular import with schemas_pre_compact.
+from .schemas_pre_compact import (  # noqa: F401, E402
+    CANCEL_COMPACTION_METADATA_KEY,
+    PRE_COMPACT_DECISION_METADATA_KEY,
+    PRE_COMPACT_INJECTION_METADATA_KEY,
+    PRE_COMPACT_MESSAGE_METADATA_KEY,
+    PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY,
+    ContextPreCompactCallback,
+    PreCompactAction,
+    PreCompactDecision,
+    PreCompactInjection,
+    normalize_pre_compact_decision,
+)

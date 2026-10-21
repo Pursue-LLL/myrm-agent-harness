@@ -1,0 +1,1 @@
+"""Screenshot diff tests."""

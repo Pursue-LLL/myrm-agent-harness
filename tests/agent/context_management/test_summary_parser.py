@@ -1,0 +1,665 @@
+"""Tests for summary_parser module."""
+
+from __future__ import annotations
+
+import json
+
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+
+from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
+from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import create_summary_message
+from myrm_agent_harness.agent.context_management.strategies.summary.summary_parser import (
+    extract_existing_summary,
+    extract_messages_after_summary,
+    format_messages_for_summary,
+    is_summary_message,
+    parse_structured_summary_json,
+    parse_summary_response,
+)
+
+
+class TestIsSummaryMessage:
+    def test_detects_pipeline_summary(self) -> None:
+        msg = create_summary_message(StructuredSummary(user_goal="test"))
+        assert is_summary_message(msg)
+
+    def test_detects_server_injected_legacy(self) -> None:
+        msg = AIMessage(content="[Previous conversation summary]\nUser Goal: x")
+        assert is_summary_message(msg)
+
+    def test_detects_zh_legacy(self) -> None:
+        msg = SystemMessage(content="[历史摘要]\n用户目标: 修bug")
+        assert is_summary_message(msg)
+
+    def test_rejects_normal_message(self) -> None:
+        assert not is_summary_message(HumanMessage(content="hello world"))
+
+    def test_rejects_ai_reply(self) -> None:
+        assert not is_summary_message(AIMessage(content="normal answer"))
+
+    def test_non_string_content_handled(self) -> None:
+        msg = HumanMessage(content=["not", "a", "summary"])
+        assert not is_summary_message(msg)
+
+
+class TestExtractExistingSummary:
+    def test_detects_pipeline_summary_zh(self) -> None:
+        msgs = [SystemMessage(content="[历史摘要]\n用户目标: 修bug")]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "修bug"
+
+    def test_detects_persistent_summary_en(self) -> None:
+        msgs = [AIMessage(content="[Previous conversation summary]\n用户目标: refactor")]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "refactor"
+
+    def test_returns_none_when_no_summary(self) -> None:
+        msgs = [HumanMessage(content="hello"), AIMessage(content="hi")]
+        assert extract_existing_summary(msgs) is None
+
+    def test_json_block_takes_priority(self) -> None:
+        summary = StructuredSummary(user_goal="build feature", completed_actions=["step1"], key_findings=["found X"])
+        content = f"[历史摘要]\n用户目标: old goal\n<!-- SUMMARY_JSON\n{summary.to_json()}\n-->"
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "build feature"
+        assert result.completed_actions == ["step1"]
+
+    def test_non_string_content_handled(self) -> None:
+        msgs = [SystemMessage(content=["[历史摘要]", "用户目标: test"])]
+        result = extract_existing_summary(msgs)
+        assert result is None or isinstance(result, StructuredSummary)
+
+    def test_json_block_with_inner_arrow_parsed(self) -> None:
+        """JSON 值含字面 -->（markdown 箭头/代码片段）时仍可解析。"""
+        summary = StructuredSummary(user_goal="debug", completed_actions=["step1 --> step2"])
+        content = f"[历史摘要]\n<!-- SUMMARY_JSON\n{summary.to_json()}\n-->"
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "debug"
+        assert result.completed_actions == ["step1 --> step2"]
+
+    def test_skips_unparseable_block_finds_next(self) -> None:
+        """第一块解析失败时继续找后续可解析块，不早停。"""
+        bad_block = "[历史摘要]\n<!-- SUMMARY_JSON\n{invalid json\n-->"
+        good_summary = StructuredSummary(user_goal="good")
+        good_block = f"[历史摘要]\n<!-- SUMMARY_JSON\n{good_summary.to_json()}\n-->"
+        msgs = [SystemMessage(content=bad_block), HumanMessage(content=good_block)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "good"
+
+    def test_picks_latest_summary_in_multi_block(self) -> None:
+        """多块残留场景：返回最后一个（最新、位置最靠后）可解析摘要块。"""
+        old_summary = create_summary_message(StructuredSummary(user_goal="old goal"))
+        latest_summary = create_summary_message(StructuredSummary(user_goal="new goal"))
+        msgs = [
+            SystemMessage(content="system prompt"),
+            old_summary,
+            HumanMessage(content="compacted content"),
+            latest_summary,
+            HumanMessage(content="real new message"),
+        ]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "new goal"
+        after = extract_messages_after_summary(msgs)
+        assert len(after) == 1
+        assert after[0].content == "real new message"
+
+    def test_unparseable_last_block_falls_back_to_earlier(self) -> None:
+        """最后一个块不可解析时回退到前一个可解析块，不丢弃已有摘要。"""
+        good_summary = create_summary_message(StructuredSummary(user_goal="good"))
+        bad_block = "[历史摘要]\n<!-- SUMMARY_JSON\n{invalid json\n-->"
+        msgs = [
+            good_summary,
+            HumanMessage(content="real content"),
+            SystemMessage(content=bad_block),
+        ]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "good"
+
+
+class TestExtractMessagesAfterSummary:
+    def test_returns_messages_after_summary(self) -> None:
+        msgs = [
+            SystemMessage(content="[历史摘要]\n用户目标: foo"),
+            HumanMessage(content="new question"),
+            AIMessage(content="new answer"),
+        ]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 2
+        assert isinstance(result[0], HumanMessage)
+
+    def test_returns_all_when_no_summary(self) -> None:
+        msgs = [HumanMessage(content="hello"), AIMessage(content="hi")]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 2
+
+    def test_persistent_summary_marker(self) -> None:
+        msgs = [
+            AIMessage(content="[Previous conversation summary]\ngoal"),
+            HumanMessage(content="follow up"),
+        ]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 1
+
+    def test_filters_orphan_summary_after_first(self) -> None:
+        """A stale summary block after the first summary must not leak into the increment."""
+        msgs = [
+            SystemMessage(content="[历史摘要]\n用户目标: old"),
+            HumanMessage(content="new question"),
+            AIMessage(content="[Previous conversation summary]\nUser Goal: stale"),
+            HumanMessage(content="after orphan"),
+        ]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 2
+        assert result[0].content == "new question"
+        assert result[1].content == "after orphan"
+
+    def test_filters_pipeline_summary_orphan(self) -> None:
+        """多块残留时最新（位置最靠后）的可解析摘要块成为增量锚点，其前内容不再重复合并。"""
+        legacy = SystemMessage(content="[历史摘要]\n用户目标: old")
+        latest = create_summary_message(StructuredSummary(user_goal="latest"))
+        msgs = [
+            legacy,
+            HumanMessage(content="covered by latest"),
+            latest,
+            HumanMessage(content="after latest"),
+        ]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 1
+        assert result[0].content == "after latest"
+
+    def test_no_summary_returns_all(self) -> None:
+        msgs = [
+            HumanMessage(content="hello"),
+            AIMessage(content="hi"),
+            HumanMessage(content="more"),
+        ]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 3
+
+
+class TestFormatMessagesForSummary:
+    def test_formats_human_messages(self) -> None:
+        msgs = [HumanMessage(content="What is Python?")]
+        result = format_messages_for_summary(msgs)
+        assert "[用户]" in result
+        assert "What is Python?" in result
+
+    def test_formats_ai_text_reply(self) -> None:
+        msgs = [AIMessage(content="Python is a language")]
+        result = format_messages_for_summary(msgs)
+        assert "[AI 回复]" in result
+
+    def test_formats_ai_tool_calls(self) -> None:
+        msg = AIMessage(content="", tool_calls=[{"name": "web_search", "args": {}, "id": "tc1"}])
+        result = format_messages_for_summary([msg])
+        assert "[AI 调用工具]" in result
+        assert "web_search" in result
+
+    def test_formats_tool_message(self) -> None:
+        msgs = [ToolMessage(content="result data", name="search", tool_call_id="tc1")]
+        result = format_messages_for_summary(msgs)
+        assert "[工具结果: search]" in result
+
+    def test_skips_system_messages(self) -> None:
+        msgs = [SystemMessage(content="system prompt")]
+        result = format_messages_for_summary(msgs)
+        assert result == ""
+
+    def test_skips_summary_messages(self) -> None:
+        msgs = [
+            create_summary_message(StructuredSummary(user_goal="stale")),
+            HumanMessage(content="real content"),
+        ]
+        result = format_messages_for_summary(msgs)
+        assert "stale" not in result
+        assert "real content" in result
+
+    def test_skips_server_injected_legacy_summary(self) -> None:
+        msgs = [
+            AIMessage(content="[Previous conversation summary]\nUser Goal: old goal"),
+            HumanMessage(content="next"),
+        ]
+        result = format_messages_for_summary(msgs)
+        assert "old goal" not in result
+        assert "next" in result
+
+    def test_truncates_long_content(self) -> None:
+        long_content = "x" * 1000
+        msgs = [HumanMessage(content=long_content)]
+        result = format_messages_for_summary(msgs)
+        assert len(result) < len(long_content)
+
+    def test_redacts_api_key_in_user_message(self) -> None:
+        fake_key = "sk-" + "a1b2c3d4e5f6g7h8" * 4
+        msgs = [HumanMessage(content=f"My key is {fake_key}")]
+        result = format_messages_for_summary(msgs)
+        assert fake_key not in result
+        assert "[REDACTED:openai_key]" in result
+
+    def test_redacts_database_url_in_tool_result(self) -> None:
+        msgs = [ToolMessage(content="postgres://admin:secret@db.com:5432/prod", name="read_file", tool_call_id="tc1")]
+        result = format_messages_for_summary(msgs)
+        assert "secret" not in result
+        assert "[REDACTED:database_url]" in result
+
+    def test_preserves_normal_content(self) -> None:
+        msgs = [HumanMessage(content="Help me write a Python function")]
+        result = format_messages_for_summary(msgs)
+        assert "Help me write a Python function" in result
+        assert "REDACTED" not in result
+
+
+class TestParseSummaryResponse:
+    def test_parses_valid_json(self) -> None:
+        data = {
+            "user_goal": "build app",
+            "completed_actions": ["step1", "step2"],
+            "key_findings": ["found bug"],
+            "files_modified": ["main.py"],
+            "last_action": "fixed bug",
+        }
+        result = parse_summary_response(json.dumps(data))
+        assert result.user_goal == "build app"
+        assert result.completed_actions == ["step1", "step2"]
+        assert result.key_findings == ["found bug"]
+        assert result.files_modified == ["main.py"]
+        assert result.last_action == "fixed bug"
+
+    def test_extracts_json_from_mixed_content(self) -> None:
+        content = 'Here is the summary: {"user_goal": "test", "completed_actions": []} done.'
+        result = parse_summary_response(content)
+        assert result.user_goal == "test"
+
+    def test_handles_invalid_json(self) -> None:
+        result = parse_summary_response("no json here at all")
+        assert result.user_goal == "[摘要解析失败]"
+        assert result.key_findings[0] == "no json here at all"
+
+    def test_handles_list_input(self) -> None:
+        result = parse_summary_response(["some", "list"])
+        assert isinstance(result, StructuredSummary)
+
+    def test_context_dump_path_passed(self) -> None:
+        data = {"user_goal": "test"}
+        result = parse_summary_response(json.dumps(data), context_dump_path="/tmp/dump.txt")
+        assert result.context_dump_path == "/tmp/dump.txt"
+
+    def test_missing_fields_use_defaults(self) -> None:
+        result = parse_summary_response('{"user_goal": "minimal"}')
+        assert result.completed_actions == []
+        assert result.files_modified == []
+        assert result.errors_and_fixes == []
+        assert result.last_action == ""
+
+    def test_parses_errors_and_fixes(self) -> None:
+        data = {
+            "user_goal": "fix bugs",
+            "completed_actions": ["step1"],
+            "key_findings": [],
+            "errors_and_fixes": ["ImportError -> added missing import", "timeout -> increased deadline"],
+            "files_modified": ["main.py"],
+            "last_action": "fixed import",
+        }
+        result = parse_summary_response(json.dumps(data))
+        assert result.errors_and_fixes == [
+            "ImportError -> added missing import",
+            "timeout -> increased deadline",
+        ]
+
+    def test_json_block_parses_errors_and_fixes(self) -> None:
+        summary = StructuredSummary(user_goal="debug", errors_and_fixes=["crash -> null check"])
+        content = f"[历史摘要]\n<!-- SUMMARY_JSON\n{summary.to_json()}\n-->"
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.errors_and_fixes == ["crash -> null check"]
+
+    def test_text_format_parses_errors_section(self) -> None:
+        content = (
+            "[历史摘要]\n"
+            "用户目标: 修复bug\n"
+            "已完成操作:\n"
+            "  - 分析代码\n"
+            "错误与修复:\n"
+            "  - KeyError -> 添加默认值\n"
+            "最后操作: 提交修复\n"
+        )
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.errors_and_fixes == ["KeyError -> 添加默认值"]
+
+    def test_text_format_parses_path_prefix(self) -> None:
+        content = "[历史摘要]\n用户目标: 重构认证模块\n路径: /workspace/auth/notes.jsonl\n最后操作: 保存笔记\n"
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.context_dump_path == "/workspace/auth/notes.jsonl"
+
+    def test_text_format_parses_history_log_prefix(self) -> None:
+        content = "[历史摘要]\n用户目标: 分析性能瓶颈\n历史日志: /tmp/agent/session.log\n"
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.context_dump_path == "/tmp/agent/session.log"
+
+    def test_parses_handoff_fields_from_json(self) -> None:
+        response = """<summary>
+        {
+            "user_goal": "重构模块",
+            "active_task": "实现JWT认证",
+            "constraints_and_preferences": ["用TypeScript"],
+            "completed_actions": ["操作1"],
+            "active_state": "dev分支",
+            "key_findings": [],
+            "errors_and_fixes": [],
+            "resolved_questions": ["Q1 -> A1"],
+            "pending_user_asks": ["待办1"],
+            "files_modified": [],
+            "last_action": "测试"
+        }
+        </summary>"""
+        result = parse_summary_response(response)
+        assert result.active_task == "实现JWT认证"
+        assert result.constraints_and_preferences == ["用TypeScript"]
+        assert result.active_state == "dev分支"
+        assert result.resolved_questions == ["Q1 -> A1"]
+        assert result.pending_user_asks == ["待办1"]
+
+    def test_parses_handoff_fields_from_json_block(self) -> None:
+        summary = StructuredSummary(
+            user_goal="test",
+            active_task="重构",
+            constraints_and_preferences=["约束1"],
+            resolved_questions=["Q -> A"],
+            pending_user_asks=["待办"],
+            active_state="main分支",
+        )
+        content = f"[历史摘要]\n<!-- SUMMARY_JSON\n{summary.to_json()}\n-->"
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.active_task == "重构"
+        assert result.constraints_and_preferences == ["约束1"]
+        assert result.resolved_questions == ["Q -> A"]
+        assert result.pending_user_asks == ["待办"]
+        assert result.active_state == "main分支"
+
+    def test_text_format_parses_new_sections(self) -> None:
+        content = (
+            "[历史摘要]\n"
+            " 用户目标: 重构模块\n"
+            " 当前任务: 实现认证\n"
+            " 用户约束与偏好:\n"
+            "  - 用TypeScript\n"
+            "已完成操作:\n"
+            "  - 操作1\n"
+            " 已回答的问题:\n"
+            "  - Q -> A\n"
+            " 待完成请求:\n"
+            "  - 待办1\n"
+            " 工作状态: dev分支\n"
+            " 最后操作: 测试\n"
+        )
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.active_task == "实现认证"
+        assert result.constraints_and_preferences == ["用TypeScript"]
+        assert result.resolved_questions == ["Q -> A"]
+        assert result.pending_user_asks == ["待办1"]
+        assert result.active_state == "dev分支"
+
+    def test_missing_handoff_fields_default_empty(self) -> None:
+        response = '{"user_goal": "test", "completed_actions": ["a"], "last_action": "b"}'
+        result = parse_summary_response(response)
+        assert result.active_task == ""
+        assert result.constraints_and_preferences == []
+        assert result.resolved_questions == []
+        assert result.pending_user_asks == []
+        assert result.active_state == ""
+
+    def test_json_decode_error_fallback(self) -> None:
+        response = "<summary>{invalid json here}</summary>"
+        result = parse_summary_response(response)
+        assert result.user_goal == "[摘要解析失败]"
+
+    def test_raw_json_fallback(self) -> None:
+        response = 'Some text {"user_goal": "raw", "completed_actions": [], "last_action": "x"} more text'
+        result = parse_summary_response(response)
+        assert result.user_goal == "raw"
+
+    def test_summary_tag_without_closing(self) -> None:
+        response = '<summary>{"user_goal": "no close", "completed_actions": [], "last_action": "x"}'
+        result = parse_summary_response(response)
+        assert result.user_goal == "no close"
+
+    def test_summary_tag_no_json_inside(self) -> None:
+        response = "<summary>no json here</summary>"
+        result = parse_summary_response(response)
+        assert result.user_goal == "[摘要解析失败]"
+
+    def test_as_str_list_with_non_list(self) -> None:
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_parser import _as_str_list
+
+        assert _as_str_list(None) == []
+        assert _as_str_list("single") == ["single"]
+        assert _as_str_list(42) == ["42"]
+        assert _as_str_list(["a", "b"]) == ["a", "b"]
+
+    def test_text_parse_no_user_goal_returns_none(self) -> None:
+        content = "[历史摘要]\n已完成操作:\n  - 操作1\n"
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is None
+
+    def test_json_block_invalid_json(self) -> None:
+        content = "[历史摘要]\n<!-- SUMMARY_JSON\n{bad json\n-->"
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is None or result.user_goal != ""
+
+    def test_text_parse_exception_returns_none(self) -> None:
+        content = "[历史摘要]\n\x00\x01\x02"
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is None
+
+    def test_server_injected_malformed_json_parsed(self) -> None:
+        """Server-injected JSON with trailing commas / bare newlines is tolerated."""
+        content = (
+            "[Previous conversation summary]\n"
+            '{"user_goal": "重构认证模块", "completed_actions": ["实现JWT",], '
+            '"last_action": "提交\n代码",}'
+        )
+        msgs = [AIMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "重构认证模块"
+        assert result.completed_actions == ["实现JWT"]
+
+    def test_parse_response_malformed_json(self) -> None:
+        """parse_summary_response tolerates trailing commas and prose framing."""
+        response = (
+            'Here is the summary:\n{"user_goal": "build app", "completed_actions": ["step1",], "last_action": "done",}'
+        )
+        result = parse_summary_response(response)
+        assert result.user_goal == "build app"
+        assert result.completed_actions == ["step1"]
+
+
+class TestServerInjectedSummary:
+    """Verify ``[Previous conversation summary]\n{JSON}`` format is correctly parsed."""
+
+    def test_server_injected_json_parsed(self) -> None:
+        data = {
+            "user_goal": "重构认证模块",
+            "completed_actions": ["实现JWT"],
+            "key_findings": ["发现漏洞"],
+            "files_modified": ["auth.py"],
+            "last_action": "提交",
+        }
+        content = f"[Previous conversation summary]\n{json.dumps(data)}"
+        msgs = [AIMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "重构认证模块"
+        assert result.completed_actions == ["实现JWT"]
+        assert result.files_modified == ["auth.py"]
+
+    def test_server_injected_extract_after(self) -> None:
+        content = '[Previous conversation summary]\n{"user_goal": "test"}'
+        msgs = [AIMessage(content=content), HumanMessage(content="follow up")]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 1
+        assert result[0].content == "follow up"
+
+    def test_server_injected_zh_prefix(self) -> None:
+        content = '[历史摘要]\n{"user_goal": "测试", "completed_actions": []}'
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "测试"
+
+    def test_rejects_json_without_user_goal(self) -> None:
+        content = '[Previous conversation summary]\n{"junk": true}'
+        msgs = [AIMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is None
+
+
+class TestBuilderParserRoundtrip:
+    """Verify create_summary_message output is recognized by extract_existing_summary."""
+
+    def test_pipeline_summary_roundtrip(self) -> None:
+        original = StructuredSummary(
+            user_goal="重构认证模块",
+            completed_actions=["实现JWT", "添加测试"],
+            key_findings=["发现安全漏洞"],
+            errors_and_fixes=["ImportError -> 添加缺失导入"],
+            files_modified=["auth.py"],
+            last_action="提交代码",
+            active_task="优化性能",
+            constraints_and_preferences=["使用TypeScript"],
+            resolved_questions=["Q1 -> A1"],
+            pending_user_asks=["添加文档"],
+            active_state="dev分支",
+            blocked_items=["依赖版本冲突"],
+            next_steps=["运行测试", "发布版本"],
+        )
+        msg = create_summary_message(original, chat_id="test-roundtrip")
+        parsed = extract_existing_summary([msg])
+        assert parsed is not None
+        assert parsed.user_goal == original.user_goal
+        assert parsed.completed_actions == original.completed_actions
+        assert parsed.key_findings == original.key_findings
+        assert parsed.errors_and_fixes == original.errors_and_fixes
+        assert parsed.active_task == original.active_task
+        assert parsed.pending_user_asks == original.pending_user_asks
+        assert parsed.blocked_items == original.blocked_items
+        assert parsed.next_steps == original.next_steps
+
+    def test_pipeline_summary_extract_after(self) -> None:
+        msg = create_summary_message(StructuredSummary(user_goal="test"))
+        follow_up = HumanMessage(content="new question")
+        result = extract_messages_after_summary([msg, follow_up])
+        assert len(result) == 1
+        assert result[0] is follow_up
+
+    def test_pipeline_summary_among_other_messages(self) -> None:
+        summary_msg = create_summary_message(StructuredSummary(user_goal="目标"))
+        msgs = [
+            SystemMessage(content="system prompt"),
+            summary_msg,
+            HumanMessage(content="new input"),
+            AIMessage(content="response"),
+        ]
+        parsed = extract_existing_summary(msgs)
+        assert parsed is not None
+        assert parsed.user_goal == "目标"
+        after = extract_messages_after_summary(msgs)
+        assert len(after) == 2
+
+
+class TestParseStructuredSummaryJson:
+    """Verify strict JSON parsing used by the server DB persistence boundary."""
+
+    def test_parses_all_fields(self) -> None:
+        data = {
+            "user_goal": "build feature",
+            "completed_actions": ["step1"],
+            "key_findings": ["found bug"],
+            "errors_and_fixes": ["crash -> null check"],
+            "files_modified": ["main.py"],
+            "last_action": "fixed",
+            "active_task": "add tests",
+            "constraints_and_preferences": ["use TS"],
+            "resolved_questions": ["Q -> A"],
+            "pending_user_asks": ["update docs"],
+            "active_state": "dev branch",
+            "blocked_items": ["dep conflict"],
+            "next_steps": ["run pytest"],
+        }
+        result = parse_structured_summary_json(json.dumps(data))
+        assert result is not None
+        assert result.user_goal == "build feature"
+        assert result.completed_actions == ["step1"]
+        assert result.key_findings == ["found bug"]
+        assert result.errors_and_fixes == ["crash -> null check"]
+        assert result.files_modified == ["main.py"]
+        assert result.last_action == "fixed"
+        assert result.active_task == "add tests"
+        assert result.constraints_and_preferences == ["use TS"]
+        assert result.resolved_questions == ["Q -> A"]
+        assert result.pending_user_asks == ["update docs"]
+        assert result.active_state == "dev branch"
+        assert result.blocked_items == ["dep conflict"]
+        assert result.next_steps == ["run pytest"]
+
+    def test_roundtrip_via_to_json(self) -> None:
+        original = StructuredSummary(
+            user_goal="goal",
+            completed_actions=["a"],
+            key_findings=["k"],
+            errors_and_fixes=["e"],
+            files_modified=["f.py"],
+            last_action="l",
+            active_task="t",
+            constraints_and_preferences=["c"],
+            resolved_questions=["r"],
+            pending_user_asks=["p"],
+            active_state="s",
+            blocked_items=["b"],
+            next_steps=["n"],
+        )
+        parsed = parse_structured_summary_json(original.to_json())
+        assert parsed is not None
+        assert parsed.user_goal == original.user_goal
+        assert parsed.blocked_items == original.blocked_items
+        assert parsed.next_steps == original.next_steps
+
+    def test_invalid_json_returns_none(self) -> None:
+        assert parse_structured_summary_json("{not valid json") is None
+
+    def test_non_string_input_returns_none(self) -> None:
+        assert parse_structured_summary_json(None) is None  # type: ignore[arg-type]
+        assert parse_structured_summary_json("") is None
+
+    def test_non_dict_json_returns_none(self) -> None:
+        assert parse_structured_summary_json("[1, 2, 3]") is None
+
+    def test_empty_object_returns_defaults(self) -> None:
+        result = parse_structured_summary_json("{}")
+        assert result is not None
+        assert result.user_goal == "未知目标"
+        assert result.blocked_items == []
+        assert result.next_steps == []

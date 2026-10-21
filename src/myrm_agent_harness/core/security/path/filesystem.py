@@ -1,0 +1,343 @@
+"""Generic filesystem path safety primitives.
+
+Dangerous system roots, Windows device names, boundary enforcement, traversal-safe
+joining and runtime path coercion. This module knows nothing about *which files a
+product protects* — that policy lives in the sibling `rules` module, so tooling that
+only needs to resolve a path safely does not pull protection policy into scope.
+
+[INPUT]
+- (none — stdlib only: os, platform, stat, pathlib)
+
+[OUTPUT]
+- DANGEROUS_PATHS: frozenset[str] — normalised dangerous root paths
+- BLOCKED_DEVICE_NAMES: frozenset[str] — Windows reserved device names
+- MAX_PATH_LENGTH: int — maximum allowed path length (4096 bytes)
+- is_content_not_path(value) -> bool — disambiguates multiline/oversized text from filesystem path
+- coerce_filesystem_path(value) -> Path | None — runtime path coercion; rejects unittest.mock objects and text content
+- is_within_boundary(target, boundary) -> bool — boundary check immune to symlink escape
+- safe_join_path(base_dir, user_input) -> Path — secure path resolution against traversal
+- is_dangerous_path(path) -> bool — unified check function
+- is_blocked_device_path(path) -> bool — pre-IO device path blocklist check
+
+[POS]
+Generic filesystem path safety — no product protection policy.
+"""
+
+from __future__ import annotations
+
+import os
+import platform
+import stat
+from pathlib import Path
+
+__all__ = (
+    "BLOCKED_DEVICE_NAMES",
+    "DANGEROUS_PATHS",
+    "MAX_PATH_LENGTH",
+    "coerce_filesystem_path",
+    "is_blocked_device_path",
+    "is_content_not_path",
+    "is_dangerous_path",
+    "is_within_boundary",
+    "safe_join_path",
+)
+
+# ---------------------------------------------------------------------------
+# Dangerous path roots (normalised at import time)
+# ---------------------------------------------------------------------------
+
+_UNIX_SYSTEM_ROOTS: tuple[str, ...] = (
+    "/etc",
+    "/sys",
+    "/proc",
+    "/dev",
+    "/root",
+    "/boot",
+    "/var/log",
+)
+
+_USER_SENSITIVE_DIRS: tuple[str, ...] = (
+    "~/.ssh",
+    "~/.gnupg",
+    "~/.gpg",
+    "~/.aws",
+    "~/.config/gcloud",
+    "~/.azure",
+    "~/.config",
+    "~/.docker",
+    "~/.kube",
+    "~/.bash_history",
+    "~/.zsh_history",
+)
+
+_WIN_SYSTEM_ROOTS: tuple[str, ...] = (
+    "C:\\Windows\\System32",
+    "C:\\Windows\\SysWOW64",
+    "C:\\Windows",
+    "C:\\Program Files",
+    "C:\\ProgramData",
+)
+
+
+def _build_dangerous_paths() -> frozenset[str]:
+    """Build normalised set of dangerous path roots at import time."""
+    roots: set[str] = set()
+    for p in _UNIX_SYSTEM_ROOTS:
+        roots.add(os.path.realpath(p))
+    for p in _USER_SENSITIVE_DIRS:
+        roots.add(os.path.realpath(os.path.expanduser(p)))
+    if platform.system() == "Windows":
+        for p in _WIN_SYSTEM_ROOTS:
+            roots.add(os.path.realpath(p))
+    return frozenset(roots)
+
+
+DANGEROUS_PATHS: frozenset[str] = _build_dangerous_paths()
+"""Normalised absolute paths that are considered dangerous.
+
+Used by both ``types.PathPolicy`` (Layer 2.5) and
+``path_validator.PathValidator`` (file-operation layer).
+"""
+
+BLOCKED_DEVICE_NAMES: frozenset[str] = frozenset(
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9",
+    }
+)
+"""Windows reserved device names (matched case-insensitively with or without extensions)."""
+
+_WINDOWS_DEVICE_NAMESPACE_PREFIXES: tuple[str, ...] = (
+    "\\\\.\\",
+    "//./",
+    "\\\\?\\",
+    "//?/",
+)
+
+_POSIX_SPECIAL_FILESYSTEM_PREFIXES: tuple[str, ...] = (
+    "/dev/",
+    "dev/",
+    "/proc/",
+    "proc/",
+    "/sys/",
+    "sys/",
+)
+
+_POSIX_SPECIAL_FILESYSTEM_ROOTS: tuple[str, ...] = ("/dev", "/proc", "/sys")
+
+# Bare spellings of the same roots (no trailing separator), both absolute and
+# workspace-relative, so `dev/urandom` is blocked alongside `/dev/urandom`.
+_POSIX_SPECIAL_FILESYSTEM_BARE_NAMES: frozenset[str] = frozenset(
+    {root for root in _POSIX_SPECIAL_FILESYSTEM_ROOTS}
+    | {root.lstrip("/") for root in _POSIX_SPECIAL_FILESYSTEM_ROOTS}
+)
+
+# ---------------------------------------------------------------------------
+# Path boundary and safe join checks
+# ---------------------------------------------------------------------------
+
+
+def is_within_boundary(target: str | Path, boundary: str | Path) -> bool:
+    """严格检查目标路径是否处于边界目录内。
+
+    基于真实物理路径（resolve）进行校验，防御符号链接逃逸，
+    并使用现代的 is_relative_to() 替代脆弱的字符串前缀匹配。
+    """
+    try:
+        t = Path(target).resolve()
+        b = Path(boundary).resolve()
+        return t.is_relative_to(b)
+    except Exception:
+        return False
+
+
+def safe_join_path(base_dir: str | Path, user_input: str | Path) -> Path:
+    """安全地拼接并解析路径，防御所有已知路径攻击，同时保持虚拟路径兼容性。
+
+    防御向量：
+    1. 空字节注入 (Null Byte Injection)
+    2. 绝对路径替换攻击
+    3. 目录遍历 (Directory Traversal, ../)
+    4. 符号链接逃逸 (Symlink attacks)
+
+    架构亮点：
+    - 验证环节使用真实的物理路径（resolve()）确保无逃逸风险。
+    - 最终返回规范化后的虚拟（未 resolve）绝对路径，
+      确保 Docker 挂载卷、软链接工作区等外部系统依赖的路径前缀不变，杜绝兼容性 Bug。
+
+    Args:
+        base_dir: 基础安全边界目录
+        user_input: 用户输入的相对路径
+
+    Returns:
+        拼接并规范化后的虚拟绝对路径 (Path)
+
+    Raises:
+        ValueError: 如果检测到任何路径攻击、解析失败或传入文本内容而非路径
+    """
+    input_str = str(user_input)
+    if "\0" in input_str:
+        raise ValueError("Null byte injection detected in path")
+    if is_content_not_path(input_str):
+        raise ValueError("Invalid path: content or multiline string cannot be parsed as a filesystem path")
+
+    user_path = Path(user_input)
+    if user_path.is_absolute():
+        raise ValueError(f"Absolute paths are not allowed: {user_input}")
+
+    # 获取虚拟绝对基路径（不展开符号链接）
+    base_path_obj = Path(base_dir).absolute()
+
+    # 获取虚拟绝对最终路径
+    import os
+
+    final_virtual_path = Path(os.path.normpath(base_path_obj / user_path))
+
+    try:
+        # 进行安全的物理边界校验
+        resolved_final = final_virtual_path.resolve()
+        resolved_base = base_path_obj.resolve()
+    except Exception as e:
+        raise ValueError(f"Path resolution failed: {e}") from e
+
+    if not resolved_final.is_relative_to(resolved_base):
+        raise ValueError(f"Path traversal detected: {user_input} resolves outside base directory")
+
+    return final_virtual_path
+
+
+# ---------------------------------------------------------------------------
+# Path coercion and content disambiguation (runtime type guard)
+# ---------------------------------------------------------------------------
+
+MAX_PATH_LENGTH: int = 4096
+
+
+def is_content_not_path(value: object) -> bool:
+    """Return True if *value* is clearly multiline/oversized text content rather than a path.
+
+    Defends against bugs where memory plugins or URI guards misclassify code snippets,
+    Markdown text, or multiline strings as filesystem paths, preventing OS Errno 36
+    (File name too long) and false-positive security alerts.
+    """
+    if not isinstance(value, str):
+        return False
+    if len(value) > MAX_PATH_LENGTH:
+        return True
+    if "\n" in value or "\r" in value:
+        return True
+    return "```" in value
+
+
+def _is_unittest_mock(value: object) -> bool:
+    """True when *value* is a unittest.mock object (implements os.PathLike via __fspath__)."""
+    return getattr(type(value), "__module__", "") == "unittest.mock"
+
+
+def coerce_filesystem_path(value: object) -> Path | None:
+    """Coerce a runtime value to a filesystem path, or return None if invalid.
+
+    Only ``str``, ``Path``, and non-mock ``os.PathLike`` are accepted. Rejects
+    MagicMock, multiline text, oversized content, and other non-path objects.
+    """
+    if value is None:
+        return None
+    if _is_unittest_mock(value):
+        return None
+    if isinstance(value, Path):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped or is_content_not_path(stripped):
+            return None
+        return Path(stripped)
+    if isinstance(value, os.PathLike):
+        return Path(value)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Check functions
+# ---------------------------------------------------------------------------
+
+
+def is_dangerous_path(path: str) -> bool:
+    """Check if *path* falls under any dangerous root.
+
+    Uses canonical boundary guard — stricter than
+    substring matching and immune to partial-name false positives.
+    """
+    if not path or not path.strip() or is_content_not_path(path):
+        return False
+    try:
+        normalised = os.path.realpath(os.path.expanduser(path))
+        return any(is_within_boundary(normalised, dp) for dp in DANGEROUS_PATHS)
+    except Exception:
+        return False
+
+
+def is_blocked_device_path(path: str) -> bool:
+    """Check if *path* refers to a blocked character/block/special or Windows device.
+
+    Performs pre-IO static inspection of path patterns (Windows device names,
+    POSIX special filesystems) as well as filesystem stat mode checks when the
+    path exists. Immune to trailing spaces, slashes, or alternate casings.
+    """
+    if not path or not path.strip() or is_content_not_path(path):
+        return False
+
+    cleaned = path.strip()
+    norm_slash = cleaned.replace("\\", "/")
+
+    # 1. Device namespace prefixes (\\.\, //./, \\?\, //?/)
+    if cleaned.startswith(_WINDOWS_DEVICE_NAMESPACE_PREFIXES):
+        return True
+
+    # 2. POSIX special system device prefixes (/dev/, /proc/, /sys/, dev/, proc/, sys/)
+    if norm_slash.startswith(_POSIX_SPECIAL_FILESYSTEM_PREFIXES):
+        return True
+    if norm_slash.rstrip("/") in _POSIX_SPECIAL_FILESYSTEM_BARE_NAMES:
+        return True
+
+    # 3. Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) with or without extensions
+    segments = [seg for seg in norm_slash.split("/") if seg]
+    for seg in segments:
+        base_name = seg.split(".")[0].upper()
+        if base_name in BLOCKED_DEVICE_NAMES:
+            return True
+
+    # 4. OS filesystem stat mode verification (if path exists on disk, check non-regular special file types)
+    try:
+        st = os.lstat(os.path.expanduser(cleaned))
+        mode = st.st_mode
+        if stat.S_ISCHR(mode) or stat.S_ISBLK(mode) or stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode):
+            return True
+    except (OSError, ValueError):
+        pass
+
+    # 5. Check normalised realpath against dangerous roots if Unix device root is present
+    try:
+        real_p = os.path.realpath(os.path.expanduser(cleaned))
+        return any(is_within_boundary(real_p, root) for root in _POSIX_SPECIAL_FILESYSTEM_ROOTS)
+    except Exception:
+        return False

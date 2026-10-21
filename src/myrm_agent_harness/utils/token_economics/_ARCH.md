@@ -1,0 +1,53 @@
+# token_economics/
+
+## Overview
+LLM call full-chain economic metrics: token usage tracking (7 token types), cost calculation, budget management, and multi-dimensional budget enforcement with mid-conversation finalization.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | LLM call full-chain economic metrics: token usage tracking (7 token types), cost calculation, and budget management. | — |
+| budget_guard.py | Core | Budget guard protocol + simple daily implementation. Defines BudgetChecker protocol and BudgetStatus enum. | ✅ |
+| multidim_budget.py | Core | Multi-dimensional budget guard. Supports per-session, daily, and per-call limits with three-level progressive response. | ✅ |
+| budget_boundary_middleware.py | Core | AgentMiddleware that enforces budget limits mid-conversation via prompt injection and tool-call stripping. | ✅ |
+| cache_economics.py | Core | Framework-neutral utilities under ``utils/``; safe for any layer to import. | ✅ |
+| cache_savings.py | Core | Provides calculate_cache_savings_usd. | ✅ |
+| cost_engine.py | Core | Thin wrapper over litellm.completion_cost() that adds CostStatus provenance. | ✅ |
+| latency_stats.py | Core | `LatencyStats` frozen dataclass and `LatencyStats.from_samples`: average, p95, min, max, time-to-first-token and tokens-per-second over the per-call samples a `TokenTracker` collects. | ✅ |
+| tracker.py | Core | LLM call metadata tracker. ContextVar-based request-level tracking supporting both streaming and non-streaming calls. `record_turn_context` stores how the turn's context was assembled (`history_mode`, discarded message and tool-message counts, `catalog_delivery`, `tools_signature_changes`); exported as `turn_context` in `to_dict()` next to the cost snapshot (a child tracker's facts are not merged). | ✅ |
+| usage_ledger.py | Core | Lightweight audit log recording token count, cost, latency, and model metadata for each LLM call; owns the `DROPPED_STREAM_FINISH_REASON` finish_reason sentinel (stream closed without a final chunk) shared by the LLM adapters and the agent completion-status mapping. | ✅ |
+| `usage_fields.py` | Core | Provider-cache token extraction shared by cost computation and usage tracking. — extract_cached_tokens(): prompt tokens served from the provider cache; extract_cache_write_tokens(): prompt tokens newly written to the provider cache; extract_cost_tokens(): (prompt, completion, cache read, cache write) for cost computation | ✅ |
+
+## Budget Control Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Frontend: BudgetPolicySection (settings UI + progress bar)     │
+│  + SSE toast notifications (warning / finalization / exceeded)  │
+└───────────────┬─────────────────────────────────────────────────┘
+                │ PUT /budget/policy  GET /budget/status
+                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Server: enforcer.py                                            │
+│  BudgetPolicy (Pydantic) → MultidimensionalBudgetGuard singleton│
+│  + SSE callbacks → EventBus → Frontend                          │
+│  + reset_session_budget() called per new conversation           │
+└───────────────┬─────────────────────────────────────────────────┘
+                │ BudgetChecker protocol
+                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Harness: MultidimensionalBudgetGuard                           │
+│  3 dimensions: per-session / daily / per-call                   │
+│  3 levels: OK → WARNING → FINALIZATION → EXCEEDED               │
+│  Thread-safe, auto day-reset                                    │
+└───────────────┬─────────────────────────────────────────────────┘
+                │ TokenTracker.record() → BudgetChecker.record_cost()
+                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Harness: BudgetBoundaryMiddleware (in agent loop)              │
+│  before_model: inject dynamic budget hint with remaining USD    │
+│                (HumanMessage → cache-safe, no SystemMessage break)│
+│  after_model: strip tool_calls on FINALIZATION/EXCEEDED         │
+└─────────────────────────────────────────────────────────────────┘
+```

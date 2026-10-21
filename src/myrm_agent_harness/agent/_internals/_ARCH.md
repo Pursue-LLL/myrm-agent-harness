@@ -1,0 +1,30 @@
+# _internals/
+
+## Overview
+Agent internal helpers — private implementation details for agent core files.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Agent internal helpers — private implementation details for agent core files. | — |
+| agent_recovery.py | Core | Agent recovery strategies — context overflow, LLM failover, structured error context. | ✅ |
+| agent_runtime.py | Core | Agent runtime — core execution loop (`run_agent_loop`). A new-message turn resolves its history source (`resolve_turn_history`, declared through `context["history_mode"]`, consumed before the context reaches middleware), builds only the messages that history mode feeds, then delivers the bound skills catalog (`deliver_bound_skills_catalog`) and records the turn's `turn_context` telemetry; a resume syncs the `skill_search` index and leaves the checkpoint untouched. The run's hook executor is bound again right before the executor task copies the context, so hosts that resume the stream in a fresh task per event (a context hop drops the ContextVars bound in the first step) still get every hook, skill and framework, inside the tool loop. | ✅ |
+| base_agent_modes_mixin.py | Core | Deep research + consensus entrypoints mixin for BaseAgent. | ✅ |
+| _agent_build.py | Internal | Middleware chain construction, tool registry creation, and tools snapshot emission. | ✅ |
+| _agent_helpers.py | Internal | Runtime helper functions — guard reset, query extraction, idle task scheduling, usage ledger init, checkpoint-incompatible merged_context stripping. | ✅ |
+| turn_history.py | Core | Single authority for the conversation a turn starts from (`HistoryMode` and its context key live in `runtime/context/session/session_continuity.py`: `append` default for callers that have not opted in, `continue` extends the thread and feeds no history, `replace` clears the thread and feeds the caller's `chat_history`), `resumed_turn_facts` (a resume reports `history_mode=resume`), `resolve_turn_history` (a `continue` over an empty thread resolves to `replace`; a replace that cannot clear the thread raises; the discarded message and tool-message counts feed telemetry). A resume never resolves history. | ✅ |
+| skill_catalog_turn.py | Core | Per-turn bound skills catalog step: baseline on a rebuilt conversation, `<bound_skills_update>` on the new HumanMessage of a continued thread when the rendered catalog drifted from what the thread last delivered; a failed skill load delivers nothing (last-good stands). Rebuilds or removes `skill_search_tool` only when the bound-set fingerprint changed (kept on the agent), reports a changed tool array. Resume path: receipt and index sync only. | ✅ |
+| resume_addressing.py | Core | Resume addressing — binds a resume answer to the pause it was given for: the echoed card id (`interruptId` = `<interrupt id>.<round>`) is honoured only while that exact pause is pending (`Command(resume={id: answer})`), any other id is rewritten to an interrupt id nothing holds so LangGraph ignores it; an unaddressed global rejection is broadcast to every pending interrupt, other unaddressed answers pass through untouched. Returns an `AddressedResume` carrying the round each pending interrupt announces itself at. Applied at the `agent_runtime.py` resume choke point, after the bound-skill catalog refresh (nothing may rebuild the command after it). | ✅ |
+| langgraph_guard.py | Core | LangGraph ToolNode monkey-patch for robust tool_call args handling. Uses concurrency-router stage planning to execute mixed batches as ordered parallel stages (instead of all-parallel/all-serial), while preserving mid-batch failure short-circuit semantics. | ✅ |
+| memory_extraction_scheduler.py | Core | Per-chat cancel/coalesce for `auto_extract_memories` (`schedule_chat_memory_extraction`). | ✅ |
+| memory_extraction.py | Core | Memory auto-extraction utilities. Post-turn LLM compressed-track extraction (always; text-only input — media blocks never reach the prompt and a turn without text is omitted) plus the opt-in verbatim track (`enable_verbatim=True`, default off; skipped when the manager has no dense vectors, since conversation storage needs named vectors) with optional LLM-based deep PII scan before persistence. Emits `ExtractionLifecycleObserver` callbacks (extract pending/success/skipped/error; write success/skipped/error only while the verbatim track is enabled; a verbatim failure never aborts the compressed track). `allows_background_llm_extraction` is the `AgentMemoryPolicy.allow_l3_extraction` gate shared with idle-time derivation. | ✅ |
+| memory_verbatim.py | Core | Opt-in verbatim track: `create_conversation_memories` chunks messages into ConversationMemory objects; `capture_current_exchange` stores only the newest user/assistant exchange (nothing when the user message carried no text), bypassing the approval queue (content-safety scan still applies). | ✅ |
+| run_lifecycle.py | Core | Agent run lifecycle helpers: `setup_workspace` requires `merged_context[\"workspaces_storage_root\"]` and binds aggregate root ContextVar consumed by WorkspaceManager/`WorkspaceService`; `cleanup_run` releases bind tokens; context budget snapshots (incl. checkpoint-derived `turn_count` for GUI preflight, emitted only when checkpoint messages are readable so a stale `0` never masks the frontend fallback) and MESSAGE_END emission (upgrade `completion_status` to `warning` on batch merge failure when LLM status is complete; attaches the per-turn disclosure payload `deliverable_tier` / `staged_artifacts` from the completion guard). `post_run_events` accepts an explicit `tracker` (falls back to ContextVar lookup) so `message_end.token_economics` survives async-generator task-boundary resume. | ✅ |
+| `message_end_event.py` | Core | Assemble the MESSAGE_END payload emitted at the end of a turn. — build_message_end_event(): 组装 MESSAGE_END 事件负载（usage / cost / budget / disclosure） | ✅ |
+
+## Key Dependencies
+
+- `observability`
+- `toolkits`
+- `utils`

@@ -1,0 +1,250 @@
+"""MemoryManager mixin module (internal). Do not import directly."""
+
+from __future__ import annotations
+
+import asyncio
+from typing import TYPE_CHECKING
+
+from myrm_agent_harness.toolkits.memory._manager.helpers import (
+    _infer_preference_category,
+)
+from myrm_agent_harness.toolkits.memory._manager.shared import (
+    AnyMemory,
+    ConsolidationConfig,
+    CueFamily,
+    MemoryStatus,
+    MemoryType,
+    PendingRecord,
+    PreferenceCandidate,
+    SemanticMemory,
+    _log_background_task_failure,
+    logger,
+    run_forgetting,
+)
+from myrm_agent_harness.toolkits.memory.types import PendingResolutionAction
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from myrm_agent_harness.toolkits.memory.session import MemorySession
+
+
+class MemoryManagerGovernanceSessionMixin:
+    async def submit_pending(
+        self,
+        memory: AnyMemory,
+        *,
+        resolution_action: PendingResolutionAction = PendingResolutionAction.STORE,
+        target_memory_id: str | None = None,
+        target_content: str | None = None,
+    ) -> str:
+        """Submit a memory for approval.
+
+        ``resolution_action``/``target_memory_id``/``target_content`` record what
+        approval should do (persist as new / correct the target / forget the
+        target) and how to display the reviewed target.
+        Returns the pending ID, or '' if an identical candidate is already queued.
+        """
+        return await self._governance.submit_pending(
+            memory,
+            resolution_action=resolution_action,
+            target_memory_id=target_memory_id,
+            target_content=target_content,
+        )
+
+    async def approve(self, pending_id: str, *, edited_content: str | None = None) -> AnyMemory | None:
+        """Approve a pending memory and persist to permanent storage.
+
+        ``edited_content`` replaces the proposed wording before it is applied.
+        A forget proposal archives its target (restorable until retention purge).
+
+        Raises:
+            InvalidPendingEditError: ``edited_content`` is blank or the proposal has no editable text.
+            PendingTargetChangedError: a ``CORRECT``/``DELETE`` target changed after it was queued
+                (content edited, already corrected, or no longer active) or lives in a namespace
+                this manager cannot read; the proposal stays pending.
+        """
+        return await self._governance.approve(
+            pending_id,
+            store_func=lambda memory: self.store(memory, _bypass_approval=True, _scope_prevalidated=True),
+            correct_func=self.correct_memory,
+            forget_func=lambda memory_id: self.update_memory(memory_id, status=MemoryStatus.ARCHIVED),
+            read_func=self.get_memory,
+            exists_func=self._memory_exists_in_any_scope,
+            edited_content=edited_content,
+        )
+
+    async def reject(self, pending_id: str) -> None:
+        await self._governance.reject(pending_id)
+
+    async def get_pending(self, pending_id: str) -> PendingRecord | None:
+        """Return one queued proposal by id (any status), or ``None`` if unknown."""
+        return await self._governance.get_pending(pending_id)
+
+    async def list_pending(self, *, limit: int = 50) -> list[PendingRecord]:
+        return await self._governance.list_pending(limit=limit)
+
+    async def count_pending(self) -> int:
+        return await self._governance.count_pending()
+
+    async def batch_approve(self, pending_ids: list[str]) -> tuple[int, list[str]]:
+        """Returns (success_count, failed_ids)."""
+        return await self._governance.batch_approve(pending_ids, approve_func=self.approve)
+
+    async def batch_reject(self, pending_ids: list[str]) -> int:
+        return await self._governance.batch_reject(pending_ids)
+
+    def begin_session(self, chat_id: str) -> MemorySession:
+        from myrm_agent_harness.toolkits.memory.session import MemorySession
+
+        if self._active_session is not None:
+            if self._active_session.buffer_size > 0:
+                old_session = self._active_session
+                try:
+                    loop = asyncio.get_running_loop()
+                    task = loop.create_task(old_session.flush())
+                    task.add_done_callback(_log_background_task_failure)
+                except RuntimeError:
+                    old_session.discard()
+            else:
+                self._active_session.discard()
+        self._last_cited_memory_ids = []
+
+        self._active_session = MemorySession(manager=self, chat_id=chat_id)
+        return self._active_session
+
+    async def end_session(self) -> list[AnyMemory]:
+        if self._active_session is None:
+            return []
+        session = self._active_session
+        self._active_session = None
+        persisted = await session.flush()
+        self._session_count += 1
+        if self._preference_strategy is not None:
+            try:
+                promoted = await self._preference_strategy.micro_rebuild()
+                if promoted:
+                    logger.info("Preference micro-rebuild: %d promoted to Active", promoted)
+            except Exception as e:
+                logger.warning("Preference micro-rebuild failed (non-fatal): %s", e)
+        if self._session_count % self._config.forgetting_interval == 0 and self._vector is not None:
+            task = asyncio.create_task(self._guarded_forgetting())
+            task.add_done_callback(_log_background_task_failure)
+        self._maybe_consolidate()
+        return persisted
+
+    async def check_session_recurrence(self, session_summary: str) -> None:
+        """Check for topic recurrence across sessions and auto-store consolidated memory.
+
+        Should be called by the agent after session end with a summary of the session's
+        key topics (typically derived from user messages, not stored memories).
+
+        This is a fire-and-forget operation — failures are logged and silently ignored.
+        """
+        if not self._recurrence_detector or not session_summary.strip():
+            return
+        await self._check_recurrence_and_store(session_summary)
+
+    async def _check_recurrence_and_store(self, summary: str) -> None:
+        """Run recurrence detection and store consolidated memory if triggered."""
+        if self._recurrence_detector is None:
+            return
+        try:
+            llm_func = self._build_recurrence_llm_func()
+            result = await self._recurrence_detector.check_recurrence(summary, llm_func=llm_func)
+
+            if not result.triggered or not result.consolidated_content:
+                return
+
+            logger.info(
+                "Recurrence triggered (count=%d): storing consolidated memory",
+                result.recurrence_count,
+            )
+            memory = SemanticMemory(
+                content=result.consolidated_content,
+                memory_type=MemoryType.SEMANTIC,
+                importance=0.8,
+                source="recurrence_consolidation",
+            )
+            await self.store(memory, _bypass_approval=True)
+        except Exception as e:
+            logger.warning("Recurrence check failed (non-fatal): %s", e)
+
+    def _build_recurrence_llm_func(self) -> Callable[[str, str], Awaitable[str]] | None:
+        """Build LLM function for recurrence consolidation using consolidation_llm."""
+        if self._consolidation_llm is None:
+            return None
+
+        async def _call(system_prompt: str, user_prompt: str) -> str:
+            from langchain_core.messages import HumanMessage, SystemMessage
+
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt),
+            ]
+            response = await self._consolidation_llm.ainvoke(messages)  # type: ignore[union-attr]
+            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            return extract_answer_text(response)
+
+        return _call
+
+    async def _guarded_forgetting(self) -> None:
+        """Run forgetting with maintenance lock protection."""
+        if self._maintenance_lock.locked():
+            return
+        async with self._maintenance_lock:
+            if self._vector is None:
+                return
+            await run_forgetting(
+                self._vector,
+                self._config,
+                self._graph,
+                relational=self._relational,
+                namespaces=self._namespaces,
+            )
+
+    async def _submit_preference_candidate(self, memory: AnyMemory) -> None:
+        """Submit a SemanticMemory with preference_type as a PreferenceCandidate."""
+        if self._preference_strategy is None:
+            return
+        if not isinstance(memory, SemanticMemory):
+            return
+        if not memory.preference_type:
+            return
+        try:
+            candidate = PreferenceCandidate(
+                key=memory.metadata.get("preference_key", memory.content[:80]),
+                value=memory.content,
+                category=_infer_preference_category(memory),
+                cue=CueFamily(memory.preference_type),
+                strength=memory.preference_strength or 0.5,
+                memory_id=memory.id,
+                content=memory.content,
+            )
+            await self._preference_strategy.submit_candidate(candidate)
+        except Exception as e:
+            logger.warning("Preference candidate submission failed (non-fatal): %s", e)
+
+    def _maybe_consolidate(self) -> None:
+        """Schedule background consolidation if enabled and LLM is available."""
+        if self._consolidation_llm is None:
+            return
+        cfg = self._config.consolidation
+        if not cfg.enabled:
+            return
+        if not (self.has_vector and self.has_relational):
+            return
+        task = asyncio.create_task(self._guarded_consolidation(cfg))
+        task.add_done_callback(_log_background_task_failure)
+
+    async def _guarded_consolidation(self, cfg: ConsolidationConfig) -> None:
+        """Run consolidation with maintenance lock protection."""
+        if self._maintenance_lock.locked():
+            return
+        async with self._maintenance_lock:
+            await self._run_consolidation_safe(cfg)
+
+    @property
+    def active_session(self) -> MemorySession | None:
+        return self._active_session

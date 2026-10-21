@@ -1,0 +1,53 @@
+
+# myrm_agent_harness/agent/goals 模块架构
+
+Goal-based autonomous loop engine. Enables agents to pursue long-running objectives across multiple turns with strict budget control (4 dimensions: tokens, USD, time, turns), semantic completion auditing, and priority queueing for sequential execution.
+
+## 核心概念
+
+- **GoalBudget**: 4 维预算控制 — max_tokens / max_usd / max_time_seconds / max_turns + convergence_window / loop_on_pause / max_loop_restarts 自适应循环控制 + max_verification_retries 独立自愈验证重试上限解耦
+- **turns_used**: 精确的 turn 计数，每次 account_usage(turn_delta=1) 递增
+- **no_progress_streak**: 连续零工具调用轮次计数器，用于收敛检测
+- **ContinuationDecision**: guard chain 的结构化返回值，包含 verdict / reason / turns 指标。verdict 含 `convergence`、`loop_restart`、`wait`（外部等待，跳过 judge）、`drift_nudge`（轨迹偏离软提醒）、`drift_pause`（轨迹偏离/沙箱边界硬暂停）及 `done`/`budget` 等
+- **Fast-Path Physical Verification**: 当配置了验收准则且物理验收 100% 通过（Exit Code 0 且无篡改）时，执行即时完工短路，跳过初始轮次机械跳过等待，立省多余 LLM 轮次
+- **Dynamic Invariant Snapshot**: 支持任务执行过程中动态生成测试工件的哈希注册（`register_protected_artifact`），防范多轮自修阶段模型篡改或改弱断言
+- **Convergence Mode**: 当 convergence_window 已设置且 no_progress_streak ≥ K 时，标记 Goal 为 COMPLETE(convergence) 而非 BUDGET_LIMITED，节省 token 并改善 UX
+- **Loop-on-Pause**: 当 loop_on_pause=True 且未超过 max_loop_restarts 时，PAUSED 后立即以新 context 重启，而非等待 Cron 分钟级延迟
+- **Semantic Judge**: 使用廉价 LLM 判断目标是否语义完成，三段式 prompt (角色 + DONE 条件 + JSON 输出格式)
+- **resume_goal**: 恢复暂停/预算受限的 goal，可选重置 turns_used，同时重置 no_progress_streak、loop_restarts、consecutive_judge_parse_failures 和 verification_retries 以防止立即再次收敛或验证熔断
+- **Dynamic Subgoals**: 运行时动态追加的子目标，注入 Agent 的 Prompt 和 Semantic Judge 判断标准中，并享有最高优先级。
+- **Constraints**: 硬约束列表 `constraints: list[str]`，每轮 continuation prompt 中以 "CONSTRAINTS (MUST NOT VIOLATE)" 区块醒目注入，judge criteria 中同步注入用于完成判定。
+- **Acceptance Criteria**: 验收条件列表 `acceptance_criteria: list[dict]`，支持 shell（命令执行验证）和 semantic（LLM 语义判断）两种类型。每轮 continuation prompt 以 "ACCEPTANCE CRITERIA (MUST be verified)" 区块注入，judge criteria 中同步注入。Judge 判 DONE 后触发 VerificationGatekeeper 程序化验证（ShellCriterion + SemanticCriterion），返回逐条 pass/fail 结果（含 criterion_label、duration_ms、error_logs），通过 `record_acceptance_results` 持久化至 Goal metadata（`acceptance_results` 最新快照 + `acceptance_history` 时间线），自动随 SSE GOAL_STATUS 事件推送至前端可视化。`verification_retries` 熔断保护防止无限循环（3 次失败后 PAUSE）。
+- **Priority Queue**: 当已有 ACTIVE goal 时，新 goal 自动进入 QUEUED 状态。当前 goal 终止后自动 dequeue 并启动下一个。支持拖拽排序和取消。
+- **auto_approve**: 从队列 dequeue 出的 goal 跳过 PENDING_APPROVAL 人工审批阶段，实现无人值守串行执行。
+- **Objective Hot-Edit**: 运行时修改 goal objective 文本，通过 SteeringToken 注入 `<untrusted_objective>` 标记的 steering 消息，agent 实时调整方向而不丢失进度。
+- **Budget Wrap-up Turn**: 预算耗尽时不立即终止，注入 `build_wrapup_prompt` 让 LLM 生成最后一轮无工具语义总结（进度/工件/剩余工作/下步建议）。通过 `_WRAPUP_SENTINEL` 标记防止无限循环。
+- **Goal Drift Detection**: 每 5 轮调用廉价 LLM 评估最近工具调用与目标的相关性（0-10 分）。drift_score ≥ 3 注入 nudge 提醒；≥ 7 PAUSE Goal 等待人工审查。Fail-open：评估失败时默认允许继续。复用现有 `evaluate_semantic` 基础设施。
+- **Sandbox Boundary HITL**: LoopGuard 检测到连续 3 次 PERMISSION_DENIED 跨工具错误时，标记 `sandbox_boundary` 并在 continuation guard chain 中 PAUSE Goal，而非暴力 interrupt。用户收到通知后可决定是否授权或调整任务。
+- **Per-Todo Checkpoint**: `checkpoint_mode: "none" | "per_todo"` — opt-in 逐步确认模式。开启后，guard chain (step 6.5c) 在每个 todo 完成时自动 PAUSE Goal，等待用户确认后继续。通过对比 workspace todos.json 当前状态与 Goal.metadata `_checkpoint_completed_ids` 快照检测新完成的 todo。Resume 时 continuation prompt 注入用户确认信息，确保 Agent 知情继续。
+- **Provider-window WAIT**: 供应商额度耗尽且提供了重置时间点时，goal 停靠为 `WAIT` 直到该时间点；host（server 唤醒守护进程）按 `wait_resume_at` 精确续跑，用户也可手动「立即重试」。重置时间超过 24h 则 `PAUSED` 并通知用户。
+
+## 文件清单
+
+| 文件 | 地位 | 职责 | I/O/P |
+|------|------|------|-------|
+| __init__.py | 辅助 | 模块导出 | ✅ |
+| types.py | 核心 | Goal(含 checkpoint_mode), GoalBudget, GoalStatus(含 QUEUED/**WAIT**), ContinuationDecision(含 convergence/loop_restart/**wait**/**checkpoint_pause**), GoalExecutionSummary, CheckpointMode 等核心数据类型 | ✅ |
+| protocols.py | 核心 | GoalProvider protocol — 含 update_metadata、enter_wait、exit_wait、account_usage(turn_delta)、resume_goal、dequeue_next 等 | ✅ |
+| manager.py | 核心 | GoalManager 状态机 — 4 维预算、WAIT 屏障、update_metadata、resume_goal、队列与 metrics | ✅ |
+| manager_queue_mixin.py | 核心 | Subgoal/queue/stash 操作 mixin | ✅ |
+| finalizer.py | 核心 | GoalFinalizer SSOT — 统一 COMPLETE 过渡；tool 路径 deferred terminal | ✅ |
+| steering_prompts.py | 核心 | Goal 运行时 steering prompt 模板 | ✅ |
+| storage.py | 核心 | SQLite 持久化、队列索引、`list_latest_goal_sessions`（启动 orphan WAIT 扫描） | ✅ |
+| goal_prompt_prefixes.py | Core | `GOAL_CONTINUATION_PREFIX` / `GOAL_WRAPUP_PREFIX` SSOT | ✅ |
+| continuation.py | 核心 | guard chain → ContinuationDecision；WAIT 早退；tool-complete deferred 解析；白名单 background bash 自动 enter_wait；Sandbox Boundary HITL (step 6.5a)；delegates drift to continuation_drift；delegates checkpoint to continuation_checkpoint | ✅ |
+| continuation_checkpoint.py | 核心 | Per-Todo Checkpoint (step 6.5c) — 检测新完成的 todo 并 PAUSE Goal 等待用户确认，produce checkpoint_pause verdict | ✅ |
+| continuation_drift.py | 核心 | Goal Drift Detection (step 6.5b) — LLM judge 评估轨迹偏离度，produce drift_nudge/drift_pause verdicts；`_parse_drift_score` 用 `parse_llm_json_object` 稳健解析 (fences/prose/尾逗号/裸换行) | ✅ |
+| continuation_git_drift.py | 核心 | Base Branch Drift & Safe Rebase Gate (step 6.5d) — 自动感知 upstream 分支落后提交并 safe rebase，冲突时 abort 现场保全升级暂停 | ✅ |
+| wait_background_bash.py | 核心 | 窄域 build/test/CI 白名单 + LoopGuard 窗口解析 background spawn；metadata `wait_on_background_job_id` 绑定 BSDL job_id；Server finish 时 exit_wait + `trigger_goal_stream_with_failure_policy` 闭环 | ✅ |
+| wait_provider_window.py | 核心 | 供应商额度窗口停靠：`park_goal_for_provider_window` 把 ACTIVE goal 置 `WAIT`（metadata `wait_kind=usage_limit` + `wait_resume_at`，`max_wait_seconds`=等待时长+`HOLD_MAX_S`，即 24h 宿主迟到容忍），重置时间超过 24h 或连续无进展停靠（`MAX_NO_PROGRESS_HOLDS`）时置 `PAUSED`（`pause_kind=usage_limit`）；`pause_goal_after_missed_wake` 处理宿主唤醒过晚；`PROVIDER_WINDOW_METADATA_KEYS` 在 `resume_goal` 时统一清理 | ✅ |
+| audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 todo_write 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令）+ budget wrap-up prompt | ✅ |
+| goal_interceptor.py | 核心 | Goal 拦截器：执行前发布 protected_paths / invariant snapshot；进度由主 Agent `todo_write` 负责 | ✅ |
+| invariant_snapshot.py | 核心 | Post-hoc tamper detection: SHA-256 snapshot of Goal protected_paths at activation; verify integrity before completion (bash_code_execute_tool bypass safety net). Pattern 解析走 `core.security.path.pattern`（与事前 InvariantValidator 同一引擎）；未命中任何文件的规则与空基线均告警。生命周期: goal_interceptor capture → continuation verify → manager clear | ✅ |
+| verification/ | 核心 | 验收测试模块，提供准则解析(Gatekeeper)与运行时验证(Shell/Semantic)机制 | ✅ |
+| GOAL_SYSTEM.md | 文档 | Goal 系统的详细设计文档 | - |

@@ -1,0 +1,276 @@
+"""Orphan cleanup: only a verified leftover is ever signalled, and a stubborn one is escalated to SIGKILL."""
+
+from __future__ import annotations
+
+import os
+import signal
+import sys
+import threading
+from unittest.mock import patch
+
+import psutil
+
+from myrm_agent_harness.toolkits.browser.doctor import (
+    CheckStatus,
+    check_orphan_processes,
+    cleanup_orphan_processes,
+)
+from tests.toolkits.browser._stamped_processes import StampedProcesses, dead_owner_stamp, live_owner_stamp
+
+_ORPHANS = "myrm_agent_harness.toolkits.browser.doctor.orphans"
+
+
+def test_dry_run_is_the_default_and_signals_nothing(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    result = cleanup_orphan_processes([leftover.pid, 67890])
+
+    assert result["dry_run"] is True
+    assert result["killed"] == 0
+    assert result["would_kill"] == 2
+    assert "Dry-run" in result["message"]
+    assert leftover.poll() is None
+
+
+def test_force_terminates_a_verified_leftover(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    result = cleanup_orphan_processes([leftover.pid], force=True)
+
+    assert result["dry_run"] is False
+    assert result["killed"] == 1
+    assert result["failed"] == []
+    assert stamped_processes.wait_gone(leftover)
+
+
+def test_force_refuses_a_process_without_stamp(stamped_processes: StampedProcesses) -> None:
+    """A pid that no longer (or never did) belong to a leftover, e.g. after pid reuse, is left alone."""
+    foreign = stamped_processes.spawn(None)
+
+    result = cleanup_orphan_processes([foreign.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": foreign.pid, "reason": "not_an_orphan"}]
+    assert foreign.poll() is None
+
+
+def test_force_refuses_a_stamped_process_that_is_not_a_browser(stamped_processes: StampedProcesses) -> None:
+    """An application a browser opened and that inherited the stamp of its gone owner is not ours to kill."""
+    application = stamped_processes.spawn(dead_owner_stamp(), browser=False)
+
+    result = cleanup_orphan_processes([application.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": application.pid, "reason": "not_an_orphan"}]
+    assert application.poll() is None
+
+
+def test_force_refuses_a_process_whose_owner_is_alive(stamped_processes: StampedProcesses) -> None:
+    running = stamped_processes.spawn(live_owner_stamp())
+
+    result = cleanup_orphan_processes([running.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": running.pid, "reason": "not_an_orphan"}]
+    assert running.poll() is None
+
+
+def test_force_leaves_a_process_whose_identity_cannot_be_read(stamped_processes: StampedProcesses) -> None:
+    """psutil on macOS raises SystemError for a process reaped mid-read; unconfirmed means unsignalled, not an error."""
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    with patch("psutil.Process.environ", side_effect=SystemError("returned a result with an exception set")):
+        result = cleanup_orphan_processes([leftover.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": leftover.pid, "reason": "not_an_orphan"}]
+    assert leftover.poll() is None
+
+
+def test_force_ignores_a_pid_that_already_exited(stamped_processes: StampedProcesses) -> None:
+    child = stamped_processes.spawn(dead_owner_stamp())
+    child.kill()
+    child.wait()
+
+    result = cleanup_orphan_processes([child.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == []
+
+
+def test_auto_detect_terminates_leftovers_and_spares_everything_else(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+    foreign = stamped_processes.spawn(None, extra_args=("--user-data-dir=/home/u/.cache/ms-playwright/chromium-1",))
+    running = stamped_processes.spawn(live_owner_stamp())
+    application = stamped_processes.spawn(dead_owner_stamp(), browser=False)
+    own_processes = [psutil.Process(child.pid) for child in (leftover, foreign, running, application)]
+
+    # Limited to this test's own processes: another test worker, or a developer's machine, may have leftovers of
+    # its own, and this forced cleanup would terminate them.
+    with patch("psutil.process_iter", return_value=own_processes):
+        result = cleanup_orphan_processes(force=True)
+
+    assert result["killed"] == 1
+    assert stamped_processes.wait_gone(leftover)
+    assert foreign.poll() is None
+    assert running.poll() is None
+    assert application.poll() is None
+
+
+def test_stubborn_leftover_is_escalated_to_sigkill_by_default(stamped_processes: StampedProcesses) -> None:
+    """A process that ignores SIGTERM, as a headed Chrome without its driver does, is removed by the default call."""
+    stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
+
+    result = cleanup_orphan_processes([stubborn.pid], force=True)
+
+    assert result["killed"] == 1
+    assert result["failed"] == []
+    assert stamped_processes.wait_gone(stubborn)
+
+
+def test_without_grace_period_a_stubborn_leftover_only_gets_sigterm(stamped_processes: StampedProcesses) -> None:
+    stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
+
+    result = cleanup_orphan_processes([stubborn.pid], force=True, timeout_s=0.0)
+
+    assert result["killed"] == 1
+    assert stubborn.poll() is None
+
+
+def test_pid_that_stopped_being_a_leftover_during_the_grace_period_is_not_killed(
+    stamped_processes: StampedProcesses,
+) -> None:
+    """Between SIGTERM and SIGKILL the pid may have been reused; the SIGKILL needs a fresh identity check."""
+    stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
+    signals: list[int] = []
+    real_kill = os.kill
+
+    def record_kill(pid: int, sig: int) -> None:
+        signals.append(sig)
+        real_kill(pid, sig)
+
+    with (
+        patch("os.kill", side_effect=record_kill),
+        patch(f"{_ORPHANS}._is_leftover", side_effect=lambda _pid: not signals),
+    ):
+        result = cleanup_orphan_processes([stubborn.pid], force=True, timeout_s=0.2)
+
+    assert signals == [signal.SIGTERM]
+    assert result["failed"] == []
+    assert stubborn.poll() is None
+
+
+def test_leftover_that_exits_with_a_stopped_one_is_counted_as_cleaned(stamped_processes: StampedProcesses) -> None:
+    """A browser's helpers exit together with its main process; the result must count every leftover that is gone."""
+    stubborn = stamped_processes.spawn(dead_owner_stamp(), ignore_sigterm=True)
+    companion = stamped_processes.spawn(dead_owner_stamp())
+    helper_exit = threading.Timer(0.2, companion.kill)
+    helper_exit.start()
+
+    try:
+        result = cleanup_orphan_processes([stubborn.pid, companion.pid], force=True, timeout_s=0.6)
+    finally:
+        helper_exit.cancel()
+
+    assert result["killed"] == 2
+    assert result["failed"] == []
+
+
+def test_leftover_that_survives_sigkill_is_reported_as_failed(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    with patch("os.kill"), patch(f"{_ORPHANS}._SIGKILL_SETTLE_S", 0.05):
+        result = cleanup_orphan_processes([leftover.pid], force=True, timeout_s=0.1)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": leftover.pid, "reason": "process_still_running_after_kill"}]
+
+
+def test_process_that_exits_between_check_and_signal_is_not_a_failure(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    with patch("os.kill", side_effect=ProcessLookupError):
+        result = cleanup_orphan_processes([leftover.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["dry_run"] is False
+    assert result["failed"] == []
+
+
+def test_permission_denied_is_recorded(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    with patch("os.kill", side_effect=PermissionError):
+        result = cleanup_orphan_processes([leftover.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": leftover.pid, "reason": "permission_denied"}]
+
+
+def test_unexpected_signal_failure_is_recorded_with_its_reason(stamped_processes: StampedProcesses) -> None:
+    leftover = stamped_processes.spawn(dead_owner_stamp())
+
+    with patch("os.kill", side_effect=RuntimeError("signal failed")):
+        result = cleanup_orphan_processes([leftover.pid], force=True)
+
+    assert result["killed"] == 0
+    assert result["failed"] == [{"pid": leftover.pid, "reason": "signal failed"}]
+
+
+def test_cleanup_without_psutil_reports_an_error() -> None:
+    with patch.dict(sys.modules, {"psutil": None}):
+        result = cleanup_orphan_processes([12345], force=True)
+
+    assert result["dry_run"] is True
+    assert result["killed"] == 0
+    assert result["error"] == "psutil not available"
+
+
+def test_check_orphan_processes_previews_only_first_pids() -> None:
+    """Should preview only the first three pids when many orphans exist."""
+    orphans = [{"pid": pid, "name": "chrome", "ppid": 1, "user_data_dir": "/tmp/x"} for pid in (1111, 2222, 3333, 4444)]
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.find_orphan_automation_processes",
+            return_value=orphans,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.cleanup_stale_automation_sandboxes",
+            return_value={"pruned": 0, "reclaimed_bytes": 0},
+        ),
+    ):
+        result = check_orphan_processes()
+
+    assert result.status == CheckStatus.WARNING
+    assert "4 orphan automation" in result.message
+    assert "..." in result.message
+    assert result.details == {
+        "count": 4,
+        "pids": [1111, 2222, 3333, 4444],
+        "paths": ["/tmp/x", "/tmp/x", "/tmp/x", "/tmp/x"],
+        "stale_sandboxes": 0,
+        "stale_sandbox_bytes": 0,
+    }
+
+
+def test_check_orphan_processes_reports_stale_sandboxes_when_no_orphans() -> None:
+    """Should report WARNING when no orphan processes exist but stale sandboxes are detected."""
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.find_orphan_automation_processes",
+            return_value=[],
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.orphan_check.cleanup_stale_automation_sandboxes",
+            return_value={"pruned": 3, "reclaimed_bytes": 104857600},
+        ),
+    ):
+        result = check_orphan_processes()
+
+    assert result.status == CheckStatus.WARNING
+    assert "3 stale sandbox(es) (100.0 MB)" in result.message
+    assert result.details is not None
+    assert result.details["count"] == 0
+    assert result.details["stale_sandboxes"] == 3
+    assert result.details["stale_sandbox_bytes"] == 104857600

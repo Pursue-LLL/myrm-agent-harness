@@ -1,0 +1,448 @@
+"""Channel security presets — per-channel default capabilities & permissions.
+
+Each channel type (web_chat, IM, cron) has a preset that defines:
+- Which tool categories (capabilities) are available
+- Which permission rules override the user's config
+
+[INPUT]
+- .types::Capability, SecurityConfig, DEFAULT_CAPABILITIES, DEFAULT_RULESET
+  (POS: Foundation layer of the security type hierarchy.)
+- .engine::merge (POS: Layers 1-5 of the security architecture. Pure deterministic evaluation.)
+- .config::parse_security_config (POS: Called at application startup and on config updates. Pure functions.)
+
+[OUTPUT]
+- ChannelType: web_chat / im / cron
+- ChannelSecurityPreset: (capabilities, ruleset) pair
+- CHANNEL_PRESETS: registry of presets per channel type
+- resolve_channel_type(): channel name → ChannelType
+- get_local_browser_relaxation(): rules relaxing browser restrictions for local mode
+- build_channel_security_config(): channel + user config + declared_capabilities → SecurityConfig
+
+[POS]
+Decouples channel-specific security policy from the generic Permission Engine.
+Channel preset rules sit at the highest priority layer (merged last),
+ensuring channel restrictions cannot be bypassed by user configuration.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import StrEnum, unique
+
+from myrm_agent_harness.agent.security.config import parse_security_config
+from myrm_agent_harness.agent.security.engine import evaluate, merge
+from myrm_agent_harness.agent.security.types import (
+    DEFAULT_CAPABILITIES,
+    DEFAULT_RULESET,
+    Capability,
+    CapabilitySet,
+    PathPolicy,
+    PermissionAction,
+    PermissionRule,
+    PermissionRuleset,
+    PrivacyPolicy,
+    SecurityConfig,
+)
+
+
+@unique
+class ChannelType(StrEnum):
+    """Channel types with distinct security postures."""
+
+    WEB_CHAT = "web_chat"
+    IM = "im"
+    CRON = "cron"
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelSecurityPreset:
+    """Per-channel default security configuration.
+
+    ``capabilities`` restricts which tool categories the channel can use.
+    ``ruleset`` overrides default permission rules (merged on top of user config).
+    """
+
+    capabilities: CapabilitySet
+    ruleset: PermissionRuleset
+
+
+_IM_CAPABILITIES: CapabilitySet = frozenset(
+    {
+        Capability("*", "*"),
+        Capability("!browser_*", "*"),
+        Capability("!desktop_*", "*"),
+        Capability("!mobile_*", "*"),
+    }
+)
+
+_LOCAL_BROWSER_RELAXATION: PermissionRuleset = (
+    # Internal-IP navigation: override DEFAULT_RULESET DENY → ALLOW for local users
+    PermissionRule("browser_navigate", "127.0.0.1*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "localhost*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "0.0.0.0*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "10.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.16.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.17.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.18.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.19.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.20.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.21.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.22.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.23.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.24.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.25.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.26.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.27.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.28.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.29.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.30.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "172.31.*", PermissionAction.ALLOW),
+    PermissionRule("browser_navigate", "192.168.*", PermissionAction.ALLOW),
+    # Safe browser operations: local users own their machine
+    PermissionRule("browser_fill", "*", PermissionAction.ALLOW),
+    PermissionRule("browser_upload", "*", PermissionAction.ALLOW),
+    PermissionRule("browser_download", "*", PermissionAction.ALLOW),
+    PermissionRule("browser_session", "*", PermissionAction.ALLOW),
+)
+
+CHANNEL_PRESETS: dict[ChannelType, ChannelSecurityPreset] = {
+    ChannelType.WEB_CHAT: ChannelSecurityPreset(capabilities=DEFAULT_CAPABILITIES, ruleset=()),
+    ChannelType.IM: ChannelSecurityPreset(
+        capabilities=_IM_CAPABILITIES,
+        ruleset=(
+            PermissionRule("shell_exec", "*", PermissionAction.DENY),
+            PermissionRule("code_interpreter", "*", PermissionAction.ASK),
+            PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
+            PermissionRule("file_write_tool", "*", PermissionAction.ASK),
+            PermissionRule("file_edit_tool", "*", PermissionAction.ASK),
+        ),
+    ),
+    ChannelType.CRON: ChannelSecurityPreset(
+        capabilities=DEFAULT_CAPABILITIES,
+        ruleset=(
+            PermissionRule("desktop_capture", "*", PermissionAction.DENY),
+            PermissionRule("desktop_control", "*", PermissionAction.DENY),
+        ),
+    ),
+}
+
+
+def get_local_browser_relaxation() -> PermissionRuleset:
+    """Rules that relax browser restrictions for local mode (desktop / CLI).
+
+    Local users own their machine and local network, so internal-IP
+    navigation, form fill, upload, download, and session management
+    are allowed without approval.
+    """
+    return _LOCAL_BROWSER_RELAXATION
+
+
+_WEB_CHAT_CHANNEL_NAMES: frozenset[str] = frozenset({"web_chat"})
+
+
+def resolve_channel_type(channel_name: str) -> ChannelType:
+    """Map a channel name to its ChannelType for security preset lookup.
+
+    Default-safe: unknown channels are classified as IM (least privilege).
+    Only explicitly listed web_chat and cron get elevated permissions.
+    """
+    if channel_name in _WEB_CHAT_CHANNEL_NAMES:
+        return ChannelType.WEB_CHAT
+    if channel_name == "cron":
+        return ChannelType.CRON
+    return ChannelType.IM
+
+
+def build_channel_security_config(
+    channel_name: str,
+    user_config_raw: dict[str, object] | None = None,
+    *,
+    agent_security_raw: dict[str, object] | None = None,
+    declared_capabilities: tuple[str, ...] = (),
+    declared_allowed_roots: tuple[str, ...] = (),
+    local_mode: bool = False,
+    privacy_policy: PrivacyPolicy | None = None,
+) -> SecurityConfig:
+    """Build a SecurityConfig combining channel presets with user + agent overrides.
+
+    Merge order (last-match-wins):
+    1. DEFAULT_RULESET (base)
+    2. User-defined rules (from UI SecurityPolicySection)
+    3. Agent-level overrides (per-agent security policy)
+    4. Channel preset rules (highest priority — channel restrictions cannot be bypassed)
+    5. Local relaxation (if ``local_mode`` — relaxes browser restrictions for local users)
+
+    Agent merge semantics:
+    - capabilities: intersection (Agent can only restrict, not expand)
+    - allowed_roots: union (Agent can grant additional paths)
+    - forbidden_paths: always preserved (cannot be overridden)
+    - ruleset: Agent rules merged on top (higher priority)
+    - timeout: Agent overrides user (if configured)
+
+    For Cron jobs, a **non-empty** ``declared_capabilities`` replaces the capability
+    set with that exact list. When empty, the CRON channel preset capabilities are
+    kept (unrestricted within the preset — matches UI "leave empty for all"), except that
+    ``file_write_tool`` / ``file_edit_tool`` stay denied unless ``file_write`` is declared.
+    ``declared_allowed_roots`` provides additional path access grants (union-merged
+    with existing allowed_roots). Applies to all channel types.
+    """
+    channel_type = resolve_channel_type(channel_name)
+    preset = CHANNEL_PRESETS[channel_type]
+
+    user_config = parse_security_config(user_config_raw)
+    agent_config = parse_security_config(agent_security_raw)
+    effective = _merge_user_and_agent(user_config, agent_config)
+
+    if effective:
+        capabilities = _merge_capabilities(preset.capabilities, effective.capabilities)
+        ruleset = merge(effective.ruleset, preset.ruleset)
+        timeout = effective.approval_timeout_seconds
+        timeout_behavior = effective.approval_timeout_behavior
+        path_policy = effective.path_policy
+    else:
+        capabilities = preset.capabilities
+        ruleset = merge(DEFAULT_RULESET, preset.ruleset)
+        timeout = 120
+        timeout_behavior = "deny"
+        path_policy = PathPolicy()
+
+    if local_mode:
+        ruleset = merge(ruleset, _LOCAL_BROWSER_RELAXATION)
+
+    if channel_type == ChannelType.CRON and declared_capabilities:
+        capabilities = _build_declared_capability_set(declared_capabilities)
+
+    if declared_allowed_roots:
+        from myrm_agent_harness.core.security.types import access_roots_from_paths
+
+        existing_paths = {r.path for r in path_policy.access_roots}
+        extra = tuple(p for p in declared_allowed_roots if p not in existing_paths)
+        merged_access = (
+            *path_policy.access_roots,
+            *access_roots_from_paths(extra),
+        )
+        path_policy = PathPolicy(
+            forbidden_paths=path_policy.forbidden_paths,
+            access_roots=merged_access,
+            workspace_label=path_policy.workspace_label,
+        )
+
+    network_allowlist: tuple[str, ...] = ()
+    network_blocklist: tuple[str, ...] = ()
+    command_denylist: tuple[str, ...] = ()
+    domain_hitl_enabled = False
+    auto_mode_enabled = True
+    auto_review_model: str | None = None
+    auto_review_timeout: float = 3.0
+    plan_confirm_enabled = False
+    yolo_mode_enabled = False
+    yolo_mode_enabled_at: float | None = None
+    yolo_mode_timeout: int | None = None
+    injection_policy: str = "log_only"
+    if effective:
+        network_allowlist = effective.network_allowlist
+        network_blocklist = effective.network_blocklist
+        command_denylist = effective.command_denylist
+        domain_hitl_enabled = effective.domain_hitl_enabled
+        auto_mode_enabled = effective.auto_mode_enabled
+        auto_review_model = effective.auto_review_model
+        auto_review_timeout = effective.auto_review_timeout_seconds
+        plan_confirm_enabled = effective.plan_confirm_enabled
+        yolo_mode_enabled = effective.yolo_mode_enabled
+        yolo_mode_enabled_at = effective.yolo_mode_enabled_at
+        yolo_mode_timeout = effective.yolo_mode_timeout
+        injection_policy = effective.injection_policy
+
+    if channel_type == ChannelType.CRON:
+        plan_confirm_enabled = False
+        # Unattended jobs write files only when their declaration names ``file_write``. The test is on
+        # the declared names, not on the effective set, so the unrestricted default never grants it.
+        if "file_write" not in declared_capabilities:
+            ruleset = merge(
+                ruleset,
+                (
+                    PermissionRule("file_write_tool", "*", PermissionAction.DENY),
+                    PermissionRule("file_edit_tool", "*", PermissionAction.DENY),
+                ),
+            )
+
+    if injection_policy == "log_only" and channel_type in (ChannelType.IM, ChannelType.CRON):
+        injection_policy = "fail_closed"
+
+    result = SecurityConfig(
+        capabilities=capabilities,
+        ruleset=ruleset,
+        approval_timeout_seconds=timeout,
+        approval_timeout_behavior=timeout_behavior,
+        path_policy=path_policy,
+        network_allowlist=network_allowlist,
+        network_blocklist=network_blocklist,
+        command_denylist=command_denylist,
+        domain_hitl_enabled=domain_hitl_enabled,
+        auto_mode_enabled=auto_mode_enabled,
+        auto_review_model=auto_review_model,
+        auto_review_timeout_seconds=auto_review_timeout,
+        plan_confirm_enabled=plan_confirm_enabled,
+        injection_policy=injection_policy,  # type: ignore[arg-type]
+        yolo_mode_enabled=yolo_mode_enabled,
+        yolo_mode_enabled_at=yolo_mode_enabled_at,
+        yolo_mode_timeout=yolo_mode_timeout,
+    )
+    if privacy_policy is not None:
+        object.__setattr__(result, "privacy_policy", privacy_policy)
+    return result
+
+
+def _action_severity(action: PermissionAction) -> int:
+    """Numerical severity for permission actions (higher = more restrictive)."""
+    match action:
+        case PermissionAction.DENY:
+            return 3
+        case PermissionAction.ASK:
+            return 2
+        case PermissionAction.ALLOW:
+            return 1
+        case _:
+            return 2
+
+
+def _merge_ruleset_with_ceiling(
+    base_ruleset: PermissionRuleset,
+    agent_ruleset: PermissionRuleset,
+) -> PermissionRuleset:
+    """Merge agent rules onto a base ruleset under the Least Privilege Ceiling.
+
+    Anti-privilege-escalation guarantee:
+    An agent rule is accepted if and only if its action is AT LEAST as restrictive
+    as the base ruleset evaluation for that (permission, pattern). If an agent rule
+    attempts to relax permissions (e.g. ALLOW when base is ASK/DENY, or ASK when
+    base is DENY), it is rejected/suppressed so that agent overrides can only
+    tighten security, never expand it.
+    """
+    valid_agent_rules: list[PermissionRule] = []
+    for rule in agent_ruleset:
+        base_effective = evaluate(rule.permission, rule.pattern, base_ruleset)
+        if _action_severity(rule.action) >= _action_severity(base_effective.action):
+            valid_agent_rules.append(rule)
+    return merge(base_ruleset, tuple(valid_agent_rules))
+
+
+def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | None) -> SecurityConfig | None:
+    """Merge user-level config with per-agent overrides.
+
+    - capabilities: intersection (Agent restricts, never expands)
+    - allowed_roots: union (Agent can grant additional paths)
+    - forbidden_paths: always DEFAULT (cannot be overridden)
+    - ruleset: with a user config, agent rules are merged under the Least Privilege
+      Ceiling (can tighten, never escalate). Without a user config the agent config
+      is used as-is, so untrusted (externally supplied) overrides must be restricted
+      by the business layer before they reach this function.
+    - timeout: Agent overrides user if explicitly configured (non-default)
+    - yolo_mode: either side enabling YOLO enables it (no user-level ceiling applies)
+    """
+    if agent is None:
+        return user
+    if user is None:
+        return agent
+
+    agent_positives = frozenset(c for c in agent.capabilities if not c.permission.startswith("!"))
+    if agent_positives:
+        user_positives = frozenset(c for c in user.capabilities if not c.permission.startswith("!"))
+        all_negatives = frozenset(c for c in user.capabilities if c.permission.startswith("!")) | frozenset(
+            c for c in agent.capabilities if c.permission.startswith("!")
+        )
+        caps = (user_positives & agent_positives) | all_negatives
+    else:
+        caps = user.capabilities
+
+    ruleset = _merge_ruleset_with_ceiling(user.ruleset, agent.ruleset)
+
+    from myrm_agent_harness.core.security.types import AccessRoot
+
+    path_set: dict[str, AccessRoot] = {r.path: r for r in user.path_policy.access_roots}
+    for root in agent.path_policy.access_roots:
+        path_set.setdefault(root.path, root)
+    label = agent.path_policy.workspace_label or user.path_policy.workspace_label
+    pp = PathPolicy(
+        forbidden_paths=user.path_policy.forbidden_paths,
+        access_roots=tuple(path_set.values()),
+        workspace_label=label,
+    )
+
+    timeout = agent.approval_timeout_seconds if agent.approval_timeout_seconds != 120 else user.approval_timeout_seconds
+    timeout_behavior = (
+        agent.approval_timeout_behavior if agent.approval_timeout_behavior != "deny" else user.approval_timeout_behavior
+    )
+
+    network_allowlist = tuple(sorted(set(user.network_allowlist) | set(agent.network_allowlist)))
+    network_blocklist = tuple(sorted(set(user.network_blocklist) | set(agent.network_blocklist)))
+    command_denylist = tuple(sorted(set(user.command_denylist) | set(agent.command_denylist)))
+    domain_hitl_enabled = user.domain_hitl_enabled or agent.domain_hitl_enabled
+    auto_mode_enabled = user.auto_mode_enabled or agent.auto_mode_enabled
+    auto_review_model = agent.auto_review_model or user.auto_review_model
+    auto_review_timeout = min(user.auto_review_timeout_seconds, agent.auto_review_timeout_seconds)
+    # YOLO merge: either user globally enables YOLO or agent enables YOLO (e.g. unattended / specialized agent)
+    yolo_enabled = user.yolo_mode_enabled or agent.yolo_mode_enabled
+    if yolo_enabled:
+        if agent.yolo_mode_enabled and user.yolo_mode_enabled:
+            yolo_at = agent.yolo_mode_enabled_at or user.yolo_mode_enabled_at
+            yolo_timeout = agent.yolo_mode_timeout or user.yolo_mode_timeout
+        elif agent.yolo_mode_enabled:
+            yolo_at = agent.yolo_mode_enabled_at
+            yolo_timeout = agent.yolo_mode_timeout
+        else:
+            yolo_at = user.yolo_mode_enabled_at
+            yolo_timeout = user.yolo_mode_timeout
+    else:
+        yolo_enabled = False
+        yolo_at = None
+        yolo_timeout = None
+
+    injection_policy: str = "log_only"
+    if user.injection_policy == "fail_closed" or agent.injection_policy == "fail_closed":
+        injection_policy = "fail_closed"
+
+    return SecurityConfig(
+        capabilities=caps,
+        ruleset=ruleset,
+        approval_timeout_seconds=timeout,
+        approval_timeout_behavior=timeout_behavior,
+        path_policy=pp,
+        network_allowlist=network_allowlist,
+        network_blocklist=network_blocklist,
+        command_denylist=command_denylist,
+        domain_hitl_enabled=domain_hitl_enabled,
+        injection_policy=injection_policy,  # type: ignore[arg-type]
+        auto_mode_enabled=auto_mode_enabled,
+        auto_review_model=auto_review_model,
+        auto_review_timeout_seconds=auto_review_timeout,
+        yolo_mode_enabled=yolo_enabled,
+        yolo_mode_enabled_at=yolo_at,
+        yolo_mode_timeout=yolo_timeout,
+    )
+
+
+def _merge_capabilities(preset: CapabilitySet, user: CapabilitySet) -> CapabilitySet:
+    """Merge channel preset capabilities with user-defined capabilities.
+
+    Negative capabilities (``!`` prefix) from the preset are always preserved
+    — they represent hard channel constraints that users cannot bypass.
+    Positive capabilities are intersected when the preset is restrictive
+    (not DEFAULT_CAPABILITIES), or taken from user config when the preset
+    is permissive.
+    """
+    preset_negatives = frozenset(c for c in preset if c.permission.startswith("!"))
+    preset_positives = preset - preset_negatives
+
+    if preset_positives == DEFAULT_CAPABILITIES:
+        return user | preset_negatives
+
+    return (preset_positives & user) | preset_negatives
+
+
+def _build_declared_capability_set(names: tuple[str, ...]) -> CapabilitySet:
+    """Convert a list of capability names to a CapabilitySet.
+
+    Each name becomes a Capability(name, "*") grant.
+    """
+    return frozenset(Capability(name, "*") for name in names)

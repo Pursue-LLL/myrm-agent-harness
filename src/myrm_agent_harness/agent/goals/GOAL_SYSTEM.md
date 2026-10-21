@@ -1,0 +1,131 @@
+# Goal System Design
+
+## 架构概述
+Goal System 负责管理长期任务（Long-running Tasks）的生命周期、预算控制、目标规划和进度追踪。
+它将传统的"闭眼裸奔"的 Agent 执行模式，升级为"带图纸的工程流水线"。
+
+## 核心组件
+
+### 1. GoalManager (状态机与预算)
+- 负责 Goal 的创建、状态流转（ACTIVE, PAUSED, PENDING_APPROVAL, BUDGET_LIMITED, **WAIT**, COMPLETE, CANCELLED, NEEDS_HUMAN_REVIEW）。
+- 四维预算控制（tokens / USD / wall-clock time / turns），任何一维耗尽即自动转为 BUDGET_LIMITED。
+- **自适应循环与收敛控制**：GoalBudget 扩展 `convergence_window`（连续无进展轮次阈值）、`loop_on_pause`（暂停后自动重启）、`max_loop_restarts`（重启安全上限）三个可选字段。Goal 运行时追踪 `no_progress_streak`（连续零工具调用计数）和 `loop_restarts`（已重启次数）。
+- `resume_goal(reset_turns=True)` 方法支持恢复暂停或预算受限的 Goal，重置 convergence 计数器（no_progress_streak、loop_restarts、consecutive_judge_parse_failures、verification_retries）并可选重置 turn 计数。
+- **`enter_wait` / `exit_wait`**：Goal 进入 WAIT 态时 continuation 跳过 judge 与 turn 计费；支持 `wait_reason` + `wait_max_seconds`（默认 2h）超时自动 PAUSE。白名单 build/test/CI 命令在 `wait_background_bash.py` 于 turn 末自动 enter_wait，并在 Goal metadata 写入 `wait_on_background_job_id`（32 位 hex，与 BSDL `BackgroundJobStore.job_id` / REST `shell:{job_id}` 对齐）；Server `goal_wait_background_resume.py` 在 background job finish 时按 `(session_id, job_id)` 匹配并 exit_wait，再 `trigger_goal_stream_with_failure_policy(needs_human_review)` 续跑；Server `goal_wait_orphan_recovery.py` 在进程重启且 Store 将 job 标为 orphaned 时，按同一 `(session_id, job_id)` 把仍 WAIT 的 Goal 置为 NEEDS_HUMAN_REVIEW 并推送 `goal_needs_review` SSE。`handle_unattended_goal_stream_failure` 统一处理 setup 与 runtime stream 失败（NEEDS_HUMAN_REVIEW + `goal_needs_review` SSE）；loop_restart 失败 `keep_active` 保留 Cron fallback。
+- **供应商额度窗口 WAIT**：流层读到供应商给出的重置时间（`toolkits/llms/errors/provider_window`）且超过 300s 轮内等待上限时，`wait_provider_window.park_goal_for_provider_window` 调 `enter_wait(kind="usage_limit", resume_at=…)`，metadata 写 `wait_kind` / `wait_resume_at`，`max_wait_seconds` = 等待时长 + `HOLD_MAX_S`（24h，与宿主迟到容忍同一口径，重置后才结束的一轮不会抢在宿主唤醒前把目标暂停），turn 不计费。重置超过 24h、或同一进度点连续停靠超过 `MAX_NO_PROGRESS_HOLDS` 时直接 `PAUSED`（`pause_kind=usage_limit`）。host 通过 `on_goal_hold` 回调拿到停靠结果并在 `wait_resume_at` 调 `exit_wait` + 续跑；宿主迟到超过 `HOLD_MAX_S`（24h）则 `pause_goal_after_missed_wake`。`resume_goal` 清理 `PROVIDER_WINDOW_METADATA_KEYS`。
+- **`update_metadata`**：合并 metadata 字段（pause_reason、pending_terminal 等）。
+- **`GoalFinalizer`（`finalizer.py`）**：所有 COMPLETE 过渡的 SSOT。Semantic Judge / Convergence 同步完成；`complete_goal_tool` 异步完成并设置 `pending_terminal`，由 `check_continuation` 在同一 turn 末解析为 `verdict=done`，触发 `on_goal_terminal`（learnings + 队列 dequeue）。
+- `account_usage(turn_delta=1)` 在每个 continuation turn 精确递增 turns_used。
+- **Goal Lifecycle Metrics**：在 `create_goal`、`update_status`（终态）、`resume_goal` 三个状态转换点自动记录 Prometheus 指标（6 counters + 3 histograms），通过 `observability/metrics/goal_metrics.py` 定义，为 SaaS 运营监控提供 goal 完成率、预算耗尽率、耗时分布、Token/Cost 分布等关键数据。
+- **多分支上下文隔离与迁移 (Branch-Aware Stash & Migrate)**：
+  - `stash_goal` 和 `restore_goal` 实现基于 `session_id` + `branch_name` 的联合主键隔离，彻底解决多工作区/多会话并发数据覆盖 Bug。
+  - Server 层配合 `watchdog` 零延迟监听 `.git/HEAD`，实现**意图感知的目标迁移**：当检测到新建分支（如 `checkout -b`）时，自动将当前 Active Goal 继承（MIGRATE）到新分支；当切回老分支时，自动挂起并恢复（STASH/RESTORE）对应上下文，完美契合真实 Git 工作流。
+- **运行时动态子目标 (Dynamic Runtime Subgoals)**：
+  - 支持在任务执行过程中，随时通过 `/subgoal` 指令追加新的验收标准或子任务。
+  - 最新的 Subgoal 具备**绝对优先级**，被无损注入到 `Semantic Judge` 和 `Continuation Prompt` 中，确保 Agent 能够灵活响应临时变更的需求，极大增强了长任务场景下的动态干预能力。
+- **Objective Hot-Edit (运行时目标热编辑)**：
+  - `update_objective(goal_id, new_objective)` 允许在 Goal 执行期间修改目标文本而不丢失进度、Token 统计、learnings 等上下文。
+  - 通过 `SteeringToken.steer()` 注入 `build_objective_updated_steering_message()` 构建的引导消息，消息中：
+    - 新目标使用 `<untrusted_objective>` 标签防 prompt 注入。
+    - 附带当前预算状态（tokens used / remaining），帮助 Agent 评估剩余资源。
+    - 指导 Agent 调整方向、更新已有 Plan、遵守 active constraints。
+  - `continuation.py` 的 `has_pending` 检查确保 steering 消息在 turn 边界注入，不破坏工具链执行。
+
+### 2. Goal Interceptor (前置会话不变量)
+- 在主 Agent 循环启动前，拦截 `/goal` 请求。
+- 设置 Goal 的 `protected_paths` 与 tamper 快照；**不再**调用子 Agent 生成计划，也**不再**自动进入 `PENDING_APPROVAL` / `interrupt()`。
+- 多步进度由主 Agent 在运行中通过 `todo_write` 维护（SSOT：`.myrm/progress/todos.json`）。
+
+### 3. CompletionGuard (基于客观证据的严格完工护栏)
+- 在 Agent 试图输出最终答案（结束任务）时，拦截请求。
+- **强制进度校验**：读取 workspace todos；若仍有未完成项，阻断完工并提示 `todo_write(merge=true)` 更新状态。
+- **强制物理证据校验 (TDD-like) 与智能模态感知**：分析 Agent 的历史工具调用记录（CallRecords）。
+  - **代码任务严防死守**：如果发现 Agent 修改了代码文件（如 `.py`, `.js` 等）但没有运行任何测试/验证命令（如 `pytest`, `python script.py` 等），或者运行了但报错了，护栏将拦截完工请求，并抛出 Tool Error 逼迫 Agent 去沙箱里跑测试并修复问题。
+  - **前端视觉验证提醒**：如果修改了前端渲染文件（`.tsx/.jsx/.vue/.svelte/.astro/.css/.scss/.less/.html`，通过路径片段匹配智能排除 test/store/utils/hooks/types 等非渲染目录及 `.test.`/`.spec.`/`.config.`/`.stories.` 等非渲染文件）且未使用浏览器工具验证，追加 WARNING 提示 Agent 进行视觉确认。
+  - **文本任务包容放行**：如果修改的仅仅是文本文件（如 `.md`, `.txt`），则只给出普通警告，允许正常完工，避免非代码任务陷入死循环。
+  - **执行断言接地**：最终回复中的承重断言与本轮工具记录对齐——"测试/lint/类型/构建已通过"要求真实测试运行器且真实执行（collect-only 与零用例不算），"已发送/已发布/已部署/已提交"要求发送语义的 MCP / 外发命令 / 外发工具名，用户本轮要求改代码时的"已修复/已实现"要求成功写操作；命中即要求取证或如实改写。
+  - **每轮披露**：收尾计算证据档（已验证 / 有工件 / 有来源 / 计划）与自动暂存的草案清单，经 `message_end` 事件持久化到消息元数据，供回答头部的证据档徽章与末尾的暂存草案横幅渲染；`PLAN` 档仅在回答含完成式断言时披露。
+- **优雅降级 (Graceful Degradation)**：当连续拦截次数达到 `max_rejections`（默认 3 次）时，不再粗暴地触发 `interrupt()` 导致前端假死，而是注入一个带有 `force_fail=True` 的特殊指令。该指令允许 Agent 完工，但**强制要求 Agent 在最终回复中向用户输出明确的 Markdown 警告**，说明其未能成功验证代码，请用户人工审查。拦截预算按轮次消息 id 分桶，并发回合互不干扰。
+- 物理层面彻底杜绝了 AI 的"幻觉式完工"和"偷懒早退"，同时保证了系统的健壮性和用户体验。
+
+### 4. ProgressMiddleware (活跃 todo 焦点注入)
+- 当 workspace 存在未完成 todos 时，在每次模型调用的**最后一个 HumanMessage** 末尾追加当前 todo 焦点（非持久化，不污染 system 前缀 cache）。
+- 与 `todo_write` 写入的 SSOT 只读联动，防止长上下文任务漂移。
+
+### 5. Continuation Guard Chain (自主续航判断)
+- Guard chain 决定 Goal 是否应自动继续到下一轮：
+  1. GoalProvider 存在？
+  2. 有 ACTIVE Goal？
+  3. 用户取消？
+  4. Steering 消息待处理？
+  5. 预算耗尽？（含 turns 维度）→ 首次触发时注入 wrap-up prompt 执行一轮总结（graceful conclusion），第二次直接终止。
+  6. **收敛/循环/抑制**（三级判定）：
+     - 6a. **Convergence**：当 `convergence_window` 已设置且 `no_progress_streak >= K` 时，先执行 InvariantSnapshot 篡改检测（`verify_protected_integrity`），发现违规则阻断完成并返回违规详情要求 agent 修复；通过后标记 COMPLETE(convergence)。解决开放式目标以 BUDGET_LIMITED 结束的 UX 痛点，同时节省 token。
+     - 6b. **Loop Restart**：当 `loop_on_pause=True` 且未超过 `max_loop_restarts` 时，触发 `trigger_goal_stream_with_failure_policy(keep_active)` 以新 context 立即重启，而非等待 Cron 分钟级延迟。
+     - 6c. **Standard Suppression**：连续零工具调用 → PAUSED 防空转（原有行为）。
+  7. **语义完成判断**（Semantic Judge）：使用廉价 LLM 判断目标是否已语义完成。当判定未完成时，Judge 的 reason 会被传递到下一轮的 continuation prompt 中（"Previous evaluation feedback" 块），使 Agent 知道具体缺口并针对性修复。当 Judge 判定 DONE 且 `acceptance_criteria` 已配置时，触发 `VerificationGatekeeper` 程序化验证（shell 命令执行 + 语义 LLM 评估），全部通过后执行 InvariantSnapshot 篡改检测，全部通过才标记 COMPLETE。验证失败时递增 `verification_retries`，超过阈值（3 次）自动 PAUSE 防止无限循环。
+- **Budget Wrap-up Turn（预算耗尽优雅收尾）**：当预算首次耗尽时，不立即终止 Agent，而是注入 `build_wrapup_prompt`（"停止新工作，总结进度/剩余工作/下步建议"）触发额外一轮无工具的 LLM 调用，让 Agent 生成语义化总结作为 AssistantMessage 出现在聊天流中。通过 `_WRAPUP_SENTINEL` 标记检测防止无限循环，第二次进入 BUDGET_LIMITED 时直接终止。灵感来源：Codex `budget_limit.md` + Hermes `_handle_max_iterations`。
+- 返回结构化 `ContinuationDecision`（verdict / reason / turns_used / max_turns），verdict 类型包括：continue / done / budget / cancelled / suppressed / steering / no_goal / convergence / loop_restart / **wait**。
+- Semantic Judge 特性：
+  - 三段式 prompt：角色定义 + 严格 DONE 条件 + JSON 输出格式要求。
+  - 前 N 轮跳过（Agent 需要时间开始工作）。
+  - Fail-open 设计：判断失败默认继续工作，不阻塞进度。API/网络错误不阻塞也不累计。
+  - **Parse Failure Circuit Breaker**：当 judge 模型连续 N 次（默认 3）返回无法解析为 JSON 的输出时，自动 PAUSE 目标并通知用户更换 judge 模型。防止弱模型无声燃烧 token 预算。成功解析一次即重置计数器；API/网络错误不计入（仅内容解析失败计入）。`resume_goal` 时计数器自动归零。
+  - Server 层实现多层 JSON 容错解析（直接解析 → markdown fence → inline 提取 → 前缀 fallback）。
+  - **全栈上下文感知的精准多模态防作弊 (Context-Aware Precision Multimodal Judge)**：
+    - 针对 GUI/浏览器 自动化任务易产生的“假阳性（Fake Success）幻觉”，Server 层的 `evaluate_semantic` 会进行物理拦截验证。
+    - **意图级精准追踪**：Harness 层（执行引擎）会将本次执行流日志（`collected_messages`）全量透传给 Server 裁判。Server 层遍历查验，当且仅当日志中明确检测到 `browser_interact` / `computer_use` 等 GUI 工具的调用痕迹时，才标记需要视觉证据。
+    - **物理强抓与降级**：判定需要视觉后，Server 才会通过 Gateway 从底层强拉取沙箱环境最新快照（截图），并包裹进 Vision 模型进行“眼见为实”的严苛核验。
+    - 对于纯代码或运算等非 GUI 任务，哪怕沙箱后台残留着活着的浏览器进程，系统也会 100% 精准降级为纯文本评委。彻底阻断 Vision 模型的注意力干扰与高昂 Token 消耗，严格践行奥卡姆剃刀（0 误判 0 浪费）。
+- Continuation Prompt 包含多层行为引导：
+  - **Acceptance Criteria 注入**：当 `acceptance_criteria` 已配置时，以 "ACCEPTANCE CRITERIA (MUST be verified before declaring done)" 区块注入 prompt，每条标注 `[shell]` 或 `[semantic]` 类型。Judge criteria 中同步注入 "Acceptance Criteria (goal is NOT done unless ALL criteria are met)" 区块。
+  - **Judge feedback 注入**：当 Semantic Judge 判定未完成时，其 reason（截断至 200 字符）被注入到 continuation prompt 的 "Previous evaluation feedback" 块中，使 Agent 直接知道哪里未达标而无需自行重新审视。
+  - **Fidelity 防目标缩水**：明确告知 Agent 此目标跨轮持续，不要缩小目标范围或用更窄方案替代原始目标。
+  - **Evidence-based 防历史幻觉**：要求以当前文件系统和外部状态为权威源，检查实际状态后再依赖对话上下文。
+  - **Progress visibility**：多步任务中主动调用 `todo_write`，通过 `tasks_steps` SSE 推送前端 `ProgressSteps` / `GoalControlPlane`。
+  - **8 步 Audit Protocol**：含证据分级（证明/矛盾/弱证据/缺失）、范围匹配（窄检查不支撑宽声明）、必须证明完成而非仅未发现问题。
+  - **Convergence awareness**：当 `convergence_window` 已设置且轮次足够时，注入收敛引导指令："如果连续多轮无新发现，主动声明 COMPLETE 并说明 convergence reason"。引导 agent 主动识别递减回报并优雅结束。
+  - 行为指令：采取下一步行动、完成时声明、阻塞时报告。
+
+### 6. todo_write (动态进度更新)
+- 主 Agent 通过 `todo_write` 创建/合并/完成 todo 项（支持 `pending` / `in_progress` / `completed` / `cancelled` / `blocked` 状态）。
+- 工具返回简短摘要作为 `ToolMessage`；内部 emit `tasks_steps`（`todo_step_*` / `progress_root`）供 Server SSE 转发。
+- 当任务标记为 `blocked` 时，释放 `in_progress` 单并发占用，支持动态自愈重规划。
+- `ProgressMiddleware` 智能跳过 `blocked` 项并聚焦可执行任务；`CompletionGuard` 精准引导模型裁剪不可解的阻塞任务，避免盲目重试。
+
+### 7. GoalControlPlane (前端全局控制面)
+- xl+ 视口：Chat 右侧持久化 todo 侧栏；移动端依赖聊天气泡内 ProgressSteps。
+- REST `GET /goals/{chat_id}/plan` + SSE `todo_step_*` 双通道更新打勾状态。
+- 展示运行时 todo 列表与 execution summary；无计划审批步骤。
+
+## 交互流程
+1. 用户输入 `/goal 帮我写个爬虫`。
+2. Server 创建 Goal；Harness `intercept_goal_and_plan` 应用 protected paths / 快照。
+3. 主 Agent 启动；若启用 `planning` 组则 bind `todo_write`，Agent 自行分解 todos。
+4. `ProgressMiddleware` 在末位 HumanMessage 注入活跃 todo 焦点；`goal_focus_middleware` 在 ACTIVE goal 的用户发起轮注入 objective 提醒（continuation/wrap-up 轮自动跳过）。
+5. `ProgressMiddleware` 持续注入活跃 todo 焦点，引导 Agent 执行未完成任务或标记取消/阻塞。
+6. Agent 调用 `todo_write(merge=true)` 标记完成 → SSE → 前端更新打勾。
+
+### 8. 主动缓存自愈 (Active Cache Healer)
+- 监控长会话中的 Prompt Cache 命中率。
+- 当命中率连续跌破阈值时，主动触发 `MemoryManager.compress_context()`。
+- 保护大模型缓存，防止 Token 成本飙升和响应卡顿。
+
+### 9. 启动时孤儿 Goal 恢复 (Orphaned Goal Recovery)
+- 服务重启后，之前处于 ACTIVE 状态的 Goal 不再有执行引擎驱动（async task 随旧进程消亡）。
+- Server 层 `pause_orphaned_active_goals()` 在 lifespan Phase 3 异步执行：
+  - 调用 `GoalStorage.list_active_sessions()` 枚举所有有 ACTIVE Goal 的 session。
+  - 将每个孤儿 Goal 标记为 PAUSED，并在 `goal.metadata["pause_reason"]` 写入原因。
+  - 发送 SystemNotification 通知用户。
+- 前端 GoalStatusCard 在 chatId 变化时主动 fetch `GET /goals/{chatId}/status`，确保页面加载即可展示 paused goal。
+- SSE 流的 `message_end` 事件携带 `goal_status.reason`，保证流式更新中 reason 不丢失。
+- 用户在前端看到 GoalStatusCard 的 PAUSED 状态及 reason 提示，可一键 Resume。
+- 设计优势：不自动 Resume（避免 token 浪费和意图漂移），比 Hermes 的 `resume_pending` 懒恢复更透明，比 OpenClaw 的前端 reconcile 更可靠（后端保证数据一致性）。
+
+### 10. 优先级队列与自动串行执行 (Priority Queue)
+- 当已有 ACTIVE goal 时，新提交的 goal 自动进入 QUEUED 状态（`GoalStatus.QUEUED`），存入持久化队列索引。
+- 当前 goal 到达终态（COMPLETE/CANCELLED/BUDGET_LIMITED）后，`on_goal_terminal` 回调自动调用 `dequeue_next()` 取出下一个 goal。
+- 被 dequeue 的 goal 自动设置 `auto_approve=True`，在 `GoalInterceptor` 中跳过 `interrupt()` 审批，直接执行。
+- `trigger_goal_stream_with_failure_policy()` 启动后台 Agent stream；`handle_unattended_goal_stream_failure` 在 setup 或 runtime 失败时标记 NEEDS_HUMAN_REVIEW 并推送 `goal_needs_review` SSE（dequeue/bg resume），或 keep ACTIVE（loop_restart Cron fallback）。
+- Cron 任务与 Goal 队列联动：若 cron 执行时检测到活跃 goal，自动将 cron 任务以 goal 形式入队，避免并发冲突。
+- 前端 `GoalQueueSection` 组件提供队列可视化、拖拽排序和取消功能。

@@ -1,0 +1,845 @@
+"""Summarize processor (fallback when SessionNotes is unavailable).
+
+When SessionNotesProcessor is not enabled or notes are not ready, serves as a
+degraded fallback to generate LLM-based summaries. Summary results are exposed
+via context.structured_summary for Middleware to bridge to business-layer persistence.
+Pure in-memory operation, no filesystem dependency.
+
+Pipeline order: Filter -> Compress -> SessionNotes -> **SummarizeProcessor** -> ExplicitCache
+
+Design:
+1. Summary is based on complete data (not post-compression compact format)
+2. Keep N most recent complete calls (so the model knows where it left off)
+3. Use structured schema (not free-form, ensures stable output)
+4. Support incremental merge (detect existing summary marker, pass existing_summary)
+5. Quality audit + retry (ensure critical entities are preserved)
+6. Circuit breaker with half-open recovery: degrade to deterministic fallback after
+   consecutive failures, probe LLM recovery every N fallback calls
+7. Dual compression protection: auto-skip when SessionNotesProcessor already handled
+8. Deterministic fallback: builds minimal summary without LLM, ensures agent never deadlocks
+9. Anti-consecutive-summarize: skip one API token check after summarization to prevent
+   stale API values from triggering an infinite loop
+10. Cold Cache Drain Architecture: bypass when cache is hot to protect Prompt Cache
+11. Cancellation-safe guard: finally block ensures asyncio tasks are cleaned up on all
+    exit paths (normal, timeout, external CancelledError)
+12. Lifecycle event emission: dispatch_custom_event for frontend progress display
+    (3s debounce → active heartbeat → timeout/circuit_open/fallback/completed)
+
+[INPUT]
+- agent.context_management.infra.schemas::DEFAULT_CONTEXT_CONFIG (POS: Planner Schema Definitions)
+- agent.context_management.infra.schemas::CANCEL_COMPACTION_METADATA_KEY, PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY (POS: 预压缩三态短路与外部摘要直充契约)
+- agent.context_management.infra.compactor_guard::CompactorPreflightFence (POS: Compactor preflight guard fence preventing ContextLengthExceeded)
+- utils.chat_utils::extract_text_content (POS: 多模态消息可见文本提取，图片块不进入文本降级摘要)
+
+[OUTPUT]
+- SummarizeProcessor: class — 结构化会话摘要处理器(支持LLM生成/外部直充/确定性降级)
+
+[POS]
+Provides SummarizeProcessor with progress-aware timeout and cancellation-safe task cleanup.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import re
+import time
+
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+
+from myrm_agent_harness.observability.metrics.circuit_breaker_metrics import (
+    circuit_breaker_failures_total,
+    circuit_breaker_state,
+)
+from myrm_agent_harness.utils.chat_utils import extract_text_content
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
+
+from ...infra.context_budget import (
+    estimate_processor_context_tokens,
+    resolve_budget_kwargs_from_metadata,
+)
+from ...infra.schemas import (
+    CANCEL_COMPACTION_METADATA_KEY,
+    PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY,
+    ContextCompressOffloadCallback,
+    ContextConfig,
+    StructuredSummary,
+)
+from ...strategies.summary.progress_timeout import (
+    InactivityTimeoutError,
+    ProgressClock,
+    TotalCeilingTimeoutError,
+)
+from ...strategies.summary.summarizer import generate_structured_summary, should_summarize
+from ...strategies.summary.summary_builder import (
+    create_summary_message,
+    extract_recent_messages,
+)
+from ..base import BaseProcessor, ProcessorContext
+
+logger = get_agent_logger(__name__)
+
+MAX_CONSECUTIVE_SUMMARIZE_FAILURES = 3
+_HALF_OPEN_PROBE_INTERVAL = 2
+
+# Tiered cooldown periods by error type
+_CIRCUIT_COOLDOWN_TRANSIENT = 60  # 1 minute for transient errors (timeout, rate limit)
+_CIRCUIT_COOLDOWN_PERMANENT = 600  # 10 minutes for permanent errors (model not found, 503)
+_CIRCUIT_COOLDOWN_AUTH = 1800  # 30 minutes for auth errors (invalid API key)
+
+_summarize_failures: int = 0
+_fallback_calls: int = 0
+_circuit_open_time: float | None = None
+_circuit_cooldown_seconds: int = _CIRCUIT_COOLDOWN_AUTH
+
+# Anti-consecutive-summarize: after summarization, the local token estimate drops
+# drastically but the last AIMessage's usage_metadata.input_tokens still holds the
+# pre-summary high value, which would immediately re-trigger summarization.
+_skip_next_api_token_check: bool = False
+
+
+def _get_failures() -> int:
+    global _summarize_failures
+    return _summarize_failures
+
+
+def _classify_error_type(exc: Exception) -> str:
+    """Classify error type for tiered circuit breaker cooldown.
+
+    Returns:
+        Error type: 'auth' | 'permanent' | 'transient'
+    """
+    exc_str = str(exc).lower()
+
+    if any(
+        kw in exc_str
+        for kw in [
+            "unauthorized",
+            "forbidden",
+            "invalid api key",
+            "authentication failed",
+        ]
+    ):
+        return "auth"
+
+    if any(
+        kw in exc_str
+        for kw in [
+            "model not found",
+            "does not exist",
+            "not available",
+            "no available channel",
+        ]
+    ):
+        return "permanent"
+
+    status_code = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
+    if status_code in (404, 503):
+        return "permanent"
+
+    return "transient"
+
+
+def _set_failures(n: int, error_type: str = "auth") -> None:
+    """Set failure count and cooldown time based on error type."""
+    global _summarize_failures, _circuit_open_time, _circuit_cooldown_seconds
+    _summarize_failures = n
+
+    if n >= MAX_CONSECUTIVE_SUMMARIZE_FAILURES:
+        _circuit_open_time = time.time()
+
+        if error_type == "auth":
+            _circuit_cooldown_seconds = _CIRCUIT_COOLDOWN_AUTH
+        elif error_type == "permanent":
+            _circuit_cooldown_seconds = _CIRCUIT_COOLDOWN_PERMANENT
+        else:  # transient
+            _circuit_cooldown_seconds = _CIRCUIT_COOLDOWN_TRANSIENT
+
+        logger.warning(
+            "[Summarize] Circuit breaker opened, cooldown: %ds (type: %s)",
+            _circuit_cooldown_seconds,
+            error_type,
+        )
+
+
+def _record_fallback_call() -> None:
+    global _fallback_calls
+    _fallback_calls += 1
+
+
+def _is_circuit_open() -> bool:
+    """Check if circuit breaker is open (considering cooldown period)."""
+    global _summarize_failures, _circuit_open_time, _fallback_calls, _circuit_cooldown_seconds
+    failures = _get_failures()
+    if failures < MAX_CONSECUTIVE_SUMMARIZE_FAILURES:
+        return False
+
+    open_time = _circuit_open_time
+    if open_time is None:
+        _circuit_open_time = time.time()
+        return True
+
+    elapsed = time.time() - open_time
+    if elapsed > _circuit_cooldown_seconds:
+        logger.info(
+            "[Summarize] Circuit breaker cooldown completed (%ds) — attempting auto-recovery",
+            _circuit_cooldown_seconds,
+        )
+        _set_failures(0)
+        _fallback_calls = 0
+        _circuit_open_time = None
+        circuit_breaker_state.labels(component="summarize").set(0)  # CLOSED
+        return False
+
+    return True
+
+
+def _is_half_open_probe() -> bool:
+    """Allow one LLM attempt every N fallback calls to detect recovery."""
+    global _fallback_calls
+    calls = _fallback_calls
+    return calls > 0 and calls % _HALF_OPEN_PROBE_INTERVAL == 0
+
+
+class SummarizeProcessor(BaseProcessor):
+    """Summarize processor.
+
+    When context exceeds threshold:
+    1. Attempt LLM-generated structured summary (goal, actions, findings, files)
+    2. Degrade to deterministic fallback when LLM unavailable (never fails)
+    3. Replace old messages with summary + N most recent tool calls
+    4. Write StructuredSummary to context.structured_summary (for persistence)
+
+    Three-tier guarantee:
+    - L1: LLM summary + output hard-truncation (summarizer.py)
+    - L2: Deterministic fallback (this file)
+    - L3: Emergency conversation truncation (stream_executor.py)
+    """
+
+    def __init__(
+        self,
+        config: ContextConfig | None = None,
+        on_prune_offload: ContextCompressOffloadCallback | None = None,
+    ):
+        from myrm_agent_harness.agent.context_management.infra.schemas import (
+            DEFAULT_CONTEXT_CONFIG,
+        )
+
+        self.config = config or DEFAULT_CONTEXT_CONFIG
+        self._on_prune_offload = on_prune_offload
+
+    @property
+    def name(self) -> str:
+        return "summarize"
+
+    _HOT_CACHE_WINDOW_SECONDS: float = 300.0  # 5 minutes
+
+    async def _emit_compaction_status(self, context: ProcessorContext, phase: str, **extra: object) -> None:
+        """Emit a context_compaction status event (best-effort, never throws)."""
+        from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+        try:
+            payload: dict[str, object] = {
+                "step_key": "context_compaction",
+                "phase": phase,
+            }
+            payload.update(extra)
+            runnable_config = context.metadata.get("runnable_config")
+            await dispatch_custom_event("agent_status", payload, config=runnable_config)  # type: ignore[arg-type]
+        except Exception:
+            pass
+
+    def _should_bypass_for_hot_cache(self, context: ProcessorContext, current_tokens: int) -> bool:
+        """Check whether to bypass summarization due to hot cache."""
+        max_tokens = self.config.max_context_tokens or 128000
+        if current_tokens >= max_tokens * 0.90:
+            return False  # MUST summarize synchronously to avoid OOM
+
+        last_active = context.metadata.get("last_activity_time")
+        return bool(
+            isinstance(last_active, (int, float)) and time.time() - last_active < self._HOT_CACHE_WINDOW_SECONDS
+        )
+
+    async def should_process(self, context: ProcessorContext) -> bool:
+        global _skip_next_api_token_check
+        if context.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is True:
+            return False
+
+        if context.metadata.get(PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY) is not None:
+            return True
+
+        if context.structured_summary is not None:
+            return False
+
+        ignore_api = _skip_next_api_token_check
+        if _skip_next_api_token_check:
+            _skip_next_api_token_check = False
+
+        should_sum = should_summarize(
+            context.messages,
+            config=self.config,
+            ignore_api_tokens=ignore_api,
+            **resolve_budget_kwargs_from_metadata(context.metadata),
+        )
+        if not should_sum:
+            return False
+
+        total_tokens = estimate_processor_context_tokens(context.messages, context.metadata)
+        if self._should_bypass_for_hot_cache(context, total_tokens):
+            logger.info(
+                "[Summarize] Hot cache bypass (tokens=%d), marking compaction_debt_pending",
+                total_tokens,
+            )
+            context.metadata["compaction_debt_pending"] = True
+            from ...tracking.task_metrics import get_task_metrics
+
+            if context.chat_id:
+                metrics = get_task_metrics(context.chat_id)
+                if metrics:
+                    metrics.compaction_debt_pending = True
+            return False
+
+        logger.info(
+            "[Summarize] Cold cache or hard limit reached (tokens=%d), starting summarization",
+            total_tokens,
+        )
+        return True
+
+    async def process(self, context: ProcessorContext) -> ProcessorContext:
+        if context.metadata.get(CANCEL_COMPACTION_METADATA_KEY) is True:
+            return context
+
+        replacement = context.metadata.get(PRE_COMPACT_REPLACEMENT_SUMMARY_METADATA_KEY)
+        if isinstance(replacement, StructuredSummary):
+            original_tokens = estimate_messages_tokens(context.messages)
+            last_msg_db_id = context.metadata.get("last_message_db_id")
+            return self._apply_structured_summary(context, replacement, original_tokens, last_msg_db_id)
+
+        # Prompt Cache preservation: Skip summarize during Resume or HITL session
+        if self._should_skip_for_cache_preservation(context):
+            logger.info(
+                "[Summarize] Skipped for Prompt Cache preservation (is_resume=%s, hitl_session_active=%s)",
+                context.is_resume,
+                context.merged_context.get("hitl_session_active"),
+            )
+            return context
+
+        # Pre-compaction deterministic transient eviction & tool-result pruning (DSH short-circuit pattern)
+        from ...strategies.compactor.selective_eviction import evict_messages_by_marks
+
+        evicted_msgs, evict_stats = evict_messages_by_marks(context.messages)
+        if evict_stats.evicted_count > 0:
+            context.messages = evicted_msgs
+            context.tokens_saved += evict_stats.tokens_saved
+            context.operations.append(
+                f"pre_summarize_eviction: pruned {evict_stats.evicted_count} transient messages "
+                f"(marks={evict_stats.evicted_marks}, saved ~{evict_stats.tokens_saved} tokens)"
+            )
+
+        if context.metadata.get("enable_pre_compact_tool_prune", True):
+            from .active_tool_result_prune_processor import prune_tool_results_deterministic
+
+            pre_prune_thresh = int(context.metadata.get("pre_compact_prune_threshold_tokens", 1024))
+            raw_keep = int(context.metadata.get("pre_compact_keep_recent_calls", 2))
+            # Hard boundary guard against Goodhart's Law: never discard last 2 tool interactions
+            pre_prune_keep = max(raw_keep, 2)
+            effective_offload = context.metadata.get("on_prune_offload", self._on_prune_offload)
+
+            new_msgs, pruned_cnt, saved_tokens = await prune_tool_results_deterministic(
+                context.messages,
+                threshold_tokens=pre_prune_thresh,
+                keep_recent_calls=pre_prune_keep,
+                min_reclaim_tokens=0,
+                enable_memory_fallback=True,
+                on_prune_offload=effective_offload,
+                chat_id=context.chat_id,
+                force=True,
+                reason="summarize_short_circuit",
+            )
+
+            if pruned_cnt > 0 and saved_tokens > 0:
+                context.messages = new_msgs
+                context.tokens_saved += saved_tokens
+                context.operations.append(
+                    f"pre_compact_prune: pruned {pruned_cnt} tool results, saved ~{saved_tokens} tokens"
+                )
+
+                # Remeasure context tokens with safety headroom (10% measurement decay guard)
+                remeasured_tokens = estimate_processor_context_tokens(context.messages, context.metadata)
+                trigger_thresh = getattr(self.config, "summarize_trigger_threshold", 115200)
+                # Keep 10% safety headroom: must be comfortably below trigger threshold to bypass
+                safe_ceiling = int(trigger_thresh * 0.90)
+
+                if remeasured_tokens <= safe_ceiling:
+                    logger.info(
+                        "[Summarize] Pre-compaction deterministic pruning short-circuit: "
+                        "saved %d tokens (current=%d <= safe_ceiling=%d). Completely bypassed LLM summarization!",
+                        saved_tokens,
+                        remeasured_tokens,
+                        safe_ceiling,
+                    )
+                    context.metadata["deterministic_prune_bypassed_summarize"] = True
+                    context.metadata.pop("compaction_debt_pending", None)
+                    from ...tracking.task_metrics import get_task_metrics
+
+                    if context.chat_id:
+                        metrics = get_task_metrics(context.chat_id)
+                        if metrics:
+                            metrics.compaction_debt_pending = False
+                    return context
+
+        original_tokens = estimate_messages_tokens(context.messages)
+        last_msg_db_id = context.metadata.get("last_message_db_id")
+        circuit_open = _is_circuit_open()
+
+        summarize_llm = context.summarizer_llm or context.llm
+        if summarize_llm is None or (circuit_open and not _is_half_open_probe()):
+            reason = "circuit breaker tripped" if circuit_open else "no LLM client"
+            logger.warning("[Summarize] %s — using deterministic fallback", reason)
+            _record_fallback_call()
+            await self._emit_compaction_status(context, "circuit_open", reason=reason)
+            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
+
+        if circuit_open:
+            logger.info("[Summarize] half-open probe — attempting LLM recovery")
+
+        focus_topic = _extract_focus_topic(context.metadata)
+
+        from ...strategies.compactor.pre_compact_context import get_pre_compact_message
+
+        pre_compact_message = get_pre_compact_message(context)
+
+        runnable_config = context.metadata.get("runnable_config")
+
+        from ...infra.compactor_guard import CompactorPreflightFence
+
+        fence = CompactorPreflightFence(safe_watermark_ratio=0.85)
+        # Physical model capacity limit: defaults to 128k tokens (or higher if configured),
+        # distinguishing between logical conversation threshold and physical LLM window.
+        max_ctx = int(
+            context.metadata.get("llm_max_context_tokens")
+            or getattr(self.config, "llm_max_context_tokens", None)
+            or max(self.config.max_context_tokens or 128_000, 128_000)
+        )
+        skills_tokens = int(context.metadata.get("loaded_skills_tokens") or 0)
+        safety_verdict = fence.evaluate_safety(
+            messages_tokens=original_tokens,
+            loaded_skills_tokens=skills_tokens,
+            prompt_overhead=1000,
+            max_context_tokens=max_ctx,
+        )
+
+        if not safety_verdict.is_safe:
+            logger.warning(
+                "[Summarize] Preflight safety fence tripped: payload tokens %d exceeds safe watermark "
+                "(ratio %.2f of %d, action=%s) — bypassing LLM to avoid ContextLengthExceeded",
+                safety_verdict.total_estimated_tokens,
+                safety_verdict.utilization_ratio,
+                safety_verdict.max_context_tokens,
+                safety_verdict.action_recommended,
+            )
+            await self._emit_compaction_status(context, "fallback", reason="preflight_fence_overflow")
+            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
+
+        try:
+            context.messages, summary = await _guarded_summarize(
+                messages=context.messages,
+                llm=summarize_llm,
+                chat_id=context.chat_id,
+                config=self.config,
+                focus_topic=focus_topic,
+                pre_compact_message=pre_compact_message,
+                runnable_config=runnable_config,
+            )
+        except (InactivityTimeoutError, TotalCeilingTimeoutError) as timeout_exc:
+            prev = _get_failures()
+            _set_failures(prev + 1, "transient")
+            _record_fallback_call()
+            circuit_breaker_failures_total.labels(component="summarize", error_type="timeout").inc()
+            logger.warning(
+                "[Summarize] Progress-aware timeout (%s) — degrading to deterministic fallback",
+                timeout_exc,
+            )
+            await self._emit_compaction_status(context, "fallback", reason="timeout")
+            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
+        except Exception as exc:
+            from myrm_agent_harness.observability.auth_detector import (
+                detect_auth_failure,
+                get_auth_error_hint,
+            )
+
+            prev = _get_failures()
+
+            error_type_classified = _classify_error_type(exc)
+
+            if detect_auth_failure(exc):
+                _set_failures(MAX_CONSECUTIVE_SUMMARIZE_FAILURES, "auth")
+                _record_fallback_call()
+                auth_hint = get_auth_error_hint(exc)
+                logger.error(
+                    "[Summarize] Auth failure — circuit breaker opened (30min cooldown) | %s: %s | Hint: %s",
+                    type(exc).__name__,
+                    exc,
+                    auth_hint,
+                )
+                circuit_breaker_failures_total.labels(component="summarize", error_type="auth").inc()
+                circuit_breaker_state.labels(component="summarize").set(2)  # OPEN
+                return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
+
+            _set_failures(prev + 1, error_type_classified)
+            _record_fallback_call()
+
+            metrics_error_type = (
+                error_type_classified
+                if error_type_classified != "transient"
+                else ("timeout" if "timeout" in str(exc).lower() else "other")
+            )
+            circuit_breaker_failures_total.labels(component="summarize", error_type=metrics_error_type).inc()
+
+            if prev + 1 >= MAX_CONSECUTIVE_SUMMARIZE_FAILURES:
+                circuit_breaker_state.labels(component="summarize").set(2)  # OPEN
+
+            logger.warning(
+                "[Summarize] LLM failed (%d/%d) [type: %s, cooldown: %ds] | %s: %s — using deterministic fallback",
+                prev + 1,
+                MAX_CONSECUTIVE_SUMMARIZE_FAILURES,
+                error_type_classified,
+                _circuit_cooldown_seconds,
+                type(exc).__name__,
+                exc,
+            )
+            await self._emit_compaction_status(context, "fallback", reason=error_type_classified)
+            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
+
+        _set_failures(0)
+        global _fallback_calls, _skip_next_api_token_check
+        _fallback_calls = 0
+        _skip_next_api_token_check = True
+        circuit_breaker_state.labels(component="summarize").set(0)  # CLOSED (recovered)
+
+        new_tokens = estimate_messages_tokens(context.messages)
+        saved = original_tokens - new_tokens
+        context.tokens_saved += saved
+
+        await self._emit_compaction_status(
+            context,
+            "completed",
+            tokens_saved=saved,
+            dropped_manifest=summary.dropped_manifest,
+        )
+
+        context.structured_summary = summary
+        if isinstance(last_msg_db_id, str) and last_msg_db_id:
+            context.last_summarized_message_id = last_msg_db_id
+
+        from ...infra.cache_break_detector import get_cache_break_detector
+
+        detector = get_cache_break_detector()
+        if detector is not None:
+            detector.notify_compaction()
+
+        logger.info(
+            "[Summarize] done | goal: %s... | saved: %d tokens",
+            summary.user_goal[:50],
+            saved,
+        )
+
+        return context
+
+    def _apply_structured_summary(
+        self,
+        context: ProcessorContext,
+        summary: StructuredSummary,
+        original_tokens: int,
+        last_msg_db_id: object,
+    ) -> ProcessorContext:
+        """Apply an external/replacement structured summary directly without LLM call."""
+        from ...strategies.compactor.pre_compact_context import prepend_pre_compact_message
+        from ...strategies.summary.summary_builder import extract_protected_head
+
+        protected_head = extract_protected_head(context.messages)
+        tail_budget = int((self.config.max_context_tokens or 128000) * getattr(self.config, "tail_budget_ratio", 0.20))
+        recent_messages = extract_recent_messages(context.messages, tail_budget)
+        protected_ids = {id(m) for m in protected_head}
+        recent_messages = [m for m in recent_messages if id(m) not in protected_ids]
+        summary_message = create_summary_message(summary, context.chat_id)
+
+        context.messages = prepend_pre_compact_message(
+            protected_head,
+            [summary_message],
+            recent_messages,
+            context=context,
+        )
+
+        new_tokens = estimate_messages_tokens(context.messages)
+        saved = max(0, original_tokens - new_tokens)
+        context.tokens_saved += saved
+        context.structured_summary = summary
+        context.metadata["pre_compact_replacement_applied"] = True
+        context.metadata.pop("compaction_debt_pending", None)
+        if isinstance(last_msg_db_id, str) and last_msg_db_id:
+            context.last_summarized_message_id = last_msg_db_id
+
+        from ...infra.cache_break_detector import get_cache_break_detector
+
+        detector = get_cache_break_detector()
+        if detector is not None:
+            detector.notify_compaction()
+
+        global _skip_next_api_token_check
+        _skip_next_api_token_check = True
+
+        logger.info(
+            "[Summarize] replacement structured summary applied directly | goal: %.50s... | saved: %d tokens",
+            summary.user_goal,
+            saved,
+        )
+        return context
+
+    def _apply_deterministic_fallback(
+        self, context: ProcessorContext, original_tokens: int, last_msg_db_id: object
+    ) -> ProcessorContext:
+        """Deterministic fallback: build a minimal summary without LLM."""
+        summary = _build_deterministic_summary(context.messages, context.metadata, context.chat_id)
+
+        from ...strategies.compactor.pre_compact_context import prepend_pre_compact_message
+        from ...strategies.summary.summary_builder import extract_protected_head
+
+        protected_head = extract_protected_head(context.messages)
+
+        tail_budget = int((self.config.max_context_tokens or 128000) * getattr(self.config, "tail_budget_ratio", 0.20))
+        recent_messages = extract_recent_messages(context.messages, tail_budget)
+        protected_ids = {id(m) for m in protected_head}
+        recent_messages = [m for m in recent_messages if id(m) not in protected_ids]
+        summary_message = create_summary_message(summary, context.chat_id)
+
+        context.messages = prepend_pre_compact_message(
+            protected_head,
+            [summary_message],
+            recent_messages,
+            context=context,
+        )
+
+        new_tokens = estimate_messages_tokens(context.messages)
+        saved = original_tokens - new_tokens
+        context.tokens_saved += saved
+
+        context.structured_summary = summary
+        context.metadata["summarize_fallback_used"] = True
+        if isinstance(last_msg_db_id, str) and last_msg_db_id:
+            context.last_summarized_message_id = last_msg_db_id
+
+        from ...infra.cache_break_detector import get_cache_break_detector
+
+        detector = get_cache_break_detector()
+        if detector is not None:
+            detector.notify_compaction()
+
+        global _skip_next_api_token_check
+        _skip_next_api_token_check = True
+
+        logger.info(
+            "[Summarize] deterministic fallback applied | goal: %s... | saved: %d tokens",
+            summary.user_goal[:50],
+            saved,
+        )
+        return context
+
+
+# ---------------------------------------------------------------------------
+# Deterministic summary builder
+# ---------------------------------------------------------------------------
+
+_COMPACTED_PATTERN = re.compile(r"COMPACTED: (\w+)\((.+?)\)")
+_FALLBACK_GOAL_MAX_CHARS = 300
+_FALLBACK_ACTION_MAX_CHARS = 120
+
+
+def _build_deterministic_summary(
+    messages: list[BaseMessage], metadata: dict[str, object], chat_id: str | None = None
+) -> StructuredSummary:
+    """Extract key information from messages without LLM.
+
+    Extracts:
+    - user_goal from the last HumanMessage
+    - last_action from the last AIMessage content
+    - completed_actions from COMPACTED: patterns in compressed tool results
+    - files_modified from ArtifactTracker
+    - context_dump_path from metadata snapshot path
+    """
+    user_goal = "[Unable to extract goal]"
+    active_task = ""
+    last_action = ""
+    completed_actions: list[str] = []
+    files_modified: list[str] = []
+
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            content = extract_text_content(msg.content)
+            goal = content[:_FALLBACK_GOAL_MAX_CHARS] + ("…" if len(content) > _FALLBACK_GOAL_MAX_CHARS else "")
+            if not active_task:
+                active_task = goal
+            if user_goal == "[Unable to extract goal]":
+                user_goal = goal
+
+        if isinstance(msg, AIMessage) and not last_action:
+            content = extract_text_content(msg.content)
+            last_action = content[:_FALLBACK_ACTION_MAX_CHARS]
+            if len(content) > _FALLBACK_ACTION_MAX_CHARS:
+                last_action += "…"
+
+        if user_goal != "[Unable to extract goal]" and last_action:
+            break
+
+    for msg in messages:
+        for match in _COMPACTED_PATTERN.finditer(extract_text_content(msg.content)):
+            tool_name, identifier = match.group(1), match.group(2)
+            action = f"{tool_name}: {identifier}"
+            if action not in completed_actions:
+                completed_actions.append(action)
+
+    try:
+        from ...tracking.artifact_tracker import get_artifact_tracker
+
+        if chat_id:
+            tracker = get_artifact_tracker(chat_id)
+            if tracker:
+                all_files = set(tracker.created_files) | set(tracker.modified_files)
+                files_modified = sorted(all_files)
+    except Exception:
+        pass
+
+    context_dump_path = ""
+    snapshot_path = metadata.get("context_snapshot_path")
+    if isinstance(snapshot_path, str) and snapshot_path:
+        context_dump_path = snapshot_path
+
+    return StructuredSummary(
+        user_goal=f"[Deterministic fallback — verify via files/commands] {user_goal}",
+        completed_actions=completed_actions[:10],
+        key_findings=[],
+        errors_and_fixes=[],
+        files_modified=files_modified[:20],
+        last_action=last_action,
+        context_dump_path=context_dump_path,
+        active_task=active_task,
+    )
+
+
+def _extract_focus_topic(metadata: dict[str, object]) -> str:
+    """Extract CompressionIntent.user_goal_hint from metadata as focus topic."""
+    intent_data = metadata.get("compression_intent")
+    if isinstance(intent_data, dict):
+        hint = intent_data.get("user_goal_hint", "")
+        if isinstance(hint, str):
+            return hint.strip()
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# Progress-aware timeout guard
+# ---------------------------------------------------------------------------
+
+
+async def _guarded_summarize(
+    messages: list[BaseMessage],
+    llm: object,
+    chat_id: str | None,
+    config: ContextConfig,
+    focus_topic: str,
+    pre_compact_message: BaseMessage | None,
+    runnable_config: object | None = None,
+) -> tuple[list[BaseMessage], StructuredSummary]:
+    """Wrap generate_structured_summary with inactivity + total ceiling timeouts.
+
+    Monitors streaming progress via _DefaultProgressTracker. If the LLM call
+    stalls (no token for inactivity_timeout) or exceeds total ceiling, raises
+    InactivityTimeoutError / TotalCeilingTimeoutError which the caller converts
+    to a deterministic fallback.
+
+    Emits `context_compaction` lifecycle events via dispatch_custom_event for
+    frontend progress display (debounced: only after 3s to avoid flashing).
+    """
+    from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+    inactivity_s = config.compaction_inactivity_timeout_s
+    ceiling_s = config.compaction_total_ceiling_s
+    tracker = ProgressClock()
+    _DEBOUNCE_SECONDS = 3.0  # noqa: N806  # constant within closure scope
+
+    async def _emit_compaction_event(phase: str, elapsed_s: float = 0, **extra: object) -> None:
+        """Emit a context_compaction event to the frontend (best-effort, never throws)."""
+        try:
+            payload: dict[str, object] = {
+                "step_key": "context_compaction",
+                "phase": phase,
+                "elapsed_s": round(elapsed_s, 1),
+            }
+            payload.update(extra)
+            await dispatch_custom_event("agent_status", payload, config=runnable_config)  # type: ignore[arg-type]
+        except Exception:
+            pass
+
+    async def _watchdog() -> None:
+        """Background coroutine that checks tracker liveness periodically."""
+        start = time.monotonic()
+        check_interval = min(inactivity_s / 3, 10.0)
+        debounce_emitted = False
+        while True:
+            await asyncio.sleep(check_interval)
+            elapsed = time.monotonic() - start
+            if elapsed >= ceiling_s:
+                await _emit_compaction_event("timeout", elapsed_s=elapsed, reason="ceiling")
+                raise TotalCeilingTimeoutError(elapsed)
+            idle = tracker.seconds_since_last_touch
+            if idle >= inactivity_s:
+                await _emit_compaction_event("timeout", elapsed_s=elapsed, reason="inactivity")
+                raise InactivityTimeoutError(idle)
+            if not debounce_emitted and elapsed >= _DEBOUNCE_SECONDS:
+                debounce_emitted = True
+                await _emit_compaction_event("active", elapsed_s=elapsed)
+            elif debounce_emitted:
+                await _emit_compaction_event("active", elapsed_s=elapsed)
+
+    async def _summarize() -> tuple[list[BaseMessage], StructuredSummary]:
+        return await generate_structured_summary(
+            messages=messages,
+            llm=llm,  # type: ignore[arg-type]
+            chat_id=chat_id,
+            config=config,
+            focus_topic=focus_topic,
+            pre_compact_message=pre_compact_message,
+            progress_tracker=tracker,
+        )
+
+    summarize_task = asyncio.ensure_future(_summarize())
+    watchdog_task = asyncio.ensure_future(_watchdog())
+
+    try:
+        done, pending = await asyncio.wait(
+            {summarize_task, watchdog_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        for task in pending:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
+
+        for task in done:
+            exc = task.exception()
+            if exc is not None:
+                raise exc
+            if task is summarize_task:
+                return task.result()
+
+        raise RuntimeError("Unexpected: no task completed with result")
+    except (InactivityTimeoutError, TotalCeilingTimeoutError):
+        raise
+    finally:
+        # Ensure tasks are cleaned up on ALL exit paths (including external CancelledError)
+        for task in (summarize_task, watchdog_task):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(summarize_task, watchdog_task, return_exceptions=True)

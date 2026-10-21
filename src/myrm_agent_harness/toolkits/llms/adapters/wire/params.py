@@ -1,0 +1,85 @@
+"""Build litellm.responses() kwargs from ChatLiteLLM call params.
+
+[INPUT]
+- typing::Any (POS: Python 类型标注标准库)
+- toolkits.llms.adapters.wire.translator::chat_messages_to_responses_input,
+  extract_responses_instructions, resolve_min_output_tokens
+  (POS: Responses wire 出站请求翻译层)
+
+[OUTPUT]
+- build_responses_kwargs: dict[str, Any] ready for `litellm.responses(**kwargs)`,
+  with system messages lifted into `instructions` and reasoning config normalized
+
+[POS]
+Request assembly for the Responses wire. Delegates message translation to translator.py
+and strips trailing endpoint suffixes so callers may pass either a base URL or a full
+endpoint. Harness-only authoring layer; vendor routing tables live in server `app/core/wire/`.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from myrm_agent_harness.toolkits.llms.adapters.wire.translator import (
+    chat_messages_to_responses_input,
+    extract_responses_instructions,
+    resolve_min_output_tokens,
+)
+
+
+def build_responses_kwargs(
+    message_dicts: list[dict[str, Any]],
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    """Translate chat completion params into Responses API kwargs."""
+    instructions, remaining = extract_responses_instructions(message_dicts)
+    responses_input = chat_messages_to_responses_input(remaining)
+
+    requested_max = params.get("max_output_tokens") or params.get("max_tokens")
+    max_output = resolve_min_output_tokens(int(requested_max) if isinstance(requested_max, int) else None)
+
+    raw_extra_body = params.get("extra_body")
+    extra_body: dict[str, Any] = raw_extra_body if isinstance(raw_extra_body, dict) else {}
+    reasoning = extra_body.get("reasoning")
+    if not isinstance(reasoning, dict):
+        reasoning_effort = params.get("reasoning_effort") or extra_body.get("reasoning_effort")
+        if reasoning_effort is not None:
+            reasoning = {"effort": str(reasoning_effort)}
+
+    api_base = params.get("api_base")
+    if isinstance(api_base, str):
+        api_base = api_base.rstrip("/")
+        if api_base.endswith("/responses"):
+            api_base = api_base[: -len("/responses")]
+        elif api_base.endswith("/chat/completions"):
+            api_base = api_base[: -len("/chat/completions")]
+
+    kwargs: dict[str, Any] = {
+        "model": params.get("model"),
+        "input": responses_input,
+        "max_output_tokens": max_output,
+        "api_key": params.get("api_key"),
+        "api_base": api_base,
+        "stream": bool(params.get("stream")),
+    }
+    if instructions:
+        kwargs["instructions"] = instructions
+    if reasoning:
+        kwargs["reasoning"] = reasoning
+    include = extra_body.get("include")
+    if isinstance(include, list) and include:
+        kwargs["include"] = include
+    if params.get("tools"):
+        kwargs["tools"] = params["tools"]
+    if params.get("tool_choice") is not None:
+        kwargs["tool_choice"] = params["tool_choice"]
+    if params.get("temperature") is not None:
+        kwargs["temperature"] = params["temperature"]
+    if params.get("top_p") is not None:
+        kwargs["top_p"] = params["top_p"]
+    if params.get("timeout") is not None:
+        kwargs["timeout"] = params["timeout"]
+    extra_headers = params.get("extra_headers")
+    if isinstance(extra_headers, dict):
+        kwargs["extra_headers"] = extra_headers
+    return kwargs

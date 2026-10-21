@@ -1,0 +1,25 @@
+# core/
+
+## Overview
+Framework-agnostic foundation layer. Provides security, config, events, hooks, artifacts, and feature flags capabilities shared by both `agent/` and `toolkits/`, eliminating coupling between them.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Core layer entry — module docstring only, no re-exports at this level. | — |
+| context_vars.py | Core | Cross-layer ContextVar registry shared by agent/ and toolkits/ without coupling. Holds `protected_paths_var` (Goal-scoped protected path patterns) so the sandbox executor enforces the same Goal protection as the file tools and the shell pre-flight, `approval_session_var` (approval-routing session key) so the sandbox executor resolves the active approval session without importing agent/, and the approval-note hand-off — `current_tool_call_id_var` (the call a running tool body belongs to) plus `approval_notes_var` with `publish_approval_notes` / `stash_approval_note` / `claim_approval_note` — so a gate a human answered can hand its note to the tool-call middleware without toolkits/ importing agent/; the note store is a mutable dict because a tool body runs in a copied context, where rebinding a ContextVar is invisible to the middleware while mutating the published dict is not. `agent/middlewares/_session_context` is the accessor for agent code. | ✅ |
+| skill.py | Core | 技能声明领域常量 — `DEFAULT_ALLOWED_TOOLS`（编译技能默认 allowed-tools SSOT）。供 `backends/skills/workflow_compiler` 与 `toolkits/*` 共享，避免 toolkits→backends 依赖。 | ✅ |
+
+| Submodule | Description |
+|-----------|-------------|
+| security/ | Security primitives — PII detection, content boundary, prompt injection guard, SSRF guard, audit, path security, execution policy, credential vault (label→password/TOTP for tool injection). |
+| config/ | Framework-agnostic configuration types — LLMConfig, CustomModelDef. |
+| events/ | Event type definitions — AgentEventType, AgentStreamEvent, THINKING_TAG_NAMES. |
+| hooks/ | Hook lifecycle definitions — HookEvent, HookDefinition variants, HookResult, event payloads. |
+| artifacts/ | Artifact type constants — ArtifactType enum, extension/MIME mappings, inference utilities. |
+| features/ | Feature Flags — registration, lifecycle management, runtime querying. |
+
+## Key Dependencies
+
+- No internal dependencies (foundation layer — depended upon by agent/ and toolkits/)

@@ -1,0 +1,20 @@
+# errors/
+
+## Overview
+Agent execution errors with unified diagnostics.
+
+Detailed design: [ERROR_SYSTEM.md](ERROR_SYSTEM.md)
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Agent execution errors with unified diagnostics. | — |
+| agent_errors.py | Core | Agent execution errors (AgentBusyError, ToolStuckException, RunawayCircuitBreakException for unattended circuit breaking). | ✅ |
+| tool_error_category.py | Core | Canonical StrEnum for all tool error categories. Values match frontend i18n keys. | ✅ |
+| operator_error_sanitizer.py | Core | Operator error sanitizer stripping tracebacks, paths, and internal causes for WebUI/Tauri. | ✅ |
+| fault_side.py | Core | Deterministic fault-side attribution (MODEL/HARNESS_*/ENV/GRADER/OWNER/UNKNOWN). Pure rules — no LLM calls, no prompt tokens. LLM errors classify via ErrorKind with diagnostic error_type fallback; tool errors classify via ToolErrorCategory. **The tables hold enum *values*, so callers must pass `member.value`, never `str(member)`** — these are plain `str`-mixin enums and do not override `__str__`, so `str(ToolErrorCategory.ESTOP)` yields `'ToolErrorCategory.ESTOP'` and silently abstains to UNKNOWN. **Every enum member must be mapped**: the parametrized guard in `tests/agent/errors/test_fault_side.py::TestEnumCoverageGuard` fails loudly when a new member lands unmapped. Consumed by stream_executor/event_handlers/agent_runtime error events and trace_builder. | ✅ |
+
+| Submodule | Description |
+|-----------|-------------|
+| diagnostics/ | Error diagnostics component. Provides LLM error classification, context extraction, and structured d |

@@ -1,0 +1,245 @@
+"""Streaming response processing mixin
+
+[INPUT]
+- langchain_core.messages::AIMessageChunk, BaseMessageChunk, ToolCallChunk (POS: LangChain message chunk types)
+- langchain_core.outputs::ChatGenerationChunk (POS: LangChain generation chunk type)
+
+[OUTPUT]
+- LiteLLMStreamMixin: streaming response processing mixin class
+- safe_get(), extract_chunk_metadata(), build_tool_call_chunks(), and other stream processing utilities
+- provider_reported_finish(): whether the provider (not LiteLLM's stream wrapper) reported how a stream ended
+
+[POS]
+Streaming response processing module. Provides stream response parsing, incremental tool call merging,
+metadata extraction, provider-finish detection, and malformed chunk protection. Used by adapters.chat_model
+to enhance streaming capability.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
+
+from langchain_core.messages import AIMessageChunk, ToolCallChunk
+from langchain_core.outputs import ChatGenerationChunk
+
+logger = logging.getLogger(__name__)
+
+_REASONING_FIELD_CANDIDATES: tuple[str, ...] = (
+    "reasoning_content",
+    "thinking",
+    "reasoning",
+    "thoughts",
+    "reasoning_text",
+)
+
+
+def safe_get(obj: Any, key: str, default: Any = None) -> Any:
+    """Safely get a property from an object or dict."""
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _is_complete_json_fragment(text: str) -> bool:
+    """Check if a string is a complete, well-formed JSON object or array fragment."""
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    if not (
+        (stripped.startswith("{") and stripped.endswith("}")) or (stripped.startswith("[") and stripped.endswith("]"))
+    ):
+        return False
+    try:
+        json.loads(stripped)
+        return True
+    except Exception:
+        return False
+
+
+def extract_chunk_metadata(chunk: Any) -> tuple[Any, str | None, str | None]:
+    """Extract usage, model, and finish_reason from a streaming chunk.
+
+    Returns:
+        (usage, model, finish_reason)
+    """
+    usage = safe_get(chunk, "usage")
+    model = safe_get(chunk, "model")
+
+    finish_reason = None
+    choices = safe_get(chunk, "choices", [])
+    if choices and len(choices) > 0:
+        finish_reason = safe_get(choices[0], "finish_reason")
+
+    return usage, model, finish_reason
+
+
+_PROVIDER_FINISH_MARKERS: tuple[str, ...] = ("received_finish_reason", "intermittent_finish_reason")
+_ABSENT = object()
+
+
+def provider_reported_finish(stream: object) -> bool | None:
+    """Whether the provider itself reported how an exhausted *stream* ended.
+
+    LiteLLM's stream wrapper closes a stream on which the provider never sent a finish reason with
+    a synthesized ``stop``, so a connection cut mid tool call reads like a normal turn. The wrapper
+    keeps what the provider actually sent in ``received_finish_reason`` / ``intermittent_finish_reason``;
+    with both unset the final reason was made up. Returns ``None`` for a stream without those markers
+    (Responses-wire iterators), where the finish reason alone has to be trusted.
+    """
+    markers = [getattr(stream, name, _ABSENT) for name in _PROVIDER_FINISH_MARKERS]
+    if any(marker is _ABSENT for marker in markers):
+        return None
+    return any(marker is not None for marker in markers)
+
+
+def build_tool_call_chunks(raw_tool_calls: Any) -> list[ToolCallChunk]:
+    """Normalize provider tool_call payloads into LangChain ToolCallChunk values.
+
+    Provider-issued ids are preserved verbatim: gateways validate that replayed
+    tool_call ids match the ones they issued, so rewriting them breaks the next turn.
+    """
+    if not isinstance(raw_tool_calls, list):
+        return []
+
+    tool_call_chunks: list[ToolCallChunk] = []
+    for rtc in raw_tool_calls:
+        if not isinstance(rtc, dict):
+            continue
+        function_obj = rtc.get("function")
+        if not isinstance(function_obj, dict):
+            continue
+
+        original_id = rtc.get("id")
+        tool_call_chunks.append(
+            ToolCallChunk(
+                name=function_obj.get("name"),
+                args=function_obj.get("arguments"),
+                id=original_id if isinstance(original_id, str) else None,
+                index=rtc.get("index"),
+            )
+        )
+
+    return tool_call_chunks
+
+
+def aggregate_tool_call_chunk(tc_chunk: Any, aggregated_tool_calls: list[dict[str, Any]]) -> None:
+    """Incrementally merge a tool_call chunk into the aggregated list.
+
+    Guards against malformed streaming chunks from OpenAI-compatible backends
+    where index/name/args may be None or non-string types.
+    """
+    tc_index = safe_get(tc_chunk, "index")
+    if tc_index is None or not isinstance(tc_index, int):
+        tc_index = 0
+    tc_name = safe_get(tc_chunk, "name")
+    tc_args = safe_get(tc_chunk, "args")
+    tc_id = safe_get(tc_chunk, "id")
+
+    while len(aggregated_tool_calls) <= tc_index:
+        aggregated_tool_calls.append({"function": {"name": "", "arguments": ""}, "id": ""})
+
+    if isinstance(tc_name, str) and tc_name:
+        aggregated_tool_calls[tc_index]["function"]["name"] = tc_name
+    if tc_args is not None:
+        if isinstance(tc_args, str):
+            aggregated_tool_calls[tc_index]["function"]["arguments"] += tc_args
+        elif isinstance(tc_args, dict):
+            aggregated_tool_calls[tc_index]["function"]["arguments"] += json.dumps(tc_args, ensure_ascii=False)
+        else:
+            logger.warning("Unexpected tool_call args type: %s", type(tc_args).__name__)
+    if isinstance(tc_id, str) and tc_id:
+        aggregated_tool_calls[tc_index]["id"] = tc_id
+
+
+def parse_tool_calls_from_reasoning(
+    aggregated_reasoning: list[str],
+    aggregated_tool_calls: Sequence[Mapping[str, Any]],
+    is_async: bool = False,
+) -> tuple[Sequence[Mapping[str, Any]] | None, ChatGenerationChunk | None]:
+    """Parse tool calls embedded in reasoning_content (e.g. GLM models).
+
+    Returns:
+        (parsed_tool_calls, final_chunk) — extracted tool calls and corresponding chunk
+    """
+    if not aggregated_reasoning or aggregated_tool_calls:
+        return None, None
+
+    from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import (
+        parse_tool_calls,
+    )
+
+    reasoning_text = "".join(aggregated_reasoning)
+    parsed_tool_calls = parse_tool_calls({"reasoning_content": reasoning_text})
+
+    if not parsed_tool_calls:
+        return None, None
+
+    mode_str = "Async" if is_async else "Sync"
+    logger.warning(f" Parsed {len(parsed_tool_calls)} tool calls from reasoning_content ({mode_str} streaming mode)")
+
+    tool_call_chunks: list[ToolCallChunk] = []
+    for idx, tc in enumerate(parsed_tool_calls):
+        tool_call_chunks.append(
+            ToolCallChunk(
+                name=tc["function"]["name"],
+                args=tc["function"]["arguments"],
+                id=tc.get("id", f"call_{idx}"),
+                index=idx,
+            )
+        )
+
+    final_chunk = AIMessageChunk(content="", tool_call_chunks=tool_call_chunks)
+    final_cg_chunk = ChatGenerationChunk(message=final_chunk)
+
+    return parsed_tool_calls, final_cg_chunk
+
+
+def extract_reasoning_payload(obj: Any) -> str:
+    """Extract reasoning / thinking text from a delta dict or chunk object.
+
+    Tries the module-level reasoning field candidates in priority order and handles
+    both string values and array-of-block structures.
+    """
+    if obj is None:
+        return ""
+
+    for field in _REASONING_FIELD_CANDIDATES:
+        val = safe_get(obj, field)
+        if val is None:
+            continue
+
+        if isinstance(val, str):
+            if val:
+                return val
+        elif isinstance(val, list):
+            parts: list[str] = []
+            for item in val:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    # Check for { "thinking": "..." } or { "text": "..." }
+                    t = item.get("thinking") or item.get("text")
+                    if isinstance(t, str):
+                        parts.append(t)
+            if parts:
+                return "".join(parts)
+
+    return ""
+
+
+def normalize_usage(usage: Any) -> dict[str, Any]:
+    """Normalize a usage object to a standard dict format."""
+    if isinstance(usage, dict):
+        return usage
+    if hasattr(usage, "model_dump"):
+        return cast(dict[str, Any], usage.model_dump())
+    return {
+        "prompt_tokens": getattr(usage, "prompt_tokens", 0),
+        "completion_tokens": getattr(usage, "completion_tokens", 0),
+        "total_tokens": getattr(usage, "total_tokens", 0),
+    }

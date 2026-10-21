@@ -1,0 +1,247 @@
+"""Safe command execution — direct exec by default, shell fallback when needed.
+
+Part of the 5-layer onion security architecture (Layer 2 enhancement).
+Works alongside shell_command_analyzer to provide defense-in-depth.
+
+Execution strategy:
+1. Classify command via ``needs_shell()`` based on shell metacharacter presence
+2. DIRECT: ``shlex.split()`` + ``create_subprocess_exec`` (no shell interpreter)
+3. SHELL: ``create_subprocess_shell`` (only when shell syntax is genuinely needed)
+
+Security guarantees:
+- DIRECT mode structurally eliminates $IFS, glob expansion, command substitution
+- SHELL mode still protected by shell_command_analyzer (called by caller)
+- Process group isolation (``start_new_session``) prevents orphan processes
+- Timeout kills entire process tree via ``os.killpg(SIGKILL)``
+
+[INPUT]
+- types::user_credentials_ctx (POS: Security type definitions — ContextVar for user-affinity credentials)
+
+[OUTPUT]
+- ExecResult: structured execution result with mode audit field
+- needs_shell(): pure predicate for shell metacharacter detection
+- safe_exec(): unified async execution entry point
+
+[POS]
+Layer 2 enhancement. Called from:
+- cron/runners.py — ShellJobRunner (primary consumer)
+- Any future non-interactive command execution path
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import shlex
+import signal
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.core.security.types import EphemeralUserCredential
+
+logger = logging.getLogger(__name__)
+
+_SHELL_METACHARACTERS: frozenset[str] = frozenset("|&;<>()$`*?[#~{}")
+
+
+def needs_shell(command: str) -> bool:
+    """Determine whether *command* requires a shell interpreter.
+
+    Conservative strategy: any POSIX shell metacharacter triggers shell mode.
+    This ensures command semantics are never broken by mis-classification.
+
+    Quotes (``'``, ``"``) and backslash (``\\``) are intentionally excluded
+    because ``shlex.split()`` handles them correctly in direct-exec mode.
+    """
+    return any(c in _SHELL_METACHARACTERS for c in command)
+
+
+@dataclass(frozen=True, slots=True)
+class ExecResult:
+    """Immutable execution result with audit trail."""
+
+    stdout: str
+    stderr: str
+    returncode: int
+    mode: Literal["direct", "shell"]
+
+
+def credential_env_overrides(
+    credentials: tuple[EphemeralUserCredential, ...],
+    *,
+    allowed_issuers: list[str] | None = None,
+    use_sentinel: bool = False,
+) -> dict[str, str]:
+    """Map EphemeralUserCredential issuers to process env vars (post-sanitize injection).
+
+    When ``use_sentinel`` is True, secrets are protected via AES-256-GCM ephemeral vouchers
+    (AgentSentinelEgressGuard) rather than injected as raw plaintext.
+    """
+    overrides: dict[str, str] = {}
+    normalized_allowed: set[str] | None = None
+    if allowed_issuers is not None:
+        normalized_allowed = {issuer.lower() for issuer in allowed_issuers}
+
+    from myrm_agent_harness.core.security.egress.sentinel import get_global_sentinel_manager
+
+    sentinel_mgr = get_global_sentinel_manager() if use_sentinel else None
+
+    from myrm_agent_harness.core.security.external_secrets import (
+        is_external_secret_reference,
+        resolve_external_secret,
+    )
+
+    def _wrap_val(raw_secret: str, key_name: str) -> str:
+        actual_secret = raw_secret
+        if is_external_secret_reference(raw_secret):
+            try:
+                actual_secret = resolve_external_secret(raw_secret)
+            except Exception as exc:
+                logger.warning("Failed to resolve external secret reference '%s': %s", raw_secret, exc)
+                return raw_secret
+
+        if sentinel_mgr is not None and actual_secret:
+            return sentinel_mgr.create_sentinel(actual_secret, metadata={"key": key_name})
+        return actual_secret
+
+    for cred in credentials:
+        if normalized_allowed is not None and cred.issuer.lower() not in normalized_allowed:
+            continue
+        if cred.issuer == "feishu":
+            overrides["FEISHU_USER_ACCESS_TOKEN"] = _wrap_val(cred.token, "FEISHU_USER_ACCESS_TOKEN")
+        elif cred.issuer == "dingtalk":
+            overrides["DINGTALK_USER_ACCESS_TOKEN"] = _wrap_val(cred.token, "DINGTALK_USER_ACCESS_TOKEN")
+        elif cred.issuer == "github":
+            overrides["GITHUB_TOKEN"] = _wrap_val(cred.token, "GITHUB_TOKEN")
+        elif cred.issuer == "google_workspace":
+            overrides["GOOGLE_WORKSPACE_TOKEN"] = _wrap_val(cred.token, "GOOGLE_WORKSPACE_TOKEN")
+        elif cred.issuer == "xai":
+            overrides["XAI_API_KEY"] = _wrap_val(cred.token, "XAI_API_KEY")
+            if cred.scope:
+                overrides["XAI_BASE_URL"] = cred.scope
+        else:
+            key_name = f"{cred.issuer.upper()}_TOKEN"
+            overrides[key_name] = _wrap_val(cred.token, key_name)
+    return overrides
+
+
+def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
+    """Kill the process and its entire process group (best-effort).
+
+    Requires the process to have been started with os_compat.get_process_group_kwargs().
+    """
+    pid = proc.pid
+    if pid is None:
+        return
+    from myrm_agent_harness.utils.os_compat import kill_process_group
+
+    kill_process_group(pid, signal.SIGKILL)
+
+
+async def safe_exec(
+    command: str,
+    *,
+    timeout: int = 120,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+    allowed_issuers: list[str] | None = None,
+    require_sandbox: bool = False,
+    sandbox_available: bool = True,
+) -> ExecResult:
+    """Execute *command* safely — direct exec preferred, shell fallback when needed.
+
+    Process lifecycle:
+    - If ``require_sandbox=True`` and ``sandbox_available=False``, fails closed immediately.
+    - Each subprocess runs in its own process group (``start_new_session``)
+    - On timeout the entire process tree is killed via SIGKILL
+    - Callers receive ``asyncio.TimeoutError`` after cleanup completes
+
+    Raises:
+        MissingSemanticsBlockedError: when require_sandbox is True but sandbox is unavailable.
+        asyncio.TimeoutError: when execution exceeds *timeout* seconds.
+        OSError: when the target binary cannot be found (direct mode).
+    """
+    if require_sandbox and not sandbox_available:
+        from myrm_agent_harness.core.security.missing_semantics import (
+            SemanticsCategory,
+            evaluate_missing_capability,
+        )
+
+        evaluate_missing_capability(
+            SemanticsCategory.SANDBOX_ISOLATION,
+            is_available=False,
+            detail="safe_exec requires sandbox isolation, but provider is unavailable",
+        )
+    use_shell = needs_shell(command)
+    argv: list[str] = []
+
+    if not use_shell:
+        try:
+            argv = shlex.split(command)
+        except ValueError:
+            logger.warning(
+                "safe_exec: shlex.split failed, falling back to SHELL: %s",
+                command[:120],
+            )
+            use_shell = True
+        else:
+            if not argv:
+                return ExecResult(stdout="", stderr="empty command", returncode=1, mode="direct")
+
+    from myrm_agent_harness.core.security.types import user_credentials_ctx
+    from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+        EnvInheritPolicy,
+        build_isolated_child_env,
+    )
+    from myrm_agent_harness.utils.os_compat import get_process_group_kwargs
+
+    session_kwargs = get_process_group_kwargs()
+    active_env = build_isolated_child_env(
+        base_env=None,
+        extra_env=env,
+        inherit_policy=EnvInheritPolicy.CORE,
+    )
+
+    try:
+        credentials = user_credentials_ctx.get()
+        active_env.update(credential_env_overrides(credentials, allowed_issuers=allowed_issuers))
+    except LookupError:
+        pass
+
+    if use_shell:
+        logger.warning("safe_exec SHELL mode: %s", command[:120])
+        proc = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+            env=active_env,
+            **session_kwargs,
+        )
+        mode: Literal["direct", "shell"] = "shell"
+    else:
+        logger.warning("safe_exec DIRECT mode: %s", argv)
+        proc = await asyncio.create_subprocess_exec(
+            *argv,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+            env=active_env,
+            **session_kwargs,
+        )
+        mode = "direct"
+
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except TimeoutError:
+        _kill_process_tree(proc)
+        raise
+
+    return ExecResult(
+        stdout=stdout_bytes.decode(errors="replace").strip() if stdout_bytes else "",
+        stderr=stderr_bytes.decode(errors="replace").strip() if stderr_bytes else "",
+        returncode=proc.returncode or 0,
+        mode=mode,
+    )

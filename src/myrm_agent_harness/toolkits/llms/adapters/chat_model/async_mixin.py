@@ -1,0 +1,553 @@
+"""ChatLiteLLM asynchronous generation and streaming mixin.
+
+[INPUT]
+- adapters.chat_model.exceptions (POS: EmptyChoicesError / EmptyStreamError / StreamStallTimeoutError)
+- adapters.chat_model.api_key_refresher (POS: host-registered renewal of an expiring api key)
+- adapters.chat_model.payload_debug (POS: opt-in failed-request payload diagnostics)
+- adapters.concurrency (POS: per-model semaphores)
+- adapters.stream_aggregator / adapters.streaming (POS: stream aggregation)
+- utils.token_economics (POS: usage recording for streaming + non-streaming — lazy import)
+
+[OUTPUT]
+- ChatLiteLLMAsyncMixin: _agenerate, _astream, empty-response retry, stream stall detection, api key renewal before each request
+
+[POS]
+Asynchronous LLM generation and streaming path for ChatLiteLLM with concurrency gate, stream stall
+detection, and unified token-usage recording for both streaming and non-streaming calls.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import time
+from collections.abc import AsyncIterator, Callable
+from typing import TYPE_CHECKING, Any
+
+from langchain_core.language_models.chat_models import agenerate_from_stream
+from langchain_core.messages import (
+    AIMessageChunk,
+    BaseMessage,
+    BaseMessageChunk,
+)
+from langchain_core.outputs import ChatGenerationChunk, ChatResult
+
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.api_key_refresher import renew_api_key
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
+    EmptyChoicesError,
+    EmptyStreamError,
+    StreamStallTimeoutError,
+)
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.payload_debug import dump_payload_pairing
+from myrm_agent_harness.toolkits.llms.adapters.concurrency import (
+    get_semaphores as _get_semaphores,
+)
+from myrm_agent_harness.toolkits.llms.adapters.metrics import EmptyRetryMetrics
+from myrm_agent_harness.toolkits.llms.adapters.stream_aggregator import (
+    StreamAggregator,
+    XmlStreamBuffer,
+    finalize_stream,
+)
+from myrm_agent_harness.toolkits.llms.adapters.wire.anthropic_params import (
+    apply_anthropic_messages_params,
+)
+from myrm_agent_harness.toolkits.llms.adapters.wire.invocation import (
+    invoke_responses_async,
+    stream_responses_async,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class ChatLiteLLMAsyncMixin:
+    if TYPE_CHECKING:
+        # Attributes and sibling-mixin methods defined on the ChatLiteLLM aggregate
+        # root; declared here so mypy understands the composition-mixin pattern.
+        api_base: str | None
+        api_key: str | None
+        openai_api_key: str | None
+        client: Any
+        model: str
+        model_name: str | None
+        streaming: bool
+        custom_llm_provider: str | None
+        empty_retry_enabled: bool
+        empty_retry_max_attempts: int
+        empty_retry_delay: float
+        first_event_timeout: float
+        inter_chunk_timeout: float
+        _retry_metrics: EmptyRetryMetrics
+        _create_chat_result: Callable[..., ChatResult]
+        _convert_response_to_dict: Callable[..., dict[str, Any]]
+        _extract_tool_context_from_kwargs: Callable[..., tuple[list[str] | None, dict[str, dict[str, Any]] | None]]
+        _create_message_dicts: Callable[..., tuple[list[dict[str, Any]], dict[str, Any]]]
+        _inject_allowed_params: Callable[..., None]
+        _apply_output_budget: Callable[..., None]
+        _recover_output_cap: Callable[..., bool]
+        _inject_prompt_routing_key: Callable[..., None]
+        _process_chunk: Callable[..., tuple[ChatGenerationChunk | None, type[BaseMessageChunk]]]
+        _record_usage: Callable[..., None]
+        _record_non_stream_usage: Callable[..., None]
+
+    async def _renew_api_key(self) -> None:
+        """Adopt a renewed key (see ``api_key_refresher``) before the request snapshots the current one."""
+        renewed = await renew_api_key(self.api_key or self.openai_api_key)
+        if renewed is not None:
+            self.api_key = renewed
+
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        should_stream = kwargs.get("streaming", self.streaming)
+        if should_stream:
+            return await self._agenerate_inner(messages, stop, run_manager, **kwargs)
+
+        import contextlib
+
+        global_sem, model_sem = await _get_semaphores(self.model_name or self.model)
+
+        # lock both semaphores (global then model)
+        async with (
+            global_sem or contextlib.nullcontext(),
+            model_sem or contextlib.nullcontext(),
+        ):
+            return await self._agenerate_inner(messages, stop, run_manager, **kwargs)
+
+    async def _agenerate_inner(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any | None = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        should_stream = kwargs.pop("streaming", self.streaming)
+        if should_stream:
+            try:
+                stream_iter = self._astream(messages=messages, stop=stop, run_manager=run_manager, **kwargs)
+                return await agenerate_from_stream(stream_iter)
+            except TypeError as e:
+                if "'NoneType' object is not iterable" in str(e):
+                    logger.warning(" LangChain agenerate_from_stream bug, falling back to non-streaming")
+                    return await self._agenerate(messages, stop, run_manager, stream=False, **kwargs)
+                raise
+            except Exception:
+                logger.error(f" LiteLLM streaming failed (Model: {self.model_name or self.model})")
+                raise
+
+        await self._renew_api_key()
+        available_tools, tool_schemas = self._extract_tool_context_from_kwargs(kwargs)
+        message_dicts, params = self._create_message_dicts(messages, stop)
+
+        # Filter out internal LangChain parameters that shouldn't be passed to LiteLLM
+        filtered_kwargs = {
+            k: v
+            for k, v in kwargs.items()
+            if k
+            not in (
+                "ls_structured_output_format",
+                "_json_mode_fallback",
+                "_in_fallback",
+            )
+        }
+
+        params = {**params, **filtered_kwargs}
+        self._inject_allowed_params(params)
+        self._apply_output_budget(params)
+        self._inject_prompt_routing_key(params)
+
+        from myrm_agent_harness.infra.tracing import get_tracer
+        from myrm_agent_harness.toolkits.llms.utils.logger import (
+            log_llm_request,
+            log_llm_response,
+        )
+
+        tracer = get_tracer("llm.call")
+        model_name = self.model_name or self.model
+
+        max_attempts = self.empty_retry_max_attempts if self.empty_retry_enabled else 1
+        last_error: Exception | None = None
+        for attempt in range(max_attempts):
+            try:
+                started = time.perf_counter()
+                log_llm_request(model_name, message_dicts, params)
+
+                with tracer.start_as_current_span("llm.call") as span:
+                    # OpenInference standard attributes
+                    span.set_attribute("llm.model_name", model_name)
+                    span.set_attribute("llm.request.attempt", attempt + 1)
+
+                    wire_protocol = getattr(self, "wire_protocol", "chat_completions")
+                    if wire_protocol == "responses":
+                        response = await invoke_responses_async(self.client, message_dicts, params)
+                    else:
+                        call_params = (
+                            apply_anthropic_messages_params(params) if wire_protocol == "anthropic_messages" else params
+                        )
+                        response = await self.client.acreate(messages=message_dicts, **call_params)
+                        response = self._convert_response_to_dict(response)
+
+                    if usage := response.get("usage"):
+                        prompt_tokens = usage.get("prompt_tokens", 0)
+                        completion_tokens = usage.get("completion_tokens", 0)
+                        total_tokens = usage.get("total_tokens", 0)
+                        span.set_attribute("llm.token_count.prompt", prompt_tokens)
+                        span.set_attribute(
+                            "llm.token_count.completion",
+                            completion_tokens,
+                        )
+                        span.set_attribute("llm.token_count.total", total_tokens)
+
+                        span.set_attribute("gen_ai.operation.name", "llm.request")
+                        span.set_attribute("gen_ai.system", "myrm-agent")
+                        span.set_attribute("gen_ai.request.model", model_name)
+                        span.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)
+                        span.set_attribute("gen_ai.usage.output_tokens", completion_tokens)
+                        span.set_attribute("gen_ai.usage.total_tokens", total_tokens)
+
+                        # Extract Prompt Cache tokens across OpenAI / DeepSeek / Anthropic formats
+                        cached_tokens = 0
+                        if details := usage.get("prompt_tokens_details"):
+                            cached_tokens = details.get("cached_tokens", 0)
+                        elif "cache_read_input_tokens" in usage:
+                            cached_tokens = usage.get("cache_read_input_tokens", 0)
+                        span.set_attribute("gen_ai.usage.cache_read_tokens", cached_tokens)
+                        if prompt_tokens > 0:
+                            span.set_attribute("gen_ai.usage.cache_hit_ratio", round(cached_tokens / prompt_tokens, 4))
+
+                        if (comp_details := usage.get("completion_tokens_details")) and (
+                            reasoning_tok := comp_details.get("reasoning_tokens")
+                        ):
+                            span.set_attribute("gen_ai.usage.reasoning_tokens", reasoning_tok)
+
+                log_llm_response(response)
+
+                result = self._create_chat_result(response, available_tools, tool_schemas)
+
+                duration_ms = (time.perf_counter() - started) * 1000
+                self._record_non_stream_usage(
+                    response,
+                    model_name=model_name,
+                    duration_ms=duration_ms,
+                )
+
+                # Update metrics: success after retry
+                if attempt > 0:
+                    self._retry_metrics.async_success_after_retry += 1
+
+                return result
+
+            except EmptyChoicesError as e:
+                last_error = e
+                self._retry_metrics.async_retry_count += 1
+
+                if attempt < max_attempts - 1:
+                    logger.warning(f" Empty choices (attempt {attempt + 1}), retrying...")
+                    delay_ms = self.empty_retry_delay * 1000
+                    self._retry_metrics.total_retry_delay_ms += delay_ms
+                    await asyncio.sleep(self.empty_retry_delay)
+                else:
+                    logger.error(f" Empty choices after {max_attempts} attempts.")
+            except Exception as e:
+                from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
+                    is_gateway_param_rejection,
+                    sanitize_gateway_params_on_400,
+                )
+                from myrm_agent_harness.toolkits.llms.adapters.image_payload_evictor import (
+                    emergency_evict,
+                    emergency_evict_from_message_dicts,
+                )
+                from myrm_agent_harness.toolkits.llms.errors.classifier import (
+                    is_context_overflow,
+                    is_payload_overflow,
+                )
+
+                if is_payload_overflow(e) and attempt < max_attempts - 1:
+                    evicted = emergency_evict_from_message_dicts(
+                        message_dicts, target_bytes=2 * 1024 * 1024, force_shrink=True
+                    )
+                    evicted_msgs = emergency_evict(messages, target_bytes=2 * 1024 * 1024, force_shrink=True)
+                    if evicted > 0 or evicted_msgs > 0:
+                        logger.warning(
+                            f" Payload overflow 400/413 intercepted: evicted {max(evicted, evicted_msgs)} historical images, retrying (attempt {attempt + 1})"
+                        )
+                        continue
+
+                if is_gateway_param_rejection(e) and attempt < max_attempts - 1:
+                    stripped = sanitize_gateway_params_on_400(
+                        params, e, model=self.model_name or self.model, base_url=str(self.api_base or "")
+                    )
+                    if stripped:
+                        logger.warning(
+                            f" Gateway rejected params {stripped}, retrying without them (attempt {attempt + 1})"
+                        )
+                        continue
+
+                if attempt < max_attempts - 1 and self._recover_output_cap(e, params):
+                    continue
+
+                if is_context_overflow(e):
+                    logger.warning(" Context overflow, fast-failing to trigger compression.")
+                    raise e
+
+                logger.error(f" LiteLLM acreate failed (Model: {self.model_name or self.model}): {e!s}")
+                raise
+
+        if last_error:
+            raise last_error
+        raise RuntimeError("Unexpected error in _agenerate retry loop")
+
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        import contextlib
+
+        global_sem, model_sem = await _get_semaphores(self.model_name or self.model)
+
+        async with (
+            global_sem or contextlib.nullcontext(),
+            model_sem or contextlib.nullcontext(),
+        ):
+            async for chunk in self._astream_inner(messages, stop, run_manager, **kwargs):
+                yield chunk
+
+    async def _astream_inner(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+
+        from myrm_agent_harness.infra.tracing import get_tracer
+
+        tracer = get_tracer("llm.stream")
+        model_name = self.model_name or self.model
+
+        await self._renew_api_key()
+        available_tools, tool_schemas = self._extract_tool_context_from_kwargs(kwargs)
+        message_dicts, params = self._create_message_dicts(messages, stop)
+
+        # Filter out internal LangChain parameters that shouldn't be passed to LiteLLM
+        filtered_kwargs = {
+            k: v
+            for k, v in kwargs.items()
+            if k
+            not in (
+                "ls_structured_output_format",
+                "_json_mode_fallback",
+                "_in_fallback",
+            )
+        }
+
+        params = {
+            **params,
+            **filtered_kwargs,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        self._inject_allowed_params(params)
+        self._apply_output_budget(params)
+        self._inject_prompt_routing_key(params)
+
+        max_attempts = self.empty_retry_max_attempts if self.empty_retry_enabled else 1
+        last_error: Exception | None = None
+
+        for attempt in range(max_attempts):
+            agg: StreamAggregator | None = None
+            try:
+                with tracer.start_as_current_span("llm.stream_connect") as llm_span:
+                    llm_span.set_attribute("llm.model_name", model_name)
+                    wire_protocol = getattr(self, "wire_protocol", "chat_completions")
+                    if wire_protocol == "responses":
+                        stream = stream_responses_async(self.client, message_dicts, params)
+                    else:
+                        call_params = (
+                            apply_anthropic_messages_params(params) if wire_protocol == "anthropic_messages" else params
+                        )
+                        stream = await self.client.acreate(messages=message_dicts, **call_params)
+
+                agg = StreamAggregator(AIMessageChunk)
+                xml_content_buffer = XmlStreamBuffer()
+                xml_reasoning_buffer = XmlStreamBuffer()
+
+                stall_phase = "first_event"
+                try:
+                    loop = asyncio.get_running_loop()
+                    async with asyncio.timeout(self.first_event_timeout) as stall_tm:
+                        async for chunk in agg.track(stream):
+                            stall_tm.reschedule(loop.time() + self.inter_chunk_timeout)
+                            if stall_phase == "first_event":
+                                stall_phase = "inter_chunk"
+
+                            chunk_dict = agg.ingest_raw_chunk(chunk)
+                            if chunk_dict is None:
+                                continue
+                            agg.aggregate_tool_calls_from_dict(chunk_dict)
+
+                            cg_chunk, new_class = self._process_chunk(
+                                chunk_dict,
+                                agg.default_chunk_class,
+                                emit_tool_call_chunks=False,
+                            )
+                            if cg_chunk:
+                                agg.on_generation_chunk(cg_chunk, new_class)
+
+                                # Filter content and reasoning_content through DSML buffer before yielding
+                                raw_content = str(cg_chunk.message.content) if cg_chunk.message.content else ""
+                                safe_content = xml_content_buffer.process(raw_content)
+
+                                additional_kwargs = dict(getattr(cg_chunk.message, "additional_kwargs", {}))
+                                raw_reasoning = additional_kwargs.get("reasoning_content", "")
+                                safe_reasoning = (
+                                    xml_reasoning_buffer.process(str(raw_reasoning)) if raw_reasoning else ""
+                                )
+
+                                if safe_content or safe_reasoning or getattr(cg_chunk.message, "tool_call_chunks", []):
+                                    msg_dict = dict(cg_chunk.message)
+                                    msg_dict.pop("type", None)
+                                    msg_dict["content"] = safe_content
+                                    if "additional_kwargs" in msg_dict:
+                                        ak = dict(msg_dict["additional_kwargs"])
+                                        if safe_reasoning:
+                                            ak["reasoning_content"] = safe_reasoning
+                                        elif "reasoning_content" in ak:
+                                            del ak["reasoning_content"]
+                                        msg_dict["additional_kwargs"] = ak
+
+                                    safe_chunk = cg_chunk.message.__class__(**msg_dict)
+                                    safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
+                                    if run_manager:
+                                        await run_manager.on_llm_new_token(safe_content, chunk=safe_cg_chunk)
+                                    yield safe_cg_chunk
+                except TimeoutError as exc:
+                    timeout_val = self.first_event_timeout if stall_phase == "first_event" else self.inter_chunk_timeout
+                    logger.warning(
+                        " Stream stall detected (phase=%s, model=%s, timeout=%.0fs)",
+                        stall_phase,
+                        model_name,
+                        timeout_val,
+                    )
+                    raise StreamStallTimeoutError(
+                        provider=self.custom_llm_provider or "unknown",
+                        model=model_name,
+                        phase=stall_phase,
+                        elapsed_s=timeout_val,
+                    ) from exc
+
+                logger.debug(f" Stream completed: total {agg.chunk_count} chunks")
+
+                if agg.is_empty:
+                    raise EmptyStreamError(f"Stream produced no chunks. Model: {model_name}")
+
+                # Flush buffers at the end of the stream
+                flushed_content = xml_content_buffer.flush()
+                flushed_reasoning = xml_reasoning_buffer.flush()
+                if flushed_content or flushed_reasoning:
+                    msg_dict = {"content": flushed_content}
+                    if flushed_reasoning:
+                        msg_dict["additional_kwargs"] = {"reasoning_content": flushed_reasoning}
+                    safe_chunk = agg.default_chunk_class(**msg_dict)
+                    safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
+                    if run_manager:
+                        await run_manager.on_llm_new_token(flushed_content, chunk=safe_cg_chunk)
+                    yield safe_cg_chunk
+
+                result = finalize_stream(
+                    agg,
+                    tool_schemas,
+                    model_name,
+                    is_async=True,
+                    record_usage_fn=self._record_usage,
+                    available_tools=available_tools,
+                )
+                if result.final_tool_chunk:
+                    if run_manager:
+                        await run_manager.on_llm_new_token("", chunk=result.final_tool_chunk)
+                    yield result.final_tool_chunk
+                else:
+                    # Yield an empty chunk so LangGraph's messages stream triggers
+                    # one more dispatch cycle, allowing get_pending_token_events()
+                    # to capture the usage recorded by finalize_stream above.
+                    sentinel = ChatGenerationChunk(message=AIMessageChunk(content=""))
+                    yield sentinel
+
+                if attempt > 0:
+                    self._retry_metrics.stream_success_after_retry += 1
+                # Success path: clear a stale retry error so the loop-exit raise
+                # below only fires when every attempt failed.
+                last_error = None
+                break
+
+            except EmptyStreamError as e:
+                last_error = e
+                self._retry_metrics.stream_retry_count += 1
+                if attempt < max_attempts - 1:
+                    logger.warning(f" Empty stream (attempt {attempt + 1}), retrying...")
+                    self._retry_metrics.total_retry_delay_ms += self.empty_retry_delay * 1000
+                    await asyncio.sleep(self.empty_retry_delay)
+                else:
+                    logger.error(f" Empty stream after {max_attempts} attempts.")
+            except StreamStallTimeoutError:
+                raise
+            except Exception as e:
+                from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
+                    is_gateway_param_rejection,
+                    sanitize_gateway_params_on_400,
+                )
+                from myrm_agent_harness.toolkits.llms.errors.classifier import (
+                    is_context_overflow,
+                    is_payload_overflow,
+                )
+
+                # A retry restarts the stream, so it is only safe while the consumer has received nothing yet.
+                can_retry = attempt < max_attempts - 1 and (agg is None or agg.chunk_count == 0)
+
+                if can_retry and is_gateway_param_rejection(e):
+                    stripped = sanitize_gateway_params_on_400(
+                        params, e, model=self.model_name or self.model, base_url=str(self.api_base or "")
+                    )
+                    if stripped:
+                        logger.warning(
+                            f" Gateway streaming rejected params {stripped}, retrying without them (attempt {attempt + 1})"
+                        )
+                        continue
+
+                from myrm_agent_harness.toolkits.llms.adapters.image_payload_evictor import (
+                    emergency_evict,
+                    emergency_evict_from_message_dicts,
+                )
+
+                if can_retry and is_payload_overflow(e):
+                    evicted = emergency_evict_from_message_dicts(
+                        message_dicts, target_bytes=4 * 1024 * 1024, force_shrink=True
+                    )
+                    evicted_msgs = emergency_evict(messages, target_bytes=4 * 1024 * 1024, force_shrink=True)
+                    if evicted > 0 or evicted_msgs > 0:
+                        logger.warning(
+                            f" Streaming payload overflow 400/413 intercepted: evicted {evicted} historical images, retrying (attempt {attempt + 1})"
+                        )
+                        continue
+
+                if can_retry and self._recover_output_cap(e, params):
+                    continue
+
+                if is_context_overflow(e):
+                    logger.warning(" Context overflow, fast-failing to trigger compression.")
+                    raise e
+
+                logger.error(f" LiteLLM streaming failed (Model: {model_name}): {e!s}")
+                if os.environ.get("MYRM_DEBUG_DUMP_LLM_PAYLOAD", "") == "1":
+                    dump_payload_pairing(message_dicts)
+                raise
+
+        if last_error:
+            raise last_error

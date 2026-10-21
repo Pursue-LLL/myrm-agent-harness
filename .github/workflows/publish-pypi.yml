@@ -1,0 +1,225 @@
+name: Publish Harness to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform key (e.g. darwin-arm64). Empty = full matrix + release wheel."
+        required: false
+        default: ""
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  prepare-matrix:
+    name: Prepare core wheel matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      include: ${{ steps.set-matrix.outputs.include }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - id: set-matrix
+        env:
+          REQUESTED_PLATFORM: ${{ inputs.platform }}
+        run: |
+          include=$(jq -c '.' .github/core-platform-matrix.json)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$REQUESTED_PLATFORM" ]; then
+            filtered=$(echo "$include" | jq -c --arg p "$REQUESTED_PLATFORM" '[.[] | select(.platform == $p)]')
+            if [ "$(echo "$filtered" | jq 'length')" -eq 0 ]; then
+              echo "::error::Unknown platform: $REQUESTED_PLATFORM" >&2
+              exit 1
+            fi
+            echo "include=$filtered" >> "$GITHUB_OUTPUT"
+          else
+            echo "include=$include" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-core:
+    name: "Core wheel (${{ matrix.platform }})"
+    needs: prepare-matrix
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.include) }}
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install build dependencies
+        run: uv sync --only-group build --no-install-project --frozen
+
+      - name: Verify tag matches pyproject version
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: uv run --no-project python scripts/verify_release_tag.py
+
+      - name: Build platform wheel
+        run: uv run --no-project python scripts/build_core.py --platform ${{ matrix.platform }} --wheel
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: core-wheel-${{ matrix.platform }}
+          path: build/core/wheels/${{ matrix.platform }}/*.whl
+          if-no-files-found: error
+
+  release-wheel:
+    name: Release wheel (tag)
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install build dependencies
+        run: uv sync --only-group build --no-install-project --frozen
+
+      - name: Verify tag matches pyproject version
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: uv run --no-project python scripts/verify_release_tag.py
+
+      - name: Build stripped release wheel
+        run: uv run --no-project python scripts/build_release_wheel.py
+
+      - name: Upload release wheel
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: release-wheel
+          path: dist/myrm_agent_harness-*.whl
+          if-no-files-found: error
+
+  validate-wheels:
+    name: Validate wheels before upload
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build-core
+      - release-wheel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download core wheel artifacts
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          pattern: core-wheel-*
+          merge-multiple: true
+          path: pypi-upload
+
+      - name: Download release wheel artifact
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          name: release-wheel
+          path: pypi-upload
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install build dependencies
+        run: uv sync --only-group build --no-install-project --frozen
+
+      - name: Validate wheels before upload
+        run: uv run --no-project python scripts/validate_pypi_wheels.py pypi-upload
+
+  publish-release:
+    name: Publish release wheel
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: validate-wheels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download release wheel artifact
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          name: release-wheel
+          path: pypi-upload-release
+
+      - name: Publish release wheel (Trusted Publisher / OIDC)
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # release/v1.12.4
+        with:
+          packages-dir: pypi-upload-release
+          skip-existing: true
+
+  publish-core:
+    name: "Publish core wheel (${{ matrix.platform }})"
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - prepare-matrix
+      - validate-wheels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.include) }}
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download core wheel artifact
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          name: core-wheel-${{ matrix.platform }}
+          path: pypi-upload-core
+
+      - name: Publish core wheel (Trusted Publisher / OIDC)
+        continue-on-error: ${{ endsWith(matrix.platform, '-musl') }}
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # release/v1.12.4
+        with:
+          packages-dir: pypi-upload-core
+          skip-existing: true
+
+  publish-verify:
+    name: Verify PyPI index
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - publish-release
+      - publish-core
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install build dependencies
+        run: uv sync --only-group build --no-install-project --frozen
+
+      - name: Verify all packages indexed on PyPI
+        run: uv run --no-project python scripts/verify_pypi_publish.py

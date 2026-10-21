@@ -1,0 +1,42 @@
+"""LLM error processing layer: three-tier error classification, fault-tolerant calls, and standardized exception handling."""
+
+from myrm_agent_harness.toolkits.llms.errors.classifier import (
+    ErrorKind,
+    classify_error,
+    classify_failover_reason,
+    is_context_overflow,
+    is_payload_overflow,
+    is_quota_exhausted,
+)
+from myrm_agent_harness.toolkits.llms.errors.error_types import (
+    FailoverReason,
+    ProbePolicy,
+    RecoverabilityLevel,
+    get_probe_policy,
+    should_allow_probe,
+)
+from myrm_agent_harness.toolkits.llms.errors.exceptions import (
+    EgressChallengeBlockedError,
+    MyrmLLMError,
+)
+from myrm_agent_harness.toolkits.llms.errors.resilient import resilient_llm_call
+
+__all__ = [
+    "EgressChallengeBlockedError",
+    "ErrorKind",
+    "FailoverReason",
+    # Exceptions
+    "MyrmLLMError",
+    "ProbePolicy",
+    "RecoverabilityLevel",
+    "classify_error",
+    # New three-layer system
+    "classify_failover_reason",
+    "get_probe_policy",
+    "is_context_overflow",
+    "is_payload_overflow",
+    "is_quota_exhausted",
+    # Resilient
+    "resilient_llm_call",
+    "should_allow_probe",
+]

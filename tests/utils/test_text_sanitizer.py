@@ -1,0 +1,155 @@
+"""Tests for myrm_agent_harness.utils.text_sanitizer."""
+
+import pytest
+
+from myrm_agent_harness.agent.streaming.reasoning_scrubber import THINKING_TAG_NAMES
+from myrm_agent_harness.utils.text_sanitizer import (
+    extract_and_strip_think_blocks,
+    sanitize_llm_output,
+    sanitize_text,
+)
+
+
+class TestExtractAndStripThinkBlocks:
+    def test_empty_string(self) -> None:
+        assert extract_and_strip_think_blocks("") == ("", "")
+
+    def test_normal_text(self) -> None:
+        text = "Just normal text without tags."
+        clean, reasoning = extract_and_strip_think_blocks(text)
+        assert clean == text
+        assert reasoning == ""
+
+    def test_single_think_block(self) -> None:
+        text = "<think>some reasoning</think>The actual answer"
+        clean, reasoning = extract_and_strip_think_blocks(text)
+        assert clean == "The actual answer"
+        assert reasoning == "some reasoning"
+
+    def test_multiple_think_blocks(self) -> None:
+        text = "<think>first thought</think>Middle<thought>second thought</thought>End"
+        clean, reasoning = extract_and_strip_think_blocks(text)
+        assert clean == "MiddleEnd"
+        assert reasoning == "first thought\n\nsecond thought"
+
+    def test_orphan_tags(self) -> None:
+        text = "</think>Just text<think>reason</think><thought>"
+        clean, reasoning = extract_and_strip_think_blocks(text)
+        assert clean == "Just text"
+        assert reasoning == "reason"
+
+    def test_sanitizes_control_characters(self) -> None:
+        text = "<think>reason\x00</think>clean\ufffd"
+        clean, reasoning = extract_and_strip_think_blocks(text)
+        assert clean == "clean"
+        assert reasoning == "reason"
+
+    @pytest.mark.parametrize("tag_name", THINKING_TAG_NAMES)
+    def test_all_tag_names_extracted(self, tag_name: str) -> None:
+        text = f"before<{tag_name}>inner</{tag_name}>after"
+        clean, reasoning = extract_and_strip_think_blocks(text)
+        assert clean == "beforeafter"
+        assert reasoning == "inner"
+
+    @pytest.mark.parametrize("tag_name", THINKING_TAG_NAMES)
+    def test_sanitize_text_strips_all_tag_names(self, tag_name: str) -> None:
+        text = f"A<{tag_name}>hidden</{tag_name}>B"
+        assert sanitize_text(text) == "AB"
+
+
+class TestSanitizeLlmOutput:
+    def test_empty_string(self) -> None:
+        assert sanitize_llm_output("") == ""
+
+    def test_normal_text_unchanged(self) -> None:
+        s = "Hello 世界 123\nSecond line"
+        assert sanitize_llm_output(s) == s
+
+    def test_removes_c0_except_tab_lf_cr(self) -> None:
+        raw = "a\x07b\tc\nd\re"
+        assert sanitize_llm_output(raw) == "ab\tc\nd\re"
+
+    def test_removes_c1_control_chars(self) -> None:
+        raw = "x\x80\x9fy"
+        assert sanitize_llm_output(raw) == "xy"
+
+    def test_removes_model_control_markers(self) -> None:
+        raw = "pre<|endoftext|>mid<|im_start|>post"
+        assert sanitize_llm_output(raw) == "premidpost"
+
+    def test_removes_fullwidth_pipe_model_tokens(self) -> None:
+        raw = "pre<\uff5cassistant\uff5c>mid<\uff5cend\uff5c>post"
+        assert sanitize_llm_output(raw) == "premidpost"
+
+    def test_removes_deepseek_subscript_dot_tokens(self) -> None:
+        raw = "pre<\uff5cbegin\u2581of\u2581sentence\uff5c>mid<\uff5ctool\u2581calls\uff5c>post"
+        assert sanitize_llm_output(raw) == "premidpost"
+
+    def test_removes_unicode_replacement_char(self) -> None:
+        raw = "ok\ufffdtail"
+        assert sanitize_llm_output(raw) == "oktail"
+
+    def test_mixed_scenario(self) -> None:
+        raw = "Hi\x00<|endoftext|>\nok\ufffd\x7f"
+        out = sanitize_llm_output(raw)
+        assert "\x00" not in out
+        assert "<|endoftext|>" not in out
+        assert "\ufffd" not in out
+        assert "\n" in out
+        assert "ok" in out
+
+
+class TestToolProtocolTagStripping:
+    """Leaked tool-call protocol tags must be stripped from LLM output.
+
+    LLMs (especially Claude Opus, GLM-4, Qwen) occasionally emit internal
+    XML protocol fragments in their text responses. These must never reach
+    the user.
+    """
+
+    def test_orphan_closing_parameter(self) -> None:
+        assert sanitize_llm_output("Done.</parameter>") == "Done."
+
+    def test_dangling_invoke(self) -> None:
+        assert sanitize_llm_output('Let me help.<invoke name="tool">') == "Let me help."
+
+    def test_function_calls_pair(self) -> None:
+        assert sanitize_llm_output("Result<function_calls>call</function_calls>done") == "Resultcalldone"
+
+    def test_tool_call_closing(self) -> None:
+        assert sanitize_llm_output("text</tool_call>more") == "textmore"
+
+    def test_tool_result_pair(self) -> None:
+        assert sanitize_llm_output("answer<tool_result>data</tool_result>") == "answerdata"
+
+    def test_tool_response_tag(self) -> None:
+        assert sanitize_llm_output("ok<tool_response>resp</tool_response>end") == "okrespend"
+
+    def test_tool_use_tag(self) -> None:
+        assert sanitize_llm_output("start</tool_use>end") == "startend"
+
+    def test_antml_namespaced_parameter(self) -> None:
+        tag = chr(60) + "antml:parameter" + chr(62)
+        close_tag = chr(60) + "/antml:parameter" + chr(62)
+        raw = "done" + tag + "val" + close_tag + "end"
+        assert sanitize_llm_output(raw) == "donevalend"
+
+    def test_mixed_protocol_and_think_tags(self) -> None:
+        tag = chr(60) + "parameter" + chr(62)
+        close_tag = chr(60) + "/parameter" + chr(62)
+        raw = (
+            "A"
+            + chr(60)
+            + "think"
+            + chr(62)
+            + "hidden"
+            + chr(60)
+            + "/think"
+            + chr(62)
+            + "B"
+            + tag
+            + "x"
+            + close_tag
+            + "C"
+        )
+        assert sanitize_llm_output(raw) == "ABxC"

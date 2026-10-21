@@ -1,0 +1,1335 @@
+"""Unit tests for SpawnSubagentTool and NotifyProgressTool."""
+
+import asyncio
+import os
+import tempfile
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from langchain_core.tools import BaseTool, StructuredTool
+
+from myrm_agent_harness.agent.dynamic_workflow.spawn_cache import SpawnCacheParams
+from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
+from myrm_agent_harness.agent.dynamic_workflow.tools import (
+    HumanAskTool,
+    NotifyProgressTool,
+    SpawnSubagentTool,
+    SteerChildTool,
+    WorkflowRunGuard,
+)
+from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, WorkspacePolicy
+
+
+def _noop() -> str:
+    return ""
+
+
+def _bash_registry() -> list[BaseTool]:
+    """Parent toolkit with the command tool a verified spawn needs for its verifier."""
+    return [StructuredTool.from_function(func=_noop, name="bash_code_execute_tool", description="bash")]
+
+
+def _cache_params(**overrides: object) -> SpawnCacheParams:
+    data = {
+        "agent_type": "generalPurpose",
+        "task_description": "do something",
+        "readonly": False,
+        "verification_mode": "none",
+        "verifier_agent_type": None,
+        "max_verification_rounds": 2,
+    }
+    data.update(overrides)
+    return SpawnCacheParams(**data)  # type: ignore[arg-type]
+
+
+@pytest.fixture
+def temp_store():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = os.path.join(tmpdir, "test.db")
+        store = WorkflowEventStore(db_path)
+        yield store
+
+
+@pytest.fixture
+def mock_parent_agent():
+    agent = MagicMock()
+    agent.context = SimpleNamespace(workspace_dir=None)
+    agent._cached_tools = []
+    agent.user_tools = []
+    agent._spawn_child = AsyncMock()
+    return agent
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_cache_miss_when_verification_mode_changes(temp_store, mock_parent_agent):
+    params = _cache_params(task_description="scan")
+    temp_store.save_result(
+        "wf_verify_cache",
+        "task_1",
+        params.agent_type,
+        params.task_description,
+        {"cached": True, "result": "unverified"},
+        spawn_params=params,
+    )
+
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "result": "verified",
+    }
+    mock_parent_agent._subagent_manager = MagicMock()
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=_bash_registry,
+        workflow_id="wf_verify_cache",
+        store=temp_store,
+    )
+
+    with patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification") as mock_verify:
+        mock_verify.return_value = {"success": True, "result": "verified"}
+        result = await tool._arun(
+            "task_1",
+            "generalPurpose",
+            "scan",
+            verification_mode="adversarial",
+        )
+
+    assert result["result"] == "verified"
+    mock_verify.assert_awaited_once()
+    mock_parent_agent._spawn_child.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_cache_hit(temp_store, mock_parent_agent):
+    params = _cache_params(task_description="do something")
+    temp_store.save_result(
+        "wf_123",
+        "task_1",
+        params.agent_type,
+        params.task_description,
+        {"cached": True},
+        spawn_params=params,
+    )
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_123",
+        store=temp_store,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "do something")
+
+    assert result == {"cached": True}
+    mock_parent_agent._spawn_child.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_magicmock_workspace_dir_writes_no_journal(
+    temp_store, mock_parent_agent, monkeypatch, tmp_path
+):
+    """Regression: MagicMock workspace_dir must not create MagicMock/ dirs on disk."""
+    monkeypatch.chdir(tmp_path)
+    mock_parent_agent.context = SimpleNamespace(workspace_dir=MagicMock())
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "ok"}
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_journal_guard",
+        store=temp_store,
+    )
+
+    await tool._arun("task_1", "generalPurpose", "audit task")
+
+    assert not (tmp_path / "MagicMock").exists()
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_cache_miss_when_merge_still_pending(temp_store, mock_parent_agent):
+    params = _cache_params(task_description="write notes")
+    temp_store.save_result(
+        "wf_pending",
+        "task_1",
+        params.agent_type,
+        params.task_description,
+        {
+            "success": True,
+            "task_id": "task_1",
+            "workspace_merge_status": "pending",
+            "result": {"text": "partial"},
+        },
+        spawn_params=params,
+    )
+
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "task_id": "task_1",
+        "agent_type": "generalPurpose",
+        "result": "done",
+    }
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_pending",
+        store=temp_store,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "write notes")
+    assert result["result"] == "done"
+    mock_parent_agent._spawn_child.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_cache_hit_records_pending_merge(temp_store, mock_parent_agent):
+    params = _cache_params(task_description="write notes")
+    cached_payload = {
+        "success": True,
+        "task_id": "task_1",
+        "result": {
+            "_isolated_child_workspace": "/tmp/child",
+            "_isolated_parent_workspace": "/tmp/parent",
+        },
+    }
+    temp_store.save_result(
+        "wf_merge_cache",
+        "task_1",
+        params.agent_type,
+        params.task_description,
+        cached_payload,
+        spawn_params=params,
+    )
+
+    guard = WorkflowRunGuard(max_spawns=10, max_concurrent=2)
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_merge_cache",
+        store=temp_store,
+        run_guard=guard,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "write notes")
+
+    assert result == cached_payload
+    assert len(guard.merge_results) == 1
+    mock_parent_agent._spawn_child.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_cache_miss(temp_store, mock_parent_agent):
+    class MockResult:
+        success = True
+        task_id = "task_1"
+        agent_type = "generalPurpose"
+        result = "done"
+        error = None
+
+    mock_parent_agent._spawn_child.return_value = MockResult()
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_123",
+        store=temp_store,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "do something")
+
+    assert result["success"] is True
+    assert result["result"] == "done"
+
+    mock_parent_agent._spawn_child.assert_called_once()
+
+    cached = temp_store.get_cached_result(
+        "wf_123",
+        "task_1",
+        expected=_cache_params(task_description="do something"),
+    )
+    assert cached is not None
+    assert cached["result"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_dict_result(mock_parent_agent):
+    """spawn_child may return a dict directly — must pass through unchanged."""
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "result": "dict-path",
+    }
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_dict",
+        store=None,
+    )
+
+    result = await tool._arun("task_x", "generalPurpose", "do something")
+    assert result == {"success": True, "result": "dict-path"}
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_subagent_result_to_dict_passthrough(mock_parent_agent):
+    """SubAgentResult serializes via to_dict(): handover_state and verification
+    reach the script's dict contract, matching the delegate path."""
+    from myrm_agent_harness.agent.sub_agents.types import (
+        AgentHandoverState,
+        SubAgentResult,
+        VerificationSummary,
+    )
+
+    mock_parent_agent._spawn_child.return_value = SubAgentResult(
+        success=True,
+        task_id="task_hs",
+        agent_type="generalPurpose",
+        result="stage1 done",
+        completed_at=1000.0,
+        handover_state=AgentHandoverState(
+            task_completed=["refactor pay module"],
+            pending_todos=["update docs"],
+            risks_or_notes=["legacy endpoint deprecated"],
+            relevant_files=["src/pay/core.py"],
+        ),
+        verification=VerificationSummary(
+            passed=True,
+            rounds=1,
+            max_rounds=2,
+            confidence="HIGH",
+            summary="tests pass",
+            findings=({"severity": "LOW", "description": "naming"},),
+        ),
+    )
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_ssot",
+        store=None,
+    )
+
+    result = await tool._arun("task_ssot", "generalPurpose", "do stage1")
+
+    assert result["success"] is True
+    assert result["handover_state"]["task_completed"] == ["refactor pay module"]
+    assert result["handover_state"]["pending_todos"] == ["update docs"]
+    assert result["handover_state"]["risks_or_notes"] == ["legacy endpoint deprecated"]
+    assert result["handover_state"]["relevant_files"] == ["src/pay/core.py"]
+    assert result["verification"]["passed"] is True
+    assert result["verification"]["confidence"] == "HIGH"
+    assert result["verification"]["findings"] == [{"severity": "LOW", "description": "naming"}]
+
+    mock_parent_agent._spawn_child.assert_called_once()
+
+
+def test_leaf_blocked_tools_include_cron_manage():
+    """cron_manage_tool creates persistent cross-session jobs — leaf/orchestrator
+    children must never inherit it (L1 blocklist)."""
+    from myrm_agent_harness.agent.sub_agents.types import (
+        _SUBAGENT_DEFAULT_BLACKLIST,
+        DELEGATION_CAPABILITY_MANIFEST,
+    )
+
+    assert "cron_manage_tool" in DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
+    assert "cron_manage_tool" in _SUBAGENT_DEFAULT_BLACKLIST
+
+
+def test_spawn_tool_sync_raises(mock_parent_agent):
+    """Sync _run must raise — tool is async-only."""
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_sync",
+        store=None,
+    )
+    with pytest.raises(NotImplementedError):
+        tool._run("t1", "generalPurpose", "desc")
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_cancel_token_respected(mock_parent_agent):
+    """Cancelled token prevents spawning."""
+    cancel_token = MagicMock()
+    cancel_token.is_cancelled = True
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_cancel",
+        store=None,
+        cancel_token=cancel_token,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "do something")
+
+    assert result["success"] is False
+    assert "cancelled" in result["error"].lower()
+    mock_parent_agent._spawn_child.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_catalog_resolve(mock_parent_agent):
+    """Catalog is used to resolve SubagentConfig when available."""
+    from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
+
+    custom_config = SubagentConfig(
+        system_prompt="Custom prompt",
+        max_spawn_depth=1,
+        concurrency_limit=5,
+        max_cost_usd=3.0,
+        budget_tokens=300_000,
+    )
+
+    mock_catalog = AsyncMock()
+    mock_catalog.resolve.return_value = custom_config
+
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "result": "catalog-used",
+    }
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_catalog",
+        catalog=mock_catalog,
+        store=None,
+    )
+
+    result = await tool._arun("task_1", "coder", "write code")
+
+    mock_catalog.resolve.assert_called_once_with("coder")
+    call_kwargs = mock_parent_agent._spawn_child.call_args[1]
+    assert call_kwargs["config"].system_prompt == custom_config.system_prompt
+    assert result["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_catalog_fallback(mock_parent_agent):
+    """Falls back to default config when catalog returns None."""
+    mock_catalog = AsyncMock()
+    mock_catalog.resolve.return_value = None
+
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "result": "fallback",
+    }
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_fallback",
+        catalog=mock_catalog,
+        store=None,
+    )
+
+    result = await tool._arun("task_1", "unknown_type", "task desc")
+
+    mock_catalog.resolve.assert_called_once_with("unknown_type")
+    call_kwargs = mock_parent_agent._spawn_child.call_args[1]
+    assert call_kwargs["config"].max_cost_usd == 2.0
+    assert result["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_exception_handling(mock_parent_agent):
+    """Exceptions from _spawn_child are caught and returned as error dict."""
+    mock_parent_agent._spawn_child.side_effect = RuntimeError("connection lost")
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_error",
+        store=None,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "do something")
+
+    assert result["success"] is False
+    assert "RuntimeError" in result["error"]
+    assert "connection lost" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_enforces_sandbox_policy(mock_parent_agent):
+    """readonly=True sets workspace_policy=READ_ONLY_SANDBOX on the config."""
+    from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
+
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "result": "read-only",
+    }
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_readonly",
+        store=None,
+    )
+
+    await tool._arun("task_1", "generalPurpose", "scan for vulnerabilities", readonly=True)
+
+    call_kwargs = mock_parent_agent._spawn_child.call_args[1]
+    config = call_kwargs["config"]
+    assert config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_blocks_write_tools(mock_parent_agent):
+    """readonly=True adds write tools to disallowed_tools."""
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "ok"}
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_readonly_tools",
+        store=None,
+    )
+
+    await tool._arun("task_1", "generalPurpose", "audit code quality", readonly=True)
+
+    call_kwargs = mock_parent_agent._spawn_child.call_args[1]
+    config = call_kwargs["config"]
+    assert {"file_write_tool", "file_edit_tool", "bash_code_execute_tool"} <= config.disallowed_tools
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_appends_prompt_hint(mock_parent_agent):
+    """readonly=True appends [READONLY MODE] hint to system_prompt."""
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "ok"}
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_readonly_hint",
+        store=None,
+    )
+
+    await tool._arun("task_1", "generalPurpose", "review security", readonly=True)
+
+    call_kwargs = mock_parent_agent._spawn_child.call_args[1]
+    config = call_kwargs["config"]
+    assert "[READONLY MODE]" in config.system_prompt
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_false_no_enforcement(mock_parent_agent):
+    """readonly=False (default) does not modify config."""
+    from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
+
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "ok"}
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_no_readonly",
+        store=None,
+    )
+
+    await tool._arun("task_1", "generalPurpose", "write some code", readonly=False)
+
+    call_kwargs = mock_parent_agent._spawn_child.call_args[1]
+    config = call_kwargs["config"]
+    assert config.workspace_policy == WorkspacePolicy.INHERIT
+    assert "write_file" not in config.disallowed_tools
+    assert "[READONLY MODE]" not in config.system_prompt
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_with_catalog_config(mock_parent_agent):
+    """readonly=True works correctly with catalog-resolved config."""
+    from myrm_agent_harness.agent.sub_agents.types import (
+        SubagentConfig,
+        WorkspacePolicy,
+    )
+
+    custom_config = SubagentConfig(
+        system_prompt="I am a security scanner.",
+        max_spawn_depth=0,
+        disallowed_tools=frozenset({"existing_blocked"}),
+    )
+
+    mock_catalog = AsyncMock()
+    mock_catalog.resolve.return_value = custom_config
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "scanned"}
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_readonly_catalog",
+        catalog=mock_catalog,
+        store=None,
+    )
+
+    await tool._arun("task_1", "scanner", "scan codebase", readonly=True)
+
+    call_kwargs = mock_parent_agent._spawn_child.call_args[1]
+    config = call_kwargs["config"]
+    assert config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX
+    assert "existing_blocked" in config.disallowed_tools
+    assert "file_write_tool" in config.disallowed_tools
+    assert "[READONLY MODE]" in config.system_prompt
+    assert "I am a security scanner." in config.system_prompt
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_cancel_takes_priority(mock_parent_agent):
+    """Cancel token fires before readonly enforcement — no spawn happens."""
+    cancel_token = MagicMock()
+    cancel_token.is_cancelled = True
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_readonly_cancel",
+        store=None,
+        cancel_token=cancel_token,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "audit code", readonly=True)
+
+    assert result["success"] is False
+    assert "cancelled" in result["error"].lower()
+    mock_parent_agent._spawn_child.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_cache_takes_priority(temp_store, mock_parent_agent):
+    """Cache hit returns before readonly enforcement — no spawn happens."""
+    params = _cache_params(task_description="scan", readonly=True)
+    temp_store.save_result(
+        "wf_rc",
+        "task_1",
+        params.agent_type,
+        params.task_description,
+        {"cached": True, "result": "old"},
+        spawn_params=params,
+    )
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_rc",
+        store=temp_store,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "scan", readonly=True)
+
+    assert result == {"cached": True, "result": "old"}
+    mock_parent_agent._spawn_child.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_exception_still_caught(mock_parent_agent):
+    """readonly=True + _spawn_child raises → error dict returned, not crash."""
+    mock_parent_agent._spawn_child.side_effect = PermissionError("fs locked")
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_readonly_err",
+        store=None,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "audit", readonly=True)
+
+    assert result["success"] is False
+    assert "PermissionError" in result["error"]
+    assert "fs locked" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_with_object_result(mock_parent_agent):
+    """readonly=True with non-dict result object — status extraction works."""
+    from enum import Enum
+
+    class Status(Enum):
+        COMPLETED = "completed"
+
+    class MockResult:
+        success = True
+        task_id = "task_1"
+        agent_type = "generalPurpose"
+        result = "analysis done"
+        error = None
+        status = Status.COMPLETED
+
+    mock_parent_agent._spawn_child.return_value = MockResult()
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_readonly_obj",
+        store=None,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "analyze", readonly=True)
+
+    assert result["success"] is True
+    assert result["result"] == "analysis done"
+    assert result["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_preserves_model_resolver(mock_parent_agent):
+    """readonly=True on default config preserves parent's model_resolver."""
+    mock_resolver = MagicMock()
+    mock_parent_agent.model_resolver = mock_resolver
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "ok"}
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_readonly_resolver",
+        store=None,
+    )
+
+    await tool._arun("task_1", "generalPurpose", "scan", readonly=True)
+
+    call_kwargs = mock_parent_agent._spawn_child.call_args[1]
+    config = call_kwargs["config"]
+    assert config.model_resolver is mock_resolver
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_readonly_store_saves_result(temp_store, mock_parent_agent):
+    """readonly=True result is still persisted to store."""
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "scanned"}
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_readonly_store",
+        store=temp_store,
+    )
+
+    result = await tool._arun("task_1", "generalPurpose", "scan", readonly=True)
+
+    assert result["success"] is True
+    cached = temp_store.get_cached_result(
+        "wf_readonly_store",
+        "task_1",
+        expected=_cache_params(task_description="scan", readonly=True),
+    )
+    assert cached is not None
+    assert cached["result"] == "scanned"
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_sync_run_readonly_raises(mock_parent_agent):
+    """Sync _run with readonly=True still raises NotImplementedError."""
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_sync_ro",
+        store=None,
+    )
+    with pytest.raises(NotImplementedError):
+        tool._run("t1", "generalPurpose", "desc", readonly=True)
+
+
+# ---------------------------------------------------------------------------
+# NotifyProgressTool tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def notify_queue():
+    return asyncio.Queue()
+
+
+@pytest.fixture
+def notify_tool(notify_queue):
+    return NotifyProgressTool(event_queue=notify_queue, message_id="msg_test_123")
+
+
+@pytest.mark.asyncio
+async def test_notify_basic(notify_tool, notify_queue):
+    """Basic notify emits correct event structure."""
+    result = await notify_tool._arun(message="Phase 1: Collecting data")
+    assert result["success"] is True
+    assert notify_queue.qsize() == 1
+
+    event = notify_queue.get_nowait()
+    assert event["type"] == "status"
+    assert event["step_key"] == "workflow_stage"
+    assert event["messageId"] == "msg_test_123"
+    assert event["status"] == "in_progress"
+    assert event["data"]["message"] == "Phase 1: Collecting data"
+
+
+@pytest.mark.asyncio
+async def test_notify_with_progress(notify_tool, notify_queue):
+    """Notify with progress fields populates data correctly."""
+    result = await notify_tool._arun(
+        message="Analyzing files",
+        progress=42,
+        step_index=2,
+        total_steps=5,
+        category="analysis",
+        level="info",
+    )
+    assert result["success"] is True
+    event = notify_queue.get_nowait()
+    data = event["data"]
+    assert data["notify_progress"] == 42
+    assert data["notify_step_index"] == 2
+    assert data["notify_total_steps"] == 5
+    assert data["notify_category"] == "analysis"
+    assert data["notify_level"] == "info"
+
+
+@pytest.mark.asyncio
+async def test_notify_progress_clamped(notify_tool, notify_queue):
+    """Progress is clamped to [-1, 100]."""
+    await notify_tool._arun(message="overflow", progress=200)
+    event = notify_queue.get_nowait()
+    assert event["data"]["notify_progress"] == 100
+
+    await notify_tool._arun(message="underflow", progress=-50)
+    event = notify_queue.get_nowait()
+    assert event["data"]["notify_progress"] == -1
+
+
+@pytest.mark.asyncio
+async def test_notify_message_truncated(notify_tool, notify_queue):
+    """Long messages are truncated to 500 chars."""
+    long_msg = "x" * 1000
+    result = await notify_tool._arun(message=long_msg)
+    assert len(result["message"]) == 500
+    event = notify_queue.get_nowait()
+    assert len(event["data"]["message"]) == 500
+
+
+@pytest.mark.asyncio
+async def test_notify_invalid_level_defaults_to_info(notify_tool, notify_queue):
+    """Invalid level falls back to 'info'."""
+    await notify_tool._arun(message="test", level="critical")
+    event = notify_queue.get_nowait()
+    assert event["data"]["notify_level"] == "info"
+
+
+@pytest.mark.asyncio
+async def test_notify_valid_levels(notify_tool, notify_queue):
+    """All valid levels are accepted."""
+    for level in ("info", "warn", "alert"):
+        await notify_tool._arun(message=f"test {level}", level=level)
+        event = notify_queue.get_nowait()
+        assert event["data"]["notify_level"] == level
+
+
+@pytest.mark.asyncio
+async def test_notify_category_truncated(notify_tool, notify_queue):
+    """Long category is truncated to shared SSOT max (32 chars)."""
+    long_cat = "c" * 200
+    await notify_tool._arun(message="test", category=long_cat)
+    event = notify_queue.get_nowait()
+    assert len(event["data"]["notify_category"]) == 32
+
+
+@pytest.mark.asyncio
+async def test_notify_sync_run_raises(notify_queue):
+    """Sync _run raises NotImplementedError."""
+    tool = NotifyProgressTool(event_queue=notify_queue, message_id="msg")
+    with pytest.raises(NotImplementedError):
+        tool._run("test message")
+
+
+@pytest.mark.asyncio
+async def test_notify_multiple_events(notify_tool, notify_queue):
+    """Multiple notify calls queue events in order."""
+    await notify_tool._arun(message="Phase 1", step_index=1, total_steps=3)
+    await notify_tool._arun(message="Phase 2", step_index=2, total_steps=3)
+    await notify_tool._arun(message="Phase 3", step_index=3, total_steps=3)
+
+    assert notify_queue.qsize() == 3
+    events = [notify_queue.get_nowait() for _ in range(3)]
+    assert [e["data"]["message"] for e in events] == ["Phase 1", "Phase 2", "Phase 3"]
+    assert [e["data"]["notify_step_index"] for e in events] == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_notify_negative_step_index_clamped(notify_tool, notify_queue):
+    """Negative step_index and total_steps are clamped to 0."""
+    await notify_tool._arun(message="test", step_index=-5, total_steps=-3)
+    event = notify_queue.get_nowait()
+    assert event["data"]["notify_step_index"] == 0
+    assert event["data"]["notify_total_steps"] == 0
+
+
+@pytest.mark.asyncio
+async def test_notify_indeterminate_progress(notify_tool, notify_queue):
+    """Default progress=-1 represents indeterminate state."""
+    await notify_tool._arun(message="Working...")
+    event = notify_queue.get_nowait()
+    assert event["data"]["notify_progress"] == -1
+
+
+@pytest.mark.asyncio
+async def test_spawn_emits_start_and_done_stage_events(temp_store, mock_parent_agent):
+    class MockResult:
+        success = True
+        task_id = "task_1"
+        agent_type = "generalPurpose"
+        result = "done"
+        error = None
+
+    mock_parent_agent._spawn_child.return_value = MockResult()
+    event_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_123",
+        store=temp_store,
+        event_queue=event_queue,
+        message_id="msg_spawn",
+    )
+
+    await tool._arun("task_1", "generalPurpose", "do something")
+
+    assert event_queue.qsize() == 2
+    start_event = event_queue.get_nowait()
+    done_event = event_queue.get_nowait()
+    assert start_event["step_key"] == "workflow_stage"
+    assert "Spawning sub-agent" in start_event["data"]["message"]
+    assert done_event["data"]["notify_category"] == "subagent"
+    assert "completed" in done_event["data"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_spawn_failure_emits_warn_stage_event(mock_parent_agent):
+    mock_parent_agent._spawn_child.side_effect = RuntimeError("boom")
+    event_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_fail",
+        event_queue=event_queue,
+        message_id="msg_fail",
+    )
+
+    result = await tool._arun("task_x", "generalPurpose", "fail task")
+
+    assert result["success"] is False
+    events = [event_queue.get_nowait() for _ in range(event_queue.qsize())]
+    assert len(events) == 2
+    assert events[0]["data"]["notify_level"] == "info"
+    assert events[1]["data"]["notify_level"] == "warn"
+    assert "failed" in events[1]["data"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_spawn_default_none_skips_verification(mock_parent_agent):
+    """Default verification_mode=none uses direct _spawn_child."""
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "ok"}
+    mock_parent_agent._subagent_manager = MagicMock()
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_none_verify",
+        store=None,
+    )
+
+    await tool._arun("task_1", "generalPurpose", "simple task")
+
+    mock_parent_agent._spawn_child.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification")
+async def test_spawn_adversarial_calls_run_with_verification(mock_run_verify, mock_parent_agent):
+    """verification_mode=adversarial routes through run_with_verification."""
+    from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubAgentStatus
+
+    mock_manager = MagicMock()
+    mock_parent_agent._subagent_manager = mock_manager
+
+    mock_run_verify.return_value = SubAgentResult(
+        success=True,
+        task_id="verify-worker-1-generalPurpose",
+        agent_type="generalPurpose",
+        result="verified output\n\n---\n[Verification: PASS (round 1/2, confidence=high)]",
+        completed_at=0.0,
+        status=SubAgentStatus.COMPLETED,
+    )
+
+    # "generalPurpose" is advertised to the planner but is not a catalog entry, so worker and verifier both use the default config.
+    mock_catalog = AsyncMock()
+    mock_catalog.resolve.return_value = None
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=_bash_registry,
+        workflow_id="wf_adv",
+        catalog=mock_catalog,
+        store=None,
+    )
+
+    result = await tool._arun(
+        "task_audit",
+        "generalPurpose",
+        "Audit competitor pricing",
+        readonly=True,
+        verification_mode="adversarial",
+        max_verification_rounds=2,
+    )
+
+    mock_run_verify.assert_awaited_once()
+    mock_parent_agent._spawn_child.assert_not_called()
+    assert result["success"] is True
+    assert "Verification: PASS" in str(result["result"])
+
+    # The worker is read-only, but the verifier must keep the command tool it needs to run its checks.
+    kwargs = mock_run_verify.await_args.kwargs
+    assert "bash_code_execute_tool" in kwargs["worker_config"].disallowed_tools
+    assert "bash_code_execute_tool" not in kwargs["verifier_config"].disallowed_tools
+    assert "[READONLY MODE]" not in kwargs["verifier_config"].system_prompt
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification")
+async def test_spawn_adversarial_refuses_a_verifier_that_cannot_run_commands(mock_run_verify, mock_parent_agent):
+    """A search-only verifier can never produce a PASS that counts: refuse before any worker spawns."""
+    mock_parent_agent._subagent_manager = MagicMock()
+    mock_catalog = AsyncMock()
+    mock_catalog.resolve.return_value = SubagentConfig(system_prompt="search", tools=("web_search_tool",))
+    search_only = StructuredTool.from_function(func=_noop, name="web_search_tool", description="search")
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [*_bash_registry(), search_only],
+        workflow_id="wf_adv_refuse",
+        catalog=mock_catalog,
+        store=None,
+    )
+
+    result = await tool._arun("task_research", "search", "Summarise the filings", verification_mode="adversarial")
+
+    assert result["success"] is False
+    assert "cannot run commands" in result["error"]
+    mock_run_verify.assert_not_called()
+    mock_parent_agent._spawn_child.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification")
+async def test_spawn_adversarial_writable_records_isolated_merge(mock_run_verify, mock_parent_agent):
+    from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubAgentStatus
+
+    mock_parent_agent._subagent_manager = MagicMock()
+    mock_run_verify.return_value = SubAgentResult(
+        success=True,
+        task_id="verify-worker-1-generalPurpose",
+        agent_type="generalPurpose",
+        result={
+            "text": "implemented",
+            "_isolated_child_workspace": "/tmp/child",
+            "_isolated_parent_workspace": "/tmp/parent",
+            "_verification_summary": "[Verification: PASS]",
+        },
+        completed_at=0.0,
+        status=SubAgentStatus.COMPLETED,
+    )
+
+    guard = WorkflowRunGuard(max_spawns=10, max_concurrent=2)
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=_bash_registry,
+        workflow_id="wf_adv_merge",
+        run_guard=guard,
+    )
+
+    result = await tool._arun(
+        "task_impl",
+        "generalPurpose",
+        "Implement utils/price.py",
+        readonly=False,
+        verification_mode="adversarial",
+    )
+
+    assert result["success"] is True
+    assert len(guard.merge_results) == 1
+    inner = guard.merge_results[0]["result"]
+    assert isinstance(inner, dict)
+    assert inner["_isolated_child_workspace"] == "/tmp/child"
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification")
+async def test_spawn_adversarial_no_manager_falls_back_to_spawn(mock_run_verify, mock_parent_agent):
+    """Missing SubagentManager falls back to direct spawn."""
+    parent = MagicMock(spec=["_spawn_child", "context"])
+    parent._spawn_child = AsyncMock(return_value={"success": True, "result": "fallback"})
+    parent.context = {}
+
+    tool = SpawnSubagentTool(
+        parent_agent=parent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_adv_fallback",
+        store=None,
+    )
+
+    result = await tool._arun(
+        "task_1",
+        "generalPurpose",
+        "audit",
+        verification_mode="adversarial",
+    )
+
+    mock_run_verify.assert_not_called()
+    parent._spawn_child.assert_awaited_once()
+    assert result["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_spawn_parallel_writers_use_isolated_copy(mock_parent_agent, monkeypatch):
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.workspace_coordination.git_worktree.create_subagent_worktree",
+        lambda _ws: None,
+    )
+    mock_parent_agent._spawn_child = AsyncMock(return_value={"success": True, "result": "ok"})
+    mock_parent_agent.context = {"workspace_path": "/tmp/ws"}
+
+    guard = WorkflowRunGuard(max_spawns=10, max_concurrent=2)
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_iso",
+        run_guard=guard,
+    )
+
+    await asyncio.gather(
+        tool._arun("t1", "generalPurpose", "write a", readonly=False),
+        tool._arun("t2", "generalPurpose", "write b", readonly=False),
+    )
+
+    configs = [call.kwargs["config"] for call in mock_parent_agent._spawn_child.await_args_list]
+    assert len(configs) == 2
+    assert all(cfg.workspace_policy == WorkspacePolicy.ISOLATED_COPY for cfg in configs)
+
+
+@pytest.mark.asyncio
+async def test_human_ask_tool_normal_resolution():
+    queue = asyncio.Queue()
+    mock_gate = AsyncMock(return_value="continue")
+
+    tool = HumanAskTool(
+        event_queue=queue,
+        message_id="msg_123",
+        ask_gate_callable=mock_gate,
+    )
+
+    result = await tool._arun(
+        question="Deploy to production?",
+        options=["continue", "abort"],
+        timeout_seconds=60,
+        default_action="abort",
+    )
+
+    assert result["success"] is True
+    assert result["answer"] == "continue"
+    assert result["timed_out"] is False
+    assert result["error"] == ""
+
+    # Verify events emitted to queue
+    events = []
+    while not queue.empty():
+        events.append(queue.get_nowait())
+
+    assert len(events) == 2
+    assert events[0]["data"]["status"] == "waiting"
+    assert events[0]["data"]["question"] == "Deploy to production?"
+    assert events[1]["data"]["status"] == "resolved"
+    assert events[1]["data"]["answer"] == "continue"
+
+
+@pytest.mark.asyncio
+async def test_human_ask_tool_timeout_fallback():
+    queue = asyncio.Queue()
+
+    async def _timing_out_gate(q, opts, timeout, default):
+        raise TimeoutError()
+
+    tool = HumanAskTool(
+        event_queue=queue,
+        message_id="msg_timeout",
+        ask_gate_callable=_timing_out_gate,
+    )
+
+    result = await tool._arun(
+        question="Deploy?",
+        options=["yes", "no"],
+        timeout_seconds=10,
+        default_action="no",
+    )
+
+    assert result["success"] is False
+    assert result["answer"] == "no"
+    assert result["timed_out"] is True
+    assert "timed out" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_human_ask_tool_no_gate_fallback():
+    queue = asyncio.Queue()
+
+    tool = HumanAskTool(
+        event_queue=queue,
+        message_id="msg_no_gate",
+        ask_gate_callable=None,
+    )
+
+    result = await tool._arun(
+        question="Proceed?",
+        options=["continue", "stop"],
+        timeout_seconds=30,
+        default_action="continue",
+    )
+
+    assert result["success"] is True
+    assert result["answer"] == "continue"
+    assert result["timed_out"] is False
+
+
+@pytest.mark.asyncio
+async def test_human_ask_tool_cancellation():
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+
+    queue = asyncio.Queue()
+    token = CancellationToken()
+    token.cancel()
+
+    tool = HumanAskTool(
+        event_queue=queue,
+        message_id="msg_cancelled",
+        cancel_token=token,
+    )
+
+    result = await tool._arun(
+        question="Should not run",
+        options=["a", "b"],
+        default_action="a",
+    )
+
+    assert result["success"] is False
+    assert result["answer"] == "a"
+    assert "cancelled" in result["error"].lower()
+
+
+@pytest.mark.asyncio
+async def test_spawn_subagent_auditor_blind_and_multi_skeptic_mode(mock_parent_agent):
+    from myrm_agent_harness.agent.dynamic_workflow.tools import DwVerificationMode
+
+    mock_parent_agent._subagent_manager = MagicMock()
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=_bash_registry,
+        workflow_id="wf_modes_test",
+    )
+
+    with patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification") as mock_verify:
+        mock_verify.return_value = {"success": True, "result": "blind_ok"}
+
+        # 1. Auditor Blind mode
+        res1 = await tool._arun(
+            "task_blind",
+            "generalPurpose",
+            "do blind audit",
+            verification_mode=DwVerificationMode.AUDITOR_BLIND.value,
+        )
+        assert res1["success"] is True
+        assert mock_verify.call_args.kwargs["verification_mode"] == "auditor_blind"
+
+        # 2. Multi-Skeptic mode
+        mock_verify.return_value = {"success": True, "result": "skeptic_ok"}
+        res2 = await tool._arun(
+            "task_skeptic",
+            "generalPurpose",
+            "do skeptic audit",
+            verification_mode=DwVerificationMode.MULTI_SKEPTIC.value,
+        )
+        assert res2["success"] is True
+        assert mock_verify.call_args.kwargs["verification_mode"] == "multi_skeptic"
+
+
+@pytest.mark.asyncio
+async def test_steer_child_tool_success_and_fallback(mock_parent_agent):
+    mock_parent_agent.steer_child = MagicMock(return_value=True)
+
+    tool = SteerChildTool(parent_agent=mock_parent_agent)
+
+    # 1. Success case
+    res1 = await tool._arun(task_id="child_1", message="Refine findings")
+    assert res1["success"] is True
+    assert res1["task_id"] == "child_1"
+    assert "successfully queued" in res1["message"]
+    mock_parent_agent.steer_child.assert_called_once_with("child_1", "Refine findings")
+
+    # 2. Not found / already completed case
+    mock_parent_agent.steer_child.return_value = False
+    res2 = await tool._arun(task_id="child_dead", message="Refine findings")
+    assert res2["success"] is False
+    assert res2["task_id"] == "child_dead"
+    assert "not found or already completed" in res2["error"]
+
+    # 3. Parent agent without steer_child attribute
+    tool_no_attr = SteerChildTool(parent_agent=object())
+    res3 = await tool_no_attr._arun(task_id="child_any", message="msg")
+    assert res3["success"] is False
+    assert "does not support steer_child" in res3["error"]
+
+
+@pytest.mark.asyncio
+async def test_spawn_subagent_complexity_tier_and_cache_fingerprint(mock_parent_agent):
+    from myrm_agent_harness.agent.dynamic_workflow.spawn_cache import (
+        SpawnCacheParams,
+        spawn_cache_params_from_json,
+    )
+    from myrm_agent_harness.agent.dynamic_workflow.tools import DwVerificationMode
+
+    # 1. Fingerprint test
+    p_none = SpawnCacheParams("general", "task", False, "none", None, 2, None)
+    p_reasoning = SpawnCacheParams("general", "task", False, "none", None, 2, "reasoning")
+    assert p_none.fingerprint() != p_reasoning.fingerprint()
+
+    # 2. JSON roundtrip test
+    json_str = '{"agent_type":"general","task_description":"task","readonly":false,"verification_mode":"none","verifier_agent_type":null,"max_verification_rounds":2,"complexity_tier":"reasoning"}'
+    parsed = spawn_cache_params_from_json(json_str)
+    assert parsed is not None
+    assert parsed.complexity_tier == "reasoning"
+
+    # 3. Tool direct spawn passes complexity_tier
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "ok"}
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=_bash_registry,
+        workflow_id="wf_tier_test",
+    )
+    res = await tool._arun(
+        task_id="task_tier_1",
+        agent_type="generalPurpose",
+        task_description="analyze architecture",
+        complexity_tier="reasoning",
+    )
+    assert res["success"] is True
+    assert mock_parent_agent._spawn_child.call_args.kwargs["complexity_tier"] == "reasoning"
+
+    # 4. Verified spawn passes complexity_tier
+    mock_parent_agent._subagent_manager = MagicMock()
+    with patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification") as mock_verify:
+        mock_verify.return_value = {"success": True, "result": "verified_tier_ok"}
+        res_v = await tool._arun(
+            task_id="task_tier_verify",
+            agent_type="generalPurpose",
+            task_description="audited step",
+            verification_mode=DwVerificationMode.ADVERSARIAL.value,
+            complexity_tier="simple",
+        )
+        assert res_v["success"] is True
+        assert mock_verify.call_args.kwargs["complexity_tier"] == "simple"

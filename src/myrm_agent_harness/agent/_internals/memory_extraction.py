@@ -1,0 +1,497 @@
+"""Memory auto-extraction — extract and persist memories from conversations.
+
+[INPUT]
+- toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager)
+- toolkits.memory.strategies.extractor::MemoryExtractor (POS: LLM-based memory extraction)
+- agent._internals.memory_verbatim::capture_current_exchange (POS: opt-in verbatim exchange capture)
+- agent.security.detection.deep_pii_detector::pseudonymize_deep_pii (POS: LLM deep PII detection)
+- agent.middlewares.security.outbound_privacy_guard::sanitize_outbound_text (POS: Wire-level half of the privacy layer: the guardrail middleware covers the agent loop, this guard covers every other ChatLiteLLM call.)
+- langchain_core::BaseChatModel (POS: LLM for extraction)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+- utils.chat_utils::extract_text_content (POS: 多模态内容 → 纯文本，媒体块不进入提取提示词)
+
+[OUTPUT]
+- allows_background_llm_extraction(): Policy gate shared by post-turn extraction and idle derivation
+- build_extraction_messages(): Construct messages for extraction
+- auto_extract_memories(): Post-turn extraction (LLM compressed track, opt-in verbatim track; fire-and-forget)
+- persist_extracted_memories(): Store LLM-extracted memories via MemoryManager
+- create_extraction_llm_func(): LLM wrapper for MemoryExtractor
+
+[POS]
+Memory auto-extraction utilities. Implements the post-turn extraction strategy:
+
+**Compressed Track (always runs):** LLM-extracted SemanticMemory/EpisodicMemory.
+Writes default to the pending queue (``force_pending=True``) for GUI review unless
+the caller opts out (API compat). Explicit ``memory_save_tool`` writes bypass
+pending via ``_bypass_approval=True``.
+
+**Verbatim Track (opt-in, ``enable_verbatim=True``; MemPalace verbatim storage
+strategy):** the newest user/assistant exchange is stored as a ConversationMemory
+(NO LLM processing, lossless) directly in the conversation index, bypassing the
+pending queue — see ``memory_verbatim``. Off by default: every turn then costs
+two embeddings and adds one point to the vector store, while the compressed track
+already preserves what is worth remembering.
+
+**Deep PII protection** (when PrivacyPolicy.deep_scan=True):
+After extraction, non-structured PII (medical conditions, political views, etc.)
+is detected via LLM and pseudonymized through PseudonymStore before persistence.
+Supplements the existing regex-based PII detection in memory_scanner.
+
+**Invocation:** Called by SkillAgent at session end as fire-and-forget background
+task (requires enable_memory_auto_extraction=True). Because the background task
+runs after run-end cleanup cleared the privacy ContextVars, SkillAgent rebuilds
+the security/policy/store context from its persisted SecurityConfig before
+creating the task (see skill_agent/_privacy_context.py
+``reestablish_privacy_context``), so extracted memories get the same PII
+protection as in-run writes.
+
+**Quality filter:** Trivial conversations (short replies or <=3 messages) are
+skipped to save LLM calls, unless correction signals are detected.
+
+**Configuration:**
+- Framework layer (SkillAgent): enable_memory_auto_extraction (default True)
+- Frontend: enableMemoryAutoExtraction UI toggle (Settings > Memory Section)
+- Backend API: enable_memory_auto_extraction parameter passthrough
+"""
+
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Literal, Protocol
+
+from langchain_core.language_models import BaseChatModel
+
+from myrm_agent_harness.agent._internals.memory_verbatim import capture_current_exchange
+from myrm_agent_harness.toolkits.memory.observability import MemoryOperationStatus
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
+if TYPE_CHECKING:
+    from langchain_core.messages import BaseMessage
+
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+    from myrm_agent_harness.toolkits.memory.strategies.extractor import ExtractedMemory
+
+
+def allows_background_llm_extraction(memory_manager: MemoryManager | None) -> bool:
+    """Whether the agent's ``AgentMemoryPolicy`` permits background LLM memory extraction.
+
+    A missing manager or policy imposes no restriction. Shared by post-turn extraction and
+    idle-time preference derivation so both honor ``allow_l3_extraction``.
+    """
+    if memory_manager is None:
+        return True
+    policy = memory_manager.memory_policy
+    return policy is None or policy.allow_l3_extraction
+
+
+class ExtractionLifecycleObserver(Protocol):
+    """Optional observer for per-turn memory write/extract visibility (GUI telemetry)."""
+
+    async def __call__(
+        self,
+        phase: Literal["write", "extract"],
+        status: MemoryOperationStatus,
+        *,
+        chat_id: str | None,
+        summary: str,
+        metadata: dict[str, str | int | float | bool | None] | None = None,
+    ) -> None: ...
+
+
+async def _notify_extraction_lifecycle(
+    observer: ExtractionLifecycleObserver | None,
+    phase: Literal["write", "extract"],
+    status: MemoryOperationStatus,
+    *,
+    chat_id: str | None,
+    summary: str,
+    metadata: dict[str, str | int | float | bool | None] | None = None,
+) -> None:
+    if observer is None:
+        return
+    try:
+        await observer(
+            phase,
+            status,
+            chat_id=chat_id,
+            summary=summary,
+            metadata=metadata,
+        )
+    except Exception as exc:
+        logger.debug("Extraction lifecycle observer failed: %s", exc)
+
+
+from myrm_agent_harness.toolkits.memory.types import (  # noqa: E402 — deferred import to avoid circular dependency
+    AnyMemory,
+)
+from myrm_agent_harness.utils.chat_utils import (  # noqa: E402 — deferred import to avoid circular dependency
+    ChatHistoryReq,
+    extract_answer_text,
+    extract_text_content,
+)
+
+logger = get_agent_logger(__name__)
+
+_MIN_REPLY_LEN_FOR_EXTRACTION = 100
+
+
+def build_extraction_messages(
+    query: str | list[dict[str, object]],
+    chat_history: ChatHistoryReq | list[BaseMessage] | None,
+    assistant_reply: str,
+) -> list[dict[str, str]]:
+    """Construct messages for memory extraction (dict format).
+
+    The extraction LLM reads text only: media blocks (a screenshot's base64 payload
+    would otherwise be shipped as prompt text on every later turn) contribute
+    nothing, and a turn without any text (image-only message, HITL resume) is
+    omitted rather than replaced by a placeholder the model could mistake for
+    something the user said.
+    """
+    from myrm_agent_harness.utils.chat_utils import convert_chat_history_simple
+
+    base_messages = convert_chat_history_simple(chat_history) if chat_history else []
+
+    turns = [("assistant" if msg.type == "ai" else "user", extract_text_content(msg.content)) for msg in base_messages]
+    turns.append(("user", extract_text_content(query)))
+    turns.append(("assistant", assistant_reply))
+
+    return [{"role": role, "content": text} for role, text in turns if text]
+
+
+def create_extraction_llm_func(
+    llm: BaseChatModel,
+) -> Callable[[str, str], Awaitable[str]]:
+    """Create LLM function wrapper for MemoryExtractor."""
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    async def llm_func(system: str, prompt: str) -> str:
+        msgs = (
+            [SystemMessage(content=system), HumanMessage(content=prompt)] if system else [HumanMessage(content=prompt)]
+        )
+        resp = await llm.ainvoke(msgs)
+        return extract_answer_text(resp)
+
+    return llm_func
+
+
+async def persist_extracted_memories(
+    memories: list[ExtractedMemory],
+    memory_manager: MemoryManager,
+    source_chat_id: str | None,
+    *,
+    deep_scan_llm_func: Callable[[str, str], Awaitable[str]] | None = None,
+    wiki_boundary_enabled: bool = False,
+    force_pending: bool = True,
+) -> int:
+    """Persist extracted memories to MemoryManager.
+
+    Inferred auto-extraction writes route to the pending queue by default
+    (``force_pending=True``) so GUI users can review before L3 commit.
+    Explicit tool/API writes should call with ``force_pending=False`` and
+    use ``_bypass_approval=True`` on the manager instead.
+
+    When *deep_scan_llm_func* is provided, non-structured PII in memory
+    content is detected via LLM and pseudonymized before storage.
+
+    Returns:
+        Number of memories stored or queued for approval
+    """
+    from myrm_agent_harness.toolkits.memory.strategies.extractor import MemoryExtractor
+    from myrm_agent_harness.toolkits.memory.types import ProfileEntry
+
+    extractor = MemoryExtractor()
+    concrete = extractor.to_concrete_memories(memories, source_chat_id=source_chat_id)
+    if not concrete:
+        return 0
+
+    batch: list[AnyMemory] = []
+    for mem in concrete:
+        if isinstance(mem, ProfileEntry):
+            await memory_manager.set_profile_attribute(
+                mem.key,
+                str(mem.value),
+                _force_pending=force_pending,
+            )
+        else:
+            batch.append(mem)
+
+    if batch and deep_scan_llm_func is not None:
+        batch = await _apply_deep_pii_scan(batch, deep_scan_llm_func, memory_manager)
+
+    if batch and wiki_boundary_enabled:
+        from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
+            filter_wiki_document_vector_memories,
+        )
+
+        filtered_batch, dropped = filter_wiki_document_vector_memories(batch, enabled=True)
+        batch = filtered_batch
+    else:
+        dropped = 0
+
+    if batch:
+        from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
+            filter_transient_business_memories,
+        )
+
+        filtered_transient_batch, dropped_transient = filter_transient_business_memories(batch)
+        batch = filtered_transient_batch
+        dropped += dropped_transient
+
+    if batch:
+        from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (
+            filter_memories_with_evidence,
+        )
+
+        grounded, ungrounded = filter_memories_with_evidence(
+            batch,
+            fallback_source_id=source_chat_id,
+        )
+        if ungrounded:
+            logger.warning(
+                "Distillation guard dropped %d ungrounded memories lacking provenance evidence",
+                len(ungrounded),
+            )
+            dropped += len(ungrounded)
+        batch = grounded
+
+    stored = await memory_manager.store_batch(batch, _force_pending=force_pending) if batch else []
+    return len(stored) + len(concrete) - len(batch) - dropped
+
+
+async def _apply_deep_pii_scan(
+    memories: list[AnyMemory],
+    llm_func: Callable[[str, str], Awaitable[str]],
+    memory_manager: MemoryManager,
+) -> list[AnyMemory]:
+    """Apply LLM-based deep PII detection and pseudonymization to memories.
+
+    Batch-processes all memory contents in a single LLM call, then replaces
+    detected non-structured PII with pseudonyms via PseudonymStore.
+    """
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_pseudonym_store,
+    )
+    from myrm_agent_harness.agent.security.detection.deep_pii_detector import (
+        pseudonymize_deep_pii,
+    )
+
+    store = get_pseudonym_store()
+    if store is None:
+        logger.warning(
+            "Deep PII scan skipped: PseudonymStore not available in this context "
+            "(requires an enabled PrivacyPolicy with PSEUDONYMIZE or deep scan)"
+        )
+        return memories
+
+    texts = [m.content for m in memories]
+    real_name = await _get_user_real_name(memory_manager)
+
+    try:
+        results = await pseudonymize_deep_pii(texts, store, llm_func, real_name=real_name)
+        for mem, result in zip(memories, results, strict=False):
+            if result.items:
+                mem.content = result.pseudonymized_text
+    except Exception as e:
+        logger.warning("Deep PII scan failed (non-fatal, regex fallback applies): %s", e)
+
+    return memories
+
+
+async def _get_user_real_name(memory_manager: MemoryManager) -> str:
+    """Try to get user's real name from their profile for deep PII detection."""
+    try:
+        for key in ("name", "real_name", "full_name"):
+            value = await memory_manager.get_profile_attribute(key)
+            if value:
+                return str(value)
+    except Exception:
+        pass
+    return ""
+
+
+async def auto_extract_memories(
+    query: str | list[dict[str, object]],
+    chat_history: ChatHistoryReq | list[BaseMessage] | None,
+    memory_manager: MemoryManager,
+    llm: BaseChatModel,
+    extraction_llm: BaseChatModel | None = None,
+    source_chat_id: str | None = None,
+    assistant_reply: str = "",
+    enable_verbatim: bool = False,
+    *,
+    deep_scan: bool = False,
+    wiki_boundary_enabled: bool = False,
+    lifecycle_observer: ExtractionLifecycleObserver | None = None,
+) -> None:
+    logger.info("auto_extract_memories invoked for %s", source_chat_id)
+    try:
+        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
+            ExtractionConfig,
+            FeedbackSignal,
+            detect_feedback_signals,
+        )
+
+        if not assistant_reply:
+            return
+
+        messages = build_extraction_messages(query, chat_history, assistant_reply)
+        if len(messages) < 2:
+            return
+
+        feedback = detect_feedback_signals(messages)
+        correction_detected = feedback == FeedbackSignal.NEGATIVE
+
+        if feedback != FeedbackSignal.NONE:
+            cited_ids = memory_manager.last_cited_memory_ids
+            if cited_ids:
+                memory_manager.set_last_cited_memory_ids([])
+                score = 5 if feedback == FeedbackSignal.POSITIVE else 1
+                rated = 0
+                for mid in cited_ids:
+                    try:
+                        await memory_manager.rate_memory(mid, score)
+                        rated += 1
+                    except Exception:
+                        logger.debug(
+                            "Auto-rate skipped memory %s (not found or store error)",
+                            mid,
+                        )
+                if rated:
+                    logger.info(
+                        "Auto-rated %d/%d cited memories (signal=%s, score=%d)",
+                        rated,
+                        len(cited_ids),
+                        feedback.value,
+                        score,
+                    )
+
+        if not correction_detected and len(assistant_reply) < _MIN_REPLY_LEN_FOR_EXTRACTION and len(messages) <= 3:
+            logger.info("Skipping memory extraction: trivial conversation")
+            await _notify_extraction_lifecycle(
+                lifecycle_observer,
+                "extract",
+                MemoryOperationStatus.SKIPPED,
+                chat_id=source_chat_id,
+                summary="Skipped trivial conversation",
+                metadata={"reason": "trivial"},
+            )
+            return
+
+        await _notify_extraction_lifecycle(
+            lifecycle_observer,
+            "extract",
+            MemoryOperationStatus.PENDING,
+            chat_id=source_chat_id,
+            summary="Memory extraction started",
+        )
+
+        verbatim_stored_count = 0
+
+        if enable_verbatim and memory_manager.has_vector:
+            # Optional track: its failure must not discard the compressed track below.
+            # Conversation storage needs dense named vectors, so the track stays
+            # off in embeddings-less deployments instead of warning every turn.
+            try:
+                verbatim_stored_count = await capture_current_exchange(
+                    memory_manager, messages, source_chat_id=source_chat_id
+                )
+            except Exception as exc:
+                logger.warning("Verbatim capture failed (non-fatal): %s", exc, exc_info=True)
+                await _notify_extraction_lifecycle(
+                    lifecycle_observer,
+                    "write",
+                    MemoryOperationStatus.ERROR,
+                    chat_id=source_chat_id,
+                    summary="Verbatim capture failed",
+                    metadata={"error": type(exc).__name__},
+                )
+            else:
+                logger.info("Stored %d verbatim conversation chunks", verbatim_stored_count)
+                await _notify_extraction_lifecycle(
+                    lifecycle_observer,
+                    "write",
+                    MemoryOperationStatus.SUCCESS if verbatim_stored_count else MemoryOperationStatus.SKIPPED,
+                    chat_id=source_chat_id,
+                    summary=f"Stored {verbatim_stored_count} verbatim chunks",
+                    metadata={"stored_count": verbatim_stored_count},
+                )
+
+        llm_for_extraction = extraction_llm or llm
+        llm_func = create_extraction_llm_func(llm_for_extraction)
+        if correction_detected:
+            logger.info("Correction signals detected in conversation, enhancing extraction prompt")
+        config = ExtractionConfig(
+            enable_task_digest=True,
+            wiki_boundary_enabled=wiki_boundary_enabled,
+        )
+
+        from myrm_agent_harness.agent.middlewares.security.outbound_privacy_guard import sanitize_outbound_text
+        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
+            extract_memories_from_conversation,
+        )
+
+        # The extractor checks every memory against the text it was given, so the model and that check must read the
+        # same masked text: the wire guard alone would leave the check comparing against the raw conversation.
+        extraction_input = [{**m, "content": sanitize_outbound_text(m["content"])} for m in messages]
+        result = await extract_memories_from_conversation(
+            extraction_input,
+            llm_func=llm_func,
+            config=config,
+            correction_detected=correction_detected,
+        )
+
+        if not result.memories:
+            if verbatim_stored_count > 0:
+                logger.info("Verbatim storage only: %d chunks", verbatim_stored_count)
+            await _notify_extraction_lifecycle(
+                lifecycle_observer,
+                "extract",
+                MemoryOperationStatus.SUCCESS,
+                chat_id=source_chat_id,
+                summary="Verbatim only — no compressed cards" if verbatim_stored_count else "No memory cards extracted",
+                metadata={
+                    "verbatim_count": verbatim_stored_count,
+                    "compressed_count": 0,
+                },
+            )
+            return
+
+        deep_scan_llm = llm_func if deep_scan else None
+        stored_count = await persist_extracted_memories(
+            result.memories,
+            memory_manager,
+            source_chat_id,
+            deep_scan_llm_func=deep_scan_llm,
+            wiki_boundary_enabled=wiki_boundary_enabled,
+        )
+
+        logger.info(
+            "Auto-extracted %d memories, stored %d compressed + %d verbatim (%.0fms)",
+            len(result.memories),
+            stored_count,
+            verbatim_stored_count,
+            result.extraction_time_ms,
+        )
+        await _notify_extraction_lifecycle(
+            lifecycle_observer,
+            "extract",
+            MemoryOperationStatus.SUCCESS,
+            chat_id=source_chat_id,
+            summary=f"Extracted {stored_count} memory cards",
+            metadata={
+                "stored_count": stored_count,
+                "verbatim_count": verbatim_stored_count,
+                "duration_ms": int(result.extraction_time_ms),
+            },
+        )
+    except Exception as e:
+        logger.warning("Memory auto-extraction failed (non-fatal): %s", e, exc_info=True)
+        await _notify_extraction_lifecycle(
+            lifecycle_observer,
+            "extract",
+            MemoryOperationStatus.ERROR,
+            chat_id=source_chat_id,
+            summary="Memory extraction failed",
+            metadata={"error": type(e).__name__},
+        )

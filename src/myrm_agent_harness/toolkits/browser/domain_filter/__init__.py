@@ -1,0 +1,452 @@
+"""Domain deep filtering — four-layer defense-in-depth for browser network egress.
+
+Prevents pages from exfiltrating data through non-HTTP channels (WebSocket,
+EventSource, sendBeacon, WebRTC, WebTransport) that bypass Playwright's
+``context.route()``.
+
+Architecture
+~~~~~~~~~~~~
+
+Layer 0 — CSP Core Defense (``<meta http-equiv="Content-Security-Policy">``)
+    Browser-native policy enforcement via Content Security Policy.
+    Restricts network connections (fetch/XHR/WebSocket/EventSource/sendBeacon) and
+    script/iframe loading in main thread AND all Web Workers.
+    Does NOT restrict img/style/font/media (allows CDN resources for compatibility).
+
+Layer 1 — Protocol Interception (``context.route('**/*')``)
+    Hard-blocks all HTTP/HTTPS requests to non-allowed domains.
+    Supports resource type filtering (image/stylesheet/script/font/media).
+    Fallback defense if CSP is disabled.
+
+Layer 2 — Main Thread Hardening (document-response script injection)
+    Hardens RTCPeerConnection and WebTransport (not covered by CSP).
+    Disables Service Worker registration (offline cache not needed for agents).
+    Does NOT harden Web Workers to avoid anti-bot detection.
+
+Layer 3 — CDP Audit Monitor (``Network.webSocketCreated``)
+    Detects WebSocket connections at the Chrome DevTools Protocol level.
+    Does not block — provides audit visibility for all layers.
+
+
+[INPUT]
+- pool.config::ResourceBlockConfig (POS: resource blocking config, includes block_ad_domains flag)
+- .ad_domains::AD_DOMAINS (POS: frozenset of ~3500 ad/tracker domains, lazy-loaded when block_ad_domains=True)
+
+[OUTPUT]
+- DomainAllowlist: immutable domain pattern matcher
+- install_domain_filter: async installer for all four layers with resource blocking
+
+[POS]
+Deep domain filtering, resource blocking, and ad/tracker domain blocking module for the browser toolkit.
+Called by ContextFactory during context creation. Covers HTTP + WebSocket + EventSource + sendBeacon +
+WebRTC + WebTransport across all channels, with resource type blocking (image/stylesheet/script/font/media)
+and ad/tracker domain blocklist (~3500 domains via ad_domains.py).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from patchright.async_api import BrowserContext, Page
+
+    from myrm_agent_harness.toolkits.browser.pool.config import ResourceBlockConfig
+
+from myrm_agent_harness.toolkits.browser.domain_filter.http_filter import (
+    _RESOURCE_TYPE_MAP,
+)
+from myrm_agent_harness.toolkits.browser.domain_filter.http_filter import (
+    install_http_filter as _install_http_filter,
+)
+
+# Strong references to fire-and-forget CDP audit tasks. Without a reference the
+# task can be garbage-collected mid-flight (e.g. when the event loop closes
+# while a mock/attached CDP session is being awaited), producing a
+# "coroutine never awaited" RuntimeWarning on shutdown.
+_cdp_audit_tasks: set[asyncio.Task[None]] = set()
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Core data structure
+# ---------------------------------------------------------------------------
+
+
+def _normalize_domain_token(domain: str) -> str:
+    """Normalize domain/hostname pattern with Punycode IDN and URI sanitation.
+
+    1. Trims whitespace and converts to lower case.
+    2. Strips leading scheme ('https://') and trailing paths/ports if inadvertently passed.
+    3. Converts internationalized domain names (IDN / Unicode) to ASCII Punycode (e.g. 'xn--...').
+    4. Preserves wildcard prefix ('*.') if present.
+    """
+    domain = domain.strip().lower()
+    if not domain:
+        return ""
+    if "://" in domain:
+        domain = domain.split("://", 1)[1]
+    domain = domain.split("/", 1)[0].split(":", 1)[0]
+    is_wildcard = domain.startswith("*.")
+    raw_domain = domain[2:] if is_wildcard else domain
+    try:
+        ascii_domain = raw_domain.encode("idna").decode("ascii")
+    except (UnicodeError, Exception):
+        ascii_domain = raw_domain
+    return f"*.{ascii_domain}" if is_wildcard else ascii_domain
+
+
+@dataclass(frozen=True, slots=True)
+class DomainAllowlist:
+    """Immutable domain allowlist with exact and wildcard matching.
+
+    Patterns:
+    - ``"example.com"`` — exact match
+    - ``"*.example.com"`` — matches ``example.com`` and all subdomains
+    - Supports Punycode (IDN) and URL cleaning (scheme/port/path stripping).
+
+    Callers with an allowlist semantics use :meth:`is_allowed`; callers with a
+    blocklist semantics use :meth:`is_blocked`. Both share the same pattern
+    matching — the pair exists so each call site reads in its own terms.
+    """
+
+    patterns: tuple[str, ...]
+
+    def _matches(self, hostname: str) -> bool:
+        hostname = _normalize_domain_token(hostname)
+        if not hostname:
+            return False
+        for pattern in self.patterns:
+            norm_pattern = _normalize_domain_token(pattern)
+            if not norm_pattern:
+                continue
+            if norm_pattern.startswith("*."):
+                suffix = norm_pattern[1:]  # ".example.com"
+                bare = norm_pattern[2:]  # "example.com"
+                if hostname == bare or hostname.endswith(suffix):
+                    return True
+            elif hostname == norm_pattern:
+                return True
+        return False
+
+    def is_allowed(self, hostname: str) -> bool:
+        """Return True when *hostname* matches an allowed pattern."""
+        return self._matches(hostname)
+
+    def is_blocked(self, hostname: str) -> bool:
+        """Return True when *hostname* matches a blocked pattern.
+
+        Semantically the mirror of :meth:`is_allowed` — both test pattern
+        membership; the distinct name lets blocklist call sites read naturally
+        instead of reinterpreting ``is_allowed`` as "is in the deny list".
+        """
+        return self._matches(hostname)
+
+    @classmethod
+    def from_strings(cls, domains: Sequence[str]) -> DomainAllowlist:
+        """Create from a sequence of domain pattern strings."""
+        cleaned = tuple(_normalize_domain_token(d) for d in domains if d.strip())
+        return cls(patterns=tuple(d for d in cleaned if d))
+
+    @property
+    def is_empty(self) -> bool:
+        return len(self.patterns) == 0
+
+
+# DomainBlocklist shares the pattern matcher; blocklist call sites use is_blocked().
+DomainBlocklist = DomainAllowlist
+
+
+# ---------------------------------------------------------------------------
+# Layer 0: CSP policy generation
+# ---------------------------------------------------------------------------
+
+
+def build_csp_meta_script(allowlist: DomainAllowlist) -> str:
+    """Generate script that injects CSP meta tag before page loads.
+
+    CSP covers main thread AND all Web Workers (fetch/XHR/WebSocket/EventSource/
+    sendBeacon/importScripts). Enforced at browser kernel level, cannot be
+    bypassed by page scripts.
+
+    CSP directives:
+    - connect-src: Restricts network connections (fetch/XHR/WebSocket/EventSource/sendBeacon)
+    - script-src: Restricts script loading (allows inline/eval for compatibility)
+    - frame-src: Restricts iframe loading
+    - object-src: Blocks plugins (Flash/Java)
+
+    Note: img-src/style-src/font-src/media-src are not restricted (allow CDN resources).
+    """
+    normalized_domains = []
+    for p in allowlist.patterns:
+        if p.startswith("*."):
+            bare = p[2:]
+            normalized_domains.append(bare)
+            normalized_domains.append(p)
+        else:
+            normalized_domains.append(p)
+
+    domains_list = " ".join(normalized_domains) if normalized_domains else ""
+
+    directives = ["object-src 'none'"]
+    if domains_list:
+        directives.extend(
+            [
+                f"connect-src 'self' {domains_list}",
+                f"script-src 'self' 'unsafe-inline' 'unsafe-eval' {domains_list}",
+                f"frame-src 'self' {domains_list}",
+            ]
+        )
+    else:
+        directives.extend(
+            [
+                "connect-src 'self'",
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+                "frame-src 'self'",
+            ]
+        )
+
+    csp_content = "; ".join(directives)
+
+    return f"""(function() {{
+  'use strict';
+  if (!document.head) {{
+    document.documentElement.appendChild(document.createElement('head'));
+  }}
+  var meta = document.createElement('meta');
+  meta.httpEquiv = 'Content-Security-Policy';
+  meta.content = {json.dumps(csp_content)};
+  document.head.insertBefore(meta, document.head.firstChild);
+}})();"""
+
+
+# ---------------------------------------------------------------------------
+# Layer 2: Main thread hardening
+# ---------------------------------------------------------------------------
+
+
+def build_init_script() -> str:
+    """Generate JavaScript IIFE that hardens special APIs not covered by CSP.
+
+    Hardens:
+    - RTCPeerConnection/webkitRTCPeerConnection (WebRTC Data Channel)
+    - WebTransport (new standard)
+    - Service Worker registration
+
+    Web Workers are not hardened (CSP Layer 0 handles Worker network restrictions).
+    """
+    return """(function() {
+  'use strict';
+
+  function _harden(obj, prop, value) {
+    try {
+      Object.defineProperty(obj, prop, {
+        value: value,
+        writable: false,
+        configurable: false,
+        enumerable: true
+      });
+    } catch(e) {
+      obj[prop] = value;
+    }
+  }
+
+  if (typeof RTCPeerConnection !== 'undefined') {
+    _harden(window, 'RTCPeerConnection', function() {
+      throw new DOMException(
+        'RTCPeerConnection blocked by domain policy', 'SecurityError'
+      );
+    });
+  }
+  if (typeof webkitRTCPeerConnection !== 'undefined') {
+    _harden(window, 'webkitRTCPeerConnection', function() {
+      throw new DOMException(
+        'RTCPeerConnection blocked by domain policy', 'SecurityError'
+      );
+    });
+  }
+
+  if (typeof WebTransport !== 'undefined') {
+    _harden(window, 'WebTransport', function() {
+      throw new DOMException(
+        'WebTransport blocked by domain policy', 'SecurityError'
+      );
+    });
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+    _harden(navigator.serviceWorker, 'register', function() {
+      return Promise.reject(new DOMException(
+        'Service Worker registration blocked by domain policy', 'SecurityError'
+      ));
+    });
+  }
+})();"""
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator: install all four layers
+# ---------------------------------------------------------------------------
+
+
+async def install_domain_filter(
+    context: BrowserContext,
+    allowlist: DomainAllowlist,
+    *,
+    domain_blocklist: DomainBlocklist | None = None,
+    enable_cdp_audit: bool = True,
+    resource_block: ResourceBlockConfig | None = None,
+    allow_private_networks: bool = False,
+) -> None:
+    """Install four-layer domain filtering on a BrowserContext.
+
+    Does nothing if *allowlist* is empty, *domain_blocklist* is empty, and no resource blocking is configured.
+
+    Args:
+        context: Patchright BrowserContext to protect.
+        allowlist: Domains the page is allowed to connect to.
+        domain_blocklist: Domains always blocked (checked before allowlist).
+        enable_cdp_audit: Whether to install CDP WebSocket audit monitoring.
+        resource_block: Resource blocking configuration (images/css/js/fonts/media/ad-domains).
+        allow_private_networks: Let requests reach loopback/private/link-local addresses (local mode).
+            Only the private-address and cloud-metadata hop check is skipped; allow/block lists and
+            resource rules still apply.
+    """
+    has_resource_block = False
+    if resource_block:
+        has_resource_block = any(getattr(resource_block, k) for k in _RESOURCE_TYPE_MAP.values())
+
+    ad_blocklist: frozenset[str] | None = None
+    if resource_block and resource_block.block_ad_domains:
+        from .ad_domains import AD_DOMAINS
+
+        ad_blocklist = AD_DOMAINS
+
+    if (
+        allowlist.is_empty
+        and not has_resource_block
+        and not ad_blocklist
+        and (domain_blocklist is None or domain_blocklist.is_empty)
+    ):
+        return
+
+    if not allowlist.is_empty:
+        # patchright's add_init_script silently no-ops, so the security layers
+        # are delivered inside the document response (probe-verified path).
+        await _install_csp_policy(context, allowlist)
+        await _install_main_thread_hardening(context)
+
+    await _install_http_filter(
+        context,
+        allowlist,
+        resource_block,
+        ad_blocklist,
+        domain_blocklist,
+        allow_private_networks=allow_private_networks,
+    )
+
+    if enable_cdp_audit and not allowlist.is_empty:
+        context.on("page", lambda page: _schedule_cdp_audit(page, allowlist))
+
+    logger.info(
+        "Domain filter / Resource block installed: %d allow patterns, %d block patterns, CDP audit=%s, resource_block=%s, ad_blocklist=%d",
+        len(allowlist.patterns) if allowlist else 0,
+        len(domain_blocklist.patterns) if domain_blocklist else 0,
+        enable_cdp_audit and not allowlist.is_empty,
+        resource_block is not None,
+        len(ad_blocklist) if ad_blocklist else 0,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Layer 0: CSP policy injection
+# ---------------------------------------------------------------------------
+
+
+async def _install_csp_policy(context: BrowserContext, allowlist: DomainAllowlist) -> None:
+    """Inject CSP meta tag to restrict network access in main thread and Workers."""
+    from myrm_agent_harness.toolkits.browser.enhancers import (
+        install_document_script_injection,
+    )
+
+    await install_document_script_injection(
+        context,
+        lambda: build_csp_meta_script(allowlist),
+        label="domain_csp_meta",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Layer 1: Protocol interception
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Layer 2: Main thread hardening
+# ---------------------------------------------------------------------------
+
+
+async def _install_main_thread_hardening(context: BrowserContext) -> None:
+    """Harden special APIs not covered by CSP, delivered in the document response."""
+    from myrm_agent_harness.toolkits.browser.enhancers import (
+        install_document_script_injection,
+    )
+
+    await install_document_script_injection(
+        context,
+        build_init_script,
+        label="domain_hardening",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Layer 3: CDP audit monitor
+# ---------------------------------------------------------------------------
+
+
+def _schedule_cdp_audit(page: Page, allowlist: DomainAllowlist) -> None:
+    """Schedule CDP audit installation for a new page (non-async callback)."""
+    try:
+        loop = asyncio.get_running_loop()
+        task = loop.create_task(_install_cdp_audit(page, allowlist))
+        _cdp_audit_tasks.add(task)
+
+        def _discard(task: asyncio.Task[None]) -> None:
+            _cdp_audit_tasks.discard(task)
+
+        task.add_done_callback(_log_task_exception)
+        task.add_done_callback(_discard)
+    except RuntimeError:
+        pass
+
+
+def _log_task_exception(task: asyncio.Task[None]) -> None:
+    """Log unhandled exceptions from fire-and-forget CDP audit tasks."""
+    if not task.cancelled() and task.exception():
+        logger.warning("CDP audit task failed: %s", task.exception())
+
+
+async def _install_cdp_audit(page: Page, allowlist: DomainAllowlist) -> None:
+    """Listen for WebSocket creation events via CDP and log violations."""
+    try:
+        cdp = await page.context.new_cdp_session(page)
+        await cdp.send("Network.enable")
+
+        def _on_ws_created(params: dict[str, object]) -> None:
+            url = str(params.get("url", ""))
+            hostname = urlparse(url).hostname or ""
+            if not allowlist.is_allowed(hostname):
+                logger.warning(
+                    "SECURITY AUDIT: Unexpected WebSocket connection to non-allowed domain: %s",
+                    url,
+                )
+
+        cdp.on("Network.webSocketCreated", _on_ws_created)
+    except Exception as exc:
+        logger.warning("CDP audit monitor setup failed (non-critical): %s", exc)

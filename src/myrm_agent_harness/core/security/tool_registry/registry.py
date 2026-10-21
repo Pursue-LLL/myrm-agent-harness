@@ -1,0 +1,483 @@
+"""Tool Registry — tool metadata and permission mapping.
+
+Single source of truth for tool information:
+1. Tool name → permission type mapping (for security evaluation)
+2. Tool name → canonical parameters mapping (for stable hashing)
+3. Tool name → safety metadata mapping (for concurrency scheduling & sub-agent filtering)
+
+LangChain tools have concrete names (e.g. ``bash_code_execute_tool``),
+while the Permission Engine operates on abstract permission types
+(e.g. ``code_interpreter``, ``shell_exec``). This module bridges the two namespaces.
+
+HOW TO ADD NEW ACTION CLASSIFICATION:
+
+1. For browser_interact actions:
+   Add to _INTERACT_ACTION_MAP: {"new_action": "browser_new_permission"}
+   Example: {"scroll": "browser_scroll"} for independent scroll control
+
+2. For browser_manage actions:
+   Add to _MANAGE_ACTION_MAP: {"new_action": "browser_new_permission"}
+   Example: {"download_url": "browser_download"} for download control
+
+3. Add test case in tests/unit/test_tool_registry.py:
+   def test_interact_new_action_resolves(self):
+       assert resolve_permission_type("browser_interact", {"action": "new_action"}) == "browser_new_permission"
+
+HOW TO ADD CANONICAL PARAMETERS FOR NEW TOOLS:
+
+1. Add to TOOL_CANONICAL_PARAMS: {"tool_name": ["param1", "param2"]}
+   Example: {"new_tool": ["url", "method"]} for core functional params only
+   Exclude LLM-generated auxiliary fields like "reason" or "description"
+
+2. Add test case in tests/unit/test_canonical_args_hash.py verifying hash stability
+
+HOW TO DECLARE SAFETY METADATA FOR NEW TOOLS:
+
+All built-in tools should be explicitly declared in TOOL_SAFETY_METADATA.
+Undeclared tools still get fail-closed defaults (all False), but explicit
+declaration improves transparency and self-documentation.
+
+1. Read-only concurrent-safe: SafetyMetadata(is_read_only=True, is_concurrent_safe=True)
+2. Concurrent-safe with side effects: SafetyMetadata(is_concurrent_safe=True)
+3. Destructive (irreversible): SafetyMetadata(is_destructive=True)
+4. Stateful (needs serialization): SafetyMetadata()
+
+5. Add test case in tests/unit/test_tool_registry.py
+
+[INPUT]
+- (none — pure static mapping + dynamic resolver rules)
+
+[OUTPUT]
+- TOOL_PERMISSION_MAP: concrete tool name → permission type
+- BUILTIN_TOOL_NAMES: all known built-in tool names
+- TOOL_CANONICAL_PARAMS: tool name → core parameter list
+- TOOL_SAFETY_METADATA: tool name → safety attributes (opt-in whitelist)
+- AUTO_APPROVED_BUILTIN_TOOLS: built-in tool → governance approval reason (audit declaration)
+- EXPLICIT_MCP_FALLBACK_TOOLS: built-in tools that intentionally keep mcp_invoke fallback (audit declaration)
+- DYNAMICALLY_RESOLVED_TOOL_NAMES: built-in tools resolved by resolve_permission_type() sub-action branches (audit declaration)
+- AUTO_APPROVE_REASONS: valid governance reason categories
+- RULESET_COVERAGE_WHITELIST: permission type → governance approval reason (no DEFAULT_RULESET rule)
+- resolve_permission_type(): tool name → permission type (with dynamic sub-action and MCP fallback)
+- compute_canonical_args_hash(): stable hash for tool arguments (core params only)
+- resolve_safety_metadata(): tool name → SafetyMetadata (fail-closed for undeclared tools)
+
+[POS]
+Pure functions, no side effects, trivially testable.
+Browser tools use dynamic resolution: browser_interact's permission varies
+by ``action`` parameter (fill→browser_fill, upload_file→browser_upload, etc.).
+MCP tools (``mcp__`` prefixed) and unknown tools both map to ``mcp_invoke``.
+Canonical parameter hashing ensures same functional operation produces same hash,
+regardless of LLM's wording variations in auxiliary fields.
+Safety metadata declares all built-in tools with four categories:
+read-only concurrent-safe, concurrent-safe with side effects, destructive,
+and stateful. resolve_safety_metadata uses three-level fallback:
+built-in static registry → MCP dynamic registry → fail-closed defaults.
+Used by safety_dispatcher middleware for concurrency control.
+"""
+
+from __future__ import annotations
+
+import threading
+from typing import TypedDict
+
+from .governance import (
+    AUTO_APPROVE_REASONS as AUTO_APPROVE_REASONS,
+)
+from .governance import (
+    AUTO_APPROVED_BUILTIN_TOOLS as AUTO_APPROVED_BUILTIN_TOOLS,
+)
+from .governance import (
+    DYNAMICALLY_RESOLVED_TOOL_NAMES as DYNAMICALLY_RESOLVED_TOOL_NAMES,
+)
+from .governance import (
+    EXPLICIT_MCP_FALLBACK_TOOLS as EXPLICIT_MCP_FALLBACK_TOOLS,
+)
+from .governance import (
+    RULESET_COVERAGE_WHITELIST as RULESET_COVERAGE_WHITELIST,
+)
+from .safety_table import (
+    _FAIL_CLOSED_DEFAULTS as _FAIL_CLOSED_DEFAULTS,
+)
+from .safety_table import (
+    TOOL_SAFETY_METADATA as TOOL_SAFETY_METADATA,
+)
+from .safety_table import (
+    SafetyMetadata as SafetyMetadata,
+)
+
+TOOL_PERMISSION_MAP: dict[str, str] = {
+    "bash_code_execute_tool": "code_interpreter",
+    "file_read_tool": "file_read",
+    "file_write_tool": "file_write",
+    "file_edit_tool": "file_write",
+    "web_fetch_tool": "net_fetch",
+    "grep_tool": "file_read",
+    "glob_tool": "file_read",
+    "browser_navigate_tool": "browser_navigate",
+    "browser_inspect_tool": "browser_read",
+    "browser_snapshot_tool": "browser_read",
+    "browser_extract_tool": "browser_read",
+    "invoke_acp_agent_tool": "invoke_external_agent",
+    "delegate_task_tool": "spawn_subagent",
+    "subagent_control_tool": "spawn_subagent",
+    "cron_manage_tool": "cron_manage",
+    "skill_manage_tool": "skill_manage",
+    "desktop_snapshot_tool": "desktop_capture",
+    "desktop_interact_tool": "desktop_control",
+    "desktop_vision_tool": "desktop_control",
+    "wiki_query_tool": "knowledge_read",
+    "wiki_apply_tool": "knowledge_write",
+    "wiki_ingest_tool": "knowledge_write",
+}
+
+BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        *TOOL_PERMISSION_MAP,
+        "web_search_tool",
+        "memory_search_tool",
+        "memory_save_tool",
+        "memory_manage_tool",
+        "skill_select_tool",
+        "skill_market_tool",
+        "skill_search_tool",
+        "browser_interact_tool",
+        "browser_manage_tool",
+        "request_answer_user_tool",
+        "todo_write",
+        "desktop_snapshot_tool",
+        "desktop_interact_tool",
+        "desktop_vision_tool",
+        "complete_goal_tool",
+        "ask_question_tool",
+        "bash_process_tool",
+        "browser_ask_human_tool",
+        "kanban_show",
+        "kanban_complete",
+        "kanban_block",
+        "kanban_heartbeat",
+        "kanban_comment",
+        "kanban_attach",
+        "kanban_add_task",
+        "kanban_list_tasks",
+        "kanban_unblock",
+        "kanban_cancel_task",
+        "kanban_retry_task",
+        "kanban_revise_plan",
+        "wiki_ingest_tool",
+        "wiki_query_tool",
+        "wiki_apply_tool",
+        "working_memory_manage_tool",
+    }
+)
+
+
+# ---------------------------------------------------------------------------
+# Tool group mapping — canonical capability-based grouping for SKILL.md
+# conditional activation (requires_tool_groups / fallback_for_tool_groups).
+# Server-layer ``enabled_builtin_tools`` should reference these group keys.
+# ---------------------------------------------------------------------------
+
+TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
+    "web": frozenset(
+        {
+            "web_search_tool",
+            "web_fetch_tool",
+        }
+    ),
+    "browser": frozenset(
+        {
+            "browser_interact_tool",
+            "browser_manage_tool",
+            "browser_navigate_tool",
+            "browser_snapshot_tool",
+            "browser_extract_tool",
+            "browser_inspect_tool",
+            "browser_execute_script_tool",
+            "browser_ask_human_tool",
+        }
+    ),
+    "file_ops": frozenset(
+        {
+            "file_read_tool",
+            "file_write_tool",
+            "file_edit_tool",
+            "glob_tool",
+            "grep_tool",
+        }
+    ),
+    "shell": frozenset(
+        {
+            "bash_code_execute_tool",
+            "bash_process_tool",
+        }
+    ),
+    "computer_use": frozenset(
+        {
+            "desktop_snapshot_tool",
+            "desktop_interact_tool",
+            "desktop_vision_tool",
+        }
+    ),
+    "memory": frozenset(
+        {
+            "memory_search_tool",
+            "memory_save_tool",
+            "memory_manage_tool",
+        }
+    ),
+    "kanban": frozenset(
+        {
+            "kanban_show",
+            "kanban_complete",
+            "kanban_block",
+            "kanban_heartbeat",
+            "kanban_comment",
+            "kanban_attach",
+            "kanban_add_task",
+            "kanban_list_tasks",
+            "kanban_unblock",
+            "kanban_cancel_task",
+            "kanban_retry_task",
+            "kanban_revise_plan",
+        }
+    ),
+    "wiki": frozenset(
+        {
+            "wiki_query_tool",
+            "wiki_ingest_tool",
+            "wiki_apply_tool",
+        }
+    ),
+    "planning": frozenset({"todo_write"}),
+    "answer_tool": frozenset({"request_answer_user_tool"}),
+    "structured_clarify": frozenset({"ask_question_tool"}),
+    "cron": frozenset({"cron_manage_tool"}),
+    "image_generation": frozenset({"image_tool"}),
+    "video_generation": frozenset({"video_tool"}),
+    "tts": frozenset({"tts_generate"}),
+    "external_cli": frozenset({"invoke_acp_agent_tool"}),
+}
+
+TOOL_TO_GROUP: dict[str, str] = {tool: group for group, tools in TOOL_GROUP_MAP.items() for tool in tools}
+
+TOOL_GROUP_NAMES: frozenset[str] = frozenset(TOOL_GROUP_MAP)
+
+_INTERACT_ACTION_MAP: dict[str, str] = {
+    "fill": "browser_fill",
+    "type": "browser_fill",
+    "upload_file": "browser_upload",
+    "scroll": "browser_scroll",
+}
+
+_MANAGE_ACTION_MAP: dict[str, str] = {
+    "evaluate": "browser_evaluate",
+    "save_session": "browser_session",
+    "restore_session": "browser_session",
+    "delete_session": "browser_session",
+    "download_url": "browser_download",
+}
+
+TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
+    "bash_code_execute_tool": ["command"],
+    "bash_process_tool": ["action", "pid", "data"],
+    "file_read_tool": ["path"],
+    "file_write_tool": ["path", "content"],
+    "file_edit_tool": ["path", "edits"],
+    "browser_navigate_tool": ["url"],
+    "browser_interact_tool": ["action", "ref", "value"],
+    "browser_manage_tool": ["action", "value"],
+    "browser_inspect_tool": [],
+    "browser_snapshot_tool": [],
+    "browser_extract_tool": ["selector"],
+    "grep_tool": ["pattern", "path"],
+    "glob_tool": ["pattern"],
+    "web_fetch_tool": ["url"],
+    "web_search_tool": ["query"],
+    "memory_save_tool": ["content", "tags"],
+    "memory_search_tool": ["query"],
+    "memory_manage_tool": ["action"],
+    "skill_select_tool": ["skill_names"],
+    "skill_market_tool": ["action", "skill_id"],
+    "skill_manage_tool": ["action", "name"],
+    "skill_search_tool": ["query"],
+    "desktop_snapshot_tool": ["scope", "app_name", "include_screenshot"],
+    "desktop_interact_tool": ["ref", "action", "text"],
+    "desktop_vision_tool": [
+        "action",
+        "coordinate",
+        "text",
+        "scroll_direction",
+        "start_coordinate",
+    ],
+    "ask_question_tool": [],
+    "complete_goal_tool": [],
+    "cron_manage_tool": ["action", "job_id", "name_filter"],
+    "delegate_task_tool": ["mode", "agent_type"],
+    "invoke_acp_agent_tool": ["agent_name"],
+    "request_answer_user_tool": [],
+    "subagent_control_tool": ["action", "task_id"],
+    "todo_write": ["merge"],
+}
+
+
+def compute_canonical_args_hash(tool_name: str, tool_args: dict[str, object] | None) -> str | None:
+    """Compute hash of canonical parameters, ignoring LLM-generated auxiliary fields.
+
+    Only core functional parameters are hashed (e.g., 'command' for bash tools),
+    while auxiliary fields like 'reason' or 'description' are excluded.
+    This ensures the same functional operation produces the same hash,
+    regardless of LLM's wording variations.
+
+    Args:
+        tool_name: Tool name (e.g., 'bash_code_execute_tool', 'file_read_tool')
+        tool_args: Tool arguments dict
+
+    Returns:
+        SHA256[:16] hash of canonical parameters, or None if tool_args is None
+    """
+    import hashlib
+    import json
+
+    if tool_args is None:
+        return None
+
+    core_params = TOOL_CANONICAL_PARAMS.get(tool_name)
+    if core_params is None:
+        canonical = tool_args
+    else:
+        canonical = {k: v for k, v in tool_args.items() if k in core_params}
+
+    sorted_json = json.dumps(canonical, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(sorted_json.encode()).hexdigest()[:16]
+
+
+def resolve_permission_type(tool_name: str, tool_input: dict[str, object] | None = None) -> str:
+    """Resolve a concrete tool name to its abstract permission type.
+
+    Lookup order:
+    1. Dynamic resolution for browser_interact/browser_manage (sub-action → fine-grained permission)
+    2. Explicit mapping in ``TOOL_PERMISSION_MAP`` (e.g. bash_code_execute_tool → code_interpreter)
+    3. Built-in tool with no mapping → keep original name (e.g. web_search_tool)
+    4. Unknown tool → ``mcp_invoke`` (MCP tools have dynamic names)
+    """
+    if tool_input and tool_name == "browser_interact_tool":
+        action = str(tool_input.get("action", ""))
+        return _INTERACT_ACTION_MAP.get(action, "browser_click")
+    if tool_input and tool_name == "browser_manage_tool":
+        action = str(tool_input.get("action", ""))
+        return _MANAGE_ACTION_MAP.get(action, "browser_manage")
+    if tool_input and tool_name == "bash_process_tool":
+        action = str(tool_input.get("action", ""))
+        if action in ("write_stdin", "submit_stdin", "close_stdin", "kill"):
+            return "shell_exec"
+        return "bash_process_tool"
+    if tool_name == "desktop_vision_tool":
+        if tool_input:
+            action = str(tool_input.get("action", ""))
+            if action in ("capture", "screenshot", "wait"):
+                return "desktop_capture"
+        return "desktop_control"
+    if tool_name == "desktop_interact_tool":
+        return "desktop_control"
+    if tool_name == "desktop_snapshot_tool":
+        return "desktop_capture"
+
+    if tool_name in TOOL_PERMISSION_MAP:
+        return TOOL_PERMISSION_MAP[tool_name]
+    if tool_name in BUILTIN_TOOL_NAMES:
+        return tool_name
+    # MCP tools use mcp__{server}__{tool} prefix — fast-path before fallback
+    if tool_name.startswith("mcp__"):
+        return "mcp_invoke"
+    return "mcp_invoke"
+
+
+class MCPAnnotations(TypedDict, total=False):
+    """Native MCP tool annotations."""
+
+    readOnlyHint: bool
+    idempotentHint: bool
+    destructiveHint: bool
+    thirdPartyVisibleHint: bool
+    openWorldHint: bool
+
+
+_PTC_SAFETY_METADATA: dict[str, dict[str, tuple[SafetyMetadata, MCPAnnotations]]] = {}
+
+# Flat index for O(1) lookup by tool_name, consumed by resolve_safety_metadata.
+_PTC_TOOL_FLAT_INDEX: dict[str, SafetyMetadata] = {}
+
+# Thread lock protecting dynamic PTC safety registry mutations
+_PTC_LOCK = threading.RLock()
+
+
+def register_ptc_safety_metadata(
+    skill_name: str,
+    tool_name: str,
+    safety_meta: SafetyMetadata,
+    annotations: MCPAnnotations,
+) -> None:
+    """Register dynamically extracted safety metadata for an MCP tool."""
+    with _PTC_LOCK:
+        if skill_name not in _PTC_SAFETY_METADATA:
+            _PTC_SAFETY_METADATA[skill_name] = {}
+        _PTC_SAFETY_METADATA[skill_name][tool_name] = (safety_meta, annotations)
+        _PTC_TOOL_FLAT_INDEX[tool_name] = safety_meta
+
+
+def get_ptc_safety_metadata(skill_name: str, tool_name: str) -> tuple[SafetyMetadata, MCPAnnotations] | None:
+    """Retrieve dynamic safety metadata for an MCP tool."""
+    with _PTC_LOCK:
+        return _PTC_SAFETY_METADATA.get(skill_name, {}).get(tool_name)
+
+
+def unregister_ptc_safety_metadata(skill_name: str, tool_name: str) -> bool:
+    """Unregister dynamic safety metadata for a single tool under a skill.
+
+    Returns True if the tool was found and removed, False otherwise.
+    """
+    with _PTC_LOCK:
+        skill_tools = _PTC_SAFETY_METADATA.get(skill_name)
+        if not skill_tools or tool_name not in skill_tools:
+            return False
+        del skill_tools[tool_name]
+        if not skill_tools:
+            _PTC_SAFETY_METADATA.pop(skill_name, None)
+        _PTC_TOOL_FLAT_INDEX.pop(tool_name, None)
+        return True
+
+
+def evict_skill_safety_metadata(skill_name: str) -> int:
+    """Evict all dynamic safety metadata registered under the given skill.
+
+    Returns the number of tools evicted.
+    """
+    with _PTC_LOCK:
+        skill_tools = _PTC_SAFETY_METADATA.pop(skill_name, None)
+        if not skill_tools:
+            return 0
+        for tool_name in skill_tools:
+            _PTC_TOOL_FLAT_INDEX.pop(tool_name, None)
+        return len(skill_tools)
+
+
+def resolve_safety_metadata(tool_name: str) -> SafetyMetadata:
+    """Resolve safety attributes for a tool.
+
+    Three-level fallback:
+    1. Built-in tools: ``TOOL_SAFETY_METADATA`` (highest priority)
+    2. MCP dynamic tools: ``_PTC_TOOL_FLAT_INDEX`` (populated by ``register_ptc_safety_metadata``)
+    3. Fail-closed defaults for unknown tools
+    """
+    if tool_name in TOOL_SAFETY_METADATA:
+        return TOOL_SAFETY_METADATA[tool_name]
+    with _PTC_LOCK:
+        if tool_name in _PTC_TOOL_FLAT_INDEX:
+            return _PTC_TOOL_FLAT_INDEX[tool_name]
+    return _FAIL_CLOSED_DEFAULTS
+
+
+from .safety import check_safety_coverage  # noqa: E402
+
+_check_safety_coverage = check_safety_coverage
+check_safety_coverage()

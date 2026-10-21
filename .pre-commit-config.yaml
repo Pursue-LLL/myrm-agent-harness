@@ -1,0 +1,58 @@
+repos:
+  - repo: local
+    hooks:
+      - id: harness-boundary-check
+        name: Harness/Business Boundary Check
+        entry: python scripts/boundary_check.py --incremental
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Enforce framework-business separation (incremental: only changed files)"
+
+      - id: harness-tool-registry-check
+        name: Harness Tool Registry Consistency
+        entry: python scripts/validate_tool_registry.py --incremental
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Enforce @tool registration in _TOOL_LAYERS and layer-product consistency (incremental: changed files + static layer gate)"
+
+      - id: harness-fractal-docs-check
+        name: Harness Fractal Docs Coverage
+        entry: python scripts/check_fractal_docs.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Ensure every Python module directory under src/myrm_agent_harness has _ARCH.md"
+
+      - id: harness-arch-inventory-check
+        name: Harness _ARCH File Inventory
+        entry: python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Ensure _ARCH.md file tables list every sibling .py module"
+
+      - id: harness-line-limit-check
+        name: Harness File Line Limit
+        entry: python scripts/check_file_line_limit.py --incremental
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Reject .py files exceeding the 500-line cap or their baseline allowance (incremental: changed files only)"
+
+      - id: harness-test-source-assertion-check
+        name: Harness Test Source-Text Assertion Check
+        entry: python scripts/check_test_source_assertions.py --incremental
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Reject tests asserting on raw .py source text; assert on the ast tree so reformatting cannot break them (incremental: changed tests only)"
+
+      - id: harness-import-resolvability-check
+        name: Harness Import Resolvability
+        entry: python scripts/check_import_resolvability.py --incremental
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Every first-party import must resolve to a real module and name; skipped unless harness sources changed"

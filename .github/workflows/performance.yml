@@ -1,0 +1,49 @@
+name: Performance Regression Tests
+
+on:
+  pull_request:
+    paths:
+      - 'src/myrm_agent_harness/**/*.py'
+      - 'pyproject.toml'
+      - 'benchmarks/bench_startup_performance.py'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  startup-performance:
+    name: Startup Performance Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --python 3.13 --locked --extra all
+
+      - name: Run startup performance benchmarks
+        run: uv run pytest benchmarks/bench_startup_performance.py -v --benchmark-only
+
+      - name: Run performance regression tests
+        run: uv run pytest tests/performance/ -m performance -n0 -q --tb=short
+
+      - name: Run boundary detection benchmark
+        run: uv run python benchmarks/bench_boundary_detection.py --check-regression benchmarks/baseline_boundary.json
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: benchmark-results
+          path: .benchmarks/
+          retention-days: 7

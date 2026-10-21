@@ -1,0 +1,15 @@
+# assignment_sweep/
+
+## Overview
+
+Quoted-Key and Separator-Prefix Secret Assignment Sweep Hardening Suite. src/myrm_agent_harness/core/security/assignment_sweep/__init__.py Quoted-Key and Separator-Prefix Secret Assignment Sweep Hardening Suite. Exports domain types, sweep engine, database URL auditor, and facade. Strict typing applied: No `Any` types allowed.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Quoted-Key and Separator-Prefix Secret Assignment Sweep Hardening Suite — src/myrm_agent_harness/core/security/assignment_sweep/__init__.py Quoted-Key and Separator-Prefix Secret Assignment Sweep Hardening Suite. Exports domain types, sweep engine, database URL auditor, and facade. Strict typing applied: No `Any` types allowed. | ✅ |
+| database_url_auditor.py | Core | Database DSN auditor evaluating loopback host exemptions and remote leak blocking — src/myrm_agent_harness/core/security/assignment_sweep/database_url_auditor.py [INPUT] re, urllib.parse, typing, types [OUTPUT] DatabaseUrlAuditor Database DSN auditor evaluating loopback host exemptions and remote leak blocking. Strict typing applied: No `Any` types allowed. | ✅ |
+| facade.py | Core | Unified facade for quoted-key secret assignment sweeps, separator prefix detection, and DSN auditing — src/myrm_agent_harness/core/security/assignment_sweep/facade.py [INPUT] typing, types, quoted_sweep_engine, database_url_auditor [OUTPUT] QuotedKeySecretAssignmentSweepFacade Unified facade for quoted-key secret assignment sweeps, separator prefix detection, and DSN auditing. Strict typing applied: No `Any` types allowed. | ✅ |
+| quoted_sweep_engine.py | Core | Secret assignment sweep engine tolerating quoted keys, separator-prefixed words, and alphanumeric noise shielding — src/myrm_agent_harness/core/security/assignment_sweep/quoted_sweep_engine.py [INPUT] re, typing, types, database_url_auditor [OUTPUT] QuotedKeySecretAssignmentSweepEngine, AssignmentMatch, find_assignment_matches Secret assignment sweep engine tolerating quoted keys, separator-prefixed words, and alphanumeric noise shielding. `find_assignment_matches` is the single definition of a non-benign secret assignment on one line and reports the value span (a cheap key-fragment pre-filter skips lines that cannot match, and the key prefix is bounded, so long unbroken runs scan in linear time); the sweep reports masked previews, `persistence.secret_spans` redacts the span. Strict typing applied: No `Any` types allowed. | ✅ |
+| types.py | Core | AssignmentSweepFinding, AssignmentSweepReport, DatabaseUrlAuditResult — src/myrm_agent_harness/core/security/assignment_sweep/types.py [INPUT] enum, typing, pydantic [OUTPUT] AssignmentKeyFamily, AssignmentFormat, AssignmentSweepVerdict, AssignmentSweepFinding, AssignmentSweepReport, DatabaseUrlAuditResult Domain types for Quoted-Key and Separator-Prefix Secret Assignment Sweep Hardening. Strict typing applied: No `Any` types allowed. | ✅ |

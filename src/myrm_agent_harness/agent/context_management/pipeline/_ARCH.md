@@ -1,0 +1,22 @@
+# pipeline/
+
+## Overview
+Pipeline module.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Pipeline module. | — |
+| base.py | Core | Pipeline processor base class. Defines the processor interface (BaseProcessor) and context data stru | ✅ |
+| engine.py | Core | Pipeline engine. Serializes chat-scoped context mutations with the session lock, then runs processors sequentially with per-processor failure isolation. | ✅ |
+
+| Submodule | Description |
+|-----------|-------------|
+| hierarchical_compaction/ | Orchestrates four-stage hierarchical context compaction. See [hierarchical_compaction/_ARCH.md](hierarchical_compaction/_ARCH.md). |
+| processors/ | Pipeline processors for filtering, active per-step tool-result pruning, cache-TTL pruning, mark-driven selective eviction, pre-compaction recall, compression, session notes, summarization, normalization, and explicit cache-control markers. |
+
+## Key Dependencies
+
+- `utils`
+- `agent/context_management/infra/session_lock.py`

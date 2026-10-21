@@ -1,0 +1,257 @@
+import _ctypes
+import ctypes
+import os
+import sys
+import tempfile
+from unittest.mock import patch
+
+import pytest
+
+from myrm_agent_harness.toolkits.code_execution.security.audit_sandbox import (
+    SecurityError,
+    install,
+)
+
+# install() blocks ctypes by stubbing it in sys.modules for the whole process.
+_REAL_CTYPES_MODULES = {"ctypes": ctypes, "_ctypes": _ctypes}
+
+
+@pytest.fixture(autouse=True)
+def _restore_ctypes_modules():
+    """Put the real ctypes modules back so later tests in the same worker can import them."""
+    yield
+    sys.modules.update(_REAL_CTYPES_MODULES)
+
+
+@pytest.fixture
+def audit_hook(tmp_path):
+    """Fixture to extract the audit hook without installing it globally."""
+    hook_capture = []
+
+    def mock_addaudithook(hook):
+        hook_capture.append(hook)
+
+    with patch("sys.addaudithook", side_effect=mock_addaudithook):
+        install(workspace_path=str(tmp_path), allow_network=False)
+
+    assert len(hook_capture) == 1
+    return hook_capture[0], str(tmp_path)
+
+
+def test_subprocess_execution_blocked(audit_hook):
+    hook, _ = audit_hook
+    blocked_events = ["os.system", "os.exec", "os.posix_spawn", "os.spawn", "subprocess.Popen"]
+    for event in blocked_events:
+        with pytest.raises(SecurityError, match="Subprocess execution is strictly forbidden"):
+            hook(event, ("dummy",))
+
+
+def test_ctypes_dlopen_blocked(audit_hook):
+    hook, _ = audit_hook
+    with pytest.raises(SecurityError, match="Dynamic library loading"):
+        hook("ctypes.dlopen", ("lib",))
+
+
+def test_network_isolation_af_unix_allowed(audit_hook):
+    hook, _ = audit_hook
+    # AF_UNIX uses string path
+    hook("socket.connect", ("/tmp/socket.sock",))  # Should not raise
+
+
+def test_network_isolation_af_inet_blocked_when_network_false(audit_hook):
+    hook, _ = audit_hook
+    with pytest.raises(SecurityError, match="Network access is blocked"):
+        hook("socket.connect", (("127.0.0.1", 80),))
+
+
+def test_network_isolation_allowed_hosts(tmp_path):
+    hook_capture = []
+    with patch("sys.addaudithook", side_effect=lambda h: hook_capture.append(h)):
+        install(str(tmp_path), allow_network=True, allowed_hosts=frozenset(["api.github.com"]))
+    hook = hook_capture[0]
+
+    # Allowed host
+    hook("socket.connect", (("api.github.com", 443),))
+
+    # Blocked host
+    with pytest.raises(SecurityError, match=r"Network access to 'evil\.com' is blocked"):
+        hook("socket.connect", (("evil.com", 80),))
+
+
+def test_file_isolation_writes_allowed_in_workspace(audit_hook):
+    hook, workspace = audit_hook
+    allowed_path = os.path.join(workspace, "test.txt")
+
+    # Write mode 'w'
+    hook("open", (allowed_path, "w", 0))
+    # Write flag
+    hook("open", (allowed_path, "r", os.O_WRONLY))
+    # Destructive
+    hook("os.remove", (allowed_path, None))
+
+
+def test_file_isolation_writes_blocked_outside_workspace(audit_hook):
+    hook, _workspace = audit_hook
+    outside_path = "/etc/passwd"
+
+    with pytest.raises(SecurityError, match="Write operation outside allowed workspace blocked"):
+        hook("open", (outside_path, "w", 0))
+
+    with pytest.raises(
+        SecurityError, match=r"Destructive file operation \(os\.remove\) outside allowed workspace blocked"
+    ):
+        hook("os.remove", (outside_path, None))
+
+
+def test_file_isolation_writes_allowed_in_tmpdir(audit_hook):
+    hook, _ = audit_hook
+    tmp_path = os.path.join(tempfile.gettempdir(), "test.txt")
+
+    hook("open", (tmp_path, "w", 0))
+    hook("os.mkdir", (tmp_path, 0o777, None))
+
+
+def test_mkdir_existing_dir_is_noop_and_allowed(audit_hook):
+    """Defensive makedirs(exist_ok=True) on existing dirs must not raise."""
+    hook, workspace = audit_hook
+    # Existing dir inside workspace: no-op, allowed.
+    hook("os.mkdir", (workspace, 0o777, None))
+    # Existing dir outside workspace (system tmpdir root): no-op, allowed.
+    hook("os.mkdir", (tempfile.gettempdir(), 0o777, None))
+
+
+def test_mkdir_missing_dir_outside_workspace_still_blocked(audit_hook):
+    """Creating new dirs outside workspace/tmp must still raise."""
+    hook, _ = audit_hook
+    missing_outside = "/xyz-no-such-dir-123"
+
+    with pytest.raises(
+        SecurityError, match=r"Destructive file operation \(os\.mkdir\) outside allowed workspace blocked"
+    ):
+        hook("os.mkdir", (missing_outside, 0o777, None))
+
+
+def test_mkdir_existing_tmpdir_allowed_under_mismatched_tmpdir(monkeypatch, tmp_path):
+    """Regression: hook whose tmpdir differs (stale/mismatched TMPDIR) must not
+    block mkdir on an existing system tmpdir — the E2E `os.mkdir TMPDIR` case."""
+    import tempfile
+
+    from myrm_agent_harness.toolkits.code_execution.security.audit_sandbox import (
+        install,
+    )
+
+    real_system_tmp = tempfile.gettempdir()
+    assert os.path.isdir(real_system_tmp)
+
+    fake_tmp = tmp_path / "fake_tmp"
+    fake_tmp.mkdir()
+    ws = tmp_path / "ws"
+    ws.mkdir()
+
+    monkeypatch.setenv("TMPDIR", str(fake_tmp))
+    tempfile.tempdir = None
+    try:
+        hook_capture = []
+        with patch("sys.addaudithook", side_effect=hook_capture.append):
+            install(workspace_path=str(ws), allow_network=False)
+        assert len(hook_capture) == 1
+        hook = hook_capture[0]
+        # Existing system tmpdir: no-op mkdir, must not raise even though it
+        # differs from this hook instance's tmpdir.
+        hook("os.mkdir", (real_system_tmp, 0o777, None))
+        # Genuinely new dir outside every allowed root: still blocked.
+        with pytest.raises(SecurityError, match="outside allowed workspace blocked"):
+            hook("os.mkdir", ("/xyz-no-such-dir-123", 0o777, None))
+    finally:
+        tempfile.tempdir = None
+
+
+def test_file_isolation_sensitive_reads_blocked(audit_hook):
+    hook, _ = audit_hook
+    sensitive_path = "/root/.ssh/id_rsa"
+
+    with pytest.raises(SecurityError, match="Read access to sensitive file blocked"):
+        hook("open", (sensitive_path, "r", 0))
+
+
+def test_file_isolation_rename_blocked_outside_workspace(audit_hook):
+    hook, workspace = audit_hook
+    allowed_src = os.path.join(workspace, "test.txt")
+    outside_dst = "/etc/hosts"
+
+    with pytest.raises(
+        SecurityError, match=r"Destructive file operation \(os\.rename\) outside allowed workspace blocked"
+    ):
+        hook("os.rename", (allowed_src, outside_dst, None, None))
+
+
+def test_readonly_workspace_blocks_destructive_writes(tmp_path):
+    hook_capture = []
+
+    def mock_addaudithook(hook):
+        hook_capture.append(hook)
+
+    with patch("sys.addaudithook", side_effect=mock_addaudithook):
+        install(workspace_path=str(tmp_path), allow_network=False, readonly_workspace=True)
+
+    hook = hook_capture[0]
+    workspace_file = os.path.join(str(tmp_path), "test.py")
+
+    with pytest.raises(SecurityError, match="Write operation inside workspace blocked by readonly_workspace policy"):
+        hook("open", (workspace_file, "w", 0))
+
+    with pytest.raises(SecurityError, match=r"Destructive file operation.*blocked by readonly_workspace policy"):
+        hook("os.remove", (workspace_file, None))
+
+    # Writes to system tempdir are still permitted for Python runtime internals
+    tmp_path_file = os.path.join(tempfile.gettempdir(), "test_runtime.tmp")
+    hook("open", (tmp_path_file, "w", 0))
+
+
+def test_udp_sendto_and_bind_blocked_when_network_disabled(audit_hook):
+    hook, _ = audit_hook
+    with pytest.raises(SecurityError, match="Network access is blocked by sandbox policy"):
+        hook("socket.sendto", (None, None))
+
+    with pytest.raises(SecurityError, match="Network access is blocked by sandbox policy"):
+        hook("socket.bind", (None,))
+
+
+def test_sensitive_git_and_docker_credentials_blocked_outside_workspace(audit_hook):
+    hook, workspace = audit_hook
+    with pytest.raises(SecurityError, match="Read access to sensitive file blocked"):
+        hook("open", ("/Users/dummy/.git-credentials", "r", 0))
+
+    with pytest.raises(SecurityError, match="Read access to sensitive file blocked"):
+        hook("open", ("/Users/dummy/.docker/config.json", "r", 0))
+
+    # Safe read inside workspace is not blocked
+    safe_file = os.path.join(workspace, "config.json")
+    hook("open", (safe_file, "r", 0))
+
+
+def test_real_cpython_socket_args_signature(tmp_path):
+    """Test that audit hook works with real CPython (socket_instance, address) signature."""
+    hook_capture = []
+    with patch("sys.addaudithook", side_effect=lambda h: hook_capture.append(h)):
+        install(str(tmp_path), allow_network=True, allowed_hosts=frozenset(["api.github.com"]))
+    hook = hook_capture[0]
+
+    dummy_socket = object()
+
+    # Allowed host with real (socket, address) signature
+    hook("socket.connect", (dummy_socket, ("api.github.com", 443)))
+
+    # Blocked host with real (socket, address) signature
+    with pytest.raises(SecurityError, match=r"Network access to 'evil\.com' is blocked"):
+        hook("socket.connect", (dummy_socket, ("evil.com", 80)))
+
+    # AF_UNIX socket sendto/bind string path allowed when network=False
+    hook_no_net_capture = []
+    with patch("sys.addaudithook", side_effect=lambda h: hook_no_net_capture.append(h)):
+        install(str(tmp_path), allow_network=False)
+    hook_no_net = hook_no_net_capture[0]
+
+    hook_no_net("socket.connect", (dummy_socket, "/tmp/mcp.sock"))
+    hook_no_net("socket.sendto", (dummy_socket, b"data", "/dev/log"))
+    hook_no_net("socket.bind", (dummy_socket, "/tmp/service.sock"))

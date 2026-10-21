@@ -1,0 +1,477 @@
+"""Skill Agent - Extends BaseAgent with the skill system.
+
+[INPUT]
+- base_agent::BaseAgent (POS: Lightweight Agent base class with streaming, token tracking, and artifacts.)
+- skill_agent.context (POS: Module-level ContextVar management and background task utilities.)
+- skill_agent.review::SkillAgentReviewMixin (POS: Session-end review mixin for SkillAgent.)
+- skill_agent.tools::SkillAgentToolsMixin (POS: Tool building mixin for SkillAgent.)
+- skills::SkillMetadata (POS: Skill metadata type)
+- types::AgentRuntimeConfig (POS: Agent runtime config)
+- event_log.protocols::EventLogBackend (POS: Event log backend protocol)
+- meta_tools.skills.select::get_skill_document (POS: Load skill SOP document for explicit injection)
+- skills.evolution.infra.integration::get_global_evolution_integration (POS: Integration helpers for skill evolution system.)
+
+[OUTPUT]
+- SkillAgent: Skill Agent — extends BaseAgent with skill system, hooks, and session lifecycle.
+- wait_all_background_tasks: Graceful shutdown utility for background tasks.
+
+[POS]
+Skill Agent implementation. Extends BaseAgent with the skill system, meta-tools,
+workspace management, and the Hook system.
+"""
+
+import asyncio
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from typing import TYPE_CHECKING, Any
+
+from langchain_core.language_models import BaseChatModel
+from langchain_core.tools import BaseTool
+from langgraph.types import Command
+
+from myrm_agent_harness.agent.base_agent import BaseAgent
+from myrm_agent_harness.agent.event_log.protocols import EventLogBackend
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
+from myrm_agent_harness.agent.skills import SkillMetadata
+from myrm_agent_harness.agent.types import AgentRuntimeConfig
+from myrm_agent_harness.backends.skills.usage_recorder import begin_skill_run_usage, commit_skill_run_usage
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
+from .context import (
+    SkillAgentContextMixin,
+    add_loaded_skill,
+    get_loaded_skills,
+    reset_loaded_skills,
+    set_loaded_skills,
+    set_memory_manager,
+    set_storage_backend,
+    track_background_task,
+    wait_all_background_tasks,
+)
+from .hook_lifecycle import SkillAgentHookLifecycleMixin
+from .preload import SkillAgentPreloadMixin
+from .review import SkillAgentReviewMixin
+from .tools import SkillAgentToolsMixin
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from langchain.agents.middleware import AgentMiddleware
+    from langchain_core.messages import BaseMessage
+    from langgraph.checkpoint.base import BaseCheckpointSaver
+
+    from myrm_agent_harness.agent._internals.memory_extraction import (
+        ExtractionLifecycleObserver,
+    )
+    from myrm_agent_harness.backends.secrets.protocols import AgentSecretBackend
+    from myrm_agent_harness.backends.skills.market_protocols import (
+        SkillMarketBackend,
+    )
+    from myrm_agent_harness.backends.skills.protocols import (
+        SkillBackend as SkillBackendProtocol,
+    )
+    from myrm_agent_harness.backends.skills.scanning import (
+        ScanningSkillWriteBackend,
+    )
+    from myrm_agent_harness.backends.skills.similarity import SkillSimilarityChecker
+    from myrm_agent_harness.backends.skills.state_manager import SkillStateManager
+    from myrm_agent_harness.backends.skills.types import SkillInstance
+    from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+    from myrm_agent_harness.toolkits.retriever.embedding.factory import EmbeddingConfig
+    from myrm_agent_harness.toolkits.storage.base import StorageProvider
+    from myrm_agent_harness.toolkits.wiki import (
+        SemanticSearchFn,
+        WikiCompiler,
+        WikiStructure,
+    )
+    from myrm_agent_harness.utils.chat_utils import ChatHistoryReq
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+    from myrm_agent_harness.utils.runtime.steering import SteeringToken
+
+logger = get_agent_logger(__name__)
+
+__all__ = ["SkillAgent", "wait_all_background_tasks"]
+
+
+class SkillAgent(
+    SkillAgentPreloadMixin,
+    SkillAgentHookLifecycleMixin,
+    SkillAgentToolsMixin,
+    SkillAgentReviewMixin,
+    SkillAgentContextMixin,
+    BaseAgent,
+):
+    """技能 Agent - 扩展 BaseAgent
+
+    在 BaseAgent 基础上添加:
+    - 技能后端(SkillBackend)
+    - 元工具(file_write/edit/bash/skill_select)
+    - 技能工作空间管理
+
+    特性:技能系统,渐进式披露,完全自主决策,流式事件,兼容官方中间件
+    """
+
+    def __init__(
+        self,
+        llm: BaseChatModel,
+        executor: "CodeExecutor | None" = None,
+        storage_backend: "StorageProvider | None" = None,
+        skill_backend: "SkillBackendProtocol | None" = None,
+        market_backend: "SkillMarketBackend | None" = None,
+        write_backend: "ScanningSkillWriteBackend | None" = None,
+        secret_backend: "AgentSecretBackend | None" = None,
+        memory_manager: "MemoryManager | None" = None,
+        enable_memory_auto_extraction: bool = True,
+        extraction_llm: BaseChatModel | None = None,
+        middlewares: "list[AgentMiddleware[Any, Any]] | None" = None,
+        system_prompt: str | None = None,
+        tools: list[BaseTool] | None = None,
+        context_schema: type | None = None,
+        config: AgentRuntimeConfig | None = None,
+        on_artifacts_ready: "BaseAgent.ArtifactReadyHandler | None" = None,
+        user_id: str | None = None,
+        model_resolver: object | None = None,
+        fallback_llm: BaseChatModel | None = None,
+        fallback_llms: list[BaseChatModel] | None = None,
+        safety_fallback_llm: BaseChatModel | None = None,
+        escalation_target_llm: BaseChatModel | None = None,
+        embedding_config: "EmbeddingConfig | None" = None,
+        checkpointer: "BaseCheckpointSaver[str] | None" = None,
+        event_log_backend: EventLogBackend | None = None,
+        trusted_skill_ids: list[str] | None = None,
+        skill_env_map: dict[str, dict[str, str]] | None = None,
+        desired_skill_ids: list[str] | None = None,
+        skill_configs: dict[str, dict[str, object]] | None = None,
+        state_manager: "SkillStateManager | None" = None,
+        default_skill_instances: dict[str, str] | None = None,
+        global_env: dict[str, str] | None = None,
+        on_skill_review_ready: "Callable[[dict[str, object]], None] | None" = None,
+        wiki_base_dir: "Path | str | None" = None,
+        wiki_public_dirs: list["Path | str"] | None = None,
+        wiki_public_dir_labels: dict[str, str] | None = None,
+        wiki_search_fn: "SemanticSearchFn | None" = None,
+        wiki_scope_id: str | None = None,
+        similarity_checker: "SkillSimilarityChecker | None" = None,
+        on_session_cleanup: "Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None" = None,
+        on_loaded_skills_persist: "Callable[[list[str], str | None], Awaitable[None]] | None" = None,
+        extraction_lifecycle_observer: "ExtractionLifecycleObserver | None" = None,
+        file_access_mode: FileAccessMode = FileAccessMode.FULL,
+        enable_shell_tools: bool = True,
+        enable_answer_tool: bool = False,
+        enable_planning: bool = False,
+        task_workspace_root: str | None = None,
+        available_tool_names: frozenset[str] | None = None,
+        available_tool_groups: frozenset[str] | None = None,
+        library_skill_names: frozenset[str] | None = None,
+    ) -> None:
+        self.model_resolver = model_resolver
+        super().__init__(
+            llm=llm,
+            executor=executor,
+            middlewares=middlewares,
+            system_prompt=system_prompt,
+            tools=tools,
+            context_schema=context_schema,
+            config=config,
+            on_artifacts_ready=on_artifacts_ready,
+            fallback_llm=fallback_llm,
+            fallback_llms=fallback_llms,
+            safety_fallback_llm=safety_fallback_llm,
+            escalation_target_llm=escalation_target_llm,
+            checkpointer=checkpointer,
+            event_log_backend=event_log_backend,
+        )
+
+        self.skill_configs = skill_configs
+        self.skill_backend = skill_backend
+        self.market_backend = market_backend
+        self.write_backend = write_backend
+        self.storage_backend = storage_backend
+        self.secret_backend = secret_backend
+        self.state_manager = state_manager
+        self.memory_manager: MemoryManager | None = memory_manager
+        self._enable_memory_auto_extraction = enable_memory_auto_extraction
+        self._extraction_llm = extraction_llm
+        self._active_skill: SkillMetadata | None = None
+        self._user_id = user_id
+        self._on_skill_review_ready = on_skill_review_ready
+        self._embedding_config: EmbeddingConfig | None = embedding_config
+        self._default_skill_instances = default_skill_instances or {}
+        self._trusted_skill_ids: frozenset[str] = frozenset(trusted_skill_ids) if trusted_skill_ids else frozenset()
+        self._skill_env_map = skill_env_map
+        self._desired_skill_ids: list[str] | None = desired_skill_ids
+        self._similarity_checker: SkillSimilarityChecker | None = similarity_checker
+        self._global_env = global_env
+        self._wiki_base_dir = wiki_base_dir
+        self._wiki_public_dirs = list(wiki_public_dirs) if wiki_public_dirs else []
+        self._wiki_public_dir_labels = dict(wiki_public_dir_labels) if wiki_public_dir_labels else {}
+        self._wiki_search_fn: SemanticSearchFn | None = wiki_search_fn
+        self._wiki_scope_id = (wiki_scope_id or "").strip() or None
+        self._wiki_compiler: WikiCompiler | None = None
+        self._wiki_structure: WikiStructure | None = None
+        self._on_session_cleanup = on_session_cleanup
+        self._on_loaded_skills_persist = on_loaded_skills_persist
+        self._extraction_lifecycle_observer = extraction_lifecycle_observer
+        self._file_access_mode = file_access_mode
+        self._enable_shell_tools = enable_shell_tools
+        self._enable_answer_tool = enable_answer_tool
+        self._enable_planning = enable_planning
+        self._task_workspace_root = task_workspace_root
+        self._available_tool_names = available_tool_names
+        self._available_tool_groups = available_tool_groups
+        self._library_skill_names = library_skill_names
+        # Fingerprint of the bound set the skill_search index was last built from (None: not synced yet).
+        self._synced_skill_fingerprint: str | None = None
+
+    async def _get_cached_skills(self) -> list[SkillMetadata]:
+        """Load skills from backend (no caching to enable hot reload).
+
+        A failed load reads as an empty catalog here; callers that must tell
+        "the backend failed" from "the agent has no skills" use ``_load_bound_skills``.
+        """
+        skills = await self._load_bound_skills()
+        return [] if skills is None else skills
+
+    async def _load_bound_skills(self) -> list[SkillMetadata] | None:
+        """Load the bound skills from the backend, or ``None`` when the load failed.
+
+        Always hits the backend so hot-reloaded skill versions are seen; the backend
+        (e.g., LocalSkillBackend) serves it from a SQLiteSkillSnapshot in O(N).
+        Applies user trust overrides: skills whose storage_skill_id is in
+        _trusted_skill_ids are elevated to SkillTrust.TRUSTED. A backend-less agent
+        has an empty (not failed) catalog.
+        """
+        if self.skill_backend is None:
+            return []
+
+        skills: list[SkillMetadata] = []
+        try:
+            if self._desired_skill_ids is not None and hasattr(self.skill_backend, "load_skills"):
+                skills = await self.skill_backend.load_skills(self._desired_skill_ids)
+                # Runtime MCP skills are request-scoped; union them even when
+                # desired_skill_ids filters the user/prebuilt catalog.
+                try:
+                    all_skills = await self.skill_backend.list_skills()
+                except Exception as list_exc:
+                    logger.warning(
+                        "Failed to list MCP skills for desired_skill_ids merge: %s",
+                        list_exc,
+                    )
+                    all_skills = []
+                mcp_skills = [skill for skill in all_skills if getattr(skill, "is_mcp_skill", False)]
+                if mcp_skills:
+                    by_name = {skill.name: skill for skill in skills}
+                    for mcp_skill in mcp_skills:
+                        by_name.setdefault(mcp_skill.name, mcp_skill)
+                    skills = list(by_name.values())
+                logger.debug(
+                    "Loaded %d/%d skills from skill_backend (desired_ids=%s, mcp_union=%d)",
+                    len(skills),
+                    len(self._desired_skill_ids),
+                    self._desired_skill_ids,
+                    len(mcp_skills),
+                )
+            else:
+                skills = await self.skill_backend.list_skills()
+                logger.debug(
+                    "Loaded %d skills from skill_backend (all available)",
+                    len(skills),
+                )
+
+            if self._trusted_skill_ids:
+                from myrm_agent_harness.backends.skills.types import SkillTrust
+
+                for skill in skills:
+                    sid = skill.storage_skill_id or skill.name
+                    if sid in self._trusted_skill_ids and skill.trust < SkillTrust.TRUSTED:
+                        skill.trust = SkillTrust.TRUSTED
+        except Exception as e:
+            logger.warning("Failed to load skills from skill_backend: %s", e)
+            return None
+
+        return skills
+
+    async def load_skill_instance(self, skill_name: str, instance_name: str) -> "SkillInstance":
+        """Load a skill instance with configuration and state.
+
+        Provides programmatic access to multi-instance skill support. Combines:
+        - Base SkillMetadata from backend
+        - SkillInstanceConfig (env/config overrides)
+        - Runtime state (persisted)
+
+        This method enables business layer to load and use skill instances
+        without modifying core Agent logic.
+
+        Args:
+            skill_name: Skill name (e.g., "github_skill")
+            instance_name: Instance name (e.g., "personal", "work")
+
+        Returns:
+            SkillInstance object with merged configuration
+
+        Raises:
+            ValueError: If state_manager not configured or instance not found
+
+        Example:
+            >>> agent = SkillAgent(
+            ...     llm=llm,
+            ...     skill_backend=backend,
+            ...     state_manager=SkillStateManager()
+            ... )
+            >>> instance = await agent.load_skill_instance("github_skill", "personal")
+            >>> token = instance.get_env("GITHUB_TOKEN")
+        """
+        if self.state_manager is None:
+            raise ValueError("state_manager not configured. Pass SkillStateManager to SkillAgent.__init__")
+
+        if self.skill_backend is None:
+            raise ValueError("skill_backend not configured")
+
+        instance = await self.state_manager.load_instance(
+            backend=self.skill_backend,
+            skill_name=skill_name,
+            instance_name=instance_name,
+        )
+
+        if instance is None:
+            raise ValueError(f"Skill instance not found: {skill_name}.{instance_name}")
+
+        return instance
+
+    def _build_middlewares(self) -> "list[AgentMiddleware[Any, Any]]":
+        """构建中间件链(覆盖 BaseAgent)"""
+        return super()._build_middlewares()
+
+    def _inject_action_space_metrics(self) -> None:
+        """Inject runtime action space counts into the session event logger summary."""
+        try:
+            from myrm_agent_harness.agent.middlewares._session_context import (
+                get_event_logger,
+            )
+
+            el = get_event_logger()
+            skills = getattr(self, "_runtime_skill_count", None)
+            tools = getattr(self, "_runtime_tool_count", None)
+            if el is not None and skills is not None and tools is not None:
+                el.set_action_space_metrics(skills, tools)
+        except Exception:
+            pass
+
+    async def run(
+        self,
+        query: str | list[dict[str, object]] | Command[object],
+        chat_history: "ChatHistoryReq | list[BaseMessage] | None" = None,
+        message_id: str | None = None,
+        context: dict[str, object] | None = None,
+        cancel_token: "CancellationToken | None" = None,
+        steering_token: "SteeringToken | None" = None,
+        timezone: str | None = None,
+        active_skill: SkillMetadata | None = None,
+    ) -> AsyncGenerator[dict[str, object]]:
+        """流式运行 Agent(覆盖 BaseAgent),增加 Hook 生命周期和记忆会话管理."""
+        begin_skill_run_usage()
+        preloaded_skills: list[SkillMetadata] = []
+        if active_skill is None:
+            if isinstance(query, str):
+                query, active_skill, preloaded_skills = await self._preload_explicit_skill(query)
+            elif isinstance(query, list):
+                query, active_skill, preloaded_skills = await self._preload_explicit_skill_in_blocks(query)
+
+        self._active_skill = active_skill
+        reset_loaded_skills()
+        cached_skills = await self._get_cached_skills()
+        from myrm_agent_harness.agent.skills.runtime.session_skills_rehydrate import (
+            SESSION_LOADED_SKILL_NAMES_CONTEXT_KEY,
+            rehydrate_loaded_skills_from_history,
+        )
+
+        session_skill_names: list[str] | None = None
+        if context:
+            raw_names = context.get(SESSION_LOADED_SKILL_NAMES_CONTEXT_KEY)
+            if isinstance(raw_names, list):
+                session_skill_names = [str(name) for name in raw_names if name]
+
+        rehydrated = rehydrate_loaded_skills_from_history(
+            chat_history,
+            cached_skills,
+            session_skill_names,
+        )
+        if rehydrated:
+            set_loaded_skills(rehydrated)
+        for skill_meta in preloaded_skills:
+            if not any(s.name == skill_meta.name for s in get_loaded_skills()):
+                add_loaded_skill(skill_meta)
+        if active_skill and not preloaded_skills and not any(s.name == active_skill.name for s in get_loaded_skills()):
+            add_loaded_skill(active_skill)
+        self._init_hook_lifecycle()
+        self._begin_memory_session(context, message_id)
+
+        self._inject_action_space_metrics()
+        # Only skills the user invoked explicitly bring their hooks; the run releases them again.
+        # A HITL resume is a new run of the same turn, so it brings the turn's hooks back.
+        turn_skills = preloaded_skills or ([active_skill] if active_skill else [])
+        if not turn_skills and isinstance(query, Command):
+            turn_skills = await self._resolve_resumed_turn_skills(chat_history)
+        skill_hooks = await self._activate_skill_hooks(turn_skills)
+
+        assistant_chunks: list[str] = []
+        try:
+            async for event in super().run(
+                query=query,
+                chat_history=chat_history,
+                message_id=message_id,
+                context=context,
+                cancel_token=cancel_token,
+                steering_token=steering_token,
+                timezone=timezone,
+            ):
+                if isinstance(event, dict) and event.get("type") == "message":
+                    chunk = event.get("data")
+                    if isinstance(chunk, str):
+                        assistant_chunks.append(chunk)
+                yield event
+        finally:
+            skill_hooks.release()
+            commit_skill_run_usage()
+            # Capture loaded skills BEFORE resetting context vars
+            active_skills_list = [s.name for s in get_loaded_skills()]
+            run_chat_id: str | None = None
+            if context:
+                raw_chat_id = context.get("chat_id")
+                if raw_chat_id:
+                    run_chat_id = str(raw_chat_id)
+
+            # Create a background task for cleanup to ensure zero blocking of the UI thread
+            async def _background_cleanup(active_skills: list[str], chat_id: str | None) -> None:
+                logger.info("_background_cleanup executing for skills: %s", active_skills)
+                try:
+                    await self._cleanup_session(
+                        query,
+                        chat_history,
+                        assistant_chunks,
+                        active_skills,
+                        run_chat_id=chat_id,
+                    )
+                except Exception as e:
+                    logger.error("Background session cleanup failed: %s", e, exc_info=True)
+
+            logger.info("Creating _background_cleanup task")
+            task = asyncio.create_task(_background_cleanup(active_skills_list, run_chat_id))
+            track_background_task(task)
+
+            try:
+                set_storage_backend(None)
+                set_memory_manager(None)
+                reset_loaded_skills()
+            except Exception as ctx_error:
+                logger.error("Error cleaning up ContextVar: %s", ctx_error, exc_info=True)
+
+    def _begin_memory_session(self, context: dict[str, object] | None, message_id: str | None) -> None:
+        if self.memory_manager is not None:
+            chat_id = str((context or {}).get("chat_id", message_id or "default"))
+            self.memory_manager.begin_session(chat_id)
+
+    async def close(self) -> None:
+        """Release resources held by this agent."""
+        self.memory_manager = None
+        await self.cleanup_tools()

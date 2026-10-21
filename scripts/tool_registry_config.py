@@ -1,0 +1,151 @@
+"""Configuration for tool-registry validation.
+
+Centralizes scan roots, whitelists, and exemption rules used by
+`tool_registry_engine` and `validate_tool_registry` CLI.
+
+Must stay aligned with ``agent/orchestration/signals/catalog.py`` and
+``agent/orchestration/hooks.py`` (orchestration signals + runtime hooks).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+HARNESS_ROOT = REPO_ROOT
+HARNESS_SRC = HARNESS_ROOT / "src" / "myrm_agent_harness"
+SERVER_ROOT = REPO_ROOT.parent / "myrm-agent" / "myrm-agent-server"
+SERVER_SRC = SERVER_ROOT / "app"
+# The server tree exists only in the monorepo layout; gates that cross-reference it skip in a standalone harness clone.
+SERVER_TREE_AVAILABLE = SERVER_SRC.is_dir()
+
+SCAN_ROOTS: tuple[Path, ...] = (HARNESS_SRC, SERVER_SRC)
+
+PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "spawn_subagent",
+        "notify",
+        "llm_query",
+        "llm_query_batched",
+        "human_ask",
+        "steer_child",
+    }
+)
+
+INTERNAL_TOOL_PREFIXES: tuple[str, ...] = ("_",)
+
+# Orchestration signals + runtime hooks — excluded from _TOOL_LAYERS (see agent/orchestration/).
+INTERNAL_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "_completion_check",
+        "submit_verdict",
+    }
+)
+
+# Registered names without an AST-visible @tool declaration: the deep-research signal schemas
+# (bind_tools only, must all be listed — see orchestration/signals/catalog.py) plus tools the scan cannot attribute.
+SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "dispatch_research",
+        "finalize_report",
+        "think",
+    }
+)
+
+# Built-in tools whose JSON schema is bound by the server (no @tool AST in harness).
+SERVER_BOUND_SCHEMA_TOOL_NAMES: frozenset[str] = frozenset({"request_answer_user_tool"})
+
+# `@tool(NAME)` declarations whose NAME is imported from another module and cannot be resolved by the AST scan.
+CROSS_MODULE_CONSTANTS: dict[str, str] = {}
+
+
+@dataclass(frozen=True)
+class LayerExemption:
+    """A declared tool allowed to stay out of `_TOOL_LAYERS` until `expires`."""
+
+    expires: date
+    reason: str
+
+
+# Declared in code but not part of the Turn1 Action Tool SSOT. Every entry lapses: once `expires` has passed while the
+# tool is still unmounted the registry gate fails, which forces a decision (mount it on a profile, or delete the tool).
+# An entry for a tool that no longer exists or is now registered is reported as stale and has to be deleted.
+LAYER_EXEMPT_TOOLS: Mapping[str, LayerExemption] = {
+    "wiki_compile_tool": LayerExemption(
+        date(2027, 1, 31), "Wiki admin tool declared in toolkits/wiki/wiki_agent_tools.py; not a Turn1 action tool."
+    ),
+    "wiki_maintain_tool": LayerExemption(
+        date(2027, 1, 31), "Wiki admin tool declared in toolkits/wiki/wiki_agent_tools.py; not a Turn1 action tool."
+    ),
+    "manage_sovereign_memory_assets": LayerExemption(
+        date(2027, 1, 31), "Unit-tested sovereign migration tool; no agent profile mounts it yet."
+    ),
+}
+
+ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
+    {
+        "create_wiki_admin_tools",
+        "create_restricted_ax_browser_tools",
+        # Not mounted on any agent profile: the caller supplies a live message accessor.
+        "create_refetch_historical_turn_tool",
+        # Implemented and unit-tested under toolkits/memory/sovereign_migration,
+        # deliberately not mounted on any agent profile yet.
+        "create_sovereign_migration_tool",
+        # Mounted by sub-agent profiles (shared plan store), not by the general agent's
+        # get_meta_tools(): the plan HUD belongs to delegation, not to every turn.
+        "create_manage_todo_plan_tool",
+        "create_read_todo_hud_tool",
+        # Session multiplexer tools: only an orchestrator profile that owns sibling
+        # sessions should see inspect/instruct, so they are profile-mounted.
+        "create_inspect_agent_session_tool",
+        "create_instruct_agent_tool",
+        # Edge device mesh tools: device discovery/dispatch needs a registered mesh,
+        # which the default agent profile does not have.
+        "create_list_mesh_devices_tool",
+        "create_dispatch_node_command_tool",
+        "create_fetch_node_telemetry_tool",
+    }
+)
+
+BOOTSTRAP_FILES: frozenset[str] = frozenset(
+    {
+        str(SERVER_ROOT / "app" / "ai_agents" / "general_agent" / "tools" / "_tool_layer_bootstrap.py"),
+    }
+)
+
+EXCLUDED_DIRS: frozenset[str] = frozenset(
+    {
+        "__pycache__",
+        "tests",
+        "node_modules",
+        ".venv",
+        "venv",
+        "build",
+        "dist",
+    }
+)
+
+
+def is_test_path(path: Path) -> bool:
+    """Heuristic: a file is test code if any path segment looks test-related."""
+    parts = {p.lower() for p in path.parts}
+    return bool(parts & {"tests", "test", "testing", "conftest.py", "fixtures"})
+
+
+def validate_config() -> None:
+    """Validate config at import time. Raises AssertionError on misuse."""
+    assert SCAN_ROOTS, "SCAN_ROOTS must not be empty"
+    for root in SCAN_ROOTS:
+        assert root.is_absolute(), f"SCAN_ROOTS entries must be absolute: {root}"
+    for name in INTERNAL_TOOL_NAMES:
+        assert name and isinstance(name, str), f"Invalid internal tool name: {name!r}"
+    for tool_name, exemption in LAYER_EXEMPT_TOOLS.items():
+        assert exemption.reason, f"LAYER_EXEMPT_TOOLS entry needs a reason: {tool_name}"
+    for factory in ORPHAN_FACTORY_WHITELIST:
+        assert factory.startswith("create_"), f"ORPHAN_FACTORY_WHITELIST entries must start with 'create_': {factory}"
+
+
+validate_config()

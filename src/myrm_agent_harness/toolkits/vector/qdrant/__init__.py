@@ -1,0 +1,30 @@
+"""Qdrant Vector Store — built-in implementation.
+
+Requires: ``pip install myrm-agent-harness[qdrant]``
+
+Example::
+
+    from myrm_agent_harness.toolkits.vector.qdrant import create_embedded_store
+
+    store = await create_embedded_store(path="./data/vectors")
+"""
+
+from myrm_agent_harness.toolkits.vector.qdrant.factory import (
+    clear_embedded_stores,
+    create_embedded_store,
+    create_remote_store,
+    create_vector_store,
+    embedded_fallback_paths,
+    evict_embedded_store,
+)
+from myrm_agent_harness.toolkits.vector.qdrant.store import QdrantVectorStore
+
+__all__ = [
+    "QdrantVectorStore",
+    "clear_embedded_stores",
+    "create_embedded_store",
+    "create_remote_store",
+    "create_vector_store",
+    "embedded_fallback_paths",
+    "evict_embedded_store",
+]

@@ -1,0 +1,526 @@
+"""Unit coverage for bash_tool split modules (mock-based)."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from myrm_agent_harness.agent.meta_tools._context_recovery import (
+    restore_context_vars,
+)
+from myrm_agent_harness.agent.meta_tools.bash._tool.background_listeners import (
+    build_background_listeners,
+    classify_background_exit,
+)
+from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import (
+    get_os_hint,
+    track_context_access_in_command,
+)
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
+    create_bash_code_execute_tool,
+)
+from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT_ENV
+
+
+class _FakeBackgroundInfo:
+    def __init__(
+        self,
+        *,
+        pid: int = 1,
+        command: str = "sleep 1",
+        status: str = "exited",
+        exit_code: int | None = 0,
+        job_id: str = "job-1",
+    ) -> None:
+        self.pid = pid
+        self.command = command
+        self.status = status
+        self.exit_code = exit_code
+        self.job_id = job_id
+
+
+@pytest.mark.asyncio
+async def test_build_background_listeners_skips_finish_handler_when_killed() -> None:
+    config: dict[str, object] = {}
+    info = _FakeBackgroundInfo(pid=9, status="killed", exit_code=None)
+
+    handler = AsyncMock()
+
+    with (
+        patch(
+            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+            AsyncMock(),
+        ) as mock_dispatch,
+        patch(
+            "myrm_agent_harness.utils.runtime.background_job_finish_registry.get_global_background_job_finish_handler",
+            return_value=handler,
+        ),
+    ):
+        finish, _progress = build_background_listeners(session_id="sess", config=config)  # type: ignore[arg-type]
+        await finish(info)
+
+    mock_dispatch.assert_not_awaited()
+    handler.on_background_job_finish.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_build_background_listeners_dispatch_progress_and_finish() -> None:
+    config: dict[str, object] = {}
+    info = _FakeBackgroundInfo(pid=9, status="exited", exit_code=137)
+
+    handler = AsyncMock()
+
+    with (
+        patch(
+            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+            AsyncMock(),
+        ) as mock_dispatch,
+        patch(
+            "myrm_agent_harness.utils.runtime.background_job_finish_registry.get_global_background_job_finish_handler",
+            return_value=handler,
+        ),
+    ):
+        finish, progress = build_background_listeners(session_id="sess", config=config)  # type: ignore[arg-type]
+        await progress(info, {"message": "50%", "progress": 50})
+        await finish(info)
+
+    assert mock_dispatch.await_count == 2
+    handler.on_background_job_finish.assert_awaited_once()
+
+
+def test_classify_background_exit_oom() -> None:
+    info = _FakeBackgroundInfo(status="exited", exit_code=137)
+    assert classify_background_exit(info) == "oom_killed"
+
+
+def test_get_os_hint_contains_os_label() -> None:
+    hint = get_os_hint()
+    assert "当前系统" in hint or "OS:" in hint
+
+
+@pytest.mark.asyncio
+async def test_track_context_access_records_persistent_paths() -> None:
+    tracker = MagicMock()
+    tracker.record_access = AsyncMock()
+    with patch(
+        "myrm_agent_harness.runtime.context.file_access_tracker.get_file_access_tracker",
+        AsyncMock(return_value=tracker),
+    ):
+        await track_context_access_in_command(
+            "cat /persistent/foo/.context/bar.txt",
+            session_id="sess-1",
+        )
+    tracker.record_access.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_track_context_access_follows_relocated_persistent_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(PERSISTENT_ROOT_ENV, "/var/state/harness")
+    tracker = MagicMock()
+    tracker.record_access = AsyncMock()
+    with patch(
+        "myrm_agent_harness.runtime.context.file_access_tracker.get_file_access_tracker",
+        AsyncMock(return_value=tracker),
+    ):
+        await track_context_access_in_command(
+            "cat /var/state/harness/.context/sess-1/compacted/out.txt /persistent/.context/other/out.txt",
+            session_id="sess-1",
+        )
+    tracker.record_access.assert_awaited_once_with(
+        "/var/state/harness/.context/sess-1/compacted/out.txt", session_id="sess-1"
+    )
+
+
+def test_restore_context_vars_binds_executor_and_workspace() -> None:
+    executor = MagicMock()
+    context = {
+        "workspace_path": "/tmp/ws",
+        "workspaces_storage_root": "/tmp/storage",
+        "chat_id": "e2ebashfg-abc",
+    }
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor",
+        ) as mock_set,
+        patch(
+            "myrm_agent_harness.agent.middlewares.approval.set_workspace_root",
+        ) as mock_ws,
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind._workspace_storage_fs_root",
+        ) as mock_root,
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind.bind_workspace_storage_root",
+        ) as mock_bind,
+        patch(
+            "myrm_agent_harness.core.context_vars.chat_id_var",
+        ) as mock_chat_id,
+        patch(
+            "myrm_agent_harness.core.context_vars.workspace_root_var",
+        ) as mock_ws_var,
+    ):
+        mock_root.get.return_value = None
+        restore_context_vars(context, executor)
+
+    mock_set.assert_called_once_with(executor)
+    mock_ws.assert_called_once_with("/tmp/ws")
+    mock_ws_var.set.assert_called_once_with("/tmp/ws")
+    mock_chat_id.set.assert_called_once_with("e2ebashfg-abc")
+    mock_bind.assert_called_once()
+
+
+def _patch_bash_tool_success(mock_execute_result: dict[str, object]):
+    mock_executor = MagicMock()
+    mock_executor.get_executor_name.return_value = "test"
+    mock_bash_executor = AsyncMock()
+    mock_bash_executor.execute.return_value = mock_execute_result
+    mock_bash_executor.set_skill_oauth_issuers = MagicMock()
+    mock_bash_executor.set_skill_env_map = MagicMock()
+    mock_bash_executor.set_global_env = MagicMock()
+    mock_bash_executor.consume_python_c_transform_hint = MagicMock(return_value=None)
+
+    return (
+        mock_bash_executor,
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
+            return_value={"session_id": "test-session", "supports_vision": False},
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
+            return_value=mock_bash_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.skills.mcp.notify_registry.session_scope",
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=None),
+                __aexit__=AsyncMock(return_value=False),
+            ),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.track_context_access_in_command",
+            AsyncMock(),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_background_path_returns_pid_metadata() -> None:
+    mock_executor = MagicMock()
+    mock_bash_executor = AsyncMock()
+    fake_info = MagicMock(pid=99, command="sleep 1", status="running")
+    mock_bash_executor.spawn_background.return_value = fake_info
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
+            return_value={"session_id": "test-session"},
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
+            return_value=mock_bash_executor,
+        ),
+        patch(
+            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+            AsyncMock(),
+        ),
+    ):
+        tool = create_bash_code_execute_tool()
+        result = await tool.ainvoke(
+            {"command": "sleep 60", "reason": "long running background task", "run_in_background": True},
+            config={"configurable": {"context": {"session_id": "s"}}},
+        )
+
+    assert result["metadata"]["background"] is True
+    assert result["metadata"]["pid"] == 99
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_interactive_command_allowed_in_background() -> None:
+    mock_executor = MagicMock()
+    mock_bash_executor = AsyncMock()
+    fake_info = MagicMock(
+        pid=100,
+        job_id="job-interactive-bg",
+        command="npx create-next-app my-app",
+        status="running",
+    )
+    mock_bash_executor.spawn_background.return_value = fake_info
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
+            return_value={"session_id": "test-session"},
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
+            return_value=mock_bash_executor,
+        ),
+        patch(
+            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+            AsyncMock(),
+        ),
+    ):
+        tool = create_bash_code_execute_tool()
+        result = await tool.ainvoke(
+            {
+                "command": "npx create-next-app my-app",
+                "reason": "scaffold new project",
+                "run_in_background": True,
+            },
+            config={"configurable": {"context": {"session_id": "s"}}},
+        )
+
+    assert result["metadata"]["background"] is True
+    assert result["metadata"]["pid"] == 100
+    mock_bash_executor.spawn_background.assert_awaited_once()
+    content = str(result["content"])
+    assert "submit_stdin" in content
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_interactive_command_blocked_in_foreground() -> None:
+    tool = create_bash_code_execute_tool()
+    with pytest.raises(Exception, match=r"interactive|template|option"):
+        await tool.ainvoke(
+            {
+                "command": "npx create-next-app my-app",
+                "reason": "scaffold new project",
+                "run_in_background": False,
+            },
+            config={"configurable": {"context": {"session_id": "s"}}},
+        )
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_foreground_success_returns_content() -> None:
+    mocks = _patch_bash_tool_success(
+        {
+            "stdout": "ok",
+            "stderr": "",
+            "exit_code": "0",
+            "mcp_metadata": {},
+            "generated_files": [],
+        }
+    )
+    mock_be, *patches = mocks
+
+    with patches[0], patches[1], patches[2], patches[3], patches[4]:
+        tool = create_bash_code_execute_tool()
+        result = await tool.ainvoke(
+            {"command": "echo ok", "reason": "unit test validation check"},
+            config={"configurable": {"context": {"session_id": "s"}}},
+        )
+
+    assert isinstance(result, dict)
+    assert "content" in result
+    mock_be.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_foreground_with_truncation_eviction_and_hint() -> None:
+    mock_executor = MagicMock()
+    mock_bash_executor = AsyncMock()
+    mock_bash_executor.execute.return_value = {
+        "stdout": "x" * 5000,
+        "stderr": "",
+        "exit_code": "0",
+        "mcp_metadata": {"tool": "mcp"},
+        "generated_files": [],
+        "evicted_ref": "vault://big",
+    }
+    mock_bash_executor.set_skill_oauth_issuers = MagicMock()
+    mock_bash_executor.set_skill_env_map = MagicMock()
+    mock_bash_executor.set_global_env = MagicMock()
+    mock_bash_executor.consume_python_c_transform_hint = MagicMock(return_value="rewrite hint")
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
+            return_value={"session_id": "test-session", "supports_vision": False},
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
+            return_value=mock_bash_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.skills.mcp.notify_registry.session_scope",
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=None),
+                __aexit__=AsyncMock(return_value=False),
+            ),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.track_context_access_in_command",
+            AsyncMock(),
+        ),
+        patch(
+            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+            AsyncMock(),
+        ) as mock_dispatch,
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.format_result",
+            return_value=("truncated", True, {"truncated": True}),
+        ),
+    ):
+        tool = create_bash_code_execute_tool(
+            skills=[SimpleNamespace(name="s", oauth_issuer="iss", storage_path="/skills/s")],
+            skill_env_map={"s": {}},
+            global_env={"G": "1"},
+        )
+        result = await tool.ainvoke(
+            {"command": "cat /persistent/x/.context/y.txt", "reason": "unit test validation check"},
+            config={"configurable": {"context": {"session_id": "s"}}},
+        )
+
+    assert result["metadata"] == {"tool": "mcp"}
+    assert mock_dispatch.await_count >= 3
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_interactive_command_raises_tool_error() -> None:
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.check_interactive_command",
+        return_value="interactive not allowed",
+    ):
+        tool = create_bash_code_execute_tool()
+        with pytest.raises(Exception, match="interactive not allowed"):
+            await tool.ainvoke(
+                {"command": "vim file", "reason": "edit file in vim"},
+                config={"configurable": {"context": {"session_id": "s"}}},
+            )
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_restores_stashed_executor() -> None:
+    mock_executor = MagicMock()
+    mock_bash_executor = AsyncMock()
+    mock_bash_executor.execute.return_value = {
+        "stdout": "ok",
+        "stderr": "",
+        "exit_code": "0",
+        "mcp_metadata": {},
+        "generated_files": [],
+    }
+    mock_bash_executor.set_skill_oauth_issuers = MagicMock()
+    mock_bash_executor.set_skill_env_map = MagicMock()
+    mock_bash_executor.set_global_env = MagicMock()
+    mock_bash_executor.consume_python_c_transform_hint = MagicMock(return_value=None)
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
+            return_value={"session_id": "sess-1", "workspace_path": "/ws"},
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor",
+            return_value=None,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.get_stashed_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools._context_recovery.restore_context_vars",
+        ) as mock_restore,
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
+            return_value=mock_bash_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.skills.mcp.notify_registry.session_scope",
+            return_value=AsyncMock(
+                __aenter__=AsyncMock(return_value=None),
+                __aexit__=AsyncMock(return_value=False),
+            ),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.track_context_access_in_command",
+            AsyncMock(),
+        ),
+    ):
+        tool = create_bash_code_execute_tool()
+        await tool.ainvoke(
+            {"command": "echo ok", "reason": "unit test validation check"},
+            config={"configurable": {"context": {"session_id": "sess-1"}}},
+        )
+
+    mock_restore.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_background_requires_session_id() -> None:
+    mock_executor = MagicMock()
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool.extract_context_from_runnable_config",
+            return_value={"session_id": ""},
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
+            return_value=AsyncMock(),
+        ),
+    ):
+        tool = create_bash_code_execute_tool()
+        with pytest.raises(Exception, match="run_in_background requires"):
+            await tool.ainvoke(
+                {"command": "sleep 1", "reason": "background task for session test", "run_in_background": True},
+                config={"configurable": {"context": {}}},
+            )
+
+
+@pytest.mark.asyncio
+async def test_maybe_build_image_blocks_exception_str_fallback_and_overflow() -> None:
+    from langchain_core.messages.content import create_text_block
+
+    from myrm_agent_harness.agent.meta_tools.bash._tool.multimodal import (
+        MAX_IMAGES_PER_RETURN,
+        maybe_build_image_blocks,
+    )
+
+    image_paths = [f"/tmp/img{i}.png" for i in range(MAX_IMAGES_PER_RETURN + 2)]
+    image_block = create_text_block("inline-image")
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.utils.image_reader.is_image_path",
+            return_value=True,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.require_executor",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.utils.image_reader.read_image_as_content_blocks",
+            AsyncMock(side_effect=[OSError("fail"), "text-fallback"] + [[image_block]] * MAX_IMAGES_PER_RETURN),
+        ),
+    ):
+        blocks = await maybe_build_image_blocks(
+            text_content="chart",
+            generated_files=image_paths,
+            context={"supports_vision": True},
+        )
+
+    assert blocks is not None
+    # 1 text_content + 1 str-fallback + 2 image blocks + 1 overflow notice = 5
+    assert len(blocks) == 5

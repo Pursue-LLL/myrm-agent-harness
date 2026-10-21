@@ -1,0 +1,118 @@
+# Context Management System Design
+
+> Agent 上下文工程子系统。在 LangGraph 消息流上实现过滤、压缩、摘要、缓存标记与预算锁定，保护 Prompt Prefix Cache 并控制 token 成本。
+
+---
+
+## 设计目标
+
+1. **Prefix Cache 友好**：稳定前缀（system/tools）与可变后缀（history）分离；压缩/摘要不破坏 cache 指纹
+2. **三层降载**：Filter → Compress → Summarize，逐级降级
+3. **会话级串行**：同一 chat 的上下文变更通过 session lock 串行化，避免竞态
+4. **可观测**：tracking 模块记录 artifact、archive refetch 成本与 restore-block 事件
+
+---
+
+## 系统架构
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ context_pipeline_middleware (middlewares/)                    │
+│   create_context_pipeline_middleware()                        │
+└────────────────────────────┬─────────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────────┐
+│ pipeline/engine.py — SessionLock + 顺序处理器链               │
+└────────────────────────────┬─────────────────────────────────┘
+                             ▼
+    ┌────────────┬───────────┴───────────┬────────────┐
+    ▼            ▼                       ▼            ▼
+ processors/  strategies/          archive_      tracking/
+ (过滤/裁剪/   (Filter/Compress/    checkpoint/   (指标/artifact
+  摘要/缓存)    Summarize)           (Lite-LLM)    追踪)
+    │            │                       │            │
+    └────────────┴───────────┬───────────┴────────────┘
+                             ▼
+                    infra/ — schemas, budget, token estimate
+                             │
+                    preheat.py — Anthropic/Qwen prefix 预热
+                    pre_compact_service.py — 压缩前语义召回
+```
+
+---
+
+## 核心组件
+
+| 模块 | 职责 |
+|------|------|
+| `context.py` | Agent 运行时 ContextVar 容器（user/session/workspace） |
+| `pipeline/engine.py` | 处理器链引擎 + session lock |
+| `pipeline/processors/` | 过滤、推理锚点注入、cache-TTL 裁剪、pre-compaction recall、摘要、规范化、cache-control 标记 |
+| `strategies/` | Filter / Compress / Summarize / Reasoning 四档策略；包含推理链决策锚点提取与账本管理；Summarize 支持 Split Turn 活跃轮次前缀提炼，使用 structured output 防 JSON 脆弱性 |
+| infra/ | Token 估算、预算管理、schemas、cache policy、retention_helpers（compression_intent 提取与 retain 判定） |
+| `archive_checkpoint/` | Lite-LLM archive summary 检查点 Protocol + 持久化 |
+| `working_memory/` | 运行时手边工作台（LocalWorkingMemoryBlock），管理目标栈、子任务流转与避坑防线，支持因果链滑动折叠，仅在 Turn Tail 注入确保 Prompt Cache 安全 |
+| `tracking/` | Artifact 追踪、task metrics、archive 读预算 |
+| `preheat.py` | 显式 cache provider 前缀预热（Agent 启动 + 压缩后） |
+| `pre_compact_service.py` | 压缩前 MemoryPreCompact 回调 |
+
+---
+
+## 与 middlewares 协作
+
+- **入口**：`middlewares/context_pipeline/context_pipeline_middleware.py` 在 Agent 图构建时注入
+- **辅助**：`middlewares/context_pipeline/context_pipeline_helpers.py` 解析压缩意图、tool schema fingerprint
+- **记忆注入**：`middlewares/memory_context/memory_context_middleware.py` 注入 `<user_memory_context>`（与 pipeline 互补，非重复）
+
+---
+
+## 与 toolkits/memory 边界
+
+| 层 | 职责 |
+|----|------|
+| `toolkits/memory/` | MemoryManager、向量/关系存储、召回 Protocol |
+| `context_management/` | **消息流**上的预算、压缩、摘要、cache 标记 |
+| `context_bundle/` (toolkits) | 磁盘卷布局 SSOT |
+
+context_management **不实现**向量检索；通过 IntegrationProvider / pre_compact 回调与 memory 协作。
+
+---
+
+## compression_intent 与 retention
+
+业务层（如 server GeneralAgent）在 pipeline metadata 注入 `compression_intent`：`focus_files`、`focus_modules`、`failed_tool_call_ids`、`user_goal_hint`、`pinned_files`（volume 注册表，跨压缩 retain）。
+
+| 信号 | Filter | Compress / ActivePrune |
+|------|--------|----------------------|
+| `failed_tool_call_ids` | 结构 trim，跳过 LLM 摘要 | 高优先级；smart_fallback 同步保护 |
+| `focus_files` / `focus_modules` | group 级匹配（tool_call args + 输出窗口），结构 trim | group 级优先级提升 |
+| `pinned_files` | 与 focus_files 合并 retain 信号 | 跨压缩 volume pin 路径优先 retain |
+| `user_goal_hint` | group 级关键词匹配，结构 trim | group 级优先级提升 |
+| `keep_recent_calls`（默认 5） | — | 最近 N 个 ToolCallGroup 不压缩；ActivePrune cutoff 对齐 |
+
+SSOT：`infra/retention_helpers.py`（提取 intent、retain 判定）+ `strategies/priority_signals.py`（group haystack 匹配）。
+
+---
+
+## 理论参考
+
+- [CONTEXT_ENGINEERING.md](CONTEXT_ENGINEERING.md) — 行业上下文工程理论
+- [PROMPT_CACHE_PRACTICE.md](PROMPT_CACHE_PRACTICE.md) — 框架 cache 实践
+
+---
+
+## 扩展指南
+
+新增 processor：
+
+1. 继承 `pipeline/base.py::BaseProcessor`
+2. 注册到 `pipeline/processors/` 并在 engine 顺序中声明位置
+3. 更新 `pipeline/processors/_ARCH.md` 与本文档
+4. 单测放 `tests/agent/context_management/` 或 `tests/toolkits/` 对应目录
+
+---
+
+## 参考资料
+
+- [context_management/_ARCH.md](_ARCH.md)
+- [middlewares/MIDDLEWARE_SYSTEM.md](../middlewares/MIDDLEWARE_SYSTEM.md)

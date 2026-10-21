@@ -1,0 +1,222 @@
+"""Skill market helper functions.
+
+Shared utilities for scanning, deduplication, ranking, origin tracking, and LobeHub conversion.
+
+[INPUT]
+- backends.skills.market_protocols::SkillSearchResult (POS: unified skill market result type)
+- backends.skills.scanning::ScanResult (POS: scan result cache layer for skill content)
+- core.security.http.secure_fetch::secure_get / ContentTooLargeError (POS: SSRF-protected outbound HTTP with size cap)
+
+[OUTPUT]
+- scan_all_text_files: Scan all text files in a skill package for security threats.
+- deduplicate: Deduplicate by name, keeping first occurrence (higher pri...
+- rank_results: Rank by source priority + stars + keyword match.
+- fetch_lobehub_as_skill: Download a LobeHub agent JSON and convert it to a SKILL.m...
+- write_origin: Write origin.json to skill directory for update tracking.
+
+[POS]
+Skill market helper functions.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from datetime import UTC, datetime
+from pathlib import Path
+
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
+from myrm_agent_harness.backends.skills.scanning import ScanResult, scan_skill_content
+
+logger = logging.getLogger(__name__)
+
+_SCANNABLE_EXTENSIONS = frozenset(
+    {
+        ".md",
+        ".py",
+        ".sh",
+        ".js",
+        ".ts",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".txt",
+        ".toml",
+        ".cfg",
+        ".ini",
+        ".html",
+    }
+)
+
+SOURCE_PRIORITY = {
+    "prebuilt": 100,
+    "static_index": 80,
+    "clawhub": 60,
+    "skills_sh": 50,
+    "github": 30,
+    "lobehub": 20,
+}
+
+
+_MAX_SCAN_FILE_SIZE = 512 * 1024  # 512 KB
+
+
+def scan_all_text_files(skill_name: str, files: dict[str, bytes]) -> ScanResult:
+    """Scan all text files in a skill package for security threats.
+
+    Merges findings from every scannable file into a single ScanResult,
+    including Python AST analysis findings.
+    Binary files, empty files, and files exceeding size limit are skipped.
+    """
+    merged = ScanResult(skill_name=skill_name)
+
+    for rel_path, content in files.items():
+        if not isinstance(content, (bytes, str)):
+            continue
+        if len(content) > _MAX_SCAN_FILE_SIZE or len(content) == 0:
+            continue
+        if isinstance(content, bytes) and b"\x00" in content:
+            continue
+        if isinstance(content, str) and "\x00" in content:
+            continue
+        suffix = Path(rel_path).suffix.lower()
+        if suffix not in _SCANNABLE_EXTENSIONS:
+            continue
+
+        try:
+            text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
+        except Exception:
+            continue
+
+        file_result = scan_skill_content(f"{skill_name}/{rel_path}", text, file_extension=suffix)
+        merged.findings.extend(file_result.findings)
+        merged.ast_findings.extend(file_result.ast_findings)
+
+    return merged
+
+
+def deduplicate(results: list[SkillSearchResult]) -> list[SkillSearchResult]:
+    """Deduplicate by name, keeping first occurrence (higher priority sources first)."""
+    seen: set[str] = set()
+    deduped: list[SkillSearchResult] = []
+    for r in results:
+        key = r.name.lower()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(r)
+    return deduped
+
+
+def rank_results(results: list[SkillSearchResult], query: str) -> list[SkillSearchResult]:
+    """Rank by source priority + stars + keyword/tag match."""
+    keywords = query.lower().split()
+
+    def score(r: SkillSearchResult) -> float:
+        s = SOURCE_PRIORITY.get(r.source, 0)
+        s += min(r.stars, 500) * 0.1
+        name_lower = r.name.lower()
+        desc_lower = r.description.lower()
+        for kw in keywords:
+            if kw in name_lower:
+                s += 20
+            if kw in desc_lower:
+                s += 5
+            for item_kw in r.keywords:
+                if kw in item_kw.lower():
+                    s += 15
+            for tag in r.tags:
+                if kw in tag.lower():
+                    s += 10
+        return s
+
+    return sorted(results, key=score, reverse=True)
+
+
+async def fetch_lobehub_as_skill(detail: SkillSearchResult) -> dict[str, bytes]:
+    """Download a LobeHub agent JSON and convert it to a SKILL.md file set."""
+    from myrm_agent_harness.core.security.http.secure_fetch import (
+        ContentTooLargeError,
+        secure_get,
+    )
+
+    try:
+        resp = await secure_get(detail.install_url, timeout=15.0)
+    except ContentTooLargeError as exc:
+        raise ValueError(f"LobeHub agent JSON too large: {exc}") from exc
+    if resp.status_code != 200:
+        raise ValueError(f"LobeHub agent fetch failed: HTTP {resp.status_code}")
+    data = resp.json()
+
+    if not isinstance(data, dict):
+        raise ValueError("LobeHub agent data is not a valid JSON object")
+
+    meta = data.get("meta", data)
+    if not isinstance(meta, dict):
+        meta = data
+
+    title = str(meta.get("title", detail.name))
+    description = str(meta.get("description", detail.description))
+    system_role = str(data.get("config", {}).get("systemRole", ""))
+
+    tags_raw = meta.get("tags", [])
+    tags = [str(t) for t in tags_raw] if isinstance(tags_raw, list) else []
+    tag_line = ", ".join(tags) if tags else ""
+
+    skill_md_lines = [
+        "---",
+        f"name: {title}",
+        f"description: {description[:500]}",
+        f"tags: [{tag_line}]",
+        "source: lobehub",
+        "---",
+        "",
+        f"# {title}",
+        "",
+        description,
+        "",
+    ]
+    if system_role:
+        skill_md_lines.extend(["## System Prompt", "", system_role, ""])
+
+    skill_md = "\n".join(skill_md_lines)
+    return {"SKILL.md": skill_md.encode("utf-8")}
+
+
+ORIGIN_FILENAME = "origin.json"
+
+
+def write_origin(
+    skill_dir: Path,
+    *,
+    source: str,
+    skill_id: str,
+    version: str = "",
+    parent_plugin: str | None = None,
+    declared_mcp_servers: list[str] | None = None,
+) -> None:
+    """Write origin.json to skill directory for update tracking and provenance."""
+    origin: dict[str, object] = {
+        "source": source,
+        "skill_id": skill_id,
+        "version": version,
+        "installed_at": datetime.now(UTC).isoformat(),
+    }
+    if parent_plugin:
+        origin["parent_plugin"] = parent_plugin
+    if declared_mcp_servers:
+        origin["declared_mcp_servers"] = declared_mcp_servers
+    try:
+        (skill_dir / ORIGIN_FILENAME).write_text(json.dumps(origin), encoding="utf-8")
+    except Exception as e:
+        logger.warning("Failed to write origin.json: %s", e)
+
+
+def read_origin(skill_dir: Path) -> dict[str, object]:
+    """Read origin.json from a skill directory. Returns empty dict if missing."""
+    origin_file = skill_dir / ORIGIN_FILENAME
+    if not origin_file.exists():
+        return {}
+    try:
+        return json.loads(origin_file.read_text(encoding="utf-8"))
+    except Exception:
+        return {}

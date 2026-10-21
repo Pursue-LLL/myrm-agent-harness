@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Misc
+*.log
+coverage.txt
+.env
+.env.local
+
+# Project-specific
+coverage*.json
+coverage_report/
+htmlcov*/
+.browsers/
+# Runtime browser profile cache — must not live inside toolkits/ source tree
+myrm-agent-server/
+.benchmarks/
+scratch/
+.myrm/
+.agent/  # harness workspace runtime ({MYRM_DATA_DIR}/.agent/docs|vault); do not commit
+node_modules/
+package-lock.json
+test_output.txt
+
+# Temporary development reports (keep only core docs)
+*_STATUS.md
+*_REPORT.md
+*_BENCHMARK.md
+*_OPTIMIZATION.md
+*_VERIFICATION.md
+*_REVIEW*.md
+
+# Test artifacts
+local_storage/
+tests/local_storage/
+embeddings.db*
+
+# Build / bootstrap artifacts
+.pypi-bootstrap/
+# Ignore nested clone copy when harness lives inside a monorepo checkout
+myrm-agent-harness/
+
+# Session/checkpoint artifacts (never commit)
+.context/

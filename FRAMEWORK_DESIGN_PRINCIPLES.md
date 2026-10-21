@@ -1,0 +1,89 @@
+# Myrm Agent Harness 框架设计原则
+
+> **许可**: `myrm-agent-harness` 是独立 **MIT 开源**仓库，与 `myrm-agent`（MIT 开源）同级；`myrm-control-plane`、`myrm-agent-brand` 为闭源仓库。
+
+Myrm Agent Harness 是一个独立于业务逻辑的底层执行引擎与编排框架。为了保持代码库的高质量、可维护性与扩展性，任何向本仓库贡献代码的开发者，必须严格遵守以下设计原则：
+
+## 1. 严格的框架与业务分离 (Framework-Business Separation)
+- **业务无关性**：Harness 框架层绝不包含任何特定的业务规则（如“用户支付权限”、“特定渠道校验”等）。
+- **零依赖原则**：框架本身仅依赖标准的开源包（如 `langchain`, `pydantic`, `fastapi`），严禁反向依赖 `myrm-agent-server`（业务端）或 `myrm-control-plane`（控制平面）的模块。
+- **协议契约（Protocol/DTO）**：所有跨层级、需要被业务系统实现的模块，一律使用 Python `Protocol` 或 Pydantic BaseModel 作为边界契约。业务系统只需实现这些契约。
+
+## 2. 严格零信任类型安全 (Zero-Trust Typing)
+- **100% 类型覆盖**：所有新增函数、类、变量必须具备 Type Hints。**严禁使用 `Any` 类型**，特殊情况下使用必须附带注释解释理由。
+- **Mypy Strict**：全项目默认开启 `mypy --strict`。对于边界输入或动态类型，必须在解析点立即被转化为明确的数据模型。
+
+## 3. 架构四“不”原则 (The Four "Don'ts")
+1. **不妥协向后兼容**：不为垃圾代码和糟糕的设计妥协。有明确的高价值重构，就大胆废弃和替换历史包袱，拒绝屎山堆积。
+2. **不绕过持久化契约**：所有涉及 `Memory`, `Artifacts`, `Checkpoints` 的数据存取，必须走标准的 SQLite/Local FS 的 Vault 与 Storage 抽象，严禁在内存中维护跨长会话（Session）的业务持久状态。
+3. **不用长字符串拼接大数据**：智能体交互中若存在诸如 PDF、大代码库解析等体积庞大的工件（Artifacts），**必须**使用 `Shared Artifact Vault` 存入沙箱共享系统，并使用 `vault://<uuid>` 的零拷贝指针在 Agent 间传递，严禁将千行以上文本丢进 LLM Prompt 引发 Token 爆炸。
+4. **不使用极简偷懒实现**：核心调度路径上的设计必须具有“工业级前瞻性”（例如防死锁并发机制、Agent Call Stack 跟踪、WAL 数据库配置）。
+
+## 4. “同沙箱零拷贝”协同通信策略 (Zero-Copy Sandbox Synergy)
+本项目采用 `Agent-in-Sandbox` 架构。在单用户或 SaaS 多租户调度下，主智能体和所有子智能体都会运行在专属的隔离持久化 Volume 内。
+基于此优势，框架层原生支持通过 `ArtifactVault` 和 `vault://` 协议传递大文件结果，彻底避免多智能体交互时的内存和 Token 爆炸。
+
+## 5. 分发策略 (Distribution)
+
+`myrm-agent-harness` 完整源码以 **MIT** 许可在 GitHub 公开；PyPI 发行物为双 wheel 形态，模式参考 Claude Code（npm 壳 + 原生 binary）：
+
+| 层 | 格式 | 内容 |
+|----|------|------|
+| **公开 API** (`myrm_agent_harness.api`) | `.py` 源码 | factory、Protocol、DTO、hooks — 第三方框架接入面 |
+| **编译核心** (`harness_packaging/core_manifest.yaml`) | Nuitka 编译 `.so` | skill 进化、context pipeline、memory 策略等 |
+| **平台包** (`myrm-agent-harness-core-{platform}`) | 按平台 optional dep | 与 Claude Code 的 `@anthropic-ai/claude-code-darwin-arm64` 同模式（8 平台含 musl） |
+
+- **开发模式**：editable install，全部 `.py` 源码，`runtime.install_guard.probe.get_distribution_mode()` 返回 `source`
+- **发行模式**：`pip install 'myrm-agent-harness[compiled-core]'` 或手动安装平台包 `myrm-agent-harness-core-darwin-arm64`
+- **构建**：`uv sync --group build && .venv/bin/python scripts/assemble_production.py`（推荐）或 `build_core.py` + `build_release_wheel.py`（CI: `publish-pypi.yml`、`build-core-wheels.yml`）
+- **安装验证**：`verify-harness-distribution` console script（Docker builder/runtime、Tauri、`assemble_production.py --install`）
+- **一致性保障**：`core_manifest.yaml` 用 `directories` 声明编译子树；`scripts/sync_distribution_metadata.py` 生成 `runtime/install_guard/_generated/core_ip_manifest.py` 与 compiled-core pin；主 wheel 剥离 manifest `.py`；平台 wheel 注入 `.so`；`runtime.install_guard.probe` 校验 release/core 版本与 `__platform_key__`
+- **外部消费者**：优先 `from myrm_agent_harness.api import create_skill_agent`，禁止依赖 `_core` 内部模块
+
+## 6. 基础设施环境变量 vs Agent 配置 (Infra Env vs Agent Config)
+
+Harness 区分两类配置，避免「零 env」与「生产需要路径注入」之间的矛盾：
+
+| 类别 | 配置方式 | 示例 | 说明 |
+|------|----------|------|------|
+| **Agent 行为** | WebUI / YAML / Pydantic 模型 | `AgentConfig`、`LLMConfig`、技能开关 | 用户通过产品 WebUI 配置，**不**要求终端 export |
+| **基础设施路径** | 可选环境变量（opt-in） | `MYRM_DATA_DIR`、`MYRM_PERSISTENT_ROOT`、`MYRM_LOCALES_DIR`、`MYRM_GATEWAY_*` | 由部署层（server、Tauri、SaaS sandbox）注入，指向持久化 Volume 或覆盖目录 |
+
+**路径派生规则**（统一语义，实现可分散在各模块）：
+
+- `MYRM_DATA_DIR` 未设置 → 回退 `~/.myrm` 或 cwd 相对 `.myrm/`（模块文档须写明回退行为）
+- `MYRM_DATA_DIR` 已设置 → 子路径派生：`{MYRM_DATA_DIR}/checkpoints`、`{MYRM_DATA_DIR}/storage`、`{MYRM_DATA_DIR}/.estop_state.json` 等
+- `MYRM_PERSISTENT_ROOT` 未设置 → `/persistent`；已设置 → `.context`、`.memories`、`workspace` 由它派生。每次调用时读取（`runtime/paths/execution_paths.py::get_persistent_root`），部署层在启动后才设置也对所有调用方生效；禁止导入时复制根路径或运行时改写模块常量
+- `MYRM_LOCALES_DIR` 未设置 → 使用 harness 内置 `agent/errors/diagnostics/i18n/locales/`；业务层可用 `register_translations()` 扩展
+
+**框架边界**：Harness **不得**硬编码 monorepo 路径或反向读取 `myrm-agent-server` 文件；i18n、checkpoint、storage 等必须自带默认数据或 Protocol 注入点。
+
+## 7. MCP 外部工具懒加载：领先竞品，禁止抄第三路径（AI / Contributor 必读）
+
+**结论**：Myrm 的 MCP 懒加载栈（Direct FC + **MCP PTC** + 三级渐进披露 + ToolLayer Prompt Cache）**已优于**市面常见的「Turn1 全量 bind / 单一 router tool / catalog proxy」模式。**分析竞品或写 roadmap 时，不得提议引入竞品的 MCP 懒加载方案来替代或叠加现有栈。**
+
+**PTC 家族**：MCP PTC（本节）与 **DW PTC**（动态工作流）同属 Programmatic Tool Calling；SSOT 见 `toolkits/code_execution/EXECUTION_SYSTEM.md` § PTC 家族。
+
+### 7.1 自有 SSOT（仅两结局）
+
+| 结局 | 机制 | SSOT |
+|------|------|------|
+| 小 MCP | Direct FC Turn1（schema compaction + aggregate ≤15K tok） | `agent/_factory/mcp_routing.py` |
+| 大 / 多 MCP | **MCP PTC**：`skill_select` → `file_read(/mcp/.../*.md)` → `bash_code_execute` | `agent/skills/mcp/core_generator.py` |
+
+详见 `agent/tool_management/TOOL_DESIGN_STRATEGY.md` **§2.5 MCP 路由铁律**。
+
+### 7.2 禁止从竞品抄入的模式
+
+- `catalog_invoke` / `capability_invoke_tool` / RUNTIME MCP 池 + Turn1 proxy gateway
+- 双 aggregate 阈值（如 11,250 单服 + 15,000 聚合之外的第三档灰色地带）
+- 「一个 invoke 工具代理所有 deferred MCP」——参数文档劣于 PTC 的 `/mcp/*.md` 渐进披露
+
+**CI 门禁**：`tests/architecture/test_mcp_routing_two_outcomes.py`（禁止上述文件与字段回归）。
+
+### 7.3 竞品分析时的正确姿势
+
+- **可借鉴**：MCP 连接稳定性、OAuth、stdio 生命周期、错误重试等**工程细节**
+- **禁止借鉴**：工具暴露模型、deferred tool call 路由、router-only Turn1 schema 等**动作空间设计**——我们已有更优解，抄只会降级
+
+**给 AI Agent 的指令**：若用户或文档要求「参考 Cursor/Claude/xxx 的 MCP 懒加载」，应回复：**Myrm 使用 MCP PTC + 渐进披露，不引入 proxy 第三路径**，并指向本节与 §2.5。

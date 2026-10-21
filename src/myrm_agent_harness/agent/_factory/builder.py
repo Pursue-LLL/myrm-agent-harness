@@ -1,0 +1,447 @@
+"""SkillAgent assembly pipeline — LLM, MCP, skills, middleware, and runtime config.
+
+[INPUT]
+- agent._factory.mcp_routing::route_mcp_servers (POS: MCP hybrid direct/PTC routing)
+- agent.skill_agent::SkillAgent (POS: Skill Agent implementation)
+- agent.types::AgentRuntimeSpec, AgentRuntimeConfig (POS: Agent runtime types)
+
+[OUTPUT]
+- create_skill_agent(): assemble and return a configured SkillAgent instance
+
+[POS]
+SkillAgent factory assembly. Wires LLM, MCP/OpenAPI tools, skill backends, middleware, and runtime config.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Awaitable, Callable, Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
+
+if TYPE_CHECKING:
+    from langchain.agents.middleware import AgentMiddleware
+    from langchain_core.language_models import BaseChatModel
+    from langchain_core.tools import BaseTool
+    from langgraph.checkpoint.base import BaseCheckpointSaver
+
+    from myrm_agent_harness.agent._internals.memory_extraction import ExtractionLifecycleObserver
+    from myrm_agent_harness.agent.base_agent import BaseAgent
+    from myrm_agent_harness.agent.config.llm import LLMConfig
+    from myrm_agent_harness.agent.event_log.protocols import EventLogBackend
+    from myrm_agent_harness.agent.security.types import PrivacyRoutingConfig
+    from myrm_agent_harness.agent.skill_agent import SkillAgent
+    from myrm_agent_harness.agent.skills import SkillMetadata
+    from myrm_agent_harness.agent.types import AgentRuntimeSpec
+    from myrm_agent_harness.backends.secrets.protocols import AgentSecretBackend
+    from myrm_agent_harness.backends.skills.creation_protocols import SkillWriteBackend
+    from myrm_agent_harness.backends.skills.market_protocols import (
+        SkillMarketBackend,
+    )
+    from myrm_agent_harness.backends.skills.protocols import (
+        SkillBackend as SkillBackendProtocol,
+    )
+    from myrm_agent_harness.backends.skills.scanning import (
+        ScanningSkillWriteBackend,
+    )
+    from myrm_agent_harness.backends.skills.similarity import SkillSimilarityChecker
+    from myrm_agent_harness.backends.skills.state_manager import SkillStateManager
+    from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+    from myrm_agent_harness.toolkits.retriever.embedding.factory import EmbeddingConfig
+    from myrm_agent_harness.toolkits.storage.base import StorageProvider
+    from myrm_agent_harness.toolkits.wiki import SemanticSearchFn
+
+from myrm_agent_harness.agent._factory.mcp_routing import route_mcp_servers
+
+logger = logging.getLogger(__name__)
+
+
+async def create_skill_agent(
+    spec: AgentRuntimeSpec,
+    llm_config: LLMConfig | None = None,
+    llm: BaseChatModel | None = None,
+    executor: CodeExecutor | None = None,
+    storage_backend: StorageProvider | None = None,
+    skill_backend: SkillBackendProtocol | None = None,
+    market_backend: SkillMarketBackend | None = None,
+    write_backend: SkillWriteBackend | None = None,
+    secret_backend: AgentSecretBackend | None = None,
+    memory_manager: MemoryManager | None = None,
+    enable_memory_auto_extraction: bool = True,
+    extraction_llm: BaseChatModel | None = None,
+    middlewares: list[AgentMiddleware[Any, Any]] | None = None,
+    tools: list[BaseTool] | None = None,
+    context_schema: type | None = None,
+    collect_artifacts: bool = False,
+    on_artifacts_ready: BaseAgent.ArtifactReadyHandler | None = None,
+    fallback_llm: BaseChatModel | None = None,
+    fallback_llms: list[BaseChatModel] | None = None,
+    safety_fallback_llm: BaseChatModel | None = None,
+    escalation_target_llm: BaseChatModel | None = None,
+    embedding_config: EmbeddingConfig | None = None,
+    checkpointer: BaseCheckpointSaver[str] | bool | None = True,
+    privacy_routing_config: PrivacyRoutingConfig | None = None,
+    event_log_backend: EventLogBackend | None = None,
+    trusted_skill_ids: list[str] | None = None,
+    skill_env_map: dict[str, dict[str, str]] | None = None,
+    state_manager: SkillStateManager | None = None,
+    default_skill_instances: dict[str, str] | None = None,
+    global_env: dict[str, str] | None = None,
+    on_skill_review_ready: Callable[[dict[str, object]], None] | None = None,
+    model_resolver: object | None = None,
+    wiki_base_dir: Path | str | None = None,
+    wiki_public_dirs: list[Path | str] | None = None,
+    wiki_public_dir_labels: dict[str, str] | None = None,
+    wiki_search_fn: SemanticSearchFn | None = None,
+    wiki_scope_id: str | None = None,
+    similarity_checker: SkillSimilarityChecker | None = None,
+    on_session_cleanup: (Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None) = None,
+    on_loaded_skills_persist: (Callable[[list[str], str | None], Awaitable[None]] | None) = None,
+    extraction_lifecycle_observer: ExtractionLifecycleObserver | None = None,
+    file_access_mode: FileAccessMode = FileAccessMode.FULL,
+    enable_shell_tools: bool = True,
+    enable_answer_tool: bool = False,
+    enable_planning: bool = False,
+    task_workspace_root: str | None = None,
+    available_tool_names: frozenset[str] | None = None,
+    available_tool_groups: frozenset[str] | None = None,
+    library_skill_names: frozenset[str] | None = None,
+) -> SkillAgent:
+    """Create a SkillAgent instance (framework assembly entry)."""
+    from myrm_agent_harness.runtime.install_guard.probe import assert_distribution_ready
+
+    resolved_file_access = file_access_mode
+
+    assert_distribution_ready()
+
+    if llm is None:
+        if llm_config is None:
+            raise ValueError(
+                "Must provide either 'llm_config' or 'llm'. "
+                "For quick start, use: llm_config=LLMConfig(model='gpt-4', api_key='sk-...')"
+            )
+
+        from myrm_agent_harness.toolkits.llms import create_litellm_model
+
+        kwargs: dict[str, Any] = {
+            "model": llm_config.model,
+            "api_key": llm_config.api_key,
+            "base_url": llm_config.base_url,
+            "streaming": llm_config.streaming,
+            **(llm_config.model_kwargs or {}),
+        }
+        if llm_config.temperature is not None:
+            kwargs["temperature"] = llm_config.temperature
+        if llm_config.egress_proxy is not None:
+            kwargs["egress_proxy"] = llm_config.egress_proxy
+
+        llm = create_litellm_model(**kwargs)
+        logger.info(f" 创建 LLM 实例: {llm_config.model}")
+
+    if privacy_routing_config is not None and privacy_routing_config.local_model is not None:
+        from myrm_agent_harness.toolkits.llms import (
+            create_litellm_model as _create_model,
+        )
+        from myrm_agent_harness.toolkits.llms.routing import PrivacyRoutingModel
+
+        local_llm = _create_model(
+            model=privacy_routing_config.local_model,
+            base_url=privacy_routing_config.local_base_url,
+            api_key=privacy_routing_config.local_api_key or "",
+            temperature=0.2,
+            streaming=True,
+        )
+        llm = PrivacyRoutingModel(
+            cloud_llm=llm,
+            local_llm=local_llm,
+            routing_config=privacy_routing_config,
+        )
+        logger.info(
+            " Privacy routing enabled: cloud=%s, local=%s, s2=%s, s3=%s",
+            type(llm.cloud_llm).__name__,
+            privacy_routing_config.local_model,
+            privacy_routing_config.s2_strategy,
+            privacy_routing_config.s3_strategy,
+        )
+
+    mcp_skills: list[SkillMetadata] = []
+    mcp_direct_tools: list[BaseTool] = []
+    if spec.mcp_servers:
+        routing_result = await route_mcp_servers(
+            spec.mcp_servers,
+            surface_mode=spec.mcp_surface_mode,
+        )
+        mcp_skills = routing_result.skills
+        mcp_direct_tools = routing_result.direct_tools
+    else:
+        from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
+
+        skill_registry.clear_mcp_skills()
+
+    openapi_direct_tools: list[BaseTool] = []
+    if spec.openapi_services:
+        from myrm_agent_harness.agent.config.exceptions import (
+            ConfigIncompleteError,
+        )
+        from myrm_agent_harness.toolkits.openapi_bridge import (
+            OpenAPIBridge,
+            OpenAPIServiceConfig,
+        )
+
+        bridge = OpenAPIBridge()
+        openapi_all: list[BaseTool] = []
+        enabled_openapi_count = 0
+        for svc_dict in spec.openapi_services:
+            try:
+                svc_config = OpenAPIServiceConfig.model_validate(svc_dict)
+                if svc_config.enabled:
+                    enabled_openapi_count += 1
+                    svc_tools = await bridge.get_tools(svc_config)
+                    openapi_all.extend(svc_tools)
+            except Exception as e:
+                logger.warning(f"Failed to load OpenAPI service: {e}")
+
+        if enabled_openapi_count > 0 and not openapi_all:
+            raise ConfigIncompleteError(
+                user_friendly_message={
+                    "en": (
+                        "OpenAPI services are enabled but no tools were loaded. "
+                        "Check spec URL/content, authentication, and selected endpoints."
+                    ),
+                    "zh": ("已启用 OpenAPI 服务但未加载任何工具。请检查 spec URL/内容、认证配置及已选 endpoint。"),
+                },
+                technical_details=(f"{enabled_openapi_count} enabled OpenAPI service(s) produced 0 tools"),
+                resolution_steps=[
+                    "Open Agent settings → OpenAPI services",
+                    "Verify spec URL or inline spec content loads correctly",
+                    "Check auth credentials and selected endpoints",
+                    "Save the agent and retry",
+                ],
+                error_code="openapi_load_failed",
+            )
+
+        if openapi_all:
+            from myrm_agent_harness.agent._factory.mcp_routing import (
+                AGGREGATE_DIRECT_TOKEN_BUDGET,
+                estimate_schema_tokens,
+            )
+            from myrm_agent_harness.agent._factory.mcp_surface import (
+                MCPSurfaceMode,
+                parse_mcp_surface_mode,
+            )
+
+            openapi_tokens = estimate_schema_tokens(openapi_all)
+            surface = parse_mcp_surface_mode(spec.mcp_surface_mode)
+            if surface != MCPSurfaceMode.DIRECT_FC and openapi_tokens > AGGREGATE_DIRECT_TOKEN_BUDGET:
+                raise ConfigIncompleteError(
+                    user_friendly_message={
+                        "en": (
+                            f"OpenAPI tool schemas (~{openapi_tokens} tokens) exceed the "
+                            f"Turn1 direct budget ({AGGREGATE_DIRECT_TOKEN_BUDGET}). "
+                            "Reduce selected endpoints in Agent settings."
+                        ),
+                        "zh": (
+                            f"OpenAPI 工具 schema（约 {openapi_tokens} tokens）超出 Turn1 "
+                            f"直接绑定预算（{AGGREGATE_DIRECT_TOKEN_BUDGET}）。"
+                            "请在 Agent 设置中减少已选 endpoint。"
+                        ),
+                    },
+                    technical_details=(
+                        f"OpenAPI schema ~{openapi_tokens} tokens exceeds direct budget {AGGREGATE_DIRECT_TOKEN_BUDGET}"
+                    ),
+                    resolution_steps=[
+                        "Open Agent settings → OpenAPI services",
+                        "Reduce selected endpoints per service",
+                        "Save the agent and retry",
+                    ],
+                    error_code="openapi_direct_budget_exceeded",
+                )
+            else:
+                openapi_direct_tools = openapi_all
+                logger.info(
+                    "OpenAPI Bridge: generated %d direct tools (~%d tokens)",
+                    len(openapi_all),
+                    openapi_tokens,
+                )
+
+    if tools is None:
+        tools = []
+    tools = list(tools) + openapi_direct_tools + mcp_direct_tools
+
+    final_skill_backend: SkillBackendProtocol | None = skill_backend
+    if mcp_skills:
+        from myrm_agent_harness.backends.skills import (
+            CompositeSkillBackend,
+            InMemorySkillBackend,
+        )
+        from myrm_agent_harness.backends.skills.protocols import (
+            SkillBackend as SkillBackendProto,
+        )
+
+        mcp_backend = InMemorySkillBackend(skills=mcp_skills)
+
+        if skill_backend is None:
+            final_skill_backend = mcp_backend
+            logger.info(" 使用 MCP Skills（InMemorySkillBackend）")
+
+        elif isinstance(skill_backend, CompositeSkillBackend):
+            new_routes: dict[str, SkillBackendProto] = {"/mcp/": mcp_backend}
+            new_routes.update(skill_backend.routes)
+            final_skill_backend = CompositeSkillBackend(
+                routes=new_routes,
+                default=skill_backend.default,
+            )
+            logger.info(f" 扁平化合并 MCP Skills + 用户 {len(skill_backend.routes)} 个后端路由")
+
+        else:
+            routes: dict[str, SkillBackendProto] = {
+                "/mcp/": mcp_backend,
+                "/user/": skill_backend,
+            }
+            final_skill_backend = CompositeSkillBackend(routes=routes)
+            logger.info(" 合并 MCP Skills + 用户 Skills（CompositeSkillBackend）")
+
+    from myrm_agent_harness.agent.types import AgentRuntimeConfig, EngineParams
+
+    engine_params_dict = spec.engine_params or {}
+    if isinstance(engine_params_dict, dict):
+        from dataclasses import fields as dataclass_fields
+
+        known_fields = {field.name for field in dataclass_fields(EngineParams)}
+        filtered_params: dict[str, Any] = {
+            key: value for key, value in engine_params_dict.items() if key in known_fields
+        }
+        engine_params = EngineParams(**filtered_params) if filtered_params else EngineParams()
+    else:
+        engine_params = EngineParams()
+
+    config = AgentRuntimeConfig(
+        # ``max_iterations`` is a user-facing turn budget: each LangGraph turn
+        # consumes two nodes (model + tools), so it maps to 2x the graph
+        # recursion limit — consistent with subagent builders (max_turns * 2).
+        recursion_limit=spec.max_iterations * 2,
+        timeout_seconds=engine_params.timeout_seconds,
+        parallel_tool_calls=engine_params.enable_parallel_tool_calls,
+        collect_artifacts=collect_artifacts,
+        locale=spec.locale,
+        prompt_locale=spec.prompt_locale or spec.locale,
+        channel_name=spec.channel_name,
+        security_config=spec.security_config,
+        engine_params=engine_params,
+    )
+
+    final_checkpointer: BaseCheckpointSaver[str] | None = None
+    if checkpointer is True:
+        from langgraph.checkpoint.memory import MemorySaver
+
+        final_checkpointer = MemorySaver()
+        logger.info(" 使用默认 MemorySaver checkpointer（启用 HITL）")
+    elif checkpointer is False or checkpointer is None:
+        final_checkpointer = None
+        logger.info(" 禁用 checkpointer（禁用 HITL）")
+    else:
+        final_checkpointer = checkpointer
+        logger.info(f" 使用自定义 checkpointer: {type(checkpointer).__name__}")
+
+    final_middlewares: list[AgentMiddleware[Any, Any]] | None = middlewares
+    if final_middlewares is None:
+        from myrm_agent_harness.agent.middlewares import (
+            create_context_pipeline_middleware,
+        )
+
+        final_middlewares = []
+        if engine_params.enable_context_compression:
+            compactor_aux_llm = fallback_llm or llm
+            final_middlewares.append(
+                create_context_pipeline_middleware(
+                    llm=llm,
+                    summarizer_llm=compactor_aux_llm,
+                    enable_active_tool_prune=engine_params.enable_active_tool_prune,
+                    active_prune_threshold_tokens=engine_params.active_prune_threshold_tokens,
+                )
+            )
+            compactor_type = type(compactor_aux_llm).__name__ if compactor_aux_llm is not None else "None"
+            logger.info(f" 使用主 LLM ({type(llm).__name__}) + 辅助压缩器 ({compactor_type}) 创建默认上下文管理中间件")
+        else:
+            logger.info(" 上下文管理中间件已通过 EngineParams 禁用")
+    else:
+        logger.info(" 使用用户提供的自定义中间件")
+
+    final_write_backend: ScanningSkillWriteBackend | None = None
+    if write_backend is not None:
+        from myrm_agent_harness.backends.skills.scanning import (
+            ScanningSkillWriteBackend,
+        )
+
+        llm_auditor_instance = None
+        auxiliary = fallback_llm or llm
+        if auxiliary is not None:
+            from myrm_agent_harness.backends.skills.scanning.llm_auditor import (
+                SkillLLMAuditor,
+            )
+
+            llm_auditor_instance = SkillLLMAuditor(llm=auxiliary)
+            logger.info(" LLM 安全审计已启用（语义级威胁检测）")
+
+        final_write_backend = ScanningSkillWriteBackend(
+            inner=write_backend,
+            llm_auditor=llm_auditor_instance,
+        )
+        logger.info(" ScanningSkillWriteBackend 已启用（强制安全扫描）")
+
+    from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+    return SkillAgent(
+        llm=llm,
+        executor=executor,
+        storage_backend=storage_backend,
+        skill_backend=final_skill_backend,
+        market_backend=market_backend,
+        write_backend=final_write_backend,
+        secret_backend=secret_backend,
+        memory_manager=memory_manager,
+        enable_memory_auto_extraction=enable_memory_auto_extraction,
+        extraction_llm=extraction_llm,
+        middlewares=final_middlewares,
+        system_prompt=spec.system_prompt,
+        tools=tools or [],
+        context_schema=context_schema,
+        config=config,
+        on_artifacts_ready=on_artifacts_ready,
+        fallback_llm=fallback_llm,
+        fallback_llms=fallback_llms,
+        safety_fallback_llm=safety_fallback_llm,
+        escalation_target_llm=escalation_target_llm,
+        embedding_config=embedding_config,
+        checkpointer=final_checkpointer,
+        event_log_backend=event_log_backend,
+        trusted_skill_ids=trusted_skill_ids,
+        skill_env_map=skill_env_map,
+        desired_skill_ids=spec.skill_ids,
+        skill_configs=spec.skill_configs,
+        state_manager=state_manager,
+        default_skill_instances=default_skill_instances,
+        global_env=global_env,
+        on_skill_review_ready=on_skill_review_ready,
+        wiki_base_dir=wiki_base_dir,
+        wiki_public_dirs=wiki_public_dirs,
+        wiki_public_dir_labels=wiki_public_dir_labels,
+        wiki_search_fn=wiki_search_fn,
+        wiki_scope_id=wiki_scope_id or spec.agent_id,
+        similarity_checker=similarity_checker,
+        on_session_cleanup=on_session_cleanup,
+        on_loaded_skills_persist=on_loaded_skills_persist,
+        extraction_lifecycle_observer=extraction_lifecycle_observer,
+        file_access_mode=resolved_file_access,
+        enable_shell_tools=enable_shell_tools,
+        enable_answer_tool=enable_answer_tool,
+        enable_planning=enable_planning,
+        task_workspace_root=task_workspace_root
+        or (spec.workspace_binding.root_path if spec.workspace_binding else None),
+        available_tool_names=(frozenset(spec.allowed_tools) if spec.allowed_tools else None),
+        available_tool_groups=frozenset(spec.tool_groups) if spec.tool_groups else None,
+        library_skill_names=library_skill_names,
+    )

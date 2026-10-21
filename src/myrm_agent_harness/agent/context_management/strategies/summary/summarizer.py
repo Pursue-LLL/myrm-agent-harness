@@ -1,0 +1,915 @@
+"""Context summarizer.
+
+[INPUT]
+- schemas::StructuredSummary (POS: structured summary dataclass with Handoff fields)
+- progress_timeout::SummaryProgressTracker, ProgressClock (POS: progress-aware timeout primitives for stall detection)
+- summary_prompts::SUMMARY_PROMPT_TEMPLATE, SUMMARY_MERGE_PROMPT_TEMPLATE, FOCUS_TOPIC_SUFFIX (POS: summary prompt templates)
+- summary_parser (POS: summary parsing utilities)
+- summary_builder (POS: summary message reconstruction)
+- security.detection.leak_detector::redact_leaks (POS: credential leak redaction, output-side + history-side defense)
+- security.detection.pii_redactor::redact_pii (POS: PII redactor. Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retain domain, cards their last 4 digits, etc.) for user-friendly redaction, applied for the levels the caller names, so one level's redaction never masks another level's content. Passwords are replaced by span (password_heuristic, recall mode) before the regex stages, so the label and the punctuation around the value survive. The user's custom terms are replaced by span right after the passwords, and the card numbers a card keyword introduces right after the S3 patterns. A match that fails its checksum is neither masked nor counted.)
+- toolkits.llms.utils.model_utils::get_model_context_limit (POS: best-effort model context window extraction)
+- agent.config.llm_safety::normalize_messages (POS: provider safety normalization for direct LLM calls; re-pairs tool calls with their results)
+- langchain_core.messages::BaseMessage (POS: LangChain message base class)
+- langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
+
+[OUTPUT]
+- should_summarize: dual-signal check (full-context local estimate OR API input_tokens; optional bound_tool_overhead_tokens + last_provider_prompt_tokens)
+- generate_structured_summary: core summarization function with streaming progress tracking, cache-safe message-prefix invocation, prefix re-paired by agent.config.llm_safety::normalize_messages (supports focus_topic + progress_tracker)
+
+[POS]
+Context summarizer. Pure in-memory summarization strategy using structured summary schema (StructuredSummary + Handoff fields), streaming progress tracking for timeout-aware invocation, cache-safe message-prefix invocation, and aux-model context guard (_guard_aux_context: auto-trims messages when summarizer LLM has a smaller context window; the trimmed prefix is re-paired so orphaned tool results never reach strict providers).
+"""
+
+from __future__ import annotations
+
+import time
+
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
+
+from myrm_agent_harness.agent.config.llm_safety import normalize_messages
+from myrm_agent_harness.agent.security.detection.leak_detector import redact_leaks
+from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
+from myrm_agent_harness.toolkits.llms.utils.model_utils import get_model_context_limit
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.token_estimation import (
+    estimate_context_tokens,
+    estimate_messages_tokens,
+)
+
+from ...infra.schemas import ContextConfig, StructuredSummary
+from .exact_anchor import ExactAnchorTable
+from .progress_timeout import (
+    ProgressClock,
+    SummaryProgressTracker,
+)
+from .summary_builder import (
+    TailExtractionResult,
+    create_summary_message,
+    extract_recent_messages_with_split_context,
+)
+from .summary_parser import (
+    _build_summary_from_dict,
+    extract_existing_summary,
+    extract_messages_after_summary,
+    format_messages_for_summary,
+    parse_summary_response,
+)
+from .summary_prompts import (
+    FOCUS_TOPIC_SUFFIX,
+    SPLIT_TURN_PROMPT_SUFFIX,
+    SUMMARY_MERGE_PROMPT_TEMPLATE,
+    SUMMARY_PROMPT_TEMPLATE,
+)
+
+
+class _FallbackSummaryModel(BaseModel):
+    user_goal: str = Field(default="")
+    completed_actions: list[str] = Field(default_factory=list)
+    key_findings: list[str] = Field(default_factory=list)
+    errors_and_fixes: list[str] = Field(default_factory=list)
+    files_modified: list[str] = Field(default_factory=list)
+    last_action: str = Field(default="")
+    context_dump_path: str = Field(default="")
+    active_task: str = Field(default="")
+    constraints_and_preferences: list[str] = Field(default_factory=list)
+    resolved_questions: list[str] = Field(default_factory=list)
+    pending_user_asks: list[str] = Field(default_factory=list)
+    active_state: str = Field(default="")
+    blocked_items: list[str] = Field(default_factory=list)
+    next_steps: list[str] = Field(default_factory=list)
+
+    def to_structured_summary(self) -> StructuredSummary:
+        return StructuredSummary(
+            user_goal=self.user_goal,
+            completed_actions=self.completed_actions,
+            key_findings=self.key_findings,
+            errors_and_fixes=self.errors_and_fixes,
+            files_modified=self.files_modified,
+            last_action=self.last_action,
+            context_dump_path=self.context_dump_path,
+            active_task=self.active_task,
+            constraints_and_preferences=self.constraints_and_preferences,
+            resolved_questions=self.resolved_questions,
+            pending_user_asks=self.pending_user_asks,
+            active_state=self.active_state,
+            blocked_items=self.blocked_items,
+            next_steps=self.next_steps,
+        )
+
+
+def _get_structured_llm_or_parser(
+    llm: BaseChatModel,
+) -> tuple[object | None, PydanticOutputParser[_FallbackSummaryModel] | None]:
+    try:
+        structured_llm = llm.with_structured_output(StructuredSummary)
+        return structured_llm, None
+    except NotImplementedError:
+        logger.warning(" Model does not support with_structured_output natively, degrading to PydanticOutputParser")
+        return None, PydanticOutputParser(pydantic_object=_FallbackSummaryModel)
+
+
+_REDACT_SKIP_FIELDS = frozenset({"context_dump_path", "files_modified"})
+
+
+def _redact_summary_fields(summary: StructuredSummary) -> StructuredSummary:
+    """Apply credential and PII redaction to all text fields of a StructuredSummary.
+
+    Skips context_dump_path (filesystem path) and files_modified (filenames)
+    which cannot contain credentials or PII. Safe no-op when nothing matches.
+    """
+
+    def _redact_text(text: str) -> str:
+        result = redact_leaks(text)
+        result, _ = redact_pii(result)
+        return result
+
+    for field_name in summary.__dataclass_fields__:
+        if field_name in _REDACT_SKIP_FIELDS:
+            continue
+        value = getattr(summary, field_name)
+        if isinstance(value, str) and value:
+            setattr(summary, field_name, _redact_text(value))
+        elif isinstance(value, list):
+            setattr(
+                summary,
+                field_name,
+                [_redact_text(item) if isinstance(item, str) else item for item in value],
+            )
+    return summary
+
+
+def _coerce_to_structured_summary(response: object, context_dump_path: str = "") -> StructuredSummary:
+    """Normalize ``with_structured_output``/parser output into a ``StructuredSummary``.
+
+    ``with_structured_output`` returns a plain ``dict`` on JSON-mode providers
+    (OpenAI-compatible), a Pydantic model on schema providers, or already a
+    ``StructuredSummary`` dataclass — all three must converge before the rest
+    of the pipeline reads dataclass attributes.
+    """
+    if isinstance(response, StructuredSummary):
+        return response
+    if isinstance(response, _FallbackSummaryModel):
+        return response.to_structured_summary()
+    if isinstance(response, dict):
+        return _build_summary_from_dict(response, context_dump_path=context_dump_path)
+    return parse_summary_response(response, context_dump_path=context_dump_path)
+
+
+async def _invoke_summary(
+    llm: BaseChatModel,
+    structured_llm: object | None,
+    parser: PydanticOutputParser[_FallbackSummaryModel] | None,
+    prompt: str,
+    dump_path: str,
+    cache_prefix_messages: list[BaseMessage] | None = None,
+    progress_tracker: SummaryProgressTracker | None = None,
+) -> StructuredSummary:
+    tracker = progress_tracker or ProgressClock()
+
+    if parser:
+        instructions = parser.get_format_instructions()
+        final_prompt = f"{prompt}\n\n{instructions}"
+        messages = _build_summary_invocation_messages(final_prompt, cache_prefix_messages)
+        response = await _stream_with_progress(llm, messages, tracker)
+        parsed = parser.invoke(response)
+        summary = parsed.to_structured_summary()
+    else:
+        messages = _build_summary_invocation_messages(prompt, cache_prefix_messages)
+        tracker.touch()
+        response = await structured_llm.ainvoke(messages)  # type: ignore
+        tracker.touch()
+        summary = _coerce_to_structured_summary(response, dump_path)
+
+    summary.context_dump_path = dump_path
+    summary = _redact_summary_fields(summary)
+    return summary
+
+
+async def _stream_with_progress(
+    llm: BaseChatModel,
+    messages: list[BaseMessage],
+    tracker: SummaryProgressTracker | ProgressClock,
+) -> AIMessage:
+    """Stream LLM response token-by-token, calling tracker.touch() on each chunk.
+
+    Falls back to ainvoke if the model does not support astream or if
+    astream fails (e.g. in test mocks that don't implement async iteration).
+    """
+    try:
+        stream = llm.astream(messages)
+        if not hasattr(stream, "__aiter__"):
+            raise NotImplementedError("astream did not return an async iterator")
+        chunks: list[str] = []
+        async for chunk in stream:
+            token = chunk.text if isinstance(chunk, BaseMessage) else str(chunk)
+            if token:
+                chunks.append(token)
+                tracker.touch()
+        return AIMessage(content="".join(chunks))
+    except (NotImplementedError, TypeError, AttributeError):
+        tracker.touch()
+        response = await llm.ainvoke(messages)
+        tracker.touch()
+        return (
+            response
+            if isinstance(response, AIMessage)
+            else AIMessage(content=str(getattr(response, "content", response)))
+        )
+
+
+def _build_summary_invocation_messages(
+    prompt: str,
+    cache_prefix_messages: list[BaseMessage] | None,
+) -> list[BaseMessage]:
+    # Aux-guard head trimming can orphan tool results; re-pair like the main call (healthy prefix stays identical).
+    return [*normalize_messages(cache_prefix_messages or []), HumanMessage(content=prompt)]
+
+
+logger = get_agent_logger(__name__)
+
+_AUX_CONTEXT_SAFETY_RATIO = 0.8
+_AUX_PROMPT_OVERHEAD = 2000
+
+
+def _guard_aux_context(
+    messages: list[BaseMessage],
+    llm: BaseChatModel,
+    prompt_tokens: int = _AUX_PROMPT_OVERHEAD,
+) -> list[BaseMessage]:
+    """Trim messages to fit within the aux model's context window.
+
+    When the summarizer LLM has a smaller context window than the main model,
+    the full message history may exceed its capacity, causing a hard
+    ``context_length_exceeded`` error. This guard trims from the head (keeping
+    the most recent messages) so the LLM call stays within safe bounds.
+
+    Returns the original list unchanged when no trimming is needed or when the
+    model's context limit cannot be determined (graceful no-op).
+    """
+    aux_limit = get_model_context_limit(llm)
+    if aux_limit is None:
+        return messages
+
+    safe_budget = int(aux_limit * _AUX_CONTEXT_SAFETY_RATIO) - prompt_tokens
+    if safe_budget <= 0:
+        logger.warning(
+            "[Summarize] Aux model context too small to hold even the prompt "
+            "(limit=%d, prompt_overhead=%d) — skipping guard",
+            aux_limit,
+            prompt_tokens,
+        )
+        return messages
+
+    total_tokens = estimate_messages_tokens(messages)
+    if total_tokens <= safe_budget:
+        return messages
+
+    trimmed: list[BaseMessage] = []
+    running = 0
+    for msg in reversed(messages):
+        msg_tokens = estimate_messages_tokens([msg])
+        if running + msg_tokens > safe_budget:
+            break
+        trimmed.insert(0, msg)
+        running += msg_tokens
+
+    if not trimmed:
+        trimmed = messages[-1:]
+
+    logger.warning(
+        "[Summarize] Aux context guard: trimmed %d → %d messages (aux_limit=%d, safe_budget=%d, original_tokens=%d)",
+        len(messages),
+        len(trimmed),
+        aux_limit,
+        safe_budget,
+        total_tokens,
+    )
+    return trimmed
+
+
+def should_summarize(
+    messages: list[BaseMessage],
+    config: ContextConfig | None = None,
+    ignore_api_tokens: bool = False,
+    *,
+    bound_tool_overhead_tokens: int = 0,
+    last_provider_prompt_tokens: int | None = None,
+) -> bool:
+    """Check whether proactive summarization should be triggered (dual-signal)."""
+    from ...infra.schemas import DEFAULT_CONTEXT_CONFIG
+
+    cfg = config or DEFAULT_CONTEXT_CONFIG
+    total_tokens = estimate_context_tokens(
+        messages,
+        bound_tool_overhead_tokens=bound_tool_overhead_tokens,
+        last_provider_prompt_tokens=last_provider_prompt_tokens,
+    )
+    max_window = cfg.max_context_tokens or 120000
+    threshold = cfg.proactive_reset_threshold
+
+    if total_tokens >= threshold:
+        ratio = total_tokens / max_window
+        logger.warning(
+            f" [Summarize] proactive_reset triggered: "
+            f"tokens={total_tokens}, threshold={threshold}, "
+            f"max_window={max_window}, ratio={ratio:.1%}"
+        )
+        return True
+
+    passive_threshold = cfg.summarize_trigger_threshold
+    if total_tokens >= passive_threshold:
+        ratio = total_tokens / max_window
+        logger.warning(
+            f" [Summarize] passive threshold triggered: "
+            f"tokens={total_tokens}, threshold={passive_threshold}, "
+            f"max_window={max_window}, ratio={ratio:.1%}"
+        )
+        return True
+
+    if ignore_api_tokens:
+        return False
+
+    api_input_tokens = 0
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage):
+            usage = getattr(msg, "usage_metadata", None)
+            if usage and isinstance(usage, dict):
+                api_input_tokens = usage.get("input_tokens", 0)
+
+            if api_input_tokens == 0:
+                resp_meta = getattr(msg, "response_metadata", {})
+                if isinstance(resp_meta, dict):
+                    token_usage = resp_meta.get("token_usage", {})
+                    if isinstance(token_usage, dict):
+                        api_input_tokens = token_usage.get("prompt_tokens", 0)
+
+            break
+
+    if api_input_tokens >= threshold:
+        ratio = api_input_tokens / max_window
+        logger.warning(
+            f" [Summarize] API token signal triggered: "
+            f"local_estimate={total_tokens}, api_input={api_input_tokens}, "
+            f"threshold={threshold}, max_window={max_window}, ratio={ratio:.1%}"
+        )
+        return True
+
+    logger.debug(
+        f" [Summarize Check] total={total_tokens}, api_input={api_input_tokens}, "
+        f"threshold={threshold}, max_window={max_window}"
+    )
+    return False
+
+
+async def generate_structured_summary(
+    messages: list[BaseMessage],
+    llm: BaseChatModel,
+    chat_id: str | None = None,
+    existing_summary: StructuredSummary | None = None,
+    config: ContextConfig | None = None,
+    focus_topic: str = "",
+    pre_compact_message: BaseMessage | None = None,
+    progress_tracker: SummaryProgressTracker | None = None,
+) -> tuple[list[BaseMessage], StructuredSummary]:
+    """Generate structured summary and rebuild message list (pure in-memory).
+
+    Two modes:
+    1. Full: generate a complete new summary
+    2. Incremental: merge new content into an existing summary
+    """
+    _summarize_start = time.monotonic()
+
+    from ...infra.schemas import DEFAULT_CONTEXT_CONFIG
+
+    cfg = config or DEFAULT_CONTEXT_CONFIG
+
+    if existing_summary is None:
+        existing_summary = extract_existing_summary(messages)
+
+    is_incremental = existing_summary is not None
+    mode_str = "incremental" if is_incremental else "full"
+    logger.warning(" Starting context summary (%s)...", mode_str)
+
+    dump_path = ""
+
+    tail_budget = int((cfg.max_context_tokens or 128000) * getattr(cfg, "tail_budget_ratio", 0.20))
+    tail_result: TailExtractionResult = extract_recent_messages_with_split_context(messages, tail_budget)
+    recent_messages = list(tail_result.messages)
+    original_tokens = estimate_messages_tokens(messages)
+
+    from .exact_anchor import extract_exact_anchors
+    from .summary_auditor import extract_key_entities
+
+    entities = extract_key_entities(messages)
+    exact_anchors = extract_exact_anchors(messages)
+
+    turn_prefix_messages = tail_result.turn_prefix_messages if tail_result.is_split_turn else None
+
+    if is_incremental and existing_summary is not None:
+        new_messages_only = extract_messages_after_summary(messages)
+        if new_messages_only:
+            summary = await _summarize_incremental_with_audit(
+                llm,
+                existing_summary,
+                new_messages_only,
+                dump_path,
+                messages,
+                entities,
+                focus_topic=focus_topic,
+                turn_prefix_messages=turn_prefix_messages,
+                progress_tracker=progress_tracker,
+                chat_id=chat_id,
+                exact_anchors=exact_anchors,
+            )
+        else:
+            summary = existing_summary
+            summary.context_dump_path = dump_path
+            logger.warning(" No new content, keeping existing summary")
+    else:
+        summary = await _summarize_full_with_audit(
+            llm,
+            messages,
+            dump_path,
+            entities,
+            focus_topic=focus_topic,
+            turn_prefix_messages=turn_prefix_messages,
+            progress_tracker=progress_tracker,
+            chat_id=chat_id,
+            exact_anchors=exact_anchors,
+        )
+
+    # Physical execution state reconciliation (Auto-Reconcile with ArtifactTracker)
+    from .execution_state_validator import reconcile_summary_execution_state
+
+    summary = reconcile_summary_execution_state(summary, chat_id, messages)
+
+    # Branch-scoped subagent compaction merge (enrich summary with child outcomes)
+    if chat_id:
+        try:
+            from myrm_agent_harness.agent.sub_agents.branch_scoped_compaction import (
+                merge_subagent_handovers_into_summary,
+            )
+
+            summary = merge_subagent_handovers_into_summary(summary, chat_id)
+        except Exception as e:
+            logger.debug("[Summarize] Failed to merge subagent branch handovers: %s", e)
+
+    import hashlib
+    import re
+
+    from .summary_builder import extract_protected_head
+
+    protected_head = extract_protected_head(messages)
+
+    # Prevent overlap between protected_head and recent_messages
+    protected_ids = {id(m) for m in protected_head}
+    recent_messages = [m for m in recent_messages if id(m) not in protected_ids]
+
+    # Dropped-constraint audit: record user constraints evicted by this
+    # compaction (redacted + truncated) so the GUI can distinguish "compression
+    # dropped my instruction" from "the model failed to follow it". Pure local
+    # computation — never enters to_json()/prompts.
+    from .dropped_manifest import build_dropped_manifest
+
+    summary.dropped_manifest = build_dropped_manifest(
+        messages,
+        protected_ids=protected_ids,
+        recent_ids={id(m) for m in recent_messages},
+    )
+    if summary.dropped_manifest:
+        logger.warning(
+            " Summary dropped %d user constraint snippet(s) from context: %s",
+            len(summary.dropped_manifest),
+            summary.dropped_manifest,
+        )
+
+    # Remove old preserved context messages to prevent accumulation
+    protected_head = [
+        msg
+        for msg in protected_head
+        if not (isinstance(msg, SystemMessage) and str(msg.content).startswith("[SYSTEM: PRESERVED CONTEXT]"))
+    ]
+
+    # --- Generic Context Preservation Logic ---
+    # Extracts <preserve_context> tags from any message, deduplicates them,
+    # truncates them to prevent OOM, and embeds them inside the summary HumanMessage
+    # to protect the system prompt prefix cache from invalidation.
+    rescued_context_blocks = {}
+    preserve_tag_pattern = re.compile(r"<preserve_context>(.*?)</preserve_context>", re.DOTALL | re.IGNORECASE)
+    max_preserve_chars = 2000
+
+    from ...working_memory.marks import is_eviction_immune
+
+    for msg in messages:
+        content_str = str(msg.content)
+        matches = preserve_tag_pattern.findall(content_str)
+        for match in matches:
+            clean_match = match.strip()
+            if not clean_match:
+                continue
+
+            if len(clean_match) > max_preserve_chars:
+                clean_match = clean_match[:max_preserve_chars] + "\n...[TRUNCATED]"
+
+            block_hash = hashlib.md5(clean_match.encode("utf-8")).hexdigest()
+            if block_hash not in rescued_context_blocks:
+                # Re-wrap in tags so it survives multiple summarizations
+                rescued_context_blocks[block_hash] = f"<preserve_context>\n{clean_match}\n</preserve_context>"
+
+        if is_eviction_immune(msg):
+            clean_val = content_str.strip()
+            if clean_val:
+                if len(clean_val) > max_preserve_chars:
+                    clean_val = clean_val[:max_preserve_chars] + "\n...[TRUNCATED]"
+                block_hash = hashlib.md5(clean_val.encode("utf-8")).hexdigest()
+                if block_hash not in rescued_context_blocks:
+                    rescued_context_blocks[block_hash] = (
+                        f"<preserve_context>\n[IMMUNE RULE / WORKING MEMORY]\n{clean_val}\n</preserve_context>"
+                    )
+
+    # Inject verified exact anchor index into preserved context
+    anchor_md = exact_anchors.format_markdown()
+    if anchor_md:
+        anchor_hash = hashlib.md5(anchor_md.encode("utf-8")).hexdigest()
+        rescued_context_blocks[anchor_hash] = f"<preserve_context>\n{anchor_md}\n</preserve_context>"
+
+    combined_preserved = None
+    if rescued_context_blocks:
+        combined_preserved = "\n\n".join(rescued_context_blocks.values())
+
+    summary = _cap_summary_if_needed(
+        summary,
+        original_tokens,
+        recent_messages,
+        chat_id,
+        preserved_context=combined_preserved,
+    )
+
+    # Preserved context is embedded in summary HumanMessage (not SystemMessage)
+    # to protect the system prompt prefix cache from invalidation.
+    summary_message = create_summary_message(summary, chat_id, preserved_context=combined_preserved)
+    middle_messages: list[BaseMessage] = [summary_message]
+    if pre_compact_message is not None:
+        middle_messages = [pre_compact_message, summary_message]
+
+    new_messages = protected_head + middle_messages + recent_messages
+
+    new_tokens = estimate_messages_tokens(new_messages)
+    saved_tokens = original_tokens - new_tokens
+
+    logger.warning(
+        " Summary done: %d -> %d tokens (saved %d)",
+        original_tokens,
+        new_tokens,
+        saved_tokens,
+    )
+
+    mode_detail = "incremental" if is_incremental else "full"
+    _elapsed_ms = int((time.monotonic() - _summarize_start) * 1000)
+    _record_summarize_to_metrics(
+        saved_tokens,
+        f"Summarized {len(messages)} messages ({mode_detail})",
+        elapsed_ms=_elapsed_ms,
+    )
+
+    return new_messages, summary
+
+
+# ---------------------------------------------------------------------------
+# Summary budget calculation
+# ---------------------------------------------------------------------------
+
+_SUMMARY_RATIO = 0.20
+_MIN_SUMMARY_TOKENS = 2000
+_MAX_SUMMARY_TOKENS = 12000
+
+
+def _build_budget_hint(content_tokens: int) -> str:
+    """Build a budget hint for the summary prompt.
+
+    Allocates 20% of compressed content as budget, clamped to [2000, 12000] tokens.
+    """
+    budget = max(
+        _MIN_SUMMARY_TOKENS,
+        min(int(content_tokens * _SUMMARY_RATIO), _MAX_SUMMARY_TOKENS),
+    )
+    return (
+        f"\nTarget length: ~{budget} tokens. Be specific and concise — "
+        f"include file paths, command outputs, error messages, and exact values. "
+        f"Avoid vague descriptions."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Summary output capping (prevent summary bloat)
+# ---------------------------------------------------------------------------
+
+_CAP_MAX_ACTIONS = 5
+_CAP_MAX_FINDINGS = 3
+_CAP_MAX_ERRORS = 3
+_CAP_GOAL_MAX_CHARS = 200
+
+
+def _cap_summary_if_needed(
+    summary: StructuredSummary,
+    original_tokens: int,
+    recent_messages: list[BaseMessage],
+    chat_id: str | None,
+    preserved_context: str | None = None,
+) -> StructuredSummary:
+    """Ensure summarised output is shorter than the original.
+
+    Applies progressive truncation following the Lost-in-Middle principle:
+    truncate middle fields first (completed_actions), preserve start
+    (user_goal) and end (errors_and_fixes).
+    """
+    summary_message = create_summary_message(summary, chat_id, preserved_context=preserved_context)
+    new_tokens = estimate_messages_tokens([summary_message, *recent_messages])
+
+    if new_tokens < original_tokens:
+        return summary
+
+    logger.warning(
+        " Summary bloat detected: %d → %d tokens, applying progressive cap",
+        original_tokens,
+        new_tokens,
+    )
+
+    # Phase 1: trim middle-attention fields first
+    summary.completed_actions = summary.completed_actions[:_CAP_MAX_ACTIONS]
+    summary.key_findings = summary.key_findings[:_CAP_MAX_FINDINGS]
+    summary.errors_and_fixes = summary.errors_and_fixes[:_CAP_MAX_ERRORS]
+    summary.resolved_questions = summary.resolved_questions[:3]
+
+    summary_message = create_summary_message(summary, chat_id, preserved_context=preserved_context)
+    new_tokens = estimate_messages_tokens([summary_message, *recent_messages])
+    if new_tokens < original_tokens:
+        return summary
+
+    # Phase 2: aggressive trimming
+    if len(summary.user_goal) > _CAP_GOAL_MAX_CHARS:
+        summary.user_goal = summary.user_goal[:_CAP_GOAL_MAX_CHARS] + "…"
+    summary.completed_actions = summary.completed_actions[:2]
+    summary.key_findings = summary.key_findings[:1]
+    summary.resolved_questions = summary.resolved_questions[:1]
+    summary.constraints_and_preferences = summary.constraints_and_preferences[:2]
+
+    logger.warning(" Applied aggressive cap to summary fields")
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# Audit + retry orchestration
+# ---------------------------------------------------------------------------
+
+_MAX_AUDIT_RETRIES = 2
+
+
+async def _summarize_full_with_audit(
+    llm: BaseChatModel,
+    messages: list[BaseMessage],
+    dump_path: str,
+    entities: set[str],
+    focus_topic: str = "",
+    turn_prefix_messages: list[BaseMessage] | None = None,
+    progress_tracker: SummaryProgressTracker | None = None,
+    chat_id: str | None = None,
+    exact_anchors: ExactAnchorTable | None = None,
+) -> StructuredSummary:
+    """Generate a full summary with quality audit and retry."""
+    from .summary_auditor import audit_summary, build_retry_guidance
+
+    original_tokens = estimate_messages_tokens(messages)
+    budget_hint = _build_budget_hint(original_tokens)
+
+    cache_safe_base_prompt = SUMMARY_PROMPT_TEMPLATE.format(
+        context="Use the preceding conversation messages as the Conversation History.",
+        budget_hint=budget_hint,
+    )
+    if focus_topic:
+        cache_safe_base_prompt += FOCUS_TOPIC_SUFFIX.format(focus_topic=focus_topic)
+
+    if turn_prefix_messages:
+        turn_prefix_text = format_messages_for_summary(turn_prefix_messages)
+        cache_safe_base_prompt += SPLIT_TURN_PROMPT_SUFFIX.format(turn_prefix_text=turn_prefix_text)
+
+    best: StructuredSummary | None = None
+    best_retained = -1
+
+    structured_llm, parser = _get_structured_llm_or_parser(llm)
+
+    prompt_tokens = estimate_messages_tokens([HumanMessage(content=cache_safe_base_prompt)])
+    guarded_messages = _guard_aux_context(messages, llm, prompt_tokens)
+
+    for attempt in range(_MAX_AUDIT_RETRIES + 1):
+        prompt = cache_safe_base_prompt
+        if attempt > 0 and best is not None:
+            guidance = build_retry_guidance(
+                audit_summary(best, messages, entities=entities, exact_anchors=exact_anchors)
+            )
+            prompt = f"{cache_safe_base_prompt}\n\n Quality feedback:\n{guidance}"
+
+        try:
+            summary = await _invoke_summary(
+                llm,
+                structured_llm,
+                parser,
+                prompt,
+                dump_path,
+                cache_prefix_messages=guarded_messages,
+                progress_tracker=progress_tracker,
+            )
+        except Exception as e:
+            logger.warning(" Structured output failed: %s", e)
+            if attempt == _MAX_AUDIT_RETRIES and best is None:
+                raise ValueError(f"Failed to generate structured summary: {e}") from e
+            continue
+
+        result = audit_summary(summary, messages, entities=entities, chat_id=chat_id, exact_anchors=exact_anchors)
+        if result.entity_retained > best_retained:
+            best = summary
+            best_retained = result.entity_retained
+
+        if result.passed:
+            logger.warning(
+                " Full summary done (attempt %d): goal=%s...",
+                attempt + 1,
+                summary.user_goal[:50],
+            )
+            return summary
+
+        logger.warning(
+            " Summary audit failed (attempt %d/%d): %s",
+            attempt + 1,
+            _MAX_AUDIT_RETRIES + 1,
+            "; ".join(result.issues),
+        )
+
+    logger.warning(
+        " Using best summary after %d attempts (retained %d entities)",
+        _MAX_AUDIT_RETRIES + 1,
+        best_retained,
+    )
+    return best  # type: ignore[return-value]
+
+
+async def _summarize_incremental_with_audit(
+    llm: BaseChatModel,
+    existing_summary: StructuredSummary,
+    new_messages: list[BaseMessage],
+    dump_path: str,
+    all_messages: list[BaseMessage],
+    entities: set[str],
+    focus_topic: str = "",
+    turn_prefix_messages: list[BaseMessage] | None = None,
+    progress_tracker: SummaryProgressTracker | None = None,
+    chat_id: str | None = None,
+    exact_anchors: ExactAnchorTable | None = None,
+) -> StructuredSummary:
+    """Generate an incremental summary with quality audit and retry."""
+    from .summary_auditor import audit_summary, build_retry_guidance
+
+    existing_summary = _redact_summary_fields(existing_summary)
+
+    new_tokens = estimate_messages_tokens(new_messages)
+    budget_hint = _build_budget_hint(new_tokens)
+
+    cache_safe_base_prompt = SUMMARY_MERGE_PROMPT_TEMPLATE.format(
+        existing_summary=existing_summary.to_json(),
+        new_context="Use the preceding conversation messages as the New Conversation Content.",
+        budget_hint=budget_hint,
+    )
+    if focus_topic:
+        cache_safe_base_prompt += FOCUS_TOPIC_SUFFIX.format(focus_topic=focus_topic)
+
+    if turn_prefix_messages:
+        turn_prefix_text = format_messages_for_summary(turn_prefix_messages)
+        cache_safe_base_prompt += SPLIT_TURN_PROMPT_SUFFIX.format(turn_prefix_text=turn_prefix_text)
+
+    best: StructuredSummary | None = None
+    best_retained = -1
+
+    structured_llm, parser = _get_structured_llm_or_parser(llm)
+
+    prompt_tokens = estimate_messages_tokens([HumanMessage(content=cache_safe_base_prompt)])
+    guarded_new_messages = _guard_aux_context(new_messages, llm, prompt_tokens)
+
+    for attempt in range(_MAX_AUDIT_RETRIES + 1):
+        prompt = cache_safe_base_prompt
+        if attempt > 0 and best is not None:
+            guidance = build_retry_guidance(
+                audit_summary(best, all_messages, entities=entities, chat_id=chat_id, exact_anchors=exact_anchors)
+            )
+            prompt = f"{cache_safe_base_prompt}\n\n Quality feedback:\n{guidance}"
+
+        try:
+            summary = await _invoke_summary(
+                llm,
+                structured_llm,
+                parser,
+                prompt,
+                dump_path,
+                cache_prefix_messages=guarded_new_messages,
+                progress_tracker=progress_tracker,
+            )
+        except Exception as e:
+            logger.warning(" Structured output failed: %s", e)
+            if attempt == _MAX_AUDIT_RETRIES and best is None:
+                raise ValueError(f"Failed to generate structured summary: {e}") from e
+            continue
+
+        result = audit_summary(summary, all_messages, entities=entities, chat_id=chat_id, exact_anchors=exact_anchors)
+        if result.entity_retained > best_retained:
+            best = summary
+            best_retained = result.entity_retained
+
+        if result.passed:
+            _log_merge_quality(existing_summary, summary)
+            logger.warning(
+                " Incremental merge done (attempt %d): goal=%s...",
+                attempt + 1,
+                summary.user_goal[:50],
+            )
+            return summary
+
+        logger.warning(
+            " Incremental audit failed (attempt %d/%d): %s",
+            attempt + 1,
+            _MAX_AUDIT_RETRIES + 1,
+            "; ".join(result.issues),
+        )
+
+    _log_merge_quality(existing_summary, best)  # type: ignore[arg-type]
+    logger.warning(
+        " Using best incremental summary after %d attempts (retained %d entities)",
+        _MAX_AUDIT_RETRIES + 1,
+        best_retained,
+    )
+    return best  # type: ignore[return-value]
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _log_merge_quality(before: StructuredSummary, after: StructuredSummary) -> None:
+    """Record incremental merge quality metrics (pre/post information count)."""
+    actions_before = len(before.completed_actions)
+    actions_after = len(after.completed_actions)
+    findings_before = len(before.key_findings)
+    findings_after = len(after.key_findings)
+    errors_before = len(before.errors_and_fixes)
+    errors_after = len(after.errors_and_fixes)
+    files_before = len(before.files_modified)
+    files_after = len(after.files_modified)
+
+    changes: list[str] = []
+    for label, b, a in [
+        ("actions", actions_before, actions_after),
+        ("findings", findings_before, findings_after),
+        ("errors", errors_before, errors_after),
+        ("files", files_before, files_after),
+    ]:
+        suffix = " " if a < b else ""
+        changes.append(f"{label}: {b}→{a}{suffix}")
+
+    has_loss = (
+        actions_after < actions_before
+        or findings_after < findings_before
+        or errors_after < errors_before
+        or files_after < files_before
+    )
+
+    if has_loss:
+        logger.warning(f" Incremental merge may have lost info: {', '.join(changes)}")
+    else:
+        logger.warning(f" Incremental merge quality: {', '.join(changes)}")
+
+
+def _record_summarize_to_metrics(tokens_saved: int, details: str = "", *, elapsed_ms: int = 0) -> None:
+    """Record a summarize event to TaskMetrics."""
+    try:
+        from myrm_agent_harness.agent.context_management.infra.session_lock import (
+            get_current_chat_id,
+        )
+        from myrm_agent_harness.agent.context_management.tracking.task_metrics import (
+            get_task_metrics,
+        )
+
+        chat_id = get_current_chat_id()
+        if chat_id:
+            metrics = get_task_metrics(chat_id)
+            if metrics:
+                metrics.record_compression(
+                    tokens_saved=tokens_saved,
+                    compression_type="summarize",
+                    details=details,
+                    elapsed_ms=elapsed_ms,
+                )
+    except Exception as e:
+        logger.warning("[Summarize] Failed to record to TaskMetrics: %s", e)

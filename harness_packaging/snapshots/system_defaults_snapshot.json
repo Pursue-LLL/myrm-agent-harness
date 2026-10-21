@@ -1,0 +1,14 @@
+{
+  "agent_config_defaults": {
+    "enable_artifacts": true,
+    "recursion_limit": 50,
+    "system_prompt": null,
+    "timeout_seconds": null
+  },
+  "file_io_defaults": {
+    "follow_symlinks": false,
+    "max_concurrent_reads": 10,
+    "max_file_size_bytes": 10485760,
+    "max_path_depth": 20
+  }
+}

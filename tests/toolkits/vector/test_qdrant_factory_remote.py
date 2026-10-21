@@ -1,0 +1,83 @@
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from myrm_agent_harness.toolkits.vector.config import DeploymentMode, VectorStoreConfig
+from myrm_agent_harness.toolkits.vector.qdrant import factory as qdrant_factory
+from myrm_agent_harness.toolkits.vector.qdrant.factory import (
+    create_embedded_store,
+    create_remote_store,
+    create_vector_store,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_embedded_cache():
+    """Clear singleton cache between tests so stores never leak across cases."""
+    qdrant_factory._embedded_clients.clear()
+    yield
+    qdrant_factory._embedded_clients.clear()
+
+
+@pytest.mark.asyncio
+async def test_qdrant_factory_remote():
+    """Test remote Qdrant store creation."""
+    config = VectorStoreConfig(mode=DeploymentMode.REMOTE, url="http://localhost:6333", api_key="test_key")
+
+    with patch("qdrant_client.AsyncQdrantClient") as mock_client:
+        mock_client.return_value = MagicMock()
+        store = await create_vector_store(config)
+
+        assert store.config.mode == DeploymentMode.REMOTE
+        assert store.config.url == "http://localhost:6333"
+        assert store.config.api_key == "test_key"
+
+
+@pytest.mark.asyncio
+async def test_qdrant_factory_remote_direct():
+    """Test remote Qdrant store creation directly."""
+    with patch("qdrant_client.AsyncQdrantClient") as mock_client:
+        mock_client.return_value = MagicMock()
+        store = create_remote_store(url="http://localhost:6333", api_key="test_key")
+
+        assert store.config.mode == DeploymentMode.REMOTE
+        assert store.config.url == "http://localhost:6333"
+
+
+@pytest.mark.asyncio
+async def test_qdrant_factory_memory_direct():
+    """Test embedded Qdrant store creation with :memory:."""
+    with patch("qdrant_client.QdrantClient") as mock_client:
+        mock_client.return_value = MagicMock()
+        store = await create_embedded_store(path=":memory:")
+
+        assert store.config.mode == DeploymentMode.EMBEDDED
+        assert store.config.local_path == ":memory:"
+
+
+@pytest.mark.asyncio
+async def test_qdrant_factory_unknown_mode():
+    """Test unknown mode."""
+    config = VectorStoreConfig(mode=DeploymentMode.EMBEDDED)
+    config.mode = "UNKNOWN"  # Bypass pydantic validation for testing
+    with pytest.raises(ValueError):
+        await create_vector_store(config)
+
+
+def test_create_remote_store_missing_dependency():
+    """Missing qdrant-client must surface a clear ImportError for remote mode."""
+    import builtins
+    from unittest.mock import patch
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "qdrant_client":
+            raise ImportError("No module named 'qdrant_client'")
+        return real_import(name, *args, **kwargs)
+
+    with (
+        patch("builtins.__import__", side_effect=fake_import),
+        pytest.raises(ImportError, match="qdrant-client is required"),
+    ):
+        create_remote_store(url="http://localhost:6333", api_key="test_key")

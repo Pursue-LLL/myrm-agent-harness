@@ -1,0 +1,628 @@
+"""流式执行引擎 — 封装 astream 的完整生命周期
+
+[INPUT]
+- langchain_core.messages::BaseMessage, HumanMessage (POS: LangChain 消息类型)
+- agent.streaming.event_handlers (POS: 事件处理器)
+- agent.streaming.artifact_events (POS: Artifact 事件处理器)
+- agent.streaming.source_tracker::SourceTracker (POS: 源追踪器)
+- agent.streaming.reasoning_scrubber::ReasoningScrubber (POS: 流式清洗器)
+- agent.streaming.recovery.context_pressure_gate::PreflightGateMixin (POS: Deterministic send-gate owned by the streaming recovery layer)
+- agent.streaming.escalation_scrubber::EscalationScrubber (POS: 流式层升级标记检测)
+- agent.streaming.recovery.stream_recovery_truncation::reset_ephemeral_max_output_tokens (POS: ephemeral output token cleanup)
+- agent.types::AgentEventType, AgentRunStatistics (POS: 类型定义)
+
+[OUTPUT]
+- StreamContext: execution context dataclass (optional callbacks: drain_subagent_notifications, on_loop_restart, on_goal_hold, file_content_reader for media/vision recovery)
+- StreamExecutor: streaming execution engine
+
+[POS]
+Stream execution engine. Encapsulates the complete lifecycle of Agent.astream().
+
+"""
+
+from __future__ import annotations
+
+import asyncio
+import dataclasses
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, cast
+
+from langchain.agents.middleware.types import AgentState
+from langchain_core.runnables.config import RunnableConfig
+from langgraph.types import Command
+
+from myrm_agent_harness.agent.errors.fault_side import classify_fault_side
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
+    reset_loop_guard,
+)
+from myrm_agent_harness.agent.streaming.types import AgentEventType
+from myrm_agent_harness.agent.types import AgentRunStatistics
+from myrm_agent_harness.toolkits.llms.errors import (
+    MyrmLLMError,
+    classify_failover_reason,
+)
+from myrm_agent_harness.toolkits.llms.errors.classifier import classify_error
+from myrm_agent_harness.toolkits.llms.errors.provider_window import ProviderWindowHint, extract_provider_window
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
+from .reasoning_scrubber import ReasoningScrubber
+from .recovery.context_pressure_gate import (
+    CONTEXT_OVERFLOW_TERMINAL_CODE,
+    PreflightGateMixin,
+    PreflightStreak,
+)
+from .recovery.stream_recovery import StreamRecoveryMixin
+from .recovery.stream_recovery_window import WindowAction
+from .recovery.turn_retry_state import TurnRetryState
+from .source_tracker import SourceTracker
+from .stream_compactor import StreamCompactor
+from .stream_dispatcher import StreamDispatcherMixin
+
+if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
+    from langchain_core.messages import BaseMessage
+    from langgraph.graph.state import CompiledStateGraph
+
+    from myrm_agent_harness.agent.context_management.pipeline.processors.media_resolver import (
+        FileContentReader,
+    )
+    from myrm_agent_harness.agent.event_log.logger import EventLogger
+    from myrm_agent_harness.agent.goals.protocols import GoalProvider
+    from myrm_agent_harness.agent.goals.types import Goal, GoalExecutionSummary
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+    from myrm_agent_harness.utils.runtime.steering import SteeringToken
+    from myrm_agent_harness.utils.token_economics.tracker import TokenTracker
+
+logger = get_agent_logger(__name__)
+
+STREAM_DONE = object()
+
+
+@dataclasses.dataclass
+class StreamContext:
+    """astream 执行所需的所有上下文。
+
+    将 10+ 个上下文变量显式化为 dataclass 字段,
+    避免闭包隐式捕获, 提高可读性和可测试性。
+
+    支持两种输入模式:
+    1. 普通模式: agent_input 为 {"messages": [...]}
+    2. Resume 模式: agent_input 为 Command(resume=...)
+    """
+
+    agent: CompiledStateGraph[Any, Any, Any, Any]
+    agent_input: Command[Any] | AgentState[Any]
+    merged_context: dict[str, Any]
+    run_config: RunnableConfig
+    stats: AgentRunStatistics
+    message_id: str
+    cancel_token: CancellationToken | None
+    steering_token: SteeringToken | None
+    source_tracker: SourceTracker
+    output_queue: asyncio.Queue[dict[str, object] | object]
+    event_logger: EventLogger | None = None
+    drain_subagent_notifications: Callable[[], str | None] | None = None
+    drain_teammate_messages: Callable[[], str | None] | None = None
+    llm_info: dict[str, str | None] | None = None
+    goal_provider: GoalProvider | None = None
+    on_goal_terminal: Callable[[Goal, list[BaseMessage], GoalExecutionSummary], Awaitable[None]] | None = None
+    on_loop_restart: Callable[[str, Goal], Awaitable[None]] | None = None
+    on_goal_hold: Callable[[Goal, ProviderWindowHint], Awaitable[None]] | None = None
+    file_content_reader: FileContentReader | None = None
+    escalation_target_llm: BaseChatModel | None = None
+    llm: BaseChatModel | None = None
+    token_tracker: TokenTracker | None = None
+    memory_manager: MemoryManager | None = None
+    retry_state: TurnRetryState = dataclasses.field(default_factory=TurnRetryState)
+
+
+class StreamExecutor(StreamDispatcherMixin, PreflightGateMixin, StreamRecoveryMixin):
+    """Agent 流式执行引擎。
+
+    封装 astream 的完整生命周期:
+    - Context overflow 自动恢复 (最多 2 次)
+    - LLM failover (主模型失败时切换备用模型)
+    - Steering 注入 (外部在运行时注入消息触发新轮次)
+    - Transient retry (瞬态错误抖动重试)
+    - 事件分发到 output_queue
+    """
+
+    def __init__(
+        self,
+        ctx: StreamContext,
+        fallback_llm: BaseChatModel | None = None,
+        safety_fallback_llm: BaseChatModel | None = None,
+        rebuild_agent_fn: object = None,
+        failover_used: bool = False,
+        fallback_llms: list[BaseChatModel] | None = None,
+    ) -> None:
+        self._ctx = ctx
+        self._fallback_llms: list[BaseChatModel] = (
+            list(fallback_llms) if fallback_llms is not None else ([fallback_llm] if fallback_llm is not None else [])
+        )
+        self._fallback_llm = self._fallback_llms[0] if self._fallback_llms else None
+        self._fallback_index = 0
+        self._window_waits = 0
+        self._safety_fallback_llm = safety_fallback_llm
+        self._rebuild_agent_fn = rebuild_agent_fn
+        self.failover_used = failover_used
+        self._escalation_used = False
+        self._consecutive_overloaded = 0
+        self.streaming_final_answer = False
+        self._partial_text_buffer = ""
+        self._redirect_partial_preserved = False
+        self._tool_truncation_retries = 0
+        self._compactor = StreamCompactor(ctx.output_queue)
+        self._reasoning_scrubber = ReasoningScrubber()
+        self._pseudonym_restorer = None
+
+        from .escalation_scrubber import EscalationScrubber
+        from .repetition_scrubber import StreamRepetitionScrubber
+
+        self._escalation_scrubber = EscalationScrubber(
+            enabled=ctx.escalation_target_llm is not None,
+        )
+        self._repetition_scrubber = StreamRepetitionScrubber(
+            enabled=True,
+            cancel_token=ctx.cancel_token,
+        )
+        self._slice_tool_call_ids: list[str] = []
+        self._preflight_streak = PreflightStreak()
+        self._presumed_overflow_used = False
+
+    async def _check_and_emit_trace_slice(self, force_flush: bool = False) -> None:
+        """Check if slice length reaches threshold or force_flush, and emit TRACE_SLICE_READY."""
+        if not self._slice_tool_call_ids:
+            return
+
+        if force_flush or len(self._slice_tool_call_ids) >= 15:
+            from myrm_agent_harness.agent.hooks.executor import fire_hook
+            from myrm_agent_harness.agent.hooks.types import HookEvent
+
+            await fire_hook(
+                HookEvent.TRACE_SLICE_READY,
+                {
+                    "session_id": self._ctx.message_id,
+                    "tool_call_ids": list(self._slice_tool_call_ids),
+                    "agent_id": self._ctx.merged_context.get("agent_id"),
+                    "agent_type": self._ctx.merged_context.get("agent_type"),
+                },
+            )
+            # Clear slice tracking after emitting
+            self._slice_tool_call_ids.clear()
+
+    async def execute(self) -> None:
+        """主执行循环。所有事件通过 ctx.output_queue 传递。"""
+        from myrm_agent_harness.agent.hooks.executor import fire_hook
+        from myrm_agent_harness.agent.hooks.types import HookEvent
+
+        ctx = self._ctx
+        overflow_retries = 0
+        transient_retries = 0
+        length_continue_retries = 0
+        empty_response_retries = 0
+        thinking_sig_attempted = False
+        duplicate_tool_use_attempted = False
+        image_shrink_attempted = False
+        media_rejected_attempted = False
+        allowed_tools_rejected_attempted = False
+
+        is_resume_mode = isinstance(ctx.agent_input, Command)
+
+        await fire_hook(
+            HookEvent.SESSION_START,
+            {"session_id": ctx.message_id, "is_resume": is_resume_mode},
+        )
+
+        try:
+            if ctx.token_tracker is not None:
+                from myrm_agent_harness.utils.token_economics.tracker import (
+                    _current_tracker,
+                )
+
+                _current_tracker.set(ctx.token_tracker)
+
+            while True:
+                from myrm_agent_harness.utils.token_economics.tracker import (
+                    get_token_tracker,
+                )
+
+                tracker = get_token_tracker()
+
+                initial_tool_call_count = ctx.stats.tool_call_count
+
+                if tracker and tracker.usage:
+                    initial_total_tokens = tracker.usage.total_tokens
+                    initial_cached_tokens = tracker.usage.cached_tokens
+                else:
+                    initial_total_tokens = ctx.stats.token_usage.total_tokens if ctx.stats.token_usage else 0
+                    initial_cached_tokens = ctx.stats.token_usage.cached_tokens if ctx.stats.token_usage else 0
+
+                initial_cost_usd = tracker.total_cost_usd if tracker else 0.0
+
+                import time
+
+                initial_time = time.time()
+
+                if isinstance(ctx.agent_input, Command):
+                    final_agent_input: Any = ctx.agent_input
+                    collected_messages: list[BaseMessage] = []
+                else:
+                    messages_dict = ctx.agent_input
+                    messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
+                    final_agent_input = {**messages_dict, **ctx.merged_context}
+                    collected_messages = list(messages)
+
+                if ctx.steering_token:
+                    ctx.steering_token.reset_turn()
+                self._partial_text_buffer = ""
+
+                await self._run_preflight_pressure_gate()
+
+                try:
+                    async for chunk in ctx.agent.astream(
+                        final_agent_input,
+                        ctx.run_config,
+                        context=ctx.merged_context,
+                        stream_mode=["updates", "messages", "custom"],
+                    ):
+                        if ctx.cancel_token and ctx.cancel_token.is_cancelled:
+                            ctx.stats.was_cancelled = True
+                            logger.warning(
+                                " Cancelled during execution: nodes=%d",
+                                ctx.stats.node_execution_count,
+                            )
+                            await self._compactor.put(
+                                {
+                                    "type": AgentEventType.CANCELLED.value,
+                                    "data": f"Cancelled after {ctx.stats.node_execution_count} nodes",
+                                    "messageId": ctx.message_id,
+                                }
+                            )
+                            break
+
+                        if ctx.steering_token and ctx.steering_token.redirect_requested:
+                            partial_preserved = bool(self._partial_text_buffer)
+                            logger.warning(
+                                " Redirect-in-place: breaking astream, partial preserved (%d chars buffered)",
+                                len(self._partial_text_buffer),
+                            )
+                            if self._partial_text_buffer:
+                                from langchain_core.messages import AIMessage
+
+                                last_ai = next(
+                                    (m for m in reversed(collected_messages) if isinstance(m, AIMessage) and m.content),
+                                    None,
+                                )
+                                if not last_ai or self._partial_text_buffer not in str(last_ai.content):
+                                    collected_messages.append(AIMessage(content=self._partial_text_buffer))
+                                self._partial_text_buffer = ""
+                            self._redirect_partial_preserved = partial_preserved
+                            break
+
+                        # astream with a list of stream modes yields (mode, data)
+                        # tuples per LangGraph docs; cast narrows the overly-wide
+                        # dict[str, Any] | Any signature down to the runtime shape.
+                        await self._dispatch_chunk(cast("tuple[str, object]", chunk), ctx, collected_messages)
+
+                except Exception as astream_exc:
+                    iteration_limit_hit = await self._handle_iteration_limit(astream_exc, collected_messages)
+                    if iteration_limit_hit:
+                        if ctx.goal_provider is None:
+                            break
+                        logger.info(" Iteration limit in goal mode — falling through to goal continuation")
+                    else:
+                        if await self._handle_thinking_signature(astream_exc, thinking_sig_attempted):
+                            thinking_sig_attempted = True
+                            continue
+
+                        if await self._handle_reasoning_mandatory(astream_exc):
+                            continue
+
+                        if await self._handle_duplicate_tool_use_id(astream_exc, duplicate_tool_use_attempted):
+                            duplicate_tool_use_attempted = True
+                            continue
+
+                        if await self._handle_image_shrink(astream_exc, image_shrink_attempted):
+                            image_shrink_attempted = True
+                            continue
+
+                        if await self._handle_media_rejected(astream_exc, media_rejected_attempted):
+                            media_rejected_attempted = True
+                            continue
+
+                        if await self._handle_allowed_tools_tool_choice_rejected(
+                            astream_exc,
+                            allowed_tools_rejected_attempted,
+                        ):
+                            allowed_tools_rejected_attempted = True
+                            continue
+
+                        if await self._handle_long_context_tier(astream_exc):
+                            overflow_retries += 1
+                            continue
+
+                        if await self._handle_overflow(astream_exc, overflow_retries):
+                            overflow_retries += 1
+                            continue
+
+                        if await self._handle_presumed_overflow(astream_exc):
+                            overflow_retries += 1
+                            continue
+
+                        if await self._handle_failover(astream_exc):
+                            continue
+
+                        window_action = await self._handle_provider_window(astream_exc)
+                        if window_action is WindowAction.RETRY:
+                            continue
+                        if window_action is WindowAction.HELD:
+                            break
+                        if window_action is WindowAction.FAIL:
+                            raise
+
+                        if await self._handle_transient_retry(astream_exc, transient_retries):
+                            transient_retries += 1
+                            continue
+
+                        raise
+
+                self._consecutive_overloaded = 0
+
+                if await self._handle_subagent_notifications(collected_messages):
+                    continue
+
+                if await self._handle_teammate_messages(collected_messages):
+                    continue
+
+                if await self._handle_steering(collected_messages):
+                    continue
+
+                if await self._handle_escalation(collected_messages):
+                    continue
+
+                if await self._handle_length_truncation(collected_messages, length_continue_retries):
+                    length_continue_retries += 1
+                    continue
+
+                if await self._handle_safety_refusal_fallback():
+                    continue
+
+                if await self._handle_empty_response(collected_messages, empty_response_retries):
+                    empty_response_retries += 1
+                    continue
+
+                from myrm_agent_harness.utils.token_economics.tracker import (
+                    get_token_tracker,
+                )
+
+                tracker = get_token_tracker()
+
+                tools_called_this_turn = ctx.stats.tool_call_count > initial_tool_call_count
+
+                if tracker and tracker.usage:
+                    current_total = tracker.usage.total_tokens
+                    current_cached = tracker.usage.cached_tokens
+                else:
+                    current_total = ctx.stats.token_usage.total_tokens if ctx.stats.token_usage else 0
+                    current_cached = ctx.stats.token_usage.cached_tokens if ctx.stats.token_usage else 0
+
+                net_tokens_this_turn = (current_total - initial_total_tokens) - (current_cached - initial_cached_tokens)
+                current_cost_usd = tracker.total_cost_usd if tracker else 0.0
+                cost_this_turn = max(0.0, current_cost_usd - initial_cost_usd)
+                time_this_turn_seconds = int(time.time() - initial_time)
+
+                # Check if we should emit trace slice based on call threshold
+                await self._check_and_emit_trace_slice(force_flush=False)
+
+                logger.debug(
+                    " _handle_goal_continuation checks: goal_provider=%s, net_tokens_this_turn=%d, session_id=%s",
+                    ctx.goal_provider,
+                    net_tokens_this_turn,
+                    ctx.merged_context.get("chat_id", "none"),
+                )
+
+                if await self._handle_goal_continuation(
+                    collected_messages,
+                    tools_called_this_turn=tools_called_this_turn,
+                    net_tokens_this_turn=net_tokens_this_turn,
+                    cost_this_turn=cost_this_turn,
+                    time_this_turn_seconds=time_this_turn_seconds,
+                ):
+                    reset_loop_guard(
+                        is_resume=True,
+                        graph_recursion_limit=ctx.run_config.get("recursion_limit", 100),
+                    )
+                    continue
+
+                await self._flush_turn_memory()
+                break
+
+        except Exception as e:
+            await self._emit_fatal_error(e)
+
+        finally:
+            from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
+                reset_ephemeral_max_output_tokens,
+            )
+
+            reset_ephemeral_max_output_tokens()
+
+            await self._flush_turn_memory()
+            await self._check_and_emit_trace_slice(force_flush=True)
+
+            await fire_hook(
+                HookEvent.SESSION_END,
+                {
+                    "session_id": ctx.message_id,
+                    "was_cancelled": ctx.stats.was_cancelled,
+                    "error": ctx.stats.error_message or "",
+                    "node_count": ctx.stats.node_execution_count,
+                },
+            )
+            escalation_flushed = self._escalation_scrubber.flush()
+            if escalation_flushed:
+                for scrubbed_type, scrubbed_text in self._reasoning_scrubber.process(escalation_flushed):
+                    if scrubbed_text:
+                        restored = self._restore_pseudonyms(scrubbed_text)
+                        await self._emit_event(
+                            {
+                                "type": scrubbed_type.value,
+                                "data": restored,
+                                "messageId": ctx.message_id,
+                            },
+                            ctx,
+                        )
+            for event_type, content in self._reasoning_scrubber.flush():
+                if content:
+                    restored = self._restore_pseudonyms(content)
+                    await self._emit_event(
+                        {
+                            "type": event_type.value,
+                            "data": restored,
+                            "messageId": ctx.message_id,
+                        },
+                        ctx,
+                    )
+            if self._pseudonym_restorer is not None:
+                flushed = self._pseudonym_restorer.flush()
+                if flushed:
+                    await self._emit_event(
+                        {
+                            "type": AgentEventType.MESSAGE.value,
+                            "data": flushed,
+                            "messageId": ctx.message_id,
+                        },
+                        ctx,
+                    )
+            await self._compactor.flush()
+            await self._compactor.put(STREAM_DONE)
+
+    async def _flush_turn_memory(self) -> None:
+        """Flush active memory session at turn boundary if buffer has pending items."""
+        mm = self._ctx.memory_manager
+        if mm is not None:
+            session = getattr(mm, "active_session", None)
+            if session is not None and getattr(session, "buffer_size", 0) > 0:
+                try:
+                    await session.flush()
+                except Exception as e:
+                    logger.warning("Turn boundary memory flush failed: %s", e)
+
+    async def _emit_fatal_error(self, exc: Exception) -> None:
+        """Build standardized error event with diagnostics and raise MyrmLLMError."""
+        ctx = self._ctx
+        error_msg = str(exc)
+        error_type = type(exc).__name__
+        failover_reason = classify_failover_reason(exc)
+        error_kind = classify_error(exc)
+        ctx.stats.error_message = f"{error_type}: {error_msg}"
+        logger.error(
+            " Agent execution error [%s]: %s: %s",
+            failover_reason.value,
+            error_type,
+            error_msg[:300],
+            exc_info=True,
+        )
+
+        error_event: dict[str, object] = {
+            "type": AgentEventType.ERROR.value,
+            "error": error_msg,
+            "error_type": error_type,
+            "error_kind": error_kind.value,
+            "failover_reason": failover_reason.value,
+            "messageId": ctx.message_id,
+        }
+
+        # Deterministic fault-side attribution (pure rules, no LLM) — lets the
+        # GUI tell users who owns the failure instead of guessing.
+        error_event["fault_side"] = classify_fault_side(error_kind=error_kind.value).value
+
+        if ctx.stats.compression_exhausted:
+            error_event["compression_exhausted"] = True
+            error_event["terminal_code"] = CONTEXT_OVERFLOW_TERMINAL_CODE
+
+        window_hint = extract_provider_window(exc)
+        if window_hint is not None:
+            error_event["cooldown_remaining_ms"] = int(window_hint.wait_s * 1000)
+
+        try:
+            from myrm_agent_harness.agent.errors.diagnostics import (
+                ErrorContext,
+                LLMErrorDiagnostic,
+            )
+
+            model_name = "unknown"
+            base_url = None
+            is_custom_endpoint = False
+
+            if ctx.llm_info:
+                model_name = ctx.llm_info.get("model_name") or "unknown"
+                base_url = ctx.llm_info.get("base_url")
+                is_custom_endpoint = base_url is not None
+
+            context = ErrorContext(
+                model_name=model_name,
+                is_custom_endpoint=is_custom_endpoint,
+                base_url=base_url,
+            )
+
+            locale = ctx.merged_context.get("locale", "en") if ctx.merged_context else "en"
+            cooldown_remaining_ms = error_event.get("cooldown_remaining_ms")
+            cooldown_remaining_ms = cooldown_remaining_ms if isinstance(cooldown_remaining_ms, int) else None
+
+            diagnostic = LLMErrorDiagnostic.diagnose(
+                exc, context, locale=locale, cooldown_remaining_ms=cooldown_remaining_ms
+            )
+
+            error_event["diagnostic_result"] = {
+                "error_type": diagnostic.error_type,
+                "user_message": diagnostic.user_message,
+                "resolution_steps": diagnostic.resolution_steps,
+                "locale": diagnostic.locale,
+            }
+
+            # Refine attribution with the diagnostic error_type as a fallback:
+            # error_kind may be UNKNOWN while the diagnostic pinpoints the cause
+            # (e.g. api_key/connection). The unified classifier prefers
+            # error_kind and falls back to error_type.
+            error_event["fault_side"] = classify_fault_side(
+                error_kind=error_kind.value,
+                error_type=diagnostic.error_type,
+            ).value
+
+            recovery_actions = LLMErrorDiagnostic.get_recovery_actions(diagnostic.error_type, locale=diagnostic.locale)
+            if recovery_actions:
+                error_event["recovery_actions"] = recovery_actions
+        except Exception as diag_err:
+            logger.error("Diagnostic generation failed: %s", diag_err)
+
+        await self._compactor.put(error_event)
+
+        # Persist the fatal error to the event journal so post-mortem trace
+        # reconstruction (trace_builder) sees LLM fatal errors, not just tool
+        # failures. Mirrors StreamDispatcherMixin._emit_event's logging path:
+        # type/messageId are transport-only fields, stripped before persistence.
+        # Best-effort: logging must never mask the original fatal error.
+        if ctx.event_logger is not None:
+            try:
+                persisted = dict(error_event)
+                persisted.pop("type", None)
+                persisted.pop("messageId", None)
+                await ctx.event_logger.log(AgentEventType.ERROR.value, persisted)
+            except Exception as log_err:
+                logger.error("Failed to persist fatal error event: %s", log_err)
+
+        diagnostic_payload = error_event.get("diagnostic_result")
+        raise MyrmLLMError(
+            error_code=failover_reason,
+            default_msg=error_msg,
+            context=(
+                {"cooldown_remaining_ms": error_event.get("cooldown_remaining_ms")}
+                if "cooldown_remaining_ms" in error_event
+                else None
+            ),
+            original_exc=exc,
+            diagnostic_result=(diagnostic_payload if isinstance(diagnostic_payload, dict) else None),
+        ) from exc

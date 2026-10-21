@@ -1,0 +1,135 @@
+"""Main-agent todo_write tool — workspace-backed progress with hard constraints.
+
+[INPUT]
+- progress.schemas::MAX_TODOS, TodoItem, TodoStatus, TodoStore (POS: todo data models and limits)
+- progress.storage::read/write/merge todos (POS: workspace SSOT)
+- progress.events::emit_todo_progress_events (POS: SSE UI)
+- langchain_core.tools::tool (POS: LangChain tool decorator)
+
+[OUTPUT]
+- create_todo_write_tool: Factory for main-agent todo_write LangChain tool
+
+[POS]
+Opt-in planning meta-tool; bound when enable_planning or existing todos file.
+Enforces MAX_TODOS upper limit and single in_progress concurrency.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+
+from langchain_core.tools import BaseTool, tool
+
+from myrm_agent_harness.agent.meta_tools.progress.events import emit_todo_progress_events
+from myrm_agent_harness.agent.meta_tools.progress.schemas import MAX_TODOS, TodoItem, TodoStatus, TodoStore
+from myrm_agent_harness.agent.meta_tools.progress.storage import (
+    merge_todo_items,
+    parse_todo_payload,
+    read_todos_sync_from_workspace,
+    write_todos_sync_to_workspace,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _enforce_single_in_progress(items: list[TodoItem]) -> int:
+    """Keep only the last in_progress item; revert earlier ones to pending.
+
+    Returns the number of items corrected.
+    """
+    in_progress_indices = [i for i, item in enumerate(items) if item.status == TodoStatus.IN_PROGRESS]
+    if len(in_progress_indices) <= 1:
+        return 0
+    for idx in in_progress_indices[:-1]:
+        items[idx].status = TodoStatus.PENDING
+    return len(in_progress_indices) - 1
+
+
+def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
+    """Create todo_write bound to a chat workspace root."""
+
+    @tool
+    def todo_write(
+        todos: list[dict[str, object]],
+        merge: bool = False,
+        goal: str | None = None,
+    ) -> str:
+        """Create or update a structured task list to track multi-step execution progress.
+
+        Use for complex objectives (3+ steps). Skip for trivial single-step tasks.
+        Constraints: Maximum 20 items. At most ONE task can be in_progress at any time.
+
+        Args:
+            todos: List of task items. Each item must be a dict with:
+                - id: Unique string identifier (e.g. "1", "2", "setup_db")
+                - content: Concrete, actionable step description (optional in merge=True if updating status only)
+                - status: One of "pending" | "in_progress" | "completed" | "cancelled" | "blocked" (optional in merge=True to retain existing status)
+            merge: Mode flag.
+                - False (default): Initialize or overwrite the full task list.
+                - True: Incrementally update specified items by id (pass only changed items).
+            goal: Optional title summarizing the overall objective.
+
+        Returns:
+            JSON summary of the current todo list.
+        """
+        if workspace_root is None or not workspace_root.strip():
+            return json.dumps({"error": "Workspace root is not available for todo persistence."})
+
+        root = workspace_root.strip()
+        try:
+            incoming = parse_todo_payload(todos, allow_empty_content=merge)
+            current = read_todos_sync_from_workspace(root)
+            merged_items = merge_todo_items(current.todos if current else [], incoming, merge=merge)
+        except ValueError as exc:
+            return json.dumps({"error": str(exc)})
+
+        if len(merged_items) > MAX_TODOS:
+            return json.dumps(
+                {
+                    "error": f"Maximum {MAX_TODOS} todos exceeded ({len(merged_items)} given). "
+                    "Merge or simplify your plan.",
+                }
+            )
+
+        corrected_count = _enforce_single_in_progress(merged_items)
+        next_revision = (current.revision + 1) if current else 1
+
+        store = TodoStore(
+            goal=goal if goal is not None else (current.goal if current else None),
+            todos=merged_items,
+            revision=next_revision,
+        )
+        write_todos_sync_to_workspace(root, store)
+        emit_todo_progress_events(store)
+
+        pending = sum(1 for item in store.todos if item.status == TodoStatus.PENDING)
+        in_progress = sum(1 for item in store.todos if item.status == TodoStatus.IN_PROGRESS)
+        completed = sum(1 for item in store.todos if item.status == TodoStatus.COMPLETED)
+        cancelled = sum(1 for item in store.todos if item.status == TodoStatus.CANCELLED)
+        blocked = sum(1 for item in store.todos if item.status == TodoStatus.BLOCKED)
+
+        summary: dict[str, object] = {
+            "total": len(store.todos),
+            "pending": pending,
+            "in_progress": in_progress,
+            "completed": completed,
+            "cancelled": cancelled,
+            "blocked": blocked,
+            "revision": store.revision,
+        }
+        if corrected_count > 0:
+            summary["note"] = (
+                f"Auto-corrected: {corrected_count} extra in_progress item(s) "
+                "reverted to pending. Keep only 1 in_progress at a time."
+            )
+
+        return json.dumps(
+            {"todos": [item.model_dump() for item in store.todos], "summary": summary},
+            ensure_ascii=False,
+        )
+
+    return todo_write
+
+
+__all__ = ["create_todo_write_tool"]

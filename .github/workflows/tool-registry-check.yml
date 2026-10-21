@@ -1,0 +1,64 @@
+name: Tool Registry Consistency
+
+on:
+  pull_request:
+    paths:
+      - 'src/myrm_agent_harness/**/*.py'
+      - 'src/myrm_agent_harness/agent/tool_management/_TOOL_LAYERS*'
+      - 'src/myrm_agent_harness/agent/tool_management/tool_layers.py'
+      - 'src/myrm_agent_harness/agent/tool_management/*.md'
+      - 'tests/architecture/test_tool_registry.py'
+      - 'scripts/tool_registry_config.py'
+      - 'scripts/tool_registry_engine.py'
+      - 'scripts/tool_registry_models.py'
+      - 'scripts/validate_tool_registry.py'
+      - '.pre-commit-config.yaml'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  tool-registry-check:
+    name: Tool Registry Consistency Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # scripts/tool_registry_config.py resolves the server tree as ../myrm-agent/myrm-agent-server
+      # relative to the harness root, so both repositories sit side by side inside the workspace.
+      - name: Checkout code (with server bootstrap)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: myrm-agent-harness
+          fetch-depth: 0
+          submodules: false
+
+      - name: Checkout sibling server repo for bootstrap parsing
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ github.repository_owner }}/myrm-agent
+          path: myrm-agent
+          ref: main
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4.2.0
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Run full tool-registry validation
+        run: |
+          cd myrm-agent-harness
+          uv run python scripts/validate_tool_registry.py
+
+      - name: Verify docs counts are in sync
+        run: |
+          cd myrm-agent-harness
+          uv run python scripts/validate_tool_registry.py --generate-docs
+          if ! git diff --quiet src/myrm_agent_harness/agent/tool_management/; then
+            echo "::error::Docs are out of sync. Run scripts/validate_tool_registry.py --generate-docs locally and commit the result."
+            git diff src/myrm_agent_harness/agent/tool_management/
+            exit 1
+          fi

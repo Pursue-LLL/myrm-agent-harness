@@ -1,0 +1,858 @@
+"""Skill market service.
+
+Aggregates search results from multiple sources, orchestrates install flow.
+Implements SkillMarketBackend protocol.
+
+[INPUT]
+- backends.skills.market_protocols::SkillInstallResult, (POS: SkillBackend SkillBackend SkillMarketBackend)
+- backends.skills.scanning::ScanFinding, (POS: Scan result cache layer. Stores scan results in Volume (~/.myrm/skill_scans/) to avoid redundant scanning. Critical for performance: 20x speedup for repeat scans. Cache key: SHA256 hash of skill content Cache location: ~/.myrm/skill_scans/{content_hash}.json Expiration: 60 days TTL (auto-cleanup on get))
+- backends.skills.scanning.archive_security::format_archive_security_user_message (POS: Canonical archive-security contract for typed/untyped ZIP guard errors.)
+
+[OUTPUT]
+- EnrichedSearchResult: Search result enriched with local installation info.
+- SkillPreviewResult: Preview result before installation (includes security scan).
+- BaseSkillMarketService: Aggregates skill sources for search deduplication and qua...
+
+[POS]
+Skill market service.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import logging
+import shutil
+import tempfile
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from myrm_agent_harness.agent.skills.market.sanitizer import sanitize_skill_files
+from myrm_agent_harness.backends.skills.local_skill_id import (
+    local_skill_id_from_path,
+    resolve_local_install_dir,
+)
+from myrm_agent_harness.backends.skills.market_protocols import (
+    SkillInstallResult,
+    SkillSearchResult,
+)
+from myrm_agent_harness.backends.skills.scanning import (
+    ScanFinding,
+    compute_scan_summary,
+)
+from myrm_agent_harness.backends.skills.scanning.archive_security import (
+    classify_archive_security_issue,
+    format_archive_security_user_message,
+)
+from myrm_agent_harness.backends.skills.scanning.package_audit import (
+    check_lifecycle_scripts,
+)
+from myrm_agent_harness.backends.skills.scanning.path_security import (
+    CategoryBucketCollisionError,
+    PathRedirectSecurityError,
+)
+from myrm_agent_harness.backends.skills.versioning import (
+    SkillDowngradeBlockedError,
+    compare_versions,
+    validate_version_guard,
+)
+
+from .helpers import (
+    SOURCE_PRIORITY,
+    deduplicate,
+    fetch_lobehub_as_skill,
+    rank_results,
+    read_origin,
+    scan_all_text_files,
+    write_origin,
+)
+from .installers.git_installer import GitInstaller
+from .installers.zip_installer import ZipInstaller
+from .sources.aliyun import AliyunSource
+from .sources.base import SkillSource
+from .sources.clawhub import ClawHubSource
+from .sources.github import GitHubSkillSource
+from .sources.lobehub import LobeHubSource
+from .sources.modelscope import ModelScopeSource
+from .sources.prebuilt import PrebuiltSkillSource
+from .sources.skills_sh import SkillsShSource
+from .sources.static_index import StaticIndexSkillSource
+from .transaction import (
+    SkillInstallTransaction,
+    build_skill_receipt,
+    read_receipt_file,
+    write_receipt_file,
+)
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.backends.skills.market_protocols import InstalledSkillStore
+
+logger = logging.getLogger(__name__)
+
+LOCAL_INSTALL_DIR = Path("~/.myrm/skills").expanduser()
+SEARCH_TIMEOUT = 20.0
+CACHE_MAX_ENTRIES = 100
+CACHE_TTL_SECONDS = 300
+
+
+def _is_safe_skill_dir_name(name: str) -> bool:
+    """Skill install directory names must be a single relative path segment.
+
+    The name comes from publisher-controlled frontmatter, so anything that
+    could escape the install root (separators, dot segments, absolute paths)
+    must be rejected before it reaches filesystem operations.
+    """
+    if not name or name in {".", ".."}:
+        return False
+    if "/" in name or "\\" in name:
+        return False
+    return not Path(name).is_absolute()
+
+
+def _resolve_install_error(error: Exception) -> tuple[str, str]:
+    from myrm_agent_harness.backends.skills.scanning.path_security import (
+        CategoryBucketCollisionError,
+        PathRedirectSecurityError,
+    )
+
+    if isinstance(error, CategoryBucketCollisionError):
+        return (
+            str(error),
+            "CATEGORY_BUCKET_COLLISION",
+        )
+    if isinstance(error, PathRedirectSecurityError):
+        return (
+            str(error),
+            "PATH_REDIRECT_ATTACK",
+        )
+
+    violation = classify_archive_security_issue(error)
+    if violation is None:
+        return str(error), ""
+    return format_archive_security_user_message(violation), violation.code.value
+
+
+@dataclass(frozen=True)
+class EnrichedSearchResult:
+    """Search result enriched with local installation info."""
+
+    result: SkillSearchResult
+    installed_version: str = ""
+    upgrade_available: bool = False
+
+
+@dataclass(frozen=True)
+class SkillPreviewResult:
+    """Preview result before installation (includes security scan)."""
+
+    skill_id: str
+    name: str
+    description: str
+    version: str
+    files: list[str]
+    scan_findings: list[ScanFinding] = field(default_factory=list)
+    is_clean: bool = True
+    package_type: str = "skill"
+    installed_skills: list[str] = field(default_factory=list)
+    declared_mcp_servers: list[str] = field(default_factory=list)
+    prerequisites: dict[str, object] | None = None
+    """Prerequisite status report evaluating host OS, binaries, and Python dependencies."""
+
+
+class BaseSkillMarketService:
+    """Aggregates skill sources for search deduplication and quarantine-based install.
+    Framework-layer service: does not depend on server database or event bus.
+    """
+
+    def __init__(
+        self,
+        github_token: str | None = None,
+        skill_store: InstalledSkillStore | None = None,
+    ) -> None:
+        sources: list[SkillSource] = [
+            StaticIndexSkillSource(),
+            ClawHubSource(),
+            GitHubSkillSource(token=github_token),
+            SkillsShSource(),
+            LobeHubSource(),
+            ModelScopeSource(),
+            AliyunSource(),
+        ]
+        if skill_store:
+            sources.insert(0, PrebuiltSkillSource(skill_store))
+        self._sources: list[SkillSource] = sources
+        self._git_installer = GitInstaller()
+        self._zip_installer = ZipInstaller()
+        self._search_cache: dict[str, tuple[float, list[SkillSearchResult]]] = {}
+
+    def register_source(self, source: SkillSource) -> None:
+        """Register a custom skill source for search aggregation.
+
+        Idempotent: skips if a source with the same source_name already exists.
+        """
+        if any(s.source_name == source.source_name for s in self._sources):
+            return
+        self._sources.append(source)
+        logger.info("Registered custom skill source: %s", source.source_name)
+
+    def unregister_source(self, source_name: str) -> bool:
+        """Remove a custom skill source by name. Returns True if removed."""
+        before = len(self._sources)
+        self._sources = [s for s in self._sources if s.source_name != source_name]
+        removed = len(self._sources) < before
+        if removed:
+            logger.info("Unregistered skill source: %s", source_name)
+        return removed
+
+    async def search(
+        self,
+        query: str,
+        limit: int = 30,
+        installed_versions_map: dict[str, str] | None = None,
+    ) -> list[EnrichedSearchResult]:
+        import time
+
+        cache_key = query.lower().strip()
+        is_browse = not cache_key
+        now = time.time()
+
+        cached = self._search_cache.get(cache_key)
+        if cached and now - cached[0] < CACHE_TTL_SECONDS:
+            raw_results = cached[1][:limit]
+        else:
+            if is_browse:
+                raw_results: list[SkillSearchResult] = []
+            else:
+                sources = self._sources
+
+                async def _search_with_meta(
+                    source_index: int, source: SkillSource
+                ) -> tuple[int, str, list[SkillSearchResult]]:
+                    results = await self._search_source(source, query, limit)
+                    return source_index, source.source_name, results
+
+                tasks = [_search_with_meta(source_index, source) for source_index, source in enumerate(sources)]
+                source_batches: list[tuple[int, str, list[SkillSearchResult]]] = []
+                for coro in asyncio.as_completed(tasks):
+                    try:
+                        source_batches.append(await asyncio.wait_for(coro, timeout=SEARCH_TIMEOUT))
+                    except TimeoutError:
+                        logger.warning("A skill source timed out during search")
+                    except Exception as e:
+                        logger.warning("Skill source search error: %s", e)
+
+                source_batches.sort(
+                    key=lambda batch: (
+                        -SOURCE_PRIORITY.get(batch[1], 0),
+                        batch[0],
+                        batch[1],
+                    )
+                )
+                all_results: list[SkillSearchResult] = []
+                for _, _, source_results in source_batches:
+                    all_results.extend(source_results)
+
+                deduped = deduplicate(all_results)
+                ranked = rank_results(deduped, query)
+                raw_results = ranked[:limit]
+
+            if len(self._search_cache) >= CACHE_MAX_ENTRIES:
+                oldest_key = min(self._search_cache, key=lambda k: self._search_cache[k][0])
+                del self._search_cache[oldest_key]
+            self._search_cache[cache_key] = (now, raw_results)
+
+        return self._enrich_results(raw_results, installed_versions_map)
+
+    async def preview(self, skill_id: str, source: str) -> SkillPreviewResult:
+        """Download skill content and run security scan without installing."""
+        detail = await self.get_detail(skill_id, source)
+        if not detail:
+            raise ValueError(f"Skill not found: {skill_id} from {source}")
+
+        if detail.install_method == "direct" and detail.source == "prebuilt":
+            return SkillPreviewResult(
+                skill_id=detail.id,
+                name=detail.name,
+                description=detail.description,
+                version=detail.version,
+                files=["SKILL.md"],
+            )
+
+        if detail.install_method == "git":
+            skill_files = await self._git_installer.download(detail.install_url, detail.subdirectory)
+        elif detail.install_method == "zip":
+            skill_files = await self._zip_installer.download(detail.install_url, detail.subdirectory)
+        else:
+            raise ValueError(f"Unsupported install method: {detail.install_method}")
+
+        scan_result = scan_all_text_files(detail.name, skill_files.files)
+
+        package_type = "skill"
+        installed_skills: list[str] = []
+        declared_mcp_servers: list[str] = []
+        if "plugin.json" in skill_files.files:
+            package_type = "agent_plugin"
+            try:
+                from myrm_agent_harness.agent.plugins.parser import AgentPluginParser
+
+                parser = AgentPluginParser()
+                parsed = parser.parse_files(skill_files.files)
+                installed_skills = [s.name for s in parsed.skills]
+                declared_mcp_servers = [s.name for s in parsed.servers]
+            except Exception as exc:
+                logger.warning("Failed to parse plugin.json during preview: %s", exc)
+
+        prerequisites_report: dict[str, object] | None = None
+        try:
+            from myrm_agent_harness.backends.skills.prerequisites import (
+                check_skill_prerequisites,
+            )
+
+            req_data: dict[str, object] = {}
+            if detail.extra_manifest and isinstance(detail.extra_manifest, dict):
+                req_data.update(detail.extra_manifest.get("requirements") or {})
+                req_data.update(detail.extra_manifest.get("dependencies") or {})
+            if "requirements.json" in skill_files.files:
+                import json
+
+                try:
+                    loaded_req = json.loads(skill_files.files["requirements.json"].decode("utf-8"))
+                    if isinstance(loaded_req, dict):
+                        req_data.update(loaded_req)
+                except Exception:
+                    pass
+
+            if req_data:
+                report = check_skill_prerequisites(detail.id, req_data)
+                prerequisites_report = report.to_dict()
+        except Exception as exc:
+            logger.debug("Failed to evaluate prerequisites during preview: %s", exc)
+
+        return SkillPreviewResult(
+            skill_id=detail.id,
+            name=skill_files.name,
+            description=skill_files.description,
+            version=detail.version,
+            files=sorted(skill_files.files.keys()),
+            scan_findings=list(scan_result.findings),
+            is_clean=scan_result.is_clean,
+            package_type=package_type,
+            installed_skills=installed_skills or [skill_files.name],
+            declared_mcp_servers=declared_mcp_servers,
+            prerequisites=prerequisites_report,
+        )
+
+    async def install(
+        self,
+        skill_id: str,
+        source: str,
+        *,
+        allow_downgrade: bool = False,
+        progress_callback: Callable[[str, str, str], None] | None = None,
+    ) -> SkillInstallResult:
+        def _emit(stage: str, msg: str):
+            if progress_callback:
+                progress_callback(skill_id, stage, msg)
+
+        _emit("resolving", "Resolving skill metadata...")
+        detail = await self.get_detail(skill_id, source)
+        if not detail:
+            _emit("failed", "Skill not found")
+            return SkillInstallResult(success=False, error=f"Skill not found: {skill_id} from {source}")
+
+        if detail.install_method == "direct" and detail.source == "prebuilt":
+            _emit("completed", "Prebuilt skill ready")
+            return SkillInstallResult(
+                success=True,
+                skill_name=detail.name,
+                skill_id=detail.id,
+                installed_path="prebuilt (already installed)",
+            )
+
+        if detail.install_method == "direct" and detail.source == "lobehub":
+            _emit("downloading", "Fetching LobeHub agent template...")
+            try:
+                files = await fetch_lobehub_as_skill(detail)
+            except ValueError as e:
+                resolved_error, error_code = _resolve_install_error(e)
+                _emit("failed", resolved_error)
+                return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
+            return await self.install_files(
+                skill_id,
+                detail.name,
+                files,
+                source=source,
+                allow_downgrade=allow_downgrade,
+                progress_callback=progress_callback,
+            )
+
+        _emit("downloading", f"Downloading from {source}...")
+        try:
+            if detail.install_method == "git":
+                skill_files = await self._git_installer.download(detail.install_url, detail.subdirectory)
+            elif detail.install_method == "zip":
+                skill_files = await self._zip_installer.download(detail.install_url, detail.subdirectory)
+            else:
+                _emit("failed", "Unsupported install method")
+                return SkillInstallResult(
+                    success=False,
+                    error=f"Unsupported install method: {detail.install_method}",
+                )
+        except ValueError as e:
+            resolved_error, error_code = _resolve_install_error(e)
+            _emit("failed", resolved_error)
+            return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
+
+        sanitized = sanitize_skill_files(skill_files.files)
+        return await self.install_files(
+            skill_id,
+            skill_files.name,
+            sanitized,
+            source=source,
+            allow_downgrade=allow_downgrade,
+            progress_callback=progress_callback,
+        )
+
+    async def install_from_url(
+        self,
+        url: str,
+        *,
+        allow_downgrade: bool = False,
+        progress_callback: Callable[[str, str, str], None] | None = None,
+    ) -> SkillInstallResult:
+        from .sources.github import parse_github_url
+
+        skill_id = f"url::{url[:80]}"
+
+        def _emit(stage: str, msg: str):
+            if progress_callback:
+                progress_callback(skill_id, stage, msg)
+
+        _emit("resolving", "Parsing URL...")
+
+        try:
+            ref = parse_github_url(url)
+        except ValueError as e:
+            _emit("failed", str(e))
+            return SkillInstallResult(success=False, error=str(e))
+
+        _emit("downloading", "Cloning repository...")
+        try:
+            skill_files = await self._git_installer.download(ref.clone_url, subdirectory=ref.subdirectory, ref=ref.ref)
+        except ValueError as e:
+            resolved_error, error_code = _resolve_install_error(e)
+            _emit("failed", resolved_error)
+            return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
+
+        sanitized = sanitize_skill_files(skill_files.files)
+        return await self.install_files(
+            skill_id,
+            skill_files.name,
+            sanitized,
+            source="github",
+            allow_downgrade=allow_downgrade,
+            progress_callback=progress_callback,
+        )
+
+    async def uninstall(self, skill_id: str) -> SkillInstallResult:
+        """Uninstall a locally installed skill and cascade-remove any child skills using receipt."""
+        if not skill_id.startswith("local::"):
+            return SkillInstallResult(
+                success=False,
+                error=f"Only local skills can be uninstalled via this method: {skill_id}",
+            )
+
+        target_dir = resolve_local_install_dir(skill_id, LOCAL_INSTALL_DIR)
+        if target_dir is None:
+            return SkillInstallResult(success=False, error=f"Skill directory not found for id: {skill_id}")
+
+        skill_name = target_dir.name
+        uninstalled_skills = [skill_name]
+
+        # 1. Inspect receipt if present for precise forensic accounting
+        receipt = read_receipt_file(target_dir)
+
+        # 2. Cascade uninstall child skills registered to this parent plugin
+        if LOCAL_INSTALL_DIR.exists():
+            for child_dir in list(LOCAL_INSTALL_DIR.iterdir()):
+                if child_dir.is_dir() and child_dir != target_dir:
+                    child_origin = read_origin(child_dir)
+                    is_child = (
+                        child_origin.get("parent_plugin") == skill_name
+                        or child_origin.get("skill_id") == skill_id
+                        or (receipt and child_dir.name in receipt.installed_skills)
+                    )
+                    if is_child:
+                        try:
+                            shutil.rmtree(child_dir)
+                            uninstalled_skills.append(child_dir.name)
+                            logger.info(
+                                "Cascade uninstalled child skill %s of parent %s",
+                                child_dir.name,
+                                skill_name,
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "Failed to cascade remove child skill %s: %s",
+                                child_dir.name,
+                                exc,
+                            )
+
+        # 3. Remove main target directory
+        try:
+            from myrm_agent_harness.backends.skills.scanning.path_security import (
+                assert_safe_install_target,
+            )
+
+            assert_safe_install_target(target_dir)
+            shutil.rmtree(target_dir)
+        except Exception as e:
+            return SkillInstallResult(success=False, error=f"Failed to remove skill directory: {e}")
+
+        logger.info("Uninstalled skill: %s (total cleaned: %s)", skill_name, uninstalled_skills)
+        return SkillInstallResult(
+            success=True,
+            skill_name=skill_name,
+            skill_id=skill_id,
+            installed_path=str(target_dir),
+            installed_skills=uninstalled_skills,
+            receipt=receipt,
+        )
+
+    async def get_detail(self, skill_id: str, source: str) -> SkillSearchResult | None:
+        cached = self._find_in_cache(skill_id, source)
+        if cached:
+            return cached
+
+        for src in self._sources:
+            if src.source_name == source:
+                return await src.get_detail(skill_id)
+        return None
+
+    def _find_in_cache(self, skill_id: str, source: str) -> SkillSearchResult | None:
+        for _ts, results in self._search_cache.values():
+            for r in results:
+                if r.id == skill_id and r.source == source:
+                    return r
+        return None
+
+    def _enrich_results(
+        self,
+        results: list[SkillSearchResult],
+        installed_versions: dict[str, str] | None,
+    ) -> list[EnrichedSearchResult]:
+        if not installed_versions or not results:
+            return [EnrichedSearchResult(result=r) for r in results]
+
+        enriched: list[EnrichedSearchResult] = []
+        for r in results:
+            local_ver = installed_versions.get(r.name.lower(), "")
+            if local_ver and r.version:
+                delta = compare_versions(local_ver, r.version)
+                enriched.append(
+                    EnrichedSearchResult(
+                        result=r,
+                        installed_version=local_ver,
+                        upgrade_available=delta.has_update,
+                    )
+                )
+            elif local_ver:
+                enriched.append(EnrichedSearchResult(result=r, installed_version=local_ver))
+            else:
+                enriched.append(EnrichedSearchResult(result=r))
+        return enriched
+
+    async def _search_source(self, source: SkillSource, query: str, limit: int) -> list[SkillSearchResult]:
+        try:
+            return await source.search(query, limit)
+        except Exception as e:
+            logger.warning("Search failed for source %s: %s", source.source_name, e)
+            return []
+
+    async def install_files(
+        self,
+        skill_id: str,
+        name: str,
+        files: dict[str, bytes],
+        *,
+        source: str = "",
+        allow_downgrade: bool = False,
+        progress_callback: Callable[[str, str, str], None] | None = None,
+    ) -> SkillInstallResult:
+        """Install an in-memory skill file tree through the quarantine pipeline.
+
+        Single install entry for every source that already holds the files
+        (market downloads, LobeHub templates, Agent Plugin skills, business-layer
+        imports). ``skill_id`` is a provenance label written to the origin file;
+        the canonical local skill id is derived from the install path.
+
+        Rejection pipeline (each returns a failed SkillInstallResult, never
+        raises): invalid directory name → lifecycle script guard → security
+        score gate → version downgrade guard → unsafe install target
+        (symlink/junction or category bucket). Unexpected errors propagate.
+        """
+
+        def _emit(stage: str, msg: str):
+            if progress_callback:
+                progress_callback(skill_id, stage, msg)
+
+        # 0. 安装目录名必须是单个相对路径段：frontmatter 的 name 完全由
+        # 技能发布方控制，未经校验会拼出目录穿越或让 mkdtemp 直接崩溃
+        if not _is_safe_skill_dir_name(name):
+            reason = f"Invalid skill name for install directory: {name!r}"
+            logger.warning("Skill install rejected: %s", reason)
+            _emit("rejected", reason)
+            return SkillInstallResult(
+                success=False,
+                skill_name=name,
+                error=reason,
+                error_code="INVALID_SKILL_NAME",
+            )
+
+        # 1. 前置生命周期脚本防御门禁 (Lifecycle Script Guard)
+        lifecycle_findings = check_lifecycle_scripts(files)
+        if any(f.severity in ("critical", "high") for f in lifecycle_findings):
+            blocked_reasons = [f.description for f in lifecycle_findings if f.severity in ("critical", "high")]
+            reason_str = "; ".join(blocked_reasons)
+            logger.warning("Skill '%s' blocked by lifecycle script guard: %s", name, reason_str)
+            _emit("rejected", f"Blocked by lifecycle script guard: {reason_str}")
+            return SkillInstallResult(
+                success=False,
+                skill_name=name,
+                error=f"Security policy blocked installation: malicious lifecycle scripts detected ({reason_str})",
+                error_code="LIFECYCLE_SCRIPT_BLOCKED",
+                scan_summary=reason_str,
+            )
+
+        quarantine_dir = Path(tempfile.mkdtemp(prefix=f"skill-quarantine-{name}-"))
+
+        try:
+            _emit("quarantine", "Writing to quarantine...")
+            quarantine_resolved = quarantine_dir.resolve()
+            for rel_path, content in files.items():
+                file_path = (quarantine_dir / rel_path).resolve()
+                if not str(file_path).startswith(str(quarantine_resolved)):
+                    logger.warning("Blocked path escape in skill '%s': %s", name, rel_path)
+                    continue
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                file_path.write_bytes(content)
+
+            _emit("scanning", "Running security scan...")
+            scan_result = scan_all_text_files(name, files)
+            scan_summary_obj = compute_scan_summary(scan_result)
+
+            if scan_summary_obj.score < 50:
+                logger.warning(
+                    "Skill '%s' blocked by security gate (score %d/100 < 50): %s",
+                    name,
+                    scan_summary_obj.score,
+                    scan_result.summary,
+                )
+                _emit(
+                    "rejected",
+                    f"Security Gate Blocked: score {scan_summary_obj.score}/100 < 50 threshold. {scan_result.summary}",
+                )
+                return SkillInstallResult(
+                    success=False,
+                    skill_name=name,
+                    error=f"Security scan blocked installation (Score {scan_summary_obj.score}/100 below 50 threshold): {scan_result.summary}",
+                    error_code="SECURITY_SCORE_BELOW_THRESHOLD",
+                    scan_summary=scan_result.summary,
+                )
+
+            _emit("installing", "Promoting to install directory...")
+            installed_skills: list[str] = []
+            declared_mcp_servers: list[str] = []
+
+            # 2. 版本防御门禁 (Skill Version Guardrail)
+            target_dir = LOCAL_INSTALL_DIR / name
+            incoming_version = ""
+            current_version = ""
+            if "SKILL.md" in files:
+                try:
+                    from myrm_agent_harness.backends.skills._utils import (
+                        parse_skill_frontmatter,
+                    )
+
+                    fm = parse_skill_frontmatter(files["SKILL.md"].decode("utf-8", errors="replace"), name)
+                    incoming_version = fm.version or ""
+                except Exception as exc:
+                    logger.debug("Could not parse incoming version from SKILL.md: %s", exc)
+
+            if target_dir.exists():
+                origin_meta = read_origin(target_dir)
+                current_version = str(origin_meta.get("version", "")) if origin_meta else ""
+                if not current_version:
+                    cur_skill_md = target_dir / "SKILL.md"
+                    if cur_skill_md.exists():
+                        try:
+                            from myrm_agent_harness.backends.skills._utils import (
+                                parse_skill_frontmatter,
+                            )
+
+                            cur_fm = parse_skill_frontmatter(cur_skill_md.read_text(encoding="utf-8"), name)
+                            current_version = cur_fm.version or ""
+                        except Exception as exc:
+                            logger.debug(
+                                "Could not parse current version from local SKILL.md: %s",
+                                exc,
+                            )
+
+            try:
+                guard_res = validate_version_guard(
+                    current_version,
+                    incoming_version,
+                    allow_downgrade=allow_downgrade,
+                )
+                if guard_res.reason:
+                    logger.info("Skill '%s' version guard notice: %s", name, guard_res.reason)
+            except SkillDowngradeBlockedError as exc:
+                logger.warning("Skill '%s' installation blocked by version guard: %s", name, exc)
+                _emit("rejected", str(exc))
+                return SkillInstallResult(
+                    success=False,
+                    skill_name=name,
+                    error=str(exc),
+                    error_code="DOWNGRADE_BLOCKED",
+                )
+
+            with SkillInstallTransaction() as tx:
+                if "plugin.json" in files:
+                    try:
+                        from myrm_agent_harness.agent.plugins.parser import (
+                            AgentPluginParser,
+                        )
+
+                        parser = AgentPluginParser()
+                        parsed = parser.parse_files(files)
+                        declared_mcp_servers = [s.name for s in parsed.servers]
+                        for p_skill in parsed.skills:
+                            s_target_dir = LOCAL_INSTALL_DIR / p_skill.name
+                            s_quarantine = Path(tempfile.mkdtemp(prefix=f"skill-q-{p_skill.name}-"))
+                            try:
+                                for rel_p, data in p_skill.files.items():
+                                    f_path = s_quarantine / rel_p
+                                    f_path.parent.mkdir(parents=True, exist_ok=True)
+                                    f_path.write_bytes(data)
+                                tx.stage_replace(s_quarantine, s_target_dir)
+                                write_origin(
+                                    s_target_dir,
+                                    source=source,
+                                    skill_id=skill_id,
+                                    version=incoming_version,
+                                    parent_plugin=name,
+                                )
+                                p_scan = scan_all_text_files(p_skill.name, p_skill.files)
+                                p_summary = compute_scan_summary(p_scan)
+                                p_receipt = build_skill_receipt(
+                                    skill_id=local_skill_id_from_path(s_target_dir),
+                                    skill_name=p_skill.name,
+                                    source=source,
+                                    installed_path=str(s_target_dir),
+                                    files=p_skill.files,
+                                    scan_score=p_summary.score,
+                                    security_verified=p_scan.is_clean,
+                                )
+                                write_receipt_file(s_target_dir, p_receipt)
+                                installed_skills.append(p_skill.name)
+                            finally:
+                                if s_quarantine.exists():
+                                    shutil.rmtree(s_quarantine, ignore_errors=True)
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to unpack Agent Plugin sub-skills for %s: %s",
+                            name,
+                            exc,
+                        )
+                        raise
+
+                tx.stage_replace(quarantine_dir, target_dir)
+
+                write_origin(
+                    target_dir,
+                    source=source,
+                    skill_id=skill_id,
+                    version=incoming_version,
+                    declared_mcp_servers=declared_mcp_servers or None,
+                )
+
+                canonical_id = local_skill_id_from_path(target_dir)
+                receipt = build_skill_receipt(
+                    skill_id=canonical_id,
+                    skill_name=name,
+                    source=source,
+                    installed_path=str(target_dir),
+                    files=files,
+                    installed_skills=installed_skills or [name],
+                    declared_mcp_servers=declared_mcp_servers,
+                    scan_score=scan_summary_obj.score,
+                    security_verified=scan_result.is_clean,
+                )
+                write_receipt_file(target_dir, receipt)
+                tx.commit()
+
+            scan_summary = scan_result.summary if not scan_result.is_clean else ""
+            if scan_summary:
+                logger.warning(
+                    "Installed skill with findings: %s -> %s (%s)",
+                    name,
+                    target_dir,
+                    scan_summary,
+                )
+            else:
+                logger.info("Installed skill: %s -> %s", name, target_dir)
+
+            _emit("completed", f"Installed to {target_dir}")
+            return SkillInstallResult(
+                success=True,
+                skill_name=name,
+                skill_id=canonical_id,
+                installed_path=str(target_dir),
+                scan_summary=scan_summary,
+                installed_skills=installed_skills or [name],
+                declared_mcp_servers=declared_mcp_servers,
+                receipt=receipt,
+            )
+        except (CategoryBucketCollisionError, PathRedirectSecurityError) as exc:
+            # 安装目标是符号链接/分类桶等不安全路径：属于可预期的安全拒绝，
+            # 转成结构化失败结果，避免调用方收到不透明的 500
+            resolved_error, error_code = _resolve_install_error(exc)
+            logger.warning("Skill '%s' install target rejected: %s", name, resolved_error)
+            _emit("rejected", resolved_error)
+            return SkillInstallResult(
+                success=False,
+                skill_name=name,
+                error=resolved_error,
+                error_code=error_code,
+            )
+        finally:
+            if quarantine_dir.exists():
+                shutil.rmtree(quarantine_dir, ignore_errors=True)
+
+
+def _atomic_replace(src: Path, dst: Path) -> None:
+    if dst.exists() and dst.is_dir():
+        for p in dst.glob("**/*"):
+            if p.is_file() and p.suffix == ".bak":
+                with contextlib.suppress(OSError):
+                    p.unlink()
+    backup = dst.parent / (dst.name + ".bak")
+    had_backup = False
+
+    try:
+        if dst.exists():
+            if backup.exists():
+                shutil.rmtree(backup, ignore_errors=True)
+            dst.rename(backup)
+            had_backup = True
+
+        shutil.move(str(src), str(dst))
+
+        if had_backup:
+            shutil.rmtree(backup, ignore_errors=True)
+    except Exception:
+        if had_backup and backup.exists() and not dst.exists():
+            backup.rename(dst)
+        raise

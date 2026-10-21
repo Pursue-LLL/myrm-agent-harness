@@ -1,0 +1,14 @@
+{
+  "full_scan": {
+    "elapsed_sec": 1.288,
+    "files_scanned": 626,
+    "imports_checked": 3875,
+    "violations_found": 0,
+    "files_per_sec": 486.0,
+    "imports_per_sec": 3008.3
+  },
+  "import_matching": {
+    "operations_per_sec": 1936711,
+    "avg_time_us": 0.52
+  }
+}

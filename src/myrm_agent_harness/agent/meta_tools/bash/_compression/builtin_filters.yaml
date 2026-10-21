@@ -1,0 +1,49 @@
+# Built-in declarative filters for myrm-agent-harness
+# These rules are applied to command outputs to reduce LLM context noise.
+# Users can override or add rules by creating `.myrm/filters.yaml` in their workspace.
+
+filters:
+  - name: "terraform-plan"
+    match_command: "^terraform\\s+plan"
+    strip_ansi: true
+    strip_lines_matching:
+      - "^Refreshing state\\.\\.\\."
+      - "^Acquiring state lock"
+      - "^Releasing state lock"
+    replace:
+      - pattern: "(\\d+) added, (\\d+) changed, (\\d+) destroyed"
+        replacement: "Plan: \\1 to add, \\2 to change, \\3 to destroy"
+    max_lines: 200
+    on_empty: "Terraform plan is empty or unchanged."
+
+  - name: "make"
+    match_command: "^make\\b"
+    strip_ansi: true
+    strip_lines_matching:
+      - "^make\\[\\d+\\]: Entering directory"
+      - "^make\\[\\d+\\]: Leaving directory"
+      - "^make\\[\\d+\\]: Nothing to be done"
+    max_lines: 150
+
+  - name: "rsync"
+    match_command: "^rsync\\b"
+    strip_ansi: true
+    strip_lines_matching:
+      - "^sending incremental file list"
+      - "^sent \\d+ bytes  received \\d+ bytes"
+      - "^total size is \\d+  speedup is"
+      - "^\\s*$"
+    max_lines: 50
+    on_empty: "rsync completed successfully (no files transferred or all filtered)."
+
+  - name: "docker-pull"
+    match_command: "^docker\\s+pull\\b"
+    strip_ansi: true
+    strip_lines_matching:
+      - "Pulling fs layer"
+      - "Waiting"
+      - "Verifying Checksum"
+      - "Download complete"
+      - "Extracting"
+      - "Pull complete"
+    max_lines: 20

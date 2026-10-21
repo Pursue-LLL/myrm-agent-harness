@@ -1,0 +1,331 @@
+"""Heuristic PDF Table Extractor
+
+[INPUT]
+- typing / re / logging (standard library)
+
+[OUTPUT]
+- extract_heuristic_tables_from_pdf: spatial coordinate clustering table extraction
+
+[POS]
+Heuristic spatial parser for borderless and irregular grid tables in PDF documents.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    pass
+
+logger = logging.getLogger(__name__)
+
+# Pattern for MasterFormat-style partial numbering (e.g., ".1", ".2", ".10")
+PARTIAL_NUMBERING_PATTERN = re.compile(r"^\.\d+$")
+
+
+def _is_cjk_char(char: str) -> bool:
+    cp = ord(char)
+    return (
+        0x4E00 <= cp <= 0x9FFF
+        or 0x3400 <= cp <= 0x4DBF
+        or 0x3040 <= cp <= 0x309F
+        or 0x30A0 <= cp <= 0x30FF
+        or 0xAC00 <= cp <= 0xD7AF
+    )
+
+
+def _needs_space(prev_text: str, curr_text: str) -> bool:
+    if not prev_text or not curr_text:
+        return False
+    return not (_is_cjk_char(prev_text[-1]) or _is_cjk_char(curr_text[0]))
+
+
+def extract_heuristic_tables_from_words(
+    words: list[dict[str, Any]],
+    page_width: float = 612.0,
+) -> list[tuple[list[list[str]], tuple[float, float, float, float]]]:
+    """
+    Extract form-style and borderless tables by analyzing word spatial positions.
+    Returns a list of tables, each represented as a tuple of (data_matrix, bbox).
+    bbox format: (x0, y0, x1, y1)
+    """
+    if not words:
+        return []
+
+    # Dynamic scaling for tolerance based on page width (assuming 612 as standard letter width)
+    dynamic_col_tolerance = max(15.0, page_width * 0.065)
+
+    # Group words by their Y position (rows) using a 5-point tolerance
+    y_tolerance = 5
+    rows_by_y: dict[float, list[dict[str, Any]]] = {}
+    for word in words:
+        y_key = round(word["top"] / y_tolerance) * y_tolerance
+        if y_key not in rows_by_y:
+            rows_by_y[y_key] = []
+        rows_by_y[y_key].append(word)
+
+    sorted_y_keys = sorted(rows_by_y.keys())
+
+    # Step 1: Analyze each row to understand its structure
+    row_info: list[dict[str, Any]] = []
+    for y_key in sorted_y_keys:
+        row_words = sorted(rows_by_y[y_key], key=lambda w: w["x0"])
+        if not row_words:
+            continue
+
+        first_x0 = row_words[0]["x0"]
+        last_x1 = row_words[-1]["x1"]
+        line_width = last_x1 - first_x0
+        combined_text = " ".join(w["text"] for w in row_words)
+
+        # Count distinct x-position groups (potential columns in this row)
+        x_positions = [w["x0"] for w in row_words]
+        x_groups: list[float] = []
+        for x in sorted(x_positions):
+            if not x_groups or x - x_groups[-1] > 50:
+                x_groups.append(x)
+
+        # A long line of dense text is likely a paragraph, not a table row
+        is_paragraph = line_width > page_width * 0.55 and len(combined_text) > 60
+
+        # Partial numbering should not be treated as a table row
+        has_partial_numbering = False
+        first_word = row_words[0]["text"].strip()
+        if PARTIAL_NUMBERING_PATTERN.match(first_word):
+            has_partial_numbering = True
+
+        row_info.append(
+            {
+                "y_key": y_key,
+                "words": row_words,
+                "text": combined_text,
+                "x_groups": x_groups,
+                "is_paragraph": is_paragraph,
+                "num_columns": len(x_groups),
+                "has_partial_numbering": has_partial_numbering,
+            }
+        )
+
+    # Step 2: Collect all x-positions from rows with 3+ columns to find global column boundaries
+    all_table_x_positions: list[float] = []
+    for info in row_info:
+        if info["num_columns"] >= 3 and not info["is_paragraph"]:
+            all_table_x_positions.extend(info["x_groups"])
+
+    if not all_table_x_positions:
+        return []
+
+    # Step 3: Compute adaptive column clustering tolerance based on gap analysis
+    all_table_x_positions.sort()
+    gaps: list[float] = []
+    for i in range(len(all_table_x_positions) - 1):
+        gap = all_table_x_positions[i + 1] - all_table_x_positions[i]
+        if gap > 5:
+            gaps.append(gap)
+
+    # Use 70th percentile of gaps as dynamic threshold, clamped between 25 and 50
+    if len(gaps) >= 3:
+        sorted_gaps = sorted(gaps)
+        percentile_70_idx = int(len(sorted_gaps) * 0.70)
+        adaptive_tolerance = sorted_gaps[percentile_70_idx]
+        adaptive_tolerance = max(25.0, min(50.0, float(adaptive_tolerance)))
+    else:
+        adaptive_tolerance = 35.0
+
+    # Determine global column X boundaries
+    global_columns: list[float] = []
+    for x in all_table_x_positions:
+        if not global_columns or x - global_columns[-1] > adaptive_tolerance:
+            global_columns.append(x)
+
+    # Sanity checks for columns density
+    if len(global_columns) <= 1:
+        return []
+
+    content_width = global_columns[-1] - global_columns[0]
+    avg_col_width = content_width / len(global_columns)
+    if avg_col_width < 30:
+        return []  # Columns too narrow, likely just dense text spaces
+
+    columns_per_inch = len(global_columns) / max((content_width / 72), 1)
+    if columns_per_inch > 10:
+        return []  # Density too high
+
+    adaptive_max_columns = int(20 * (page_width / 612))
+    adaptive_max_columns = max(15, adaptive_max_columns)
+    if len(global_columns) > adaptive_max_columns:
+        return []
+
+    # Step 4: Classify rows that align with global columns
+    for info in row_info:
+        info["aligned_columns"] = set()
+        if info["is_paragraph"] or info["has_partial_numbering"]:
+            info["is_table_row"] = False
+            continue
+
+        aligned_columns: set[int] = set()
+        for word in info["words"]:
+            word_center_x = (word["x0"] + word["x1"]) / 2.0
+            for col_idx, col_x in enumerate(global_columns):
+                if abs(word_center_x - col_x) < dynamic_col_tolerance:
+                    aligned_columns.add(col_idx)
+                    break
+
+        info["aligned_columns"] = aligned_columns
+        # A valid table row should span at least 2 global columns
+        info["is_table_row"] = len(aligned_columns) >= 2
+
+    # Step 5: Find contiguous table regions
+    table_regions: list[tuple[int, int]] = []
+    i = 0
+    while i < len(row_info):
+        if row_info[i]["is_table_row"]:
+            start_idx = i
+            i += 1
+            while i < len(row_info):
+                if row_info[i]["is_table_row"]:
+                    i += 1
+                elif not row_info[i]["is_paragraph"] and len(row_info[i]["aligned_columns"]) >= 1:
+                    # Weak row (e.g. wrapped text). Check vertical gap from previous line.
+                    prev_words = row_info[i - 1]["words"]
+                    prev_h = sum(float(w["bottom"]) - float(w["top"]) for w in prev_words) / max(1, len(prev_words))
+
+                    if row_info[i]["y_key"] - row_info[i - 1]["y_key"] <= prev_h * 2.0 + 10.0:
+                        i += 1
+                    else:
+                        break
+                else:
+                    break
+            end_idx = i
+            table_regions.append((start_idx, end_idx))
+        else:
+            i += 1
+
+    # Filter out weak tables (must have at least 2 rows to be a meaningful table)
+    table_regions = [r for r in table_regions if r[1] - r[0] >= 2]
+    if not table_regions:
+        return []
+
+    # Step 6: Extract cells for each table region
+    extracted_tables: list[tuple[list[list[str]], tuple[float, float, float, float]]] = []
+    num_cols = len(global_columns)
+
+    for start, end in table_regions:
+        raw_rows: list[dict[str, Any]] = []
+
+        for idx in range(start, end):
+            info = row_info[idx]
+            cells: list[str] = ["" for _ in range(num_cols)]
+            r_min_x0 = float("inf")
+            r_min_y0 = float("inf")
+            r_max_x1 = 0.0
+            r_max_y1 = 0.0
+            r_height_sum = 0.0
+            r_word_count = 0
+
+            for word in info["words"]:
+                word_center_x = (word["x0"] + word["x1"]) / 2.0
+                top_val = float(word["top"])
+                bottom_val = float(word["bottom"])
+
+                r_min_x0 = min(r_min_x0, float(word["x0"]))
+                r_min_y0 = min(r_min_y0, top_val)
+                r_max_x1 = max(r_max_x1, float(word["x1"]))
+                r_max_y1 = max(r_max_y1, bottom_val)
+
+                r_height_sum += bottom_val - top_val
+                r_word_count += 1
+
+                # Assign word to the correct column bucket
+                assigned_col = num_cols - 1
+                for col_idx in range(num_cols - 1):
+                    col_end = global_columns[col_idx + 1]
+                    if word_center_x < col_end - (dynamic_col_tolerance / 2):
+                        assigned_col = col_idx
+                        break
+
+                if cells[assigned_col]:
+                    space = " " if _needs_space(cells[assigned_col], word["text"]) else ""
+                    cells[assigned_col] += space + word["text"]
+                else:
+                    cells[assigned_col] = word["text"]
+
+            avg_h = r_height_sum / r_word_count if r_word_count > 0 else 12.0
+
+            if r_min_y0 != float("inf"):
+                raw_rows.append(
+                    {
+                        "cells": [c.strip() for c in cells],
+                        "x0": r_min_x0,
+                        "y0": r_min_y0,
+                        "x1": r_max_x1,
+                        "y1": r_max_y1,
+                        "avg_h": avg_h,
+                    }
+                )
+
+        # Post-Processing: Vertical Gap Analysis & Logical Row Merging
+        merged_rows: list[dict[str, Any]] = []
+        for r in raw_rows:
+            if not merged_rows:
+                merged_rows.append(r)
+                continue
+
+            prev_r = merged_rows[-1]
+            gap = r["y0"] - prev_r["y1"]
+
+            prev_cells = prev_r["cells"]
+            curr_cells = r["cells"]
+
+            populated_prev = sum(1 for c in prev_cells if c)
+            populated_curr = sum(1 for c in curr_cells if c)
+
+            is_wrap = False
+            # Dynamic vertical gap threshold based on font line height (approx 1.5x)
+            dynamic_gap_threshold = max(12.0, (prev_r["avg_h"] + r["avg_h"]) / 2.0 * 1.5)
+
+            if gap < dynamic_gap_threshold:
+                collision = any(prev_cells[i] and curr_cells[i] for i in range(num_cols))
+                if not collision or (populated_curr < populated_prev and populated_curr <= max(1, num_cols // 2)):
+                    is_wrap = True
+
+            if is_wrap:
+                # Suture the physical row into the logical row
+                for i in range(num_cols):
+                    if curr_cells[i]:
+                        if prev_cells[i]:
+                            space = " " if _needs_space(prev_cells[i], curr_cells[i]) else ""
+                            prev_r["cells"][i] += space + curr_cells[i]
+                        else:
+                            prev_r["cells"][i] = curr_cells[i]
+                prev_r["y1"] = max(prev_r["y1"], r["y1"])
+                prev_r["x0"] = min(prev_r["x0"], r["x0"])
+                prev_r["x1"] = max(prev_r["x1"], r["x1"])
+                # update average height for the merged row
+                prev_r["avg_h"] = (prev_r["avg_h"] + r["avg_h"]) / 2.0
+            else:
+                merged_rows.append(r)
+
+        table_data: list[list[str]] = []
+        min_x0, min_y0, max_x1, max_y1 = float("inf"), float("inf"), 0.0, 0.0
+
+        for r in merged_rows:
+            table_data.append(r["cells"])
+            min_x0 = min(min_x0, r["x0"])
+            min_y0 = min(min_y0, r["y0"])
+            max_x1 = max(max_x1, r["x1"])
+            max_y1 = max(max_y1, r["y1"])
+
+        # Drop entirely empty columns for this specific table
+        if table_data:
+            valid_cols = [col_idx for col_idx in range(num_cols) if any(row[col_idx].strip() for row in table_data)]
+            if not valid_cols:
+                continue
+
+            cleaned_table = [[row[col_idx] for col_idx in valid_cols] for row in table_data]
+
+            extracted_tables.append((cleaned_table, (min_x0, min_y0, max_x1, max_y1)))
+
+    return extracted_tables

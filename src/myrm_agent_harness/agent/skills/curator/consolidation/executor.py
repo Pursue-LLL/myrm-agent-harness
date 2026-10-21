@@ -1,0 +1,313 @@
+"""Consolidation executor — applies consolidation actions to the skill system.
+
+Handles the actual mutation of skills: creating umbrella skills, merging
+content, demoting to support files, and inheriting usage statistics.
+
+[INPUT]
+- backends.skills.creation_protocols::SkillWriteBackend (POS: Skill write-backend protocol.)
+- backends.skills.stats_collector::SkillStatsCollector (POS: Skill usage statistics collector.)
+- backends.skills.types::SkillMetadata, SkillUsageStats, SkillLifecycleStatus (POS: Skill types.)
+- .types::ConsolidationAction, ConsolidationResult, ConsolidationReport, occupied_names (POS: consolidation types.)
+
+[OUTPUT]
+- ConsolidationExecutor: Executes approved consolidation actions.
+
+[POS]
+Execution layer for skill consolidation. Performs MERGE/CREATE_UMBRELLA/DEMOTE operations. The side-effect
+boundary: it refuses a target the plan should not have named, and archives sources only after their content landed.
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from .types import (
+    ConsolidationAction,
+    ConsolidationActionType,
+    ConsolidationReport,
+    ConsolidationResult,
+    occupied_names,
+)
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.backends.skills.creation_protocols import SkillWriteBackend
+    from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+    from myrm_agent_harness.backends.skills.types import SkillMetadata
+
+logger = logging.getLogger(__name__)
+
+
+class ConsolidationExecutor:
+    """Executes approved consolidation actions against the skill system.
+
+    Responsibilities:
+    - CREATE_UMBRELLA: Generate and save a new umbrella skill via SkillWriteBackend.
+    - MERGE: Expand target skill content, archive sources.
+    - DEMOTE: Move source skill content to support files of target.
+    - Inherit aggregated usage stats into the umbrella skill.
+    - Archive source skills with `merged_into` tracking.
+
+    The plan names the targets, so nothing in it is taken on trust: an umbrella never takes the name of an
+    existing skill (``all_skills`` are the skills this run may modify, ``reserved_names`` the ones the host
+    keeps out of it), a merge or demote only writes into a skill this run may modify, and sources are
+    archived only once their content has landed.
+    """
+
+    def __init__(
+        self,
+        write_backend: SkillWriteBackend,
+        stats_collector: SkillStatsCollector,
+        all_skills: list[SkillMetadata],
+        *,
+        reserved_names: frozenset[str] = frozenset(),
+    ) -> None:
+        self._write_backend = write_backend
+        self._stats = stats_collector
+        self._skill_map: dict[str, SkillMetadata] = {s.name: s for s in all_skills}
+        self._occupied = occupied_names(all_skills, reserved_names)
+
+    async def execute(self, actions: list[ConsolidationAction]) -> ConsolidationReport:
+        """Execute a list of approved consolidation actions.
+
+        Args:
+            actions: Pre-approved actions from the ConsolidationPlan.
+
+        Returns:
+            ConsolidationReport with execution results.
+        """
+        report = ConsolidationReport(
+            skills_before=len([s for s in self._skill_map.values() if s.usage_stats.is_active]),
+            started_at=datetime.now(UTC),
+        )
+        start_time = time.perf_counter()
+
+        for action in actions:
+            result = await self._execute_action(action)
+            report.results.append(result)
+            if result.success:
+                report.total_archived += len(result.archived_skills)
+                if action.action_type == ConsolidationActionType.CREATE_UMBRELLA:
+                    report.total_created += 1
+
+        report.skills_after = report.skills_before - report.total_archived + report.total_created
+        report.duration_seconds = time.perf_counter() - start_time
+
+        logger.info(
+            "Consolidation complete: %d actions (%d success, %d failed), skills %d → %d, %.1fs",
+            len(actions),
+            report.success_count,
+            report.failure_count,
+            report.skills_before,
+            report.skills_after,
+            report.duration_seconds,
+        )
+        return report
+
+    async def _execute_action(self, action: ConsolidationAction) -> ConsolidationResult:
+        """Dispatch execution based on action type."""
+        try:
+            match action.action_type:
+                case ConsolidationActionType.CREATE_UMBRELLA:
+                    return await self._execute_create_umbrella(action)
+                case ConsolidationActionType.MERGE:
+                    return await self._execute_merge(action)
+                case ConsolidationActionType.DEMOTE:
+                    return await self._execute_demote(action)
+                case ConsolidationActionType.KEEP:
+                    return ConsolidationResult(action=action, success=True)
+        except Exception as e:
+            logger.error(
+                "Consolidation action failed (%s -> %s): %s",
+                action.action_type.value,
+                action.target_skill,
+                e,
+            )
+            return ConsolidationResult(action=action, success=False, error=str(e))
+
+    async def _execute_create_umbrella(self, action: ConsolidationAction) -> ConsolidationResult:
+        """Create a new umbrella skill and archive source skills."""
+        source_skills = [self._skill_map[n] for n in action.source_skills if n in self._skill_map]
+        if not source_skills:
+            return ConsolidationResult(action=action, success=False, error="No source skills found")
+
+        if action.target_skill.casefold() in self._occupied:
+            return ConsolidationResult(
+                action=action,
+                success=False,
+                error=f"Umbrella name '{action.target_skill}' is already taken by a skill",
+            )
+
+        umbrella_content = self._build_umbrella_content(action, source_skills)
+
+        save_result = await self._write_backend.save_skill(
+            name=action.target_skill,
+            content=umbrella_content,
+            description=action.umbrella_description,
+        )
+        if not save_result.success:
+            return ConsolidationResult(
+                action=action,
+                success=False,
+                error=f"Failed to save umbrella: {save_result.error}",
+            )
+
+        archived = await self._archive_sources(action.source_skills, action.target_skill)
+
+        self._inherit_stats(source_skills, Path(save_result.saved_path))
+
+        return ConsolidationResult(
+            action=action,
+            success=True,
+            umbrella_skill_path=save_result.saved_path,
+            archived_skills=archived,
+        )
+
+    async def _execute_merge(self, action: ConsolidationAction) -> ConsolidationResult:
+        """Merge source skills into existing target (expand it)."""
+        target_skill = self._skill_map.get(action.target_skill)
+        if target_skill is None:
+            return self._target_not_found(action)
+
+        source_skills = [self._skill_map[n] for n in action.source_skills if n in self._skill_map]
+        if not source_skills:
+            return ConsolidationResult(action=action, success=False, error="No source skills found")
+
+        for source in source_skills:
+            if source.storage_path:
+                error = await self._write_resource(
+                    action.target_skill,
+                    f"references/{source.name}.md",
+                    f"# Merged from: {source.name}\n\n{source.description}\n",
+                )
+                if error:
+                    return ConsolidationResult(action=action, success=False, error=error)
+
+        archived = await self._archive_sources(action.source_skills, action.target_skill)
+
+        target_path = Path(target_skill.storage_path) if target_skill.storage_path else None
+        if target_path:
+            self._inherit_stats(source_skills, target_path)
+
+        return ConsolidationResult(
+            action=action,
+            success=True,
+            umbrella_skill_path=target_skill.storage_path or "",
+            archived_skills=archived,
+        )
+
+    async def _execute_demote(self, action: ConsolidationAction) -> ConsolidationResult:
+        """Move source skills to support file directory of target."""
+        if action.target_skill not in self._skill_map:
+            return self._target_not_found(action)
+
+        source_skills = [self._skill_map[n] for n in action.source_skills if n in self._skill_map]
+        if not source_skills:
+            return ConsolidationResult(action=action, success=False, error="No source skills found")
+
+        for source in source_skills:
+            error = await self._write_resource(
+                action.target_skill,
+                f"{action.demote_target_dir}/{source.name}.md",
+                f"# {source.name}\n\n{source.description}\n",
+            )
+            if error:
+                return ConsolidationResult(action=action, success=False, error=error)
+
+        archived = await self._archive_sources(action.source_skills, action.target_skill)
+
+        return ConsolidationResult(
+            action=action,
+            success=True,
+            umbrella_skill_path="",
+            archived_skills=archived,
+        )
+
+    @staticmethod
+    def _target_not_found(action: ConsolidationAction) -> ConsolidationResult:
+        return ConsolidationResult(
+            action=action,
+            success=False,
+            error=f"Target skill '{action.target_skill}' not found",
+        )
+
+    async def _write_resource(self, skill_name: str, resource_path: str, content: str) -> str | None:
+        """Write a support file into a skill. Returns the error text when the backend refused it, else None.
+
+        The backend reports a refused write by returning a failure, so the caller must look at the result
+        before it archives anything.
+        """
+        result = await self._write_backend.write_resource(
+            skill_name=skill_name,
+            resource_path=resource_path,
+            content=content,
+        )
+        if result.success:
+            return None
+        return f"Failed to write '{resource_path}' into '{skill_name}': {result.error}"
+
+    async def _archive_sources(
+        self,
+        source_names: tuple[str, ...],
+        merged_into: str,
+    ) -> tuple[str, ...]:
+        """Archive source skills, marking them as merged_into the target."""
+        archived: list[str] = []
+        for name in source_names:
+            skill = self._skill_map.get(name)
+            if skill is None or skill.storage_path is None:
+                continue
+
+            self._stats.archive_merged(Path(skill.storage_path), merged_into)
+
+            archived.append(name)
+            logger.info("Archived skill '%s' (merged into '%s')", name, merged_into)
+
+        return tuple(archived)
+
+    def _inherit_stats(
+        self,
+        source_skills: list[SkillMetadata],
+        target_path: Path,
+    ) -> None:
+        """Aggregate usage stats from sources into the target skill."""
+        self._stats.inherit_usage(target_path, [source.usage_stats for source in source_skills])
+
+    @staticmethod
+    def _build_umbrella_content(
+        action: ConsolidationAction,
+        source_skills: list[SkillMetadata],
+    ) -> str:
+        """Generate SKILL.md content for a new umbrella skill."""
+        keywords_set: set[str] = set()
+        for skill in source_skills:
+            name_parts = skill.name.lower().removesuffix("_skill").replace("-", " ").replace("_", " ").split()
+            keywords_set.update(name_parts)
+
+        keywords_yaml = "\n".join(f"  - {kw}" for kw in sorted(keywords_set)[:15])
+
+        source_list = "\n".join(f"- {s.name}: {s.description}" for s in source_skills)
+
+        content = f"""---
+name: {action.target_skill}
+description: "{action.umbrella_description}"
+keywords:
+{keywords_yaml}
+---
+
+# {action.target_skill}
+
+{action.umbrella_description}
+
+## Coverage
+
+{action.umbrella_content_outline or "This skill consolidates the following capabilities:"}
+
+## Consolidated From
+
+{source_list}
+"""
+        return content

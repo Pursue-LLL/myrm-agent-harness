@@ -1,0 +1,20 @@
+{
+  "id": "x-com",
+  "name": "X (Twitter)",
+  "domains": ["x.com", "*.x.com", "twitter.com", "*.twitter.com"],
+  "python_tools": {
+    "get_timeline_posts": {
+      "description": "Extract posts from the current X timeline or profile page.",
+      "path": "tools/get_timeline_posts.py",
+      "callable": "get_timeline_posts",
+      "args": {
+        "max_posts": {
+          "type": "integer",
+          "required": "false",
+          "description": "Maximum number of posts to extract (default: 10)."
+        }
+      },
+      "returns": "JSON array of post objects with text, author, and timestamp."
+    }
+  }
+}

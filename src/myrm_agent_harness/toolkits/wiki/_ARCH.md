@@ -1,0 +1,34 @@
+# wiki/
+
+## Overview
+LLM-Wiki toolkit: Karpathy-architecture knowledge base engine. Compiles raw documents into
+structured, cross-linked wiki articles with SHA256 incremental caching, FTS5+Qdrant hybrid
+search, 3D knowledge graph with LPA community detection, knowledge drift defense, L0/L1
+directory sidecars, bottom-up incremental DAG refresh, and LLM-driven wikilink enrichment.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Wiki toolkit entry point | ✅ |
+| wiki_agent_tools.py | Core | LangChain tool integration: **ingest/query/apply** agent tools (bilingual schema & prompt optimization; apply writes stage as HITL pending drafts, never publish directly); URL ingest via `pipeline/ingress/publish_url_markdown_ingress`; admin compile/maintain via REST. Auto-compile on ingest, knowledge compounding on query, FetchEngine URL/binary ingest. | ✅ |
+| mcp_server.py | Surface | MCP adapter exposing wiki tools (`wiki_query_tool`, `wiki_ingest_tool`, `wiki_apply_tool`) to external agents (Claude Code, Cursor) — thin shell over the LangChain tools via `register_wiki_mcp_tools` + request-level ContextVar; ingest is URL/raw-text only on this surface (local file paths refused). | ✅ |
+
+| Submodule | Description |
+|-----------|-------------|
+| core/ | Config (purpose, compile strategy), types (ConceptInfo, WikiArticle, CompileResult, SourceSnippet, QueryResult, LintIssue/Result, WikiMetadata), 5-layer physical topology (raw/sources/knowledge/index/deliverables), link syntax SSOT (`link_extraction`: which links a page holds), link resolver SSOT (`link_resolver`: link target → page key, index identity), Related Concepts section SSOT (`related_links`: the one writer of a page's related links), source card contract (SourceCardContract), negative exclusion deterministic guard (NegativeExclusionPolicy), three-way radar zero-yield report (ZeroYieldRationaleReport), and parsers (LLM response → ConceptInfo) |
+| maintenance/ | Linter: health checks, drift/stale detection, knowledge-gap analysis, LLM link enrichment (no LLM auto-write for incomplete articles) |
+| diagnostics/ | Deterministic structural lint SSOT + offline retrieval benchmark (CI gate) |
+| pipeline/ | Compiler (parallel batch ingestion, SHA256 cache, auto-retry queue, **survey/** structure scan + facet seed carry-forward, compile phase SSE), **ingress/** (clip + URL markdown → raw_gate), **contradiction_synthesis/** (CCSP Step 2.5 evolution pages), sidecar builder (L0/L1 bottom-up DAG), cognitive_map (OKF index/log/hot writers), postprocess (backlink generation, metadata persistence), **apply/** (narrow-write SSOT; agent/chat callers stage pending), **raw_gate/** (raw publication gate SSOT), publication gate (WPG SSOT + deterministic fail-closed routing + stale guard + move reindex), pending edits (HITL stage/approve) |
+| portability/ | Full vault ZIP export + local git auto-commit (`vault_archive`, `vault_git`) |
+| retrieval/ | Indexer (FTS5 hybrid search, one index row per page key, vector upsert/delete, sidecar tiered indexing, weighted graph edges whose targets are resolved to page keys), tokenizer (CJK bigram FTS5 query builder), best_first (priority-queue convergence + raw_claim rerank), graph_store (BFS traversal, federated graph queries, insights), query engine (hot + recent log prefix, index/sidecar/FTS seeds → best-first converge, citation snippet extraction, asset hit fusion), asset_index (wiki/assets caption FTS5 + Qdrant + orphan purge) |
+
+## Key Dependencies
+
+- `web_fetch` (FetchEngine for URL ingestion with YouTube/Bilibili subtitle extraction + multi-tier fallback; MarkdownGenerator as fallback converter)
+- `core.security.http.secure_fetch` (secure_get fallback for URL ingestion when FetchEngine unavailable)
+- `utils` (logger, context_format)
+- `web_search` (deep research integration)
+- `memory` (auto-archive from conversations)
+- `vector` (Qdrant hybrid search)
+- `retriever` (RRF fusion)

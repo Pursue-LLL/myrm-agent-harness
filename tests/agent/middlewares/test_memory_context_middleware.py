@@ -1,0 +1,1881 @@
+"""Test memory_context_middleware.
+
+Validates helper functions (_format_memory_context, _has_memory_context),
+cold/warm adaptive prompt, privileged vs learned split, RecallMode,
+ContextVar integration, and awrap_model_call injection semantics.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from myrm_agent_harness.agent.middlewares.memory_context.memory_context_format import (
+    _COLD_START_CONTEXT,
+    MEMORY_CONTEXT_MARKER,
+    MEMORY_UNTRUSTED_OPEN_MARKER,
+    _escape_xml_item,
+    _format_memory_context,
+    _has_memory_context,
+    _memory_search_tool_bound,
+    _partition_budget_sections,
+)
+from myrm_agent_harness.agent.middlewares.memory_context.memory_context_middleware import (
+    memory_context_middleware,
+)
+from myrm_agent_harness.agent.skill_agent.context import (
+    get_memory_runtime_budget,
+    get_memory_runtime_injection,
+    set_memory_runtime_budget,
+    set_memory_runtime_injection,
+)
+from myrm_agent_harness.toolkits.memory.config import RecallMode
+
+_EMPTY_LEARNED: dict[str, list[dict[str, str]]] = {
+    "learned_rules": [],
+    "learned_preferences": [],
+}
+
+
+class TestMemoryRuntimeBudgetRoundTrip:
+    """The server reads rule fidelity straight off this channel, so the set→get
+    round trip must preserve every rule key the middleware publishes."""
+
+    def test_preserves_rule_fidelity_keys(self) -> None:
+        set_memory_runtime_budget(
+            {
+                "used": 512,
+                "total": 4096,
+                "rulesConfigured": 12,
+                "rulesInjected": 7,
+                "rulesTruncated": True,
+            }
+        )
+        assert get_memory_runtime_budget() == {
+            "used": 512,
+            "total": 4096,
+            "rulesConfigured": 12,
+            "rulesInjected": 7,
+            "rulesTruncated": True,
+        }
+
+    def test_two_field_payload_omits_rule_keys(self) -> None:
+        """Writers that only know the legacy payload must not invent rule keys."""
+        set_memory_runtime_budget({"used": 8, "total": 80})
+        assert get_memory_runtime_budget() == {"used": 8, "total": 80}
+
+    def test_clamps_injected_to_configured(self) -> None:
+        """A truncated section can hold no more items than were configured."""
+        set_memory_runtime_budget(
+            {
+                "used": 10,
+                "total": 100,
+                "rulesConfigured": 3,
+                "rulesInjected": 9,
+                "rulesTruncated": False,
+            }
+        )
+        budget = get_memory_runtime_budget()
+        assert budget is not None
+        assert budget["rulesInjected"] == 3
+
+
+@pytest.fixture(autouse=True)
+def _reset_runtime_memory_telemetry() -> None:
+    set_memory_runtime_budget(None)
+    set_memory_runtime_injection(None)
+    yield
+    set_memory_runtime_budget(None)
+    set_memory_runtime_injection(None)
+
+
+# ---------------------------------------------------------------------------
+# _has_memory_context
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_has_memory_context_detects_marker():
+    messages_with = [
+        SystemMessage(content="System prompt"),
+        SystemMessage(content="<user_memory_context>\nUser info\n</user_memory_context>"),
+        HumanMessage(content="Hello"),
+    ]
+    assert _has_memory_context(messages_with) is True
+
+    messages_untrusted_only = [
+        SystemMessage(content="System prompt"),
+        HumanMessage(
+            content=(
+                '[SECURITY NOTICE: UNTRUSTED external content below. ]\n<<<UNTRUSTED_DATA id="abc">>>\nx\n<<<END_UNTRUSTED_DATA id="abc">>>'
+            )
+        ),
+    ]
+    assert _has_memory_context(messages_untrusted_only) is True
+
+    messages_without = [
+        SystemMessage(content="System prompt"),
+        HumanMessage(content="Hello"),
+    ]
+    assert _has_memory_context(messages_without) is False
+
+
+def test_has_memory_context_skips_non_string_parts():
+    """Multimodal / structured content must not crash idempotency scan."""
+    block = [{"type": "text", "text": "hello"}]
+    msgs = [
+        SystemMessage(content="sys"),
+        HumanMessage(content=block),  # type: ignore[arg-type]
+    ]
+    assert _has_memory_context(msgs) is False
+
+
+def test_partition_budget_skips_sections_with_empty_item_lists():
+    from myrm_agent_harness.agent.security.guards.prompt_budget import BudgetedSection
+
+    s, u, _accepted = _partition_budget_sections(
+        [BudgetedSection("EmptyStable", [], priority=1)],
+        [BudgetedSection("EmptyLearned", [], priority=2)],
+        max_tokens=500,
+        truncation_message="X",
+    )
+    assert s == ""
+    assert u == ""
+
+
+def test_partition_budget_header_exceeds_budget_yields_empty_bodies():
+    """When even the first section header does not fit, nothing is allocated (no truncation tail)."""
+    from myrm_agent_harness.agent.security.guards.prompt_budget import BudgetedSection
+
+    s, u, _accepted = _partition_budget_sections(
+        [BudgetedSection("Wide", ["ok"], priority=1)],
+        [],
+        max_tokens=0,
+        truncation_message="SHOULD_NOT_APPEAR",
+    )
+    assert s == ""
+    assert u == ""
+    assert "SHOULD_NOT_APPEAR" not in s + u
+
+
+def test_partition_budget_line_overflow_with_empty_accepted_lines_skips_block():
+    """Header fits but first bullet cannot — section produces no block (continue path)."""
+    from myrm_agent_harness.agent.security.guards.prompt_budget import BudgetedSection
+
+    huge = "Z" * 40
+    s, _u, _accepted = _partition_budget_sections(
+        [BudgetedSection("T", [huge], priority=1)],
+        [],
+        max_tokens=2,
+        truncation_message="",
+    )
+    assert s == ""
+
+
+def test_partition_budget_post_truncation_notice_appends_after_nonempty_untrusted():
+    """truncation tail joins onto a partially filled untrusted body (coverage for line 139-141)."""
+    from myrm_agent_harness.agent.security.guards.prompt_budget import BudgetedSection
+
+    parts = BudgetedSection(
+        "Mix",
+        [
+            _escape_xml_item("kept-short"),
+            _escape_xml_item("tail" + "y" * 9000),
+        ],
+        priority=1,
+    )
+    stable, unst, _accepted = _partition_budget_sections(
+        [],
+        [parts],
+        max_tokens=48,
+        truncation_message="NOTICE_TAIL",
+    )
+    assert stable == ""
+    assert "kept-short" in unst
+    assert "NOTICE_TAIL" in unst
+
+
+def test_partition_budget_appends_truncation_note_when_trimmed():
+    """When oversized sections are clipped, truncation_message is stitched into whichever side retained content."""
+    from myrm_agent_harness.agent.security.guards.prompt_budget import BudgetedSection
+
+    stable_secs = [BudgetedSection("High", ["kept-short"], priority=1)]
+    long_blob = "L" * 8000
+    untrusted_esc = [
+        BudgetedSection("LowPri", [_escape_xml_item(long_blob)], priority=80),
+    ]
+    s, u, _accepted = _partition_budget_sections(
+        stable_secs,
+        untrusted_esc,
+        max_tokens=240,
+        truncation_message="CUT_MARKER",
+    )
+    combo = (s or "") + (u or "")
+    assert "CUT_MARKER" in combo
+
+
+def test_format_memory_context_budget_truncates_lower_priority_sections():
+    """Very large stable + learned sets share one budget — lower priority sections disappear first."""
+    wall = "w" * 1200
+    ctx = {"global_profile": {f"k{i}": wall for i in range(60)}}
+    learned = {
+        "learned_rules": [],
+        "learned_preferences": [{"content": "p"}, {"content": "q" + "z" * 8000}],
+    }
+    stable, untrusted, _accepted = _format_memory_context(ctx, learned)
+    assert stable is not None
+    must_have = "... (Some lower-priority memory items were truncated"
+    assert must_have in (stable + (untrusted or ""))
+
+
+def test_format_truncation_notice_omits_tool_guidance_when_not_bound():
+    """CONTEXT mode truncation notice must not reference the unbound memory_search_tool."""
+    wall = "w" * 1200
+    ctx = {"global_profile": {f"k{i}": wall for i in range(60)}}
+    learned = {
+        "learned_rules": [],
+        "learned_preferences": [{"content": "q" + "z" * 8000}],
+    }
+    stable, untrusted, _accepted = _format_memory_context(
+        ctx,
+        learned,
+        memory_search_enabled=False,
+    )
+    combined = (stable or "") + (untrusted or "")
+    assert "... (Some lower-priority memory items were truncated" in combined
+    assert "memory_search_tool" not in combined
+
+
+def test_format_learned_escapes_xml_in_items_for_envelope():
+    learned = {
+        "learned_rules": [],
+        "learned_preferences": [{"content": "use <script>"}],
+    }
+    _stable, untrusted, _accepted = _format_memory_context({}, learned)
+    assert untrusted is not None
+    assert "<script>" not in untrusted
+    assert "&lt;script&gt;" in untrusted
+
+
+# ---------------------------------------------------------------------------
+# _format_memory_context — static context
+# ---------------------------------------------------------------------------
+
+
+def test_format_empty_returns_cold_start():
+    """Empty context produces cold start guidance (stable only)."""
+    stable, untrusted, _accepted = _format_memory_context({}, _EMPTY_LEARNED)
+    assert stable == _COLD_START_CONTEXT
+    assert untrusted is None
+    assert "Discovery Mode" in stable
+    assert MEMORY_CONTEXT_MARKER in stable
+    assert "conversation_search" not in stable
+
+    stable2, untrusted2, _accepted = _format_memory_context(
+        {"global_profile": {}, "rules": [], "agent_instructions": []}, _EMPTY_LEARNED
+    )
+    assert stable2 == _COLD_START_CONTEXT
+    assert untrusted2 is None
+
+
+def test_format_memory_search_disabled_when_tool_not_bound():
+    """CONTEXT mode (memory_search_tool not bound) must not inject tool guidance."""
+    learned = {
+        "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
+        "learned_rules": [],
+    }
+    _stable, untrusted, _accepted = _format_memory_context(
+        {},
+        learned,
+        memory_search_enabled=False,
+    )
+    assert untrusted is not None
+    assert "memory_search_tool" not in untrusted
+    assert "## Memory Search" not in untrusted
+
+
+def test_format_memory_search_guidance_when_enabled():
+    learned = {
+        "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
+        "learned_rules": [],
+    }
+    _stable, untrusted, _accepted = _format_memory_context(
+        {},
+        learned,
+        memory_search_enabled=True,
+    )
+    assert untrusted is not None
+    assert "memory_search_tool" in untrusted
+    assert "corpus=sessions" in untrusted
+
+
+def test_memory_search_tool_bound_accepts_objects_and_dicts():
+    """Tool binding detection tolerates BaseTool-like objects, dicts, and name-less entries."""
+    obj_bound = SimpleNamespace(name="memory_search_tool")
+    dict_bound = {"name": "memory_search_tool"}
+    others = [SimpleNamespace(name="other_tool"), {"type": "func", "name": "b"}, "bare-string"]
+    assert _memory_search_tool_bound(MagicMock(tools=[obj_bound])) is True
+    assert _memory_search_tool_bound(MagicMock(tools=[dict_bound])) is True
+    assert _memory_search_tool_bound(MagicMock(tools=others)) is False
+    assert _memory_search_tool_bound(MagicMock(tools=[])) is False
+    assert _memory_search_tool_bound(MagicMock(tools=None)) is False
+
+
+def test_format_profile():
+    ctx = {"global_profile": {"name": "Alice", "role": "Developer"}}
+    stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    assert stable is not None
+    assert untrusted is None
+    assert "# User Context (stable)" in stable
+    assert "## Global User Profile" in stable
+    assert "name: Alice" in stable
+    assert "role: Developer" in stable
+
+
+def test_format_instructions():
+    ctx = {
+        "agent_instructions": [
+            {"instruction": "Always be concise"},
+            {"instruction": "Use Python for examples"},
+        ],
+    }
+    stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    assert stable is not None
+    assert untrusted is None
+    assert "## Your Self-Instructions" in stable
+    assert "Always be concise" in stable
+    assert "Use Python for examples" in stable
+
+
+def test_format_rules():
+    ctx = {
+        "rules": [
+            {"trigger": "user asks for help", "action": "provide examples"},
+            {"trigger": "error occurs", "action": "log and retry"},
+        ],
+    }
+    stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    assert stable is not None
+    assert untrusted is None
+    assert "## Behavioral Rules" in stable
+    assert "When: user asks for help → Do: provide examples" in stable
+    assert "When: error occurs → Do: log and retry" in stable
+
+
+def test_format_complete_static():
+    ctx = {
+        "global_profile": {"name": "Bob"},
+        "agent_instructions": [{"instruction": "Be helpful"}],
+        "rules": [{"trigger": "greeting", "action": "respond warmly"}],
+    }
+    stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    assert stable is not None
+    assert untrusted is None
+    assert "# User Context (stable)" in stable
+    assert "## Global User Profile" in stable
+    assert "## Your Self-Instructions" in stable
+    assert "## Behavioral Rules" in stable
+    assert "<user_memory_context>" in stable
+    assert "</user_memory_context>" in stable
+
+
+def test_format_stable_only_includes_guidance_tail():
+    """Warm stable-only injection must carry Citation Requirements + Memory Search guidance.
+
+    The middleware always passes empty learned context (P0 cache-stable design), so
+    the untrusted branch never fires at runtime. Without this tail, warm users with
+    stable profile/rules would never be told to emit <cite:MEMORY_ID> tags, silently
+    disabling the LLM-side citation channel that cold-start users do get.
+    """
+    ctx = {"global_profile": {"name": "Alice"}}
+    stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    assert stable is not None
+    assert untrusted is None
+    assert "## Citation Requirements" in stable
+    assert "<cite:MEMORY_ID>" in stable
+    assert "## Memory Search" in stable
+    assert "memory_search_tool" in stable
+
+
+def test_format_stable_only_omits_guidance_when_tool_not_bound():
+    """CONTEXT warm stable-only must not carry citation/search guidance (no bound tools)."""
+    ctx = {"global_profile": {"name": "Alice"}}
+    stable, untrusted, _accepted = _format_memory_context(
+        ctx,
+        _EMPTY_LEARNED,
+        memory_search_enabled=False,
+    )
+    assert stable is not None
+    assert untrusted is None
+    assert "## Citation Requirements" not in stable
+    assert "<cite:MEMORY_ID>" not in stable
+    assert "## Memory Search" not in stable
+    assert "memory_search_tool" not in stable
+
+
+def test_format_cold_start_context_mode_no_injection():
+    """CONTEXT cold-start must not inject learning guidance (no memory tools bound)."""
+    stable, untrusted, _accepted = _format_memory_context(
+        {},
+        _EMPTY_LEARNED,
+        memory_search_enabled=False,
+    )
+    assert stable is None
+    assert untrusted is None
+
+
+def test_format_stable_plus_untrusted_guidance_not_duplicated():
+    """Guidance tail appears exactly once when both stable and learned are injected."""
+    ctx = {"global_profile": {"name": "Alice"}}
+    learned = {
+        "learned_rules": [],
+        "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
+    }
+    stable, untrusted, _accepted = _format_memory_context(ctx, learned)
+    assert stable is not None
+    assert untrusted is not None
+    assert "## Citation Requirements" not in stable
+    assert untrusted.count("## Citation Requirements") == 1
+    assert untrusted.count("<cite:MEMORY_ID>") == 1
+
+
+# ---------------------------------------------------------------------------
+# _format_memory_context — learned context
+# ---------------------------------------------------------------------------
+
+
+def test_format_learned_rules():
+    learned = {
+        "learned_rules": [
+            {"trigger": "code review", "action": "use type hints", "content": "..."},
+        ],
+        "learned_preferences": [],
+    }
+    stable, untrusted, _accepted = _format_memory_context({}, learned)
+    assert stable is None
+    assert untrusted is not None
+    assert MEMORY_UNTRUSTED_OPEN_MARKER in untrusted
+    assert "Learned Rules" in untrusted
+    assert "When: code review" in untrusted and "Do: use type hints" in untrusted
+
+
+def test_critical_tool_rules_promoted_to_stable():
+    """CRITICAL/HIGH tool-scoped rules must appear in stable section, not learned."""
+    learned = {
+        "learned_rules": [
+            {
+                "trigger": "use sudo",
+                "action": "never use sudo",
+                "content": "...",
+                "tool_name": "bash_code_execute_tool",
+                "tool_rule_priority": "critical",
+            },
+            {
+                "trigger": "code review",
+                "action": "use type hints",
+                "content": "...",
+            },
+        ],
+        "learned_preferences": [],
+    }
+    stable, untrusted, _accepted = _format_memory_context({}, learned)
+    assert stable is not None
+    assert "Tool Safety Rules" in stable
+    assert "never use sudo" in stable
+    assert "[bash_code_execute_tool]" in stable
+    assert untrusted is not None
+    assert "Learned Rules" in untrusted
+    assert "use type hints" in untrusted
+    assert "never use sudo" not in untrusted
+
+
+def test_high_priority_tool_rules_also_promoted():
+    """HIGH priority rules should also be promoted to stable."""
+    learned = {
+        "learned_rules": [
+            {
+                "trigger": "file write",
+                "action": "backup first",
+                "content": "...",
+                "tool_name": "file_tool",
+                "tool_rule_priority": "high",
+            },
+        ],
+        "learned_preferences": [],
+    }
+    stable, _untrusted, _accepted = _format_memory_context({}, learned)
+    assert stable is not None
+    assert "Tool Safety Rules" in stable
+    assert "backup first" in stable
+
+
+def test_normal_priority_tool_rules_stay_in_learned():
+    """NORMAL priority tool rules stay in the learned (untrusted) section."""
+    learned = {
+        "learned_rules": [
+            {
+                "trigger": "search",
+                "action": "prefer exact match",
+                "content": "...",
+                "tool_name": "search_tool",
+                "tool_rule_priority": "normal",
+            },
+        ],
+        "learned_preferences": [],
+    }
+    stable, untrusted, _accepted = _format_memory_context({}, learned)
+    assert stable is None
+    assert untrusted is not None
+    assert "Learned Rules" in untrusted
+    assert "prefer exact match" in untrusted
+
+
+def test_format_learned_preferences():
+    learned = {
+        "learned_rules": [],
+        "learned_preferences": [
+            {"content": "prefers dark theme"},
+            {"content": "uses vim keybindings"},
+        ],
+    }
+    stable, untrusted, _accepted = _format_memory_context({}, learned)
+    assert stable is None
+    assert untrusted is not None
+    assert MEMORY_UNTRUSTED_OPEN_MARKER in untrusted
+    assert "## Learned Preferences" in untrusted
+    assert "prefers dark theme" in untrusted
+    assert "uses vim keybindings" in untrusted
+
+
+def test_format_mixed_static_and_learned():
+    """Stable profile stays in `<user_memory_context>`; learned is untrusted-framed."""
+    ctx = {"global_profile": {"name": "Carol"}}
+    learned = {
+        "learned_rules": [{"trigger": "deploy", "action": "run tests first", "content": "..."}],
+        "learned_preferences": [{"content": "uses Python 3.13"}],
+    }
+    stable, untrusted, _accepted = _format_memory_context(ctx, learned)
+    assert stable is not None
+    assert untrusted is not None
+    assert "<user_memory_context>" in stable
+    assert MEMORY_UNTRUSTED_OPEN_MARKER in untrusted
+    assert "User Profile" in stable
+    assert "name: Carol" in stable
+    assert "Learned Rules" in untrusted and "Learned Preferences" in untrusted
+    assert "When: deploy" in untrusted
+    assert "uses Python 3.13" in untrusted
+
+
+def test_format_corrections_from_source_error():
+    """Preferences with source_error stay in stable; remaining prefs are untrusted."""
+    learned = {
+        "learned_rules": [],
+        "learned_preferences": [
+            {
+                "content": "use ruff instead of flake8",
+                "source_error": "flake8 is deprecated",
+            },
+            {"content": "prefers dark theme"},
+        ],
+    }
+    stable, untrusted, _accepted = _format_memory_context({}, learned)
+    assert stable is not None
+    assert untrusted is not None
+    assert "## Corrections (must follow)" in stable
+    assert "use ruff instead of flake8" in stable and "AVOID: flake8 is deprecated" in stable
+    assert "## Learned Preferences" in untrusted
+    assert "prefers dark theme" in untrusted
+
+
+def test_format_empty_learned_no_sections():
+    """Empty learned lists should not produce Learned sections."""
+    stable, untrusted, _accepted = _format_memory_context(
+        {"global_profile": {"name": "Dave"}},
+        {"learned_rules": [], "learned_preferences": []},
+    )
+    assert stable is not None
+    assert untrusted is None
+    assert "## Learned Rules" not in stable
+    assert "## Learned Preferences" not in stable
+
+
+def test_format_veto_negative_constraints():
+    """VETO negative constraints are rendered into their own Priority 0 section."""
+    ctx = {
+        "rules": [
+            {
+                "id": "rule-normal",
+                "trigger": "code commit",
+                "action": "run linter",
+            },
+            {
+                "id": "rule-veto-1",
+                "is_veto": True,
+                "tool_name": "bash_tool",
+                "action": "rm -rf /",
+                "reasoning": "Prevent system destruction",
+                "application": "Use safe remove",
+                "priority": 10,
+            },
+            {
+                "id": "rule-veto-2",
+                "trigger": "type annotation",
+                "action": "never use Any type",
+                "reasoning": "Strict type safety",
+            },
+        ]
+    }
+    stable, _untrusted, _accepted = _format_memory_context(ctx, {})
+    assert stable is not None
+    assert "## Mandatory Negative Constraints (VETO Rules)" in stable
+    assert "[NEVER] rm -rf / (Scope: bash_tool)" in stable
+    assert "Prevent system destruction" in stable
+    assert "[NEVER] never use Any type" in stable
+
+    # Normal rule stays in Behavioral Rules
+    assert "## Behavioral Rules" in stable
+    assert "When: code commit → Do: run linter" in stable
+    assert "[NEVER] run linter" not in stable
+
+
+def test_veto_section_lines_are_byte_stable_and_ordered():
+    """Veto lines keep an exact wording and a (priority desc, id asc) order: they sit in the cached prompt prefix."""
+    ctx = {
+        "rules": [
+            {"id": "b-low", "action": "never push to main", "reasoning": "protected branch"},
+            {"id": "a-low", "action": "do not touch .env", "tool_name": "write_file", "priority": 0},
+            {"id": "z-high", "action": "Never use sudo", "priority": 7},
+        ]
+    }
+    stable, _untrusted, _accepted = _format_memory_context(ctx, {})
+    assert stable is not None
+    veto_lines = [line for line in stable.splitlines() if line.lstrip("- ").startswith("[NEVER]")]
+    assert [line.lstrip("- ") for line in veto_lines] == [
+        "[NEVER] Never use sudo (Scope: *)",
+        "[NEVER] do not touch .env (Scope: write_file)",
+        "[NEVER] never push to main (Scope: *) — Reason: protected branch",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# ContextVar integration
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_contextvar_integration():
+    from myrm_agent_harness.agent.skill_agent.context import (
+        get_memory_manager,
+        set_memory_manager,
+    )
+
+    assert get_memory_manager() is None
+
+    mock_manager = MagicMock()
+    mock_manager._config = MagicMock()
+    mock_manager._config.max_learned_context_chars = 50000
+    mock_manager._config.model_context_tokens = 8000
+    mock_manager.user_id = "test_user"
+
+    set_memory_manager(mock_manager)
+    assert get_memory_manager() is mock_manager
+    assert get_memory_manager().user_id == "test_user"
+
+    set_memory_manager(None)
+    assert get_memory_manager() is None
+
+
+# ---------------------------------------------------------------------------
+# inject_memory_context — core middleware
+# ---------------------------------------------------------------------------
+
+
+def _get_raw_inject_fn():
+    """Extract the raw async function from the wrapped middleware."""
+    return memory_context_middleware.awrap_model_call
+
+
+def _make_request(
+    *,
+    messages: list | None = None,
+    state_messages: list | None = None,
+    has_runtime_context: bool = True,
+    tools: list | None = None,
+):
+    """Build a minimal mock ModelRequest for inject_memory_context.
+
+    Defaults to HYBRID-like tools (memory_search_tool bound Turn1, matching
+    DEFAULT_ENABLED_BUILTIN_TOOLS) so warm/cold injection paths run with
+    memory-search guidance enabled.
+    """
+    req = MagicMock()
+    req.messages = messages or [HumanMessage(content="Hello")]
+    req.state = {"messages": state_messages if state_messages is not None else []}
+
+    if tools is None:
+        tools = [SimpleNamespace(name="memory_search_tool")]
+    req.tools = tools
+
+    if has_runtime_context:
+        req.runtime = MagicMock()
+        req.runtime.context = {"some": "context"}
+    else:
+        req.runtime = None
+
+    # Real ModelRequest.override uses dataclasses.replace, which preserves tools.
+    req.override = MagicMock(side_effect=lambda **kwargs: MagicMock(tools=tools, **kwargs))
+    return req
+
+
+class TestInjectMemoryContext:
+    """Tests for inject_memory_context middleware function."""
+
+    @pytest.fixture()
+    def _inject_fn(self):
+        return _get_raw_inject_fn()
+
+    @pytest.mark.asyncio
+    async def test_skips_when_marker_in_state_but_not_request(self, _inject_fn):
+        """Idempotency: injection already mirrored into graph state."""
+        handler = AsyncMock()
+        seeded = [
+            SystemMessage(content="sys"),
+            SystemMessage(content=f"{MEMORY_CONTEXT_MARKER}>x</user_memory_context>"),
+            HumanMessage(content="hello"),
+        ]
+        req = _make_request(
+            messages=[SystemMessage(content="sys"), HumanMessage(content="hello")],
+            state_messages=list(seeded),
+        )
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        set_memory_runtime_budget({"used": 99, "total": 999})
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "already_present",
+        }
+        assert get_memory_runtime_budget() is None
+
+    @pytest.mark.asyncio
+    async def test_skips_when_marker_already_present(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                SystemMessage(content=f"{MEMORY_CONTEXT_MARKER}>\ndata\n</user_memory_context>"),
+                HumanMessage(content="hi"),
+            ]
+        )
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "already_present",
+        }
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_runtime_context(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request(has_runtime_context=False)
+        await _inject_fn(req, handler)
+        handler.assert_awaited_once_with(req)
+
+    @pytest.mark.asyncio
+    async def test_sets_not_applied_reason_when_runtime_context_missing(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+        req.runtime.context = None
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        set_memory_runtime_budget({"used": 120, "total": 1024})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "missing_context",
+        }
+        assert get_memory_runtime_budget() is None
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_memory_manager(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+        set_memory_runtime_budget({"used": 7, "total": 70})
+        set_memory_runtime_injection({"state": "applied", "source": "snapshot"})
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=None,
+        ):
+            await _inject_fn(req, handler)
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_budget() is None
+        assert get_memory_runtime_injection() is None
+
+    @pytest.mark.asyncio
+    async def test_sets_not_applied_reason_when_tools_recall_mode(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.TOOLS
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "recall_mode_tools",
+        }
+
+    @pytest.mark.asyncio
+    async def test_context_mode_no_guidance_injection(self, _inject_fn):
+        """CONTEXT mode (memory_search_tool not bound) injects context but never tool guidance."""
+        handler = AsyncMock()
+        req = _make_request(tools=[])  # CONTEXT: no memory_search_tool bound
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.CONTEXT
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Test"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        call_kwargs = req.override.call_args[1]
+        injected_messages = call_kwargs["messages"]
+
+        stable_msgs = [
+            m for m in injected_messages if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
+        ]
+        assert len(stable_msgs) == 1
+        assert "memory_search_tool" not in str(stable_msgs[0].content)
+        assert "## Memory Search" not in str(stable_msgs[0].content)
+        assert "Citation Requirements" not in str(stable_msgs[0].content)
+
+    @pytest.mark.asyncio
+    async def test_context_mode_cold_start_no_injection(self, _inject_fn):
+        """CONTEXT cold-start skips injection entirely — no learning guidance for unbound tools."""
+        handler = AsyncMock()
+        req = _make_request(tools=[])
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.CONTEXT
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "empty_context",
+        }
+
+    @pytest.mark.asyncio
+    async def test_injects_context_on_success(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Test"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        call_kwargs = req.override.call_args[1]
+        injected_messages = call_kwargs["messages"]
+
+        stable_msgs = [
+            m for m in injected_messages if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
+        ]
+        assert len(stable_msgs) == 1
+        assert get_memory_runtime_injection() == {
+            "state": "applied",
+            "source": "fallback",
+        }
+        budget = get_memory_runtime_budget()
+        assert isinstance(budget, dict)
+        assert budget.get("total") == 50000
+        assert isinstance(budget.get("used"), int)
+
+    @pytest.mark.asyncio
+    async def test_reuses_prefetched_snapshot_without_refetch(self, _inject_fn):
+        """When stream preflight already produced a snapshot, middleware reuses it."""
+        handler = AsyncMock()
+        req = _make_request(messages=[SystemMessage(content="sys"), HumanMessage(content="hello")])
+        req.runtime.context = {
+            "memory_brief_snapshot": {
+                "snapshot_id": "snap-prefetched",
+                "memory_ctx": {"global_profile": {"name": "Snapshot User"}},
+                "learned_ctx": {
+                    "learned_rules": [],
+                    "learned_preferences": [{"content": "prefers concise replies", "id": "pref-1"}],
+                },
+            }
+        }
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Should not be used"}})
+        mock_manager.get_learned_context = AsyncMock(return_value=dict(_EMPTY_LEARNED))
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        mock_manager.get_context.assert_not_called()
+        mock_manager.get_learned_context.assert_not_called()
+        assert req.state.get("memory_brief_snapshot_id") == "snap-prefetched"
+        req.override.assert_called_once()
+        injected_messages = req.override.call_args[1]["messages"]
+        stable_payload = "\n".join(str(m.content) for m in injected_messages if isinstance(m, SystemMessage))
+        untrusted_payload = "\n".join(str(m.content) for m in injected_messages if isinstance(m, HumanMessage))
+        assert "Snapshot User" in stable_payload
+        # P0: learned snapshot is not injected — retrieval goes through memory_search_tool.
+        assert MEMORY_UNTRUSTED_OPEN_MARKER not in untrusted_payload
+        assert get_memory_runtime_injection() == {
+            "state": "applied",
+            "source": "snapshot",
+        }
+
+    @pytest.mark.asyncio
+    async def test_get_context_failure_returns_without_leak_warnings(self, _inject_fn):
+        """When static memory context load fails, middleware degrades to not_applied/load_error."""
+        handler = AsyncMock()
+        req = _make_request()
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+
+        async def exploding_get_context(*args: object, **_: object) -> dict[str, object]:
+            raise RuntimeError("simulated_load_failure")
+
+        mock_manager.get_context = exploding_get_context
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "load_error",
+        }
+
+    @pytest.mark.asyncio
+    async def test_short_circuits_when_format_returns_both_none(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(return_value=dict(_EMPTY_LEARNED))
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+                return_value=mock_manager,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.memory_context.memory_context_middleware._format_memory_context",
+                return_value=(None, None, {}),
+            ),
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "empty_context",
+        }
+
+    @pytest.mark.asyncio
+    async def test_handles_static_context_failure(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(side_effect=RuntimeError("db error"))
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "load_error",
+        }
+
+    @pytest.mark.asyncio
+    async def test_handles_learned_context_failure_non_fatal(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Test"}})
+        mock_manager.get_learned_context = AsyncMock(side_effect=RuntimeError("learned db error"))
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handles_get_context_load_error(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(side_effect=RuntimeError("static db error"))
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "load_error",
+        }
+
+    @pytest.mark.asyncio
+    async def test_handles_invalid_static_payload_type(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value="not-a-dict")
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "invalid_static_payload",
+        }
+
+    @pytest.mark.asyncio
+    async def test_cold_start_injects_discovery_prompt(self, _inject_fn):
+        """New users (empty context) get cold start discovery guidance as SystemMessage."""
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        call_kwargs = req.override.call_args[1]
+        injected_messages = call_kwargs["messages"]
+        cold_msgs = [
+            m
+            for m in injected_messages
+            if isinstance(m, SystemMessage)
+            and "Discovery Mode" in str(m.content)
+            and MEMORY_CONTEXT_MARKER in str(m.content)
+        ]
+        assert len(cold_msgs) == 1
+
+    @pytest.mark.asyncio
+    async def test_inserts_after_multiple_system_messages(self, _inject_fn):
+        """Memory stable block is inserted after contiguous leading SystemMessages."""
+        handler = AsyncMock()
+        req = _make_request(
+            messages=[
+                SystemMessage(content="System prompt 1"),
+                SystemMessage(content="System prompt 2"),
+                HumanMessage(content="Hello"),
+            ]
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Test"}})
+        mock_manager.get_learned_context = AsyncMock(return_value=_EMPTY_LEARNED)
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        call_kwargs = req.override.call_args[1]
+        injected = call_kwargs["messages"]
+        sys_count = sum(1 for m in injected if isinstance(m, SystemMessage))
+        human_count = sum(1 for m in injected if isinstance(m, HumanMessage))
+        assert sys_count == 3
+        assert human_count == 1
+
+    @pytest.mark.asyncio
+    async def test_learned_only_uses_cold_start_without_untrusted_injection(self, _inject_fn):
+        """P0: learned facts are not injected; empty profile gets stable cold-start guidance only."""
+        handler = AsyncMock()
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                HumanMessage(content="Real user"),
+            ]
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u-learned-only"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(
+            return_value={
+                "learned_rules": [{"trigger": "t", "action": "a", "content": "x"}],
+                "learned_preferences": [],
+            }
+        )
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        injected = req.override.call_args[1]["messages"]
+        ids = [
+            (
+                "sys"
+                if isinstance(m, SystemMessage)
+                else (
+                    "mem" if isinstance(m, HumanMessage) and MEMORY_UNTRUSTED_OPEN_MARKER in str(m.content) else "user"
+                )
+            )
+            for m in injected
+        ]
+        assert ids == ["sys", "sys", "user"]
+        cold_msgs = [
+            m
+            for m in injected
+            if isinstance(m, SystemMessage)
+            and "Discovery Mode" in str(m.content)
+            and MEMORY_CONTEXT_MARKER in str(m.content)
+        ]
+        assert len(cold_msgs) == 1
+
+    @pytest.mark.asyncio
+    async def test_skips_injection_when_recall_mode_tools(self, _inject_fn):
+        """RecallMode.TOOLS should skip context injection entirely."""
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.TOOLS
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        mock_manager.get_context.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_aimessage_name_prefix(self, _inject_fn):
+        """AIMessages with a 'name' attribute get prefixed with [Agent: {Name}]."""
+        from langchain_core.messages import AIMessage
+
+        handler = AsyncMock()
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                AIMessage(content="I am a response", name="SubAgentA"),
+                HumanMessage(content="Hello"),
+            ]
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        injected_messages = req.override.call_args[1]["messages"]
+        ai_msg = next((m for m in injected_messages if isinstance(m, AIMessage)), None)
+        assert ai_msg is not None
+        assert ai_msg.content.startswith("[Agent: SubAgentA]\n")
+        assert "I am a response" in ai_msg.content
+
+    @pytest.mark.asyncio
+    async def test_aimessage_name_prefix_for_list_content_blocks(self, _inject_fn):
+        """AIMessages with structured content blocks get the same agent name prefix."""
+        from langchain_core.messages import AIMessage
+
+        handler = AsyncMock()
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                AIMessage(
+                    content=[{"type": "text", "text": "Structured response"}],
+                    name="SubAgentB",
+                ),
+                HumanMessage(content="Hello"),
+            ]
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        injected_messages = req.override.call_args[1]["messages"]
+        ai_msg = next((m for m in injected_messages if isinstance(m, AIMessage)), None)
+        assert ai_msg is not None
+        assert isinstance(ai_msg.content, list)
+        assert ai_msg.content[0]["text"].startswith("[Agent: SubAgentB]\n")
+
+    @pytest.mark.asyncio
+    async def test_aimessage_name_prefix_skips_non_text_first_block(self, _inject_fn):
+        from langchain_core.messages import AIMessage
+
+        handler = AsyncMock()
+        original_content = [{"type": "image", "url": "https://example.com/a.png"}]
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                AIMessage(content=original_content, name="SubAgentC"),
+                HumanMessage(content="Hello"),
+            ]
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        ai_msg = next(m for m in req.override.call_args[1]["messages"] if isinstance(m, AIMessage))
+        assert ai_msg.content == original_content
+
+    @pytest.mark.asyncio
+    async def test_injects_untrusted_human_message_when_formatter_returns_untrusted(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                HumanMessage(content="Hello"),
+            ]
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "User"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+                return_value=mock_manager,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.memory_context.memory_context_middleware._format_memory_context",
+                return_value=(
+                    "<user_memory_context>stable</user_memory_context>",
+                    "untrusted-learned-block",
+                    {},
+                ),
+            ),
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        injected = req.override.call_args[1]["messages"]
+        human_msgs = [m for m in injected if isinstance(m, HumanMessage)]
+        assert len(human_msgs) == 2
+        assert "untrusted-learned-block" in str(human_msgs[0].content)
+
+    @pytest.mark.asyncio
+    async def test_memory_budget_uses_base_chars_without_model_context_tokens(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 1200
+        mock_manager._config.model_context_tokens = None
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "BudgetUser"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        budget = get_memory_runtime_budget()
+        assert budget is not None
+        assert budget["total"] == 1200
+        assert budget["used"] > 0
+
+    @pytest.mark.asyncio
+    async def test_budget_reports_rules_dropped_by_truncation(self, _inject_fn):
+        """Truncated rules must be reported, not silently counted as injected."""
+        handler = AsyncMock()
+        req = _make_request()
+        rules = [{"trigger": f"trigger-{i}", "action": "a" * 900, "priority": 0} for i in range(12)]
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 100
+        mock_manager._config.model_context_tokens = None
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"rules": rules})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        budget = get_memory_runtime_budget()
+        assert budget is not None
+        assert budget["rulesConfigured"] == 12
+        assert 0 < budget["rulesInjected"] < 12
+        assert budget["rulesTruncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_budget_reports_full_rule_injection(self, _inject_fn):
+        """When nothing is trimmed, configured == injected and the flag stays False."""
+        handler = AsyncMock()
+        req = _make_request()
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 100
+        mock_manager._config.model_context_tokens = None
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"rules": [{"trigger": "t1", "action": "a1", "priority": 0}]})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        budget = get_memory_runtime_budget()
+        assert budget is not None
+        assert budget["rulesConfigured"] == 1
+        assert budget["rulesInjected"] == 1
+        assert budget["rulesTruncated"] is False
+
+
+class TestScopeBoundary:
+    """Scope boundary declaration in <user_memory_context>."""
+
+    def test_scope_boundary_present_when_stable_body_exists(self):
+        ctx = {"global_profile": {"name": "Alice"}}
+        stable, _, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "Scope Boundary" in stable
+        assert "Agent instructions ALWAYS take precedence" in stable
+        assert "<user_instructions>" in stable
+
+    def test_scope_boundary_appears_before_user_context_header(self):
+        ctx = {"global_profile": {"name": "Bob"}}
+        stable, _, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        sb_idx = stable.index("Scope Boundary")
+        uc_idx = stable.index("# User Context (stable)")
+        assert sb_idx < uc_idx
+
+    def test_scope_boundary_absent_in_cold_start(self):
+        stable, _, _accepted = _format_memory_context({}, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "Scope Boundary" not in stable
+        assert "Discovery Mode" in stable
+
+    def test_scope_boundary_absent_when_only_untrusted(self):
+        learned = {
+            "learned_rules": [{"trigger": "t", "action": "a", "content": "x"}],
+            "learned_preferences": [],
+        }
+        stable, untrusted, _accepted = _format_memory_context({}, learned)
+        assert stable is None
+        assert untrusted is not None
+        assert "Scope Boundary" not in untrusted
+
+    def test_scope_boundary_with_mixed_stable_and_learned(self):
+        ctx = {
+            "global_profile": {"name": "Carol"},
+            "agent_instructions": [{"instruction": "Be verbose"}],
+        }
+        learned = {
+            "learned_rules": [],
+            "learned_preferences": [{"content": "user likes brief replies"}],
+        }
+        stable, untrusted, _accepted = _format_memory_context(ctx, learned)
+        assert stable is not None
+        assert untrusted is not None
+        assert "Scope Boundary" in stable
+        assert "Scope Boundary" not in untrusted
+
+    def test_scope_boundary_is_blockquote_format(self):
+        ctx = {"global_profile": {"name": "Dave"}}
+        stable, _, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "> **Scope Boundary**:" in stable
+
+
+class TestMemoryLoadTimeout:
+    """Memory context load wall-clock timeout fails open with not_applied/load_timeout."""
+
+    @pytest.fixture()
+    def _inject_fn(self):
+        return _get_raw_inject_fn()
+
+    @pytest.mark.asyncio
+    async def test_timeout_fails_open_not_applied(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        async def _hanging_get_context(**kwargs):
+            await asyncio.sleep(0.5)
+            return {}
+
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = _hanging_get_context
+        mock_manager._config.retrieval.timeout_seconds = 0.05
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "load_timeout",
+        }
+
+    @pytest.mark.asyncio
+    async def test_static_context_error_fails_open(self, _inject_fn):
+        """manager.get_context returning a BaseException must fail open, not crash."""
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value=RuntimeError("static retrieval exploded"))
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "static_error",
+        }
+
+    @pytest.mark.asyncio
+    async def test_static_context_unexpected_type_fails_open(self, _inject_fn):
+        """manager.get_context returning a non-dict non-exception payload fails open."""
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value=["not", "a", "dict"])
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "invalid_static_payload",
+        }
+
+    @pytest.mark.asyncio
+    async def test_learned_exception_still_injects_static(self, _inject_fn):
+        """Learned extraction failure must not block static context injection (non-fatal)."""
+        handler = AsyncMock()
+        req = _make_request(messages=[SystemMessage(content="sys"), HumanMessage(content="hello")])
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "S"}})
+        mock_manager.get_learned_context = AsyncMock(side_effect=RuntimeError("learned exploded"))
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        injected = req.override.call_args[1]["messages"]
+        stable_msgs = [m for m in injected if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)]
+        assert len(stable_msgs) == 1
+        assert "User Profile" in str(stable_msgs[0].content)
+
+    @pytest.mark.asyncio
+    async def test_non_text_first_block_skips_prefixing(self, _inject_fn):
+        """AIMessage list content whose first block is not a text block is left untouched."""
+        handler = AsyncMock()
+        from langchain_core.messages import AIMessage
+
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                AIMessage(
+                    content=[{"type": "tool_result", "content": "nope"}, {"type": "text", "text": "body"}],
+                    name="test_agent",
+                ),
+                HumanMessage(content="hello"),
+            ],
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "X"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        # The tool_result-led AIMessage is not prefixed; injection still proceeds.
+        req.override.assert_called_once()
+        injected = req.override.call_args[1]["messages"]
+        aimsgs = [m for m in injected if isinstance(m, AIMessage)]
+        assert len(aimsgs) == 1
+        assert "[Agent: test_agent]" not in str(aimsgs[0].content)
+
+
+# ---------------------------------------------------------------------------
+# _format_memory_context — additional coverage branches
+# ---------------------------------------------------------------------------
+
+
+class TestFormatCoverageBranches:
+    def test_memory_search_guidance_disabled_returns_empty(self):
+        from myrm_agent_harness.agent.middlewares.memory_context.memory_context_format import (
+            _memory_search_guidance,
+        )
+
+        assert _memory_search_guidance(memory_search_enabled=False) == ""
+
+    def test_working_state_branch(self):
+        ctx = {"working_state": "mid-task: drafting the migration plan"}
+        stable, _untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "Active Working Context" in stable
+        assert "mid-task: drafting the migration plan" in stable
+
+    def test_peer_profile_branch(self):
+        ctx = {"peer_profile": {"tone": "friendly mentor", "name": "Alice"}}
+        stable, _untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "Our Relationship & Your Persona" in stable
+        assert "tone: friendly mentor" in stable
+        assert "name: Alice" in stable
+
+    def test_learned_rule_reasoning_and_application_fields(self):
+        learned = {
+            "learned_rules": [
+                {
+                    "trigger": "deploy to prod",
+                    "action": "notify the owner",
+                    "content": "...",
+                    "reasoning": "owner approves rollouts",
+                    "application": "before any push",
+                },
+            ],
+            "learned_preferences": [],
+        }
+        stable, untrusted, _accepted = _format_memory_context({}, learned)
+        assert stable is None
+        assert untrusted is not None
+        assert "When: deploy to prod" in untrusted
+        assert "Do: notify the owner" in untrusted
+        assert "Why: owner approves rollouts" in untrusted
+        assert "How: before any push" in untrusted
+
+    def test_proactive_knowledge_pack_snippet_injection(self):
+        """Verify proactive knowledge pack snippets are injected in untrusted envelope, protecting System Prompt cache."""
+        proactive_pack = {
+            "snippets": [
+                {
+                    "kb_name": "Finance",
+                    "article_title": "ExpensePolicy",
+                    "snippet": "Hotel rate in Shenzhen is capped at 650 RMB/night.",
+                    "confidence": 0.95,
+                }
+            ],
+            "total_chars": 50,
+            "latency_ms": 12.5,
+        }
+        ctx = {"proactive_knowledge_pack": proactive_pack}
+        stable, untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+
+        # 1. System Prompt must not contain dynamic snippets (protecting prefix cache)
+        assert stable is None
+
+        # 2. Untrusted payload must contain the authoritative snippet
+        assert untrusted is not None
+        assert "Active Knowledge Pack Snippets (authoritative context)" in untrusted
+        assert "[Finance | ExpensePolicy]" in untrusted
+        assert "Hotel rate in Shenzhen is capped at 650 RMB/night." in untrusted
+
+    def test_tool_guidance_injection(self):
+        """Verify tool guidance is properly injected into stable sections."""
+        ctx = {
+            "tool_guidance": {
+                "bash_tool": ["Do not use interactive shells", "Prefer ripgrep over grep"],
+                "file_edit": ["Always read before write"],
+            }
+        }
+        stable, _untrusted, _accepted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "Tool Execution Guidance" in stable
+        assert "[bash_tool] Do not use interactive shells" in stable
+        assert "[file_edit] Always read before write" in stable
+
+    def test_learned_episodes_failure_traps_and_phase_memories(self):
+        """Verify episodic items with failure traps, shadow background, and phase memories."""
+        learned = {
+            "learned_episodes": [
+                {
+                    "content": "Tried curl without timeout",
+                    "subtask_phase": "fetch",
+                    "is_failure_attempt": True,
+                    "failure_reason": "Connection hung indefinitely",
+                    "negative_lesson": "Always specify --max-time",
+                },
+                {
+                    "content": "Empty entry with no content",
+                    "is_failure_attempt": False,
+                },
+                {
+                    "content": "Weak cluster correlation data",
+                    "subtask_phase": "analysis",
+                    "confidence_tier": "weak",
+                },
+                {
+                    "content": "Step 2 completed successfully",
+                    "subtask_phase": "deploy",
+                    "confidence_tier": "strong",
+                },
+                {
+                    "content": "General episode without phase",
+                    "confidence_tier": "strong",
+                },
+                {
+                    "content": "",
+                    "negative_lesson": "",
+                    "failure_reason": "",
+                },
+            ]
+        }
+        _stable, untrusted, _accepted = _format_memory_context({}, learned)
+        assert untrusted is not None
+        assert "Failed Attempts & Negative Traps (Do not repeat)" in untrusted
+        assert (
+            "[FETCH] Tried curl without timeout | Cause: Connection hung indefinitely — AVOID: Always specify --max-time"
+            in untrusted
+        )
+        assert "Cross-Task Background Context (Weak/Shadow - Do not execute)" in untrusted
+        assert (
+            "[BACKGROUND CONTEXT - Reference only, do not execute as automated SOP] Weak cluster correlation data"
+            in untrusted
+        )
+        assert "Subtask Phase Memories" in untrusted
+        assert "[DEPLOY] Step 2 completed successfully" in untrusted
+        assert "General episode without phase" in untrusted
+
+    def test_proactive_knowledge_pack_fallback_rendering(self):
+        """Verify proactive knowledge pack snippet fallback without kb_name."""
+        proactive_pack = {
+            "snippets": [
+                {
+                    "article_title": "StandaloneDoc",
+                    "snippet": "Direct snippet content without kb_name",
+                }
+            ]
+        }
+        _stable, untrusted, _accepted = _format_memory_context(
+            {"proactive_knowledge_pack": proactive_pack}, _EMPTY_LEARNED
+        )
+        assert untrusted is not None
+        assert "[Knowledge Base | StandaloneDoc]" in untrusted
+        assert "Direct snippet content without kb_name" in untrusted
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

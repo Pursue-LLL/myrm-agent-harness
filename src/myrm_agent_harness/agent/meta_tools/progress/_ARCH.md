@@ -1,0 +1,49 @@
+# meta_tools/progress/
+
+## Overview
+
+Main-agent **todo progress meta-tool** — workspace-backed todos for opt-in multi-step tasks (`planning` builtin group).
+
+**Placement rule**: Session-bound todo progress lives under `agent/meta_tools/progress/` (same category as `meta_tools/bash/`). Do not add a sibling directory under `agent/` for LangChain tools, and do not put this in `toolkits/` (toolkits must not import `agent/`).
+
+SSOT: `{workspace_root}/.myrm/progress/todos.json`
+
+## File Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Public exports for progress meta-tool | ✅ |
+| `schemas.py` | Config | `TodoItem`, `TodoStore`, plan-compat adapter for Goal API | ✅ |
+| `storage.py` | Core | Read/write/merge todos in chat workspace (atomic write via `infra.atomic_write`) | ✅ |
+| `events.py` | Core | Emit `tasks_steps` for ProgressSteps UI and attach `tool_result_details` for session-tree binding | ✅ |
+| `todo_write_tool.py` | Core | LangChain `todo_write` factory (main agent, no sub-agent LLM) | ✅ |
+
+## Constraints
+
+- **MAX_TODOS = 20**: Rejects writes that would exceed 20 items (returns error with guidance to merge or simplify).
+- **Single in_progress**: When multiple items are set to `in_progress`, only the last one is kept; others are auto-corrected to `pending` with a `note` field in the response.
+- **Blocked State Support**: Supports `pending`, `in_progress`, `completed`, `cancelled`, and `blocked` statuses. When an item is marked `blocked`, it releases `in_progress` concurrency to allow dynamic replanning or unblocking.
+- **Smart Focus Scheduling**: `ProgressMiddleware` automatically bypasses `blocked` items and prioritizes actionable `in_progress` or `pending` tasks as `Current focus`, appending non-blocking replanning guidance.
+- **Precision Completion Diagnostics**: `ProgressMiddleware` distinguishes actionable from blocked items, offering targeted guidance to cancel permanently unfulfillable items via `todo_write(merge=true)` when all remaining items are blocked.
+- **Partial Update Support**: In `merge=True` mode, `content` and `status` are independently optional for existing items; omitting `content` preserves the existing description, while omitting `status` preserves the existing lifecycle status (e.g. `in_progress`). New items require `content`.
+- **Monotonic Revision Sequence**: `TodoStore` maintains a monotonic `revision` counter incremented on each write, emitted in `tasks_steps` SSE payloads, and exported via `to_plan_compat()` to guarantee end-to-end client-side state ordering and race condition immunity.
+- **Self-Healing Error Diagnostics**: Invalid status values return the complete list of valid enum values to facilitate agent self-correction.
+
+## Bind conditions
+
+- `enable_planning=True`, or resume when `.myrm/progress/todos.json` exists in workspace
+
+## Server hydrate (myrm-agent-server)
+
+- `app/platform_utils/workspace_session.to_workspace_session_id` — map chat id → `chat_{id}` workspace key
+- `GET /api/v1/goals/{chat_id}/plan` — reads SSOT and returns plan-compat shape for GoalControlPlane
+
+## Key Dependencies
+
+- `agent.middlewares._session_context` (workspace root)
+- LangGraph `dispatch_custom_event` for SSE progress
+
+## Do not place here
+
+- Generic agent-agnostic engines → `toolkits/` (must not import `agent/`)
+- Large autonomous engines with separate LLM tool surface → `agent/<domain>/` + thin `meta_tools/<domain>/` (see `goals/` pattern)

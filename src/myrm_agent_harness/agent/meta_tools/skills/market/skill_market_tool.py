@@ -1,0 +1,282 @@
+"""Skill discovery meta-tool.
+
+Provides Agent with abilities to search, install, uninstall skills
+and install directly from GitHub URLs.
+
+Uses SkillMarketBackend Protocol for search/install/get_detail.
+install_from_url and uninstall are optional capabilities injected
+as callbacks from the business layer when available.
+
+user_id is extracted at runtime from RunnableConfig context (framework pattern),
+keeping the tool layer free from business concepts.
+
+[INPUT]
+- backends.skills.market_protocols::SkillMarketBackend, (POS: SkillBackend SkillBackend SkillMarketBackend)
+
+[OUTPUT]
+- create_skill_market_tool: Create the skill market tool (LLM name: skill_market_tool).
+
+[POS]
+Skill market meta-tool. Enables Agent to search and install skills from external marketplaces.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Coroutine
+from typing import TYPE_CHECKING, Literal
+
+from langchain.tools import tool
+from langchain_core.runnables import RunnableConfig
+from pydantic import BaseModel, Field
+
+from myrm_agent_harness.agent.context_management.context import extract_context_from_runnable_config
+from myrm_agent_harness.utils.locale import is_chinese
+
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
+    from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult, SkillMarketBackend
+
+TOOL_DESCRIPTION_EN = """Install NEW skills and Agent Plugins from external markets (GitHub, skills.sh, ClawHub, etc.).
+
+Use this tool when:
+- User asks "find me a skill for X" or "is there a plugin that can..."
+- User wants to extend agent capabilities with new skills or multi-skill agent plugins
+- User provides a GitHub URL to install a skill/plugin from
+- User wants to uninstall a previously installed skill
+
+Four actions:
+1. action="search": Search for skills or plugins by keyword
+2. action="install": Install a skill/plugin by ID and source (from search results)
+3. action="install_from_url": Install directly from a GitHub URL
+4. action="uninstall": Uninstall a locally installed skill by ID
+
+Important workflow:
+- For search+install: ALWAYS search first, present results, ONLY install after user confirms
+- For install_from_url: use when the user supplied a URL; the security gate may block high-risk skills (tell the user, do not retry blindly)
+- For uninstall: Confirm with the user before uninstalling
+- After install: the skill is enabled in the user catalog; on the next turn use skill_select_tool when it appears in <bound_skills> or a <bound_skills_update> block (explicit allowlist agents may auto-append)
+"""
+
+TOOL_DESCRIPTION_ZH = """从外部市场（GitHub、skills.sh、ClawHub 等）安装新技能和 Agent 插件。
+
+适用场景：
+- 用户询问“帮我找个 X 技能”或“有没有插件能做...”
+- 用户希望扩展新技能或多技能 Agent 插件
+- 用户提供 GitHub URL 安装技能/插件
+- 用户希望卸载先前安装的技能
+
+四类操作：
+1. action="search": 按关键词搜索技能或插件
+2. action="install": 按 ID 和 source 安装技能/插件（来自搜索结果）
+3. action="install_from_url": 直接从 GitHub URL 安装
+4. action="uninstall": 按 ID 卸载本地已安装技能
+
+重要工作流：
+- 搜索并安装：始终先搜索并展示结果，仅在用户确认后执行安装
+- URL 安装：用户已提供 URL 时使用；高风险技能可能被安全门拦截（告知用户，勿盲目重试）
+- 卸载：卸载前须向用户确认
+- 安装后：技能已加入用户 catalog；下一 turn 若出现在 <bound_skills> 或 <bound_skills_update> 再用 skill_select_tool（显式 allowlist 智能体可能已自动 append）
+"""
+
+TOOL_DESCRIPTION = TOOL_DESCRIPTION_EN
+
+
+def resolve_skill_market_tool_description(locale: str | None = None) -> str:
+    """Resolve LLM-facing skill_market_tool description."""
+    if is_chinese(locale):
+        return TOOL_DESCRIPTION_ZH
+    return TOOL_DESCRIPTION_EN
+
+
+_SKILL_SEARCH_MARKET_HINTS: dict[str, str] = {
+    "skill_search_tool": ("NOT for searching skills already bound to this agent — use skill_search_tool for that."),
+}
+
+
+InstallFromUrlFn = Callable[[str, str], Coroutine[None, None, "SkillInstallResult"]]
+UninstallFn = Callable[[str, str], Coroutine[None, None, "SkillInstallResult"]]
+
+
+def _extract_user_id(config: RunnableConfig) -> str:
+    """Extract user_id from RunnableConfig context (framework pattern)."""
+    context = extract_context_from_runnable_config(config)
+    uid = str(context.get("user_id", ""))
+    if not uid:
+        raise ValueError(
+            "user_id is required in RunnableConfig context for skill operations. "
+            "Business layer must set context['user_id']."
+        )
+    return uid
+
+
+def create_skill_market_tool(
+    market_backend: SkillMarketBackend,
+    *,
+    install_from_url_fn: InstallFromUrlFn | None = None,
+    uninstall_fn: UninstallFn | None = None,
+    locale: str | None = None,
+) -> BaseTool:
+    """Create the skill market tool.
+
+    Args:
+        market_backend: Skill market backend (Protocol injection)
+        install_from_url_fn: Optional callback for direct URL install (business layer)
+        uninstall_fn: Optional callback for uninstall (business layer)
+        locale: Tool description locale (default: English).
+    """
+
+    class SkillMarketInput(BaseModel):
+        action: Literal["search", "install", "install_from_url", "uninstall"] = Field(
+            description=(
+                "Action: 'search' to find skills, 'install' to install by ID, "
+                "'install_from_url' to install from GitHub URL, 'uninstall' to remove"
+            )
+        )
+        query: str = Field(default="", description="Search keywords (required for action='search')")
+        skill_id: str = Field(default="", description="Skill ID (required for 'install' and 'uninstall')")
+        source: str = Field(default="", description="Skill source from search results (required for action='install')")
+        url: str = Field(default="", description="GitHub URL or owner/repo (required for action='install_from_url')")
+
+    @tool("skill_market_tool", description=resolve_skill_market_tool_description(locale), args_schema=SkillMarketInput)
+    async def skill_market_func(
+        action: str, query: str = "", skill_id: str = "", source: str = "", url: str = "", *, config: RunnableConfig
+    ) -> str:
+        """Install or uninstall skills from external marketplaces (not in-agent library search)."""
+        if action == "search":
+            return await _handle_search(market_backend, query)
+
+        user_id = _extract_user_id(config)
+        if action == "install":
+            return await _handle_install(market_backend, skill_id, source, user_id)
+        elif action == "install_from_url":
+            return await _handle_install_from_url(install_from_url_fn, url, user_id)
+        elif action == "uninstall":
+            return await _handle_uninstall(uninstall_fn, skill_id, user_id)
+        return f"Unknown action: {action}. Use 'search', 'install', 'install_from_url', or 'uninstall'."
+
+    from myrm_agent_harness.utils.tool_dynamic_hints import with_dynamic_hints
+
+    return with_dynamic_hints(skill_market_func, _SKILL_SEARCH_MARKET_HINTS)
+
+
+async def _handle_search(backend: SkillMarketBackend, query: str) -> str:
+    if not query.strip():
+        return "Error: 'query' is required for search action."
+
+    results = await backend.search(query, limit=8)
+    if not results:
+        return f"No skills found for '{query}'. Try different keywords or describe your need differently."
+
+    lines = [f"Found {len(results)} skill(s) for '{query}':\n"]
+    for i, r in enumerate(results, 1):
+        sr = r.result if hasattr(r, "result") else r
+        stars_str = f" ({sr.stars} stars)" if getattr(sr, "stars", 0) > 0 else ""
+        pkg_badge = " [Agent Plugin]" if getattr(sr, "package_type", "skill") == "agent_plugin" else ""
+        source_label = {
+            "prebuilt": "Official",
+            "github": "GitHub",
+            "skills_sh": "Community",
+            "clawhub": "ClawHub",
+            "lobehub": "LobeHub",
+        }.get(sr.source, sr.source)
+        lines.append(
+            f"{i}. **{sr.name}** [{source_label}]{pkg_badge}{stars_str}\n"
+            f" {sr.description}\n"
+            f' -> To install: skill_id="{sr.id}", source="{sr.source}"'
+        )
+
+    lines.append(
+        "\nPresent these results to the user and ask which one they'd like to install. "
+        "Only call install after user confirms."
+    )
+    return "\n".join(lines)
+
+
+async def _handle_install(backend: SkillMarketBackend, skill_id: str, source: str, user_id: str | None) -> str:
+    if not skill_id or not source:
+        return "Error: 'skill_id' and 'source' are required for install action."
+
+    result = await backend.install(skill_id, source, user_id)
+
+    if result.success:
+        msg = (
+            f"Successfully installed skill '{result.skill_name}'!\n"
+            f" Path: {result.installed_path}\n"
+            f" ID: {result.skill_id}\n"
+        )
+        if result.installed_skills and len(result.installed_skills) > 1:
+            msg += f" Included Sub-Skills: {', '.join(result.installed_skills)}\n"
+        if result.declared_mcp_servers:
+            msg += f" Declared MCP Servers: {', '.join(result.declared_mcp_servers)}\n"
+        if result.scan_summary:
+            msg += f"\n    Security scan: {result.scan_summary}\n"
+        msg += (
+            "\nEnabled in your skill catalog. On the next turn, use skill_select_tool when the skill "
+            "appears in <bound_skills> or a <bound_skills_update> block."
+        )
+        return msg
+    if result.error_code == "SECURITY_SCORE_BELOW_THRESHOLD":
+        return (
+            f"Installation blocked by Preflight Security Gate:\n"
+            f" Skill: {result.skill_name or skill_id}\n"
+            f" Detail: {result.error}\n\n"
+            f"[Security Hard Stop Line]: This skill contains high-risk patterns and its security score is below the 50-point safety threshold. "
+            f"Installation has been hard-blocked to protect the environment. Do not attempt to retry installing this untrusted skill. "
+            f"Please search for an alternative safe skill or report the security risk to the user."
+        )
+    return f"Installation failed: {result.error}"
+
+
+async def _handle_install_from_url(install_fn: InstallFromUrlFn | None, url: str, user_id: str | None) -> str:
+    if not url.strip():
+        return "Error: 'url' is required for install_from_url action."
+
+    if install_fn is None:
+        return "Error: Direct URL installation is not supported by this backend."
+
+    result = await install_fn(url, user_id)
+
+    if result.success:
+        msg = (
+            f"Successfully installed skill '{result.skill_name}' from URL!\n"
+            f" Path: {result.installed_path}\n"
+            f" ID: {result.skill_id}\n"
+        )
+        if result.scan_summary:
+            msg += f"\n    Security scan: {result.scan_summary}\n"
+        msg += (
+            "\nEnabled in your skill catalog. On the next turn, use skill_select_tool when the skill "
+            "appears in <bound_skills> or a <bound_skills_update> block."
+        )
+        return msg
+    if result.error_code == "SECURITY_SCORE_BELOW_THRESHOLD":
+        return (
+            f"Installation from URL blocked by Preflight Security Gate:\n"
+            f" URL: {url}\n"
+            f" Detail: {result.error}\n\n"
+            f"[Security Hard Stop Line]: This skill contains high-risk patterns and its security score is below the 50-point safety threshold. "
+            f"Installation has been hard-blocked to protect the environment. Do not attempt to retry installing this untrusted skill. "
+            f"Please search for an alternative safe skill or report the security risk to the user."
+        )
+    return f"Installation from URL failed: {result.error}"
+
+
+async def _handle_uninstall(uninstall_fn: UninstallFn | None, skill_id: str, user_id: str | None) -> str:
+    if not skill_id.strip():
+        return "Error: 'skill_id' is required for uninstall action."
+
+    if uninstall_fn is None:
+        return "Error: Uninstall is not supported by this backend."
+
+    result = await uninstall_fn(skill_id, user_id)
+
+    if result.success:
+        cleaned_list = getattr(result, "installed_skills", [])
+        if cleaned_list and len(cleaned_list) > 1:
+            return (
+                f"Successfully uninstalled plugin '{result.skill_name}' and cascade-cleaned "
+                f"{len(cleaned_list)} sub-skills: {', '.join(cleaned_list)}."
+            )
+        return f"Successfully uninstalled skill '{result.skill_name}'."
+    return f"Uninstall failed: {result.error}"

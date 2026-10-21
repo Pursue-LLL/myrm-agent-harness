@@ -1,0 +1,834 @@
+"""SQLite Relational Store — zero-dependency relational backend using aiosqlite.
+
+
+[INPUT]
+myrm_agent_harness.toolkits.memory.relational._schema (POS: Table DDL, scope migration and indexes)
+myrm_agent_harness.toolkits.memory.relational.base (POS: Relational store abstraction layer)
+myrm_agent_harness.toolkits.memory.relational.exceptions
+myrm_agent_harness.toolkits.memory.types (POS: Memory type definitions)
+
+[OUTPUT]
+SQLiteRelationalStore: Async SQLite relational store with WAL mode,
+                       connection reuse, and JSON column support.
+
+[POS]
+Lightweight relational store backed by aiosqlite. WAL mode + connection reuse for
+high-performance async I/O. Full CRUD for Profile, Procedural, and Pending memories.
+"""
+
+import asyncio
+import hashlib
+import json
+import logging
+from datetime import datetime
+from pathlib import Path
+from uuid import uuid4
+
+import aiosqlite
+
+from myrm_agent_harness.toolkits.memory.relational._converters import (
+    PROCEDURAL_COLUMNS,
+    now_iso,
+    parse_dt,
+    row_to_pending,
+    row_to_procedural,
+    row_to_profile,
+)
+from myrm_agent_harness.toolkits.memory.relational._exact_fact_store import (
+    delete_exact_fact,
+    save_exact_fact,
+    search_exact_facts,
+)
+from myrm_agent_harness.toolkits.memory.relational._schema import init_relational_schema
+from myrm_agent_harness.toolkits.memory.relational.base import RelationalStore
+from myrm_agent_harness.toolkits.memory.relational.exceptions import (
+    CorruptedMemoryIndexError,
+    RelationalConnectionError,
+    RelationalNotFoundError,
+    RelationalQueryError,
+    RelationalStoreError,
+)
+from myrm_agent_harness.toolkits.memory.types import (
+    MemoryScope,
+    MemorySearchResult,
+    PendingRecord,
+    ProceduralMemory,
+    ProfileAttributeSnapshot,
+    ProfileEntry,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class SQLiteRelationalStore(RelationalStore):
+    """SQLite relational store with WAL mode and connection reuse.
+
+    Features:
+    - Async I/O via aiosqlite
+    - WAL mode for concurrent reads
+    - Connection reuse with double-checked locking
+    - JSON column support for metadata/keywords
+    - Composite index optimization
+
+    Example::
+
+        async with SQLiteRelationalStore("~/.app/relational.db") as store:
+            await store.set_profile("u1", "language", "zh")
+            lang = await store.get_profile("u1", "language")
+    """
+
+    def __init__(self, db_path: str) -> None:
+        self._db_path = Path(db_path).expanduser().resolve()
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._connection: aiosqlite.Connection | None = None
+        self._connection_lock = asyncio.Lock()
+        self._initialized = False
+        self._closed = False
+        self._fts5_supported = False
+        logger.info("SQLiteRelationalStore initialized: %s", self._db_path)
+
+    async def _get_connection(self) -> aiosqlite.Connection:
+        if self._closed:
+            raise RelationalConnectionError("Store has been closed")
+        if self._connection is None:
+            async with self._connection_lock:
+                if self._closed:
+                    raise RelationalConnectionError("Store has been closed")
+                if self._connection is None:
+                    try:
+                        from myrm_agent_harness.utils.db.sqlite import (
+                            prepare_database_file,
+                        )
+
+                        prepare_database_file(self._db_path)
+                        self._connection = await aiosqlite.connect(str(self._db_path))
+                        await self._init_connection_settings()
+                        await self._init_tables()
+                        # Fast quick_check on connection establishment
+                        async with self._connection.execute("PRAGMA quick_check(1)") as cursor:
+                            rows = list(await cursor.fetchall())
+                        if not rows or len(rows) != 1 or str(rows[0][0]).lower() != "ok":
+                            await self._connection.close()
+                            self._connection = None
+                            raise CorruptedMemoryIndexError(
+                                f"SQLite store {self._db_path} failed initial quick_check: {rows}",
+                                db_path=str(self._db_path),
+                                index_type="sqlite_relational",
+                                repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
+                            )
+                    except CorruptedMemoryIndexError:
+                        self._connection = None
+                        raise
+                    except Exception as e:
+                        err_str = str(e).lower()
+                        if any(k in err_str for k in ("malformed", "corrupt", "not a database", "disk i/o error")):
+                            self._connection = None
+                            raise CorruptedMemoryIndexError(
+                                f"Corrupted SQLite store {self._db_path}: {e}",
+                                db_path=str(self._db_path),
+                                index_type="sqlite_relational",
+                                repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
+                            ) from e
+                        raise RelationalConnectionError(f"Failed to connect: {e}") from e
+        return self._connection
+
+    async def _init_connection_settings(self) -> None:
+        if self._connection is None:
+            return
+        from myrm_agent_harness.utils.db.sqlite import DURABLE, harden_connection_async
+
+        await harden_connection_async(self._connection, DURABLE, db_path=self._db_path)
+        await self._connection.commit()
+
+    async def _quick_check_rows(self) -> list[tuple[object, ...]]:
+        """Run ``PRAGMA quick_check(1)``, confirming any failure on a fresh connection.
+
+        A long-lived connection caches each FTS5 table's structure, so while another
+        connection (a second manager in this process, or another process) commits
+        to the same file, the cached structure goes stale and quick_check reports
+        ``malformed inverted index`` for a healthy database. A fresh connection reads
+        the current snapshot, so only a failure it reproduces counts as corruption.
+        """
+        conn = await self._get_connection()
+        async with conn.execute("PRAGMA quick_check(1)") as cursor:
+            rows = [tuple(row) for row in await cursor.fetchall()]
+        if self._quick_check_ok(rows):
+            return rows
+        async with aiosqlite.connect(str(self._db_path)) as fresh, fresh.execute("PRAGMA quick_check(1)") as cursor:
+            confirmed = [tuple(row) for row in await cursor.fetchall()]
+        if self._quick_check_ok(confirmed):
+            logger.info("quick_check on the long-lived connection was stale; fresh connection reports ok: %s", rows)
+        return confirmed
+
+    @staticmethod
+    def _quick_check_ok(rows: list[tuple[object, ...]]) -> bool:
+        return len(rows) == 1 and str(rows[0][0]).lower() == "ok"
+
+    async def assert_store_integrity(self) -> None:
+        """Fast pre-command integrity check using PRAGMA quick_check(1).
+
+        Fails fast if the SQLite database is corrupted, preventing partial/corrupt writes.
+        """
+        try:
+            rows = await self._quick_check_rows()
+            if not rows or len(rows) != 1 or str(rows[0][0]).lower() != "ok":
+                raise CorruptedMemoryIndexError(
+                    f"SQLite store {self._db_path} failed quick_check: {rows}",
+                    db_path=str(self._db_path),
+                    index_type="sqlite_relational",
+                    repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
+                )
+        except CorruptedMemoryIndexError:
+            raise
+        except Exception as e:
+            err_str = str(e).lower()
+            if any(k in err_str for k in ("malformed", "corrupt", "not a database", "disk i/o")):
+                raise CorruptedMemoryIndexError(
+                    f"SQLite store {self._db_path} integrity check query error: {e}",
+                    db_path=str(self._db_path),
+                    index_type="sqlite_relational",
+                    repair_suggestion="Check file permissions or restore database from backup.",
+                ) from e
+            raise RelationalQueryError(f"SQLite store {self._db_path} integrity check query failed: {e}") from e
+
+    def _handle_query_error(self, op: str, e: Exception) -> None:
+        if isinstance(e, (CorruptedMemoryIndexError, RelationalStoreError)):
+            raise e
+        err_str = str(e).lower()
+        if any(k in err_str for k in ("malformed", "corrupt", "not a database", "disk i/o")):
+            self._connection = None
+            raise CorruptedMemoryIndexError(
+                f"SQLite store {self._db_path} corrupted during {op}: {e}",
+                db_path=str(self._db_path),
+                index_type="sqlite_relational",
+                repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
+            ) from e
+        raise RelationalQueryError(f"{op} failed: {e}") from e
+
+    async def _ensure_integrity_before_write(self) -> None:
+        """Fail fast before write operations if database is corrupted."""
+        await self.assert_store_integrity()
+
+    def _scope_values(
+        self, scope: MemoryScope | None
+    ) -> tuple[str, str, str | None, str | None, str | None, str | None]:
+        if scope is None:
+            return "", "[]", None, None, None, None
+        return (
+            scope.primary_namespace,
+            json.dumps(scope.namespaces),
+            scope.agent_id,
+            scope.channel_id,
+            scope.conversation_id,
+            scope.task_id,
+        )
+
+    def _scope_filter_sql(self, namespaces: list[str] | None) -> tuple[str, list[str]]:
+        if not namespaces:
+            return "", []
+        placeholders = ",".join("?" for _ in namespaces)
+        return f" AND primary_namespace IN ({placeholders})", list(namespaces)
+
+    async def _init_tables(self) -> None:
+        if self._initialized or self._connection is None:
+            return
+        try:
+            self._fts5_supported = await init_relational_schema(self._connection)
+            self._initialized = True
+        except Exception as e:
+            raise RelationalConnectionError(f"Failed to initialize tables: {e}") from e
+
+    # ── Profile ──────────────────────────────────────────────────────
+
+    async def get_profile(self, key: str, *, namespaces: list[str] | None = None) -> str | None:
+        conn = await self._get_connection()
+        scope_sql, scope_params = self._scope_filter_sql(namespaces)
+        try:
+            async with conn.execute(
+                f"SELECT value FROM profiles WHERE key = ?{scope_sql} ORDER BY updated_at DESC LIMIT 1",
+                (key, *scope_params),
+            ) as cursor:
+                row = await cursor.fetchone()
+            return row[0] if row else None
+        except Exception as e:
+            raise RelationalQueryError(f"get_profile failed: {e}") from e
+
+    async def get_profile_snapshot(self, key: str, *, namespaces: list[str] | None = None) -> ProfileAttributeSnapshot:
+        conn = await self._get_connection()
+        scope_sql, scope_params = self._scope_filter_sql(namespaces)
+        try:
+            async with conn.execute(
+                f"""SELECT key, value, updated_at
+                    FROM profiles
+                    WHERE key = ?{scope_sql}
+                    ORDER BY updated_at DESC
+                    LIMIT 1""",
+                (key, *scope_params),
+            ) as cursor:
+                row = await cursor.fetchone()
+            if row is None:
+                return ProfileAttributeSnapshot(key=key, exists=False, revision=f"missing:{key}")
+            value = str(row[1])
+            updated_at = parse_dt(str(row[2]))
+            revision = _profile_revision(str(row[0]), value, updated_at.isoformat())
+            return ProfileAttributeSnapshot(
+                key=str(row[0]),
+                value=value,
+                exists=True,
+                revision=revision,
+                updated_at=updated_at,
+            )
+        except Exception as e:
+            raise RelationalQueryError(f"get_profile_snapshot failed: {e}") from e
+
+    async def set_profile(self, key: str, value: str, *, scope: MemoryScope | None = None) -> None:
+        await self._ensure_integrity_before_write()
+        conn = await self._get_connection()
+        now = now_iso()
+        (
+            primary_namespace,
+            namespaces_json,
+            agent_id,
+            channel_id,
+            conversation_id,
+            task_id,
+        ) = self._scope_values(scope)
+        try:
+            await conn.execute(
+                """INSERT INTO profiles (
+                       id, user_id, key, value, primary_namespace, namespaces, agent_id,
+                       channel_id, conversation_id, task_id, created_at, updated_at
+                   )
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(user_id, key, primary_namespace) DO UPDATE SET
+                       value = excluded.value,
+                       namespaces = excluded.namespaces,
+                       agent_id = excluded.agent_id,
+                       channel_id = excluded.channel_id,
+                       conversation_id = excluded.conversation_id,
+                       task_id = excluded.task_id,
+                       updated_at = excluded.updated_at""",
+                (
+                    str(uuid4()),
+                    "default",
+                    key,
+                    value,
+                    primary_namespace,
+                    namespaces_json,
+                    agent_id,
+                    channel_id,
+                    conversation_id,
+                    task_id,
+                    now,
+                    now,
+                ),
+            )
+            await conn.commit()
+        except Exception as e:
+            self._handle_query_error("set_profile", e)
+
+    async def delete_profile(self, key: str, *, namespaces: list[str] | None = None) -> bool:
+        await self._ensure_integrity_before_write()
+        conn = await self._get_connection()
+        scope_sql, scope_params = self._scope_filter_sql(namespaces)
+        try:
+            cursor = await conn.execute(
+                f"DELETE FROM profiles WHERE (key = ? OR id = ?){scope_sql}",
+                (key, key, *scope_params),
+            )
+            await conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            self._handle_query_error("delete_profile", e)
+            return False
+
+    async def list_profiles(
+        self, *, limit: int = 1000, offset: int = 0, namespaces: list[str] | None = None
+    ) -> list[ProfileEntry]:
+        conn = await self._get_connection()
+        scope_sql, scope_params = self._scope_filter_sql(namespaces)
+        try:
+            async with conn.execute(
+                """SELECT id, user_id, key, value, primary_namespace, namespaces, agent_id,
+                          channel_id, conversation_id, task_id, created_at, updated_at
+                   FROM profiles
+                   WHERE 1=1
+                     AND substr(key, 1, 8) != '_system_'"""
+                + scope_sql
+                + " ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+                (*scope_params, limit, offset),
+            ) as cursor:
+                rows = list(await cursor.fetchall())
+            return [row_to_profile(tuple(r)) for r in rows]
+        except Exception as e:
+            raise RelationalQueryError(f"list_profiles failed: {e}") from e
+
+    async def count_profiles(self, *, namespaces: list[str] | None = None) -> int:
+        conn = await self._get_connection()
+        scope_sql, scope_params = self._scope_filter_sql(namespaces)
+        try:
+            async with conn.execute(
+                f"SELECT COUNT(*) FROM profiles WHERE 1=1 AND substr(key, 1, 8) != '_system_' {scope_sql}",
+                scope_params,
+            ) as cursor:
+                row = await cursor.fetchone()
+            return row[0] if row else 0
+        except Exception as e:
+            raise RelationalQueryError(f"count_profiles failed: {e}") from e
+
+    # ── Procedural rules ─────────────────────────────────────────────
+
+    @staticmethod
+    def _encode_rule_metadata(rule: ProceduralMemory) -> str | None:
+        meta = dict(rule.metadata) if rule.metadata else {}
+        if rule.error_fingerprint and "error_fingerprint" not in meta:
+            meta["error_fingerprint"] = rule.error_fingerprint
+        if rule.resolution_steps and "resolution_steps" not in meta:
+            meta["resolution_steps"] = json.dumps(list(rule.resolution_steps))
+        return json.dumps(meta) if meta else None
+
+    async def create_rule(self, rule: ProceduralMemory) -> ProceduralMemory:
+        await self._ensure_integrity_before_write()
+        conn = await self._get_connection()
+        rule_id = rule.id or str(uuid4())
+        now = now_iso()
+        (
+            primary_namespace,
+            namespaces_json,
+            agent_id,
+            channel_id,
+            conversation_id,
+            task_id,
+        ) = self._scope_values(rule.scope)
+        try:
+            await conn.execute(
+                """INSERT INTO procedural_rules
+                   (id, user_id, content, trigger_text, action_text, priority, is_active, trigger_keywords,
+                    source, metadata, primary_namespace, namespaces, agent_id, channel_id, conversation_id,
+                    task_id, tool_name, tool_rule_priority, access_count, last_accessed_at,
+                    created_at, updated_at, is_user_locked, expected_valid_days)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    rule_id,
+                    "default",
+                    rule.content,
+                    rule.trigger,
+                    rule.action,
+                    rule.priority,
+                    int(rule.is_active),
+                    json.dumps(rule.trigger_keywords),
+                    rule.source.value,
+                    self._encode_rule_metadata(rule),
+                    primary_namespace,
+                    namespaces_json,
+                    agent_id,
+                    channel_id,
+                    conversation_id,
+                    task_id,
+                    rule.tool_name,
+                    rule.tool_rule_priority.value,
+                    rule.access_count,
+                    (rule.last_accessed_at.isoformat() if rule.last_accessed_at else None),
+                    now,
+                    now,
+                    int(rule.is_user_locked),
+                    rule.expected_valid_days,
+                ),
+            )
+            await conn.commit()
+            rule.id = rule_id
+            return rule
+        except Exception as e:
+            self._handle_query_error("create_rule", e)
+            return rule
+
+    async def get_rule(self, rule_id: str, *, namespaces: list[str] | None = None) -> ProceduralMemory | None:
+        conn = await self._get_connection()
+        scope_sql, scope_params = self._scope_filter_sql(namespaces)
+        try:
+            async with conn.execute(
+                f"SELECT {PROCEDURAL_COLUMNS} FROM procedural_rules WHERE id = ?{scope_sql}",
+                (rule_id, *scope_params),
+            ) as cursor:
+                row = await cursor.fetchone()
+            return row_to_procedural(tuple(row)) if row else None
+        except Exception as e:
+            self._handle_query_error("get_rule", e)
+            return None
+
+    async def search_rules(
+        self, query: str, *, limit: int = 10, namespaces: list[str] | None = None
+    ) -> list[ProceduralMemory]:
+        conn = await self._get_connection()
+        pattern = f"%{query}%"
+        scope_sql, scope_params = self._scope_filter_sql(namespaces)
+        try:
+            async with conn.execute(
+                f"""SELECT {PROCEDURAL_COLUMNS} FROM procedural_rules
+                   WHERE is_active = 1
+                     AND (trigger_text LIKE ? OR action_text LIKE ?)
+                """
+                + scope_sql
+                + " ORDER BY priority DESC, created_at DESC, id DESC LIMIT ?",
+                (pattern, pattern, *scope_params, limit),
+            ) as cursor:
+                rows = list(await cursor.fetchall())
+            return [row_to_procedural(tuple(r)) for r in rows]
+        except Exception as e:
+            raise RelationalQueryError(f"search_rules failed: {e}") from e
+
+    async def list_rules(
+        self,
+        *,
+        active_only: bool = True,
+        limit: int = 1000,
+        offset: int = 0,
+        namespaces: list[str] | None = None,
+    ) -> list[ProceduralMemory]:
+        conn = await self._get_connection()
+        scope_sql, scope_params = self._scope_filter_sql(namespaces)
+        try:
+            if active_only:
+                sql = (
+                    f"SELECT {PROCEDURAL_COLUMNS} FROM procedural_rules WHERE is_active = 1"
+                    + scope_sql
+                    + " ORDER BY priority DESC, created_at DESC, id DESC LIMIT ? OFFSET ?"
+                )
+                params: tuple[str | int, ...] = (*scope_params, limit, offset)
+            else:
+                sql = (
+                    f"SELECT {PROCEDURAL_COLUMNS} FROM procedural_rules WHERE 1=1"
+                    + scope_sql
+                    + " ORDER BY priority DESC, created_at DESC, id DESC LIMIT ? OFFSET ?"
+                )
+                params = (*scope_params, limit, offset)
+            async with conn.execute(sql, params) as cursor:
+                rows = list(await cursor.fetchall())
+            return [row_to_procedural(tuple(r)) for r in rows]
+        except Exception as e:
+            raise RelationalQueryError(f"list_rules failed: {e}") from e
+
+    async def count_rules(self, *, active_only: bool = True, namespaces: list[str] | None = None) -> int:
+        conn = await self._get_connection()
+        scope_sql, scope_params = self._scope_filter_sql(namespaces)
+        try:
+            if active_only:
+                sql = f"SELECT COUNT(*) FROM procedural_rules WHERE is_active = 1{scope_sql}"
+            else:
+                sql = f"SELECT COUNT(*) FROM procedural_rules WHERE 1=1 {scope_sql}"
+
+            async with conn.execute(sql, scope_params) as cursor:
+                row = await cursor.fetchone()
+            return row[0] if row else 0
+        except Exception as e:
+            raise RelationalQueryError(f"count_rules failed: {e}") from e
+
+    async def update_rule(self, rule_id: str, rule: ProceduralMemory) -> ProceduralMemory:
+        await self._ensure_integrity_before_write()
+        conn = await self._get_connection()
+        now = now_iso()
+        try:
+            cursor = await conn.execute(
+                """UPDATE procedural_rules
+                   SET content = ?, trigger_text = ?, action_text = ?, priority = ?,
+                       is_active = ?, trigger_keywords = ?, source = ?, metadata = ?,
+                       primary_namespace = ?, namespaces = ?, agent_id = ?, channel_id = ?,
+                       conversation_id = ?, task_id = ?, tool_name = ?,
+                       tool_rule_priority = ?, access_count = ?, last_accessed_at = ?,
+                       is_user_locked = ?, expected_valid_days = ?, updated_at = ?
+                   WHERE id = ?""",
+                (
+                    rule.content,
+                    rule.trigger,
+                    rule.action,
+                    rule.priority,
+                    int(rule.is_active),
+                    json.dumps(rule.trigger_keywords),
+                    rule.source.value,
+                    self._encode_rule_metadata(rule),
+                    rule.scope.primary_namespace,
+                    json.dumps(rule.scope.namespaces),
+                    rule.scope.agent_id,
+                    rule.scope.channel_id,
+                    rule.scope.conversation_id,
+                    rule.scope.task_id,
+                    rule.tool_name,
+                    rule.tool_rule_priority.value,
+                    rule.access_count,
+                    (rule.last_accessed_at.isoformat() if rule.last_accessed_at else None),
+                    int(rule.is_user_locked),
+                    rule.expected_valid_days,
+                    now,
+                    rule_id,
+                ),
+            )
+            await conn.commit()
+            if cursor.rowcount == 0:
+                raise RelationalNotFoundError(f"Rule {rule_id} not found")
+            rule.id = rule_id
+            return rule
+        except RelationalNotFoundError:
+            raise
+        except Exception as e:
+            self._handle_query_error("update_rule", e)
+            return rule
+
+    async def delete_rule(self, rule_id: str) -> bool:
+        await self._ensure_integrity_before_write()
+        conn = await self._get_connection()
+        try:
+            cursor = await conn.execute("DELETE FROM procedural_rules WHERE id = ?", (rule_id,))
+            await conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            self._handle_query_error("delete_rule", e)
+            return False
+
+    async def delete_all(self) -> int:
+        await self._ensure_integrity_before_write()
+        conn = await self._get_connection()
+        try:
+            c1 = await conn.execute("DELETE FROM profiles", ())
+            c2 = await conn.execute("DELETE FROM procedural_rules", ())
+            c3 = await conn.execute("DELETE FROM pending_records", ())
+            await conn.commit()
+            return (c1.rowcount or 0) + (c2.rowcount or 0) + (c3.rowcount or 0)
+        except Exception as e:
+            self._handle_query_error("delete_all", e)
+            return 0
+
+    # ── Pending (approval queue) ─────────────────────────────────────
+
+    async def submit_pending(self, record: PendingRecord) -> str:
+        await self._ensure_integrity_before_write()
+        conn = await self._get_connection()
+        now = now_iso()
+        try:
+            await conn.execute(
+                """INSERT INTO pending_records
+                   (id, user_id, memory_type, content, memory_data, source_chat_id, source_message_id, status, created_at, resolution_action, target_memory_id, target_content)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
+                (
+                    record.id,
+                    "default",
+                    record.memory_type.value,
+                    record.content,
+                    json.dumps(record.memory_data),
+                    record.source_chat_id,
+                    record.source_message_id,
+                    now,
+                    record.resolution_action.value,
+                    record.target_memory_id,
+                    record.target_content,
+                ),
+            )
+            await conn.commit()
+            return record.id
+        except Exception as e:
+            self._handle_query_error("submit_pending", e)
+            return record.id
+
+    async def get_pending(self, pending_id: str) -> PendingRecord | None:
+        conn = await self._get_connection()
+        try:
+            async with conn.execute("SELECT * FROM pending_records WHERE id = ?", (pending_id,)) as cursor:
+                row = await cursor.fetchone()
+            return row_to_pending(tuple(row)) if row else None
+        except Exception as e:
+            self._handle_query_error("get_pending", e)
+            return None
+
+    async def pending_exists(self, memory_type: str, content: str) -> bool:
+        conn = await self._get_connection()
+        try:
+            async with conn.execute(
+                "SELECT 1 FROM pending_records WHERE memory_type = ? AND content = ? AND status = 'pending' LIMIT 1",
+                (memory_type, content),
+            ) as cursor:
+                return await cursor.fetchone() is not None
+        except Exception as e:
+            self._handle_query_error("pending_exists", e)
+            return False
+
+    async def mark_pending(self, pending_id: str, status: str) -> None:
+        await self._ensure_integrity_before_write()
+        conn = await self._get_connection()
+        now = now_iso()
+        try:
+            await conn.execute(
+                "UPDATE pending_records SET status = ?, resolved_at = ? WHERE id = ?",
+                (status, now, pending_id),
+            )
+            await conn.commit()
+        except Exception as e:
+            self._handle_query_error("mark_pending", e)
+
+    async def list_pending(self, *, limit: int = 50) -> list[PendingRecord]:
+        conn = await self._get_connection()
+        try:
+            async with conn.execute(
+                "SELECT * FROM pending_records WHERE status = 'pending' ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ) as cursor:
+                rows = list(await cursor.fetchall())
+            return [row_to_pending(tuple(r)) for r in rows]
+        except Exception as e:
+            raise RelationalQueryError(f"list_pending failed: {e}") from e
+
+    async def count_pending(self) -> int:
+        conn = await self._get_connection()
+        try:
+            async with conn.execute("SELECT COUNT(*) FROM pending_records WHERE status = 'pending'", ()) as cursor:
+                row = await cursor.fetchone()
+            return row[0] if row else 0
+        except Exception as e:
+            raise RelationalQueryError(f"count_pending failed: {e}") from e
+
+    async def batch_mark_pending(self, pending_ids: list[str], status: str) -> int:
+        if not pending_ids:
+            return 0
+        await self._ensure_integrity_before_write()
+        conn = await self._get_connection()
+        now = now_iso()
+        try:
+            placeholders = ",".join("?" for _ in pending_ids)
+            cursor = await conn.execute(
+                f"UPDATE pending_records SET status = ?, resolved_at = ? WHERE id IN ({placeholders}) AND status = 'pending'",
+                [status, now, *pending_ids],
+            )
+            await conn.commit()
+            return cursor.rowcount or 0
+        except Exception as e:
+            self._handle_query_error("batch_mark_pending", e)
+            return 0
+
+    async def delete_pending_by_source_chat_id(self, source_chat_id: str) -> int:
+        await self._ensure_integrity_before_write()
+        conn = await self._get_connection()
+        try:
+            cursor = await conn.execute(
+                "DELETE FROM pending_records WHERE source_chat_id = ?",
+                (source_chat_id,),
+            )
+            await conn.commit()
+            return cursor.rowcount or 0
+        except Exception as e:
+            self._handle_query_error("delete_pending_by_source_chat_id", e)
+            return 0
+
+    async def count_pending_by_source_chat_id(self, source_chat_id: str) -> int:
+        conn = await self._get_connection()
+        try:
+            async with conn.execute(
+                "SELECT COUNT(*) FROM pending_records WHERE source_chat_id = ?",
+                (source_chat_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+            return row[0] if row else 0
+        except Exception as e:
+            raise RelationalQueryError(f"count_pending_by_source_chat_id failed: {e}") from e
+
+    # ── Diagnostics & Integrity ──────────────────────────────────────
+
+    async def check_integrity(self) -> tuple[bool, str]:
+        """Check the physical and index integrity of the relational SQLite database."""
+        if self._closed:
+            return False, "Store has been closed"
+        try:
+            rows = await self._quick_check_rows()
+            if self._quick_check_ok(rows):
+                return True, "ok"
+            err_msg = "; ".join(str(r[0]) for r in rows)
+            return False, f"Integrity check failed: {err_msg}"
+        except Exception as e:
+            return False, f"Integrity check query error: {e}"
+
+    # ── Exact Fact & FTS5 ───────────────────────────────────────────
+
+    async def record_exact_fact(
+        self,
+        *,
+        memory_id: str,
+        user_id: str,
+        content: str,
+        identifiers: list[str],
+        primary_namespace: str = "",
+        namespaces: list[str] | None = None,
+    ) -> None:
+        """Persist exact fact identifiers and synchronize FTS5 inverted index."""
+        conn = await self._get_connection()
+        await self._ensure_integrity_before_write()
+        try:
+            await save_exact_fact(
+                conn,
+                memory_id=memory_id,
+                user_id=user_id,
+                content=content,
+                identifiers=identifiers,
+                primary_namespace=primary_namespace,
+                namespaces=namespaces,
+                fts5_supported=self._fts5_supported,
+            )
+            await conn.commit()
+        except Exception as e:
+            self._handle_query_error("record_exact_fact", e)
+
+    async def search_fts5(
+        self,
+        query: str,
+        limit: int = 10,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        *,
+        namespaces: list[str] | None = None,
+    ) -> list[MemorySearchResult]:
+        """Perform exact identifier match and FTS5 inverted search.
+
+        Conforms to FTS5SearcherFunc:
+        Callable[[str, int, datetime | None, datetime | None], Awaitable[list[MemorySearchResult]]].
+        """
+        conn = await self._get_connection()
+        try:
+            return await search_exact_facts(
+                conn,
+                query=query,
+                limit=limit,
+                since=since,
+                until=until,
+                namespaces=namespaces,
+                fts5_supported=self._fts5_supported,
+            )
+        except Exception as e:
+            self._handle_query_error("search_fts5", e)
+            return []
+
+    async def delete_exact_fact(self, memory_id: str) -> None:
+        """Remove exact fact records and FTS5 virtual table document."""
+        conn = await self._get_connection()
+        await self._ensure_integrity_before_write()
+        try:
+            await delete_exact_fact(
+                conn,
+                memory_id=memory_id,
+                fts5_supported=self._fts5_supported,
+            )
+            await conn.commit()
+        except Exception as e:
+            self._handle_query_error("delete_exact_fact", e)
+
+    # ── Lifecycle ────────────────────────────────────────────────────
+
+    async def close(self) -> None:
+        self._closed = True
+        if self._connection is not None:
+            from myrm_agent_harness.utils.db.sqlite import checkpoint_truncate_async
+
+            await checkpoint_truncate_async(self._connection)
+            await self._connection.close()
+            self._connection = None
+            logger.info("SQLiteRelationalStore closed")
+
+
+def _profile_revision(key: str, value: str, updated_at: str) -> str:
+    payload = "\x00".join((key, value, updated_at))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()

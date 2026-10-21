@@ -1,0 +1,191 @@
+"""Dynamic Replan Loop Middleware.
+
+Acts as a ReplanNode that catches ToolExecutionErrors and feeds them back
+to the LLM for self-correction instead of crashing the agent loop.
+
+[INPUT]
+- (none)
+
+[OUTPUT]
+- ReplanMiddleware: Catches tool execution errors and triggers a replan loop.
+
+[POS]
+Dynamic Replan Loop Middleware. Per-tool error counting prevents unrelated
+tool successes from resetting the counter for a persistently failing tool.
+"""
+
+import logging
+from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
+from typing import Any
+
+from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware.types import ToolCallRequest
+from langchain_core.messages import ToolMessage
+from langgraph.types import Command
+
+logger = logging.getLogger(__name__)
+
+_per_tool_errors_var: ContextVar[dict[str, int] | None] = ContextVar("replan_per_tool_errors", default=None)
+
+
+def reset_replan_attempts() -> None:
+    """Reset the per-tool replan attempts counter."""
+    _per_tool_errors_var.set({})
+
+
+def get_replan_error_summary() -> dict[str, int]:
+    """Return a read-only copy of current per-tool replan error counters."""
+    counters = _per_tool_errors_var.get()
+    return dict(counters) if counters else {}
+
+
+def get_max_consecutive_replan_errors() -> int:
+    """Return the maximum consecutive error count across all tools in the current context."""
+    summary = get_replan_error_summary()
+    return max(summary.values()) if summary else 0
+
+
+class ReplanMiddleware(AgentMiddleware[Any, Any]):
+    """Catches tool execution errors and triggers a replan loop.
+
+    Error counting is per-tool: only that tool's own success resets its counter.
+    This prevents patterns like ``skill_select(OK) → bash(FAIL) → skill_select(OK)``
+    from resetting bash's failure count.
+    """
+
+    name = "replan_middleware"
+
+    def __init__(self, max_attempts: int = 3):
+        self.max_attempts = max_attempts
+
+    def _handle_tool_success(self, tool_name: str) -> None:
+        counters = (_per_tool_errors_var.get() or {}).copy()
+        if tool_name in counters:
+            del counters[tool_name]
+            _per_tool_errors_var.set(counters)
+
+    def _build_replan_error_message(
+        self,
+        request: ToolCallRequest,
+        *,
+        tool_name: str,
+        error: Exception,
+        attempts: int,
+    ) -> ToolMessage:
+        if attempts > self.max_attempts:
+            logger.warning(
+                "ReplanNode limit exceeded for '%s' (%d attempts)",
+                tool_name,
+                attempts,
+            )
+            error_content = (
+                f"ToolExecutionError: {error}\n\n"
+                f"Engine limit reached: max_replan_attempts exceeded ({self.max_attempts}). "
+                "Stop trying to use this tool."
+            )
+            return ToolMessage(
+                content=error_content,
+                name=tool_name,
+                tool_call_id=request.tool_call["id"],
+                status="error",
+            )
+
+        tool_args = request.tool_call.get("args", {})
+        target = str(tool_args.get("path", tool_args.get("url", tool_args.get("command", ""))))[:200]
+        logger.warning("ReplanNode caught tool error in '%s': %s", tool_name, error)
+
+        from myrm_agent_harness.agent._internals.agent_recovery import (
+            build_error_context,
+        )
+        from myrm_agent_harness.agent.resilience.error_recovery import (
+            ErrorSelfCorrectionGovernor,
+        )
+        from myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core import (
+            get_tool_suggestion,
+        )
+
+        suggestion = get_tool_suggestion(tool_name)
+        error_context = build_error_context(
+            operation=tool_name,
+            target=target or "unknown",
+            error=str(error),
+        )
+        governor = ErrorSelfCorrectionGovernor(max_recovery_attempts=self.max_attempts)
+        outcome = governor.diagnose_and_suggest_repair(
+            operation=tool_name,
+            target=target or "unknown",
+            error_message=str(error),
+            attempt=attempts,
+        )
+
+        error_content = (
+            f"ToolExecutionError: {error}\n\n"
+            f"{error_context}\n\n"
+            f"### Autonomous Self-Correction Guidance\n"
+            f"{outcome.diagnostic_details}\n\n"
+            f"Diagnostic Hint: {suggestion}"
+        )
+        return ToolMessage(
+            content=error_content,
+            name=tool_name,
+            tool_call_id=request.tool_call["id"],
+            status="error",
+        )
+
+    def _handle_tool_error(
+        self,
+        request: ToolCallRequest,
+        *,
+        tool_name: str,
+        error: Exception,
+    ) -> ToolMessage:
+        from langgraph.errors import GraphInterrupt
+
+        if isinstance(error, (GraphInterrupt, InterruptedError)):
+            raise error
+
+        counters = (_per_tool_errors_var.get() or {}).copy()
+        attempts = counters.get(tool_name, 0) + 1
+        counters[tool_name] = attempts
+        _per_tool_errors_var.set(counters)
+        return self._build_replan_error_message(
+            request,
+            tool_name=tool_name,
+            error=error,
+            attempts=attempts,
+        )
+
+    def wrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], ToolMessage | Command[Any]],
+    ) -> ToolMessage | Command[Any]:
+        tool_name = request.tool_call.get("name", "unknown")
+        try:
+            result = handler(request)
+            self._handle_tool_success(tool_name)
+            return result
+        except Exception as exc:
+            return self._handle_tool_error(request, tool_name=tool_name, error=exc)
+
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[Any]]],
+    ) -> ToolMessage | Command[Any]:
+        tool_name = request.tool_call.get("name", "unknown")
+        try:
+            result = await handler(request)
+            self._handle_tool_success(tool_name)
+            return result
+        except Exception as exc:
+            return self._handle_tool_error(request, tool_name=tool_name, error=exc)
+
+
+__all__ = [
+    "ReplanMiddleware",
+    "get_max_consecutive_replan_errors",
+    "get_replan_error_summary",
+    "reset_replan_attempts",
+]

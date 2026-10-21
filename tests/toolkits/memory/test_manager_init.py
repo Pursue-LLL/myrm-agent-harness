@@ -1,0 +1,261 @@
+"""Tests for MemoryManager initialization and properties."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError
+from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy, MemoryScopeLevel, MemoryWritePolicy
+from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+from myrm_agent_harness.toolkits.memory.types import MemoryType
+
+
+class TestMemoryManagerInitialization:
+    """Test MemoryManager initialization and properties."""
+
+    def test_init_with_approval_requires_relational(self, mock_vector_store, mock_embedding, memory_config):
+        """Test that approval_required=True requires relational backend."""
+        with pytest.raises(MemoryError, match="approval_required=True requires a relational backend"):
+            MemoryManager(
+                memory_config,
+                user_id="test_user",
+                vector=mock_vector_store,
+                embedding=mock_embedding,
+                approval_required=True,
+            )
+
+    def test_init_with_dedup_llm(self, mock_vector_store, mock_embedding, memory_config):
+        """Test initialization with dedup_llm creates deduplicator."""
+        mock_llm = MagicMock()
+        manager = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, dedup_llm=mock_llm
+        )
+
+        assert manager._deduplicator is not None
+
+    def test_init_deduplicator_handles_exception(self, mock_vector_store, mock_embedding, memory_config):
+        """Test that deduplicator initialization exception is handled gracefully."""
+        mock_llm = MagicMock()
+
+        with patch(
+            "myrm_agent_harness.toolkits.memory.strategies.deduplicator.SmartDeduplicator",
+            side_effect=Exception("Init failed"),
+        ):
+            manager = MemoryManager(
+                memory_config,
+                user_id="test_user",
+                vector=mock_vector_store,
+                embedding=mock_embedding,
+                dedup_llm=mock_llm,
+            )
+
+            assert manager._deduplicator is None
+
+    def test_properties_access(self, mock_vector_store, mock_relational_store, mock_embedding, memory_config):
+        """Test all property accessors."""
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
+            approval_required=True,
+        )
+
+        assert manager.user_id == "test_user"
+        assert manager.config == memory_config
+        assert manager.has_relational is True
+        assert manager.has_vector is True
+        assert manager.has_graph is False
+        assert manager.approval_required is True
+
+    def test_scope_and_namespaces_are_derived(self, mock_vector_store, mock_embedding, memory_config):
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            agent_id="planner",
+            channel_id="telegram",
+            conversation_id="conv-1",
+            task_id="task-1",
+        )
+
+        assert manager.namespaces == [
+            "global",
+            "agent:planner",
+            "channel:telegram",
+            "conversation:conv-1",
+            "task:task-1",
+        ]
+        # Reads filter on `primary_namespace ∈ manager.namespaces`; keeping the
+        # primary durable (agent:) is what makes a written fact recallable from
+        # any later session instead of only the one that stored it.
+        assert manager.scope.primary_namespace == "agent:planner"
+        assert manager.scope.channel_id == "telegram"
+
+    def test_default_write_scope_stays_recallable_across_sessions(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        """A default write must not be pinned to the session that created it.
+
+        Reads filter on ``primary_namespace ∈ manager.namespaces``. If a write
+        landed on the session-local scope (``task:`` / ``conversation:``), a
+        manager created for a later session would filter it out and the user
+        would be told their stored fact does not exist.
+        """
+        writer = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            agent_id="planner",
+            channel_id="telegram",
+            conversation_id="conv-1",
+            task_id="task-1",
+        )
+        primary = writer.scope.primary_namespace
+
+        assert primary == "agent:planner"
+
+        later_session = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            agent_id="planner",
+            channel_id="telegram",
+            conversation_id="conv-2",
+            task_id="task-2",
+        )
+        assert primary in later_session.namespaces
+        assert "conversation:conv-1" not in later_session.namespaces
+        assert "task:task-1" not in later_session.namespaces
+
+    def test_memory_policy_formalizes_read_write_boundaries(self, mock_vector_store, mock_embedding, memory_config):
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            memory_policy=AgentMemoryPolicy(
+                agent_id="planner",
+                channel_id="telegram",
+                conversation_id="conv-1",
+                task_id="task-1",
+                read_scopes=(MemoryScopeLevel.GLOBAL, MemoryScopeLevel.AGENT),
+                write_policy=MemoryWritePolicy.TASK,
+            ),
+        )
+
+        assert manager.namespaces == [
+            "global",
+            "agent:planner",
+        ]
+        assert manager.memory_policy is not None
+        assert manager.memory_policy.write_policy == MemoryWritePolicy.TASK
+        assert manager.scope.primary_namespace == "task:task-1"
+        assert manager.scope.namespaces == ["task:task-1"]
+        assert manager.scope.agent_id == "planner"
+
+    def test_memory_policy_requires_matching_write_scope_identifier(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        with pytest.raises(ValueError, match="requires a matching scope ID"):
+            MemoryManager(
+                memory_config,
+                user_id="test_user",
+                vector=mock_vector_store,
+                embedding=mock_embedding,
+                memory_policy=AgentMemoryPolicy(agent_id="planner", write_policy=MemoryWritePolicy.TASK),
+            )
+
+    def test_get_enabled_types_all_backends(
+        self, mock_vector_store, mock_relational_store, mock_embedding, memory_config
+    ):
+        """Test get_enabled_types with all backends."""
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
+        )
+
+        enabled = manager.get_enabled_types()
+        assert MemoryType.PROFILE in enabled
+        assert MemoryType.PROCEDURAL in enabled
+        assert MemoryType.SEMANTIC in enabled
+        assert MemoryType.EPISODIC in enabled
+
+    def test_get_enabled_types_vector_only(self, mock_vector_store, mock_embedding, memory_config):
+        """Test get_enabled_types with only vector backend."""
+        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+
+        enabled = manager.get_enabled_types()
+        assert MemoryType.SEMANTIC in enabled
+        assert MemoryType.EPISODIC in enabled
+        assert MemoryType.PROFILE not in enabled
+        assert MemoryType.PROCEDURAL not in enabled
+
+    def test_get_enabled_types_relational_only(self, mock_relational_store, memory_config):
+        """Test get_enabled_types with only relational backend."""
+        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
+
+        enabled = manager.get_enabled_types()
+        assert MemoryType.PROFILE in enabled
+        assert MemoryType.PROCEDURAL in enabled
+        assert MemoryType.SEMANTIC not in enabled
+        assert MemoryType.EPISODIC not in enabled
+
+    def test_vector_is_persistent_reflects_store_flag(self, mock_vector_store, mock_embedding, memory_config):
+        """持久化状态必须透出底层 vector store 的真实能力。
+
+        内存 fallback store（is_persistent=False）时 manager 必须报告非持久化，
+        正常持久化 store 报告 True。
+        """
+        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+
+        mock_vector_store.is_persistent = False
+        assert manager.vector_is_persistent is False
+
+        mock_vector_store.is_persistent = True
+        assert manager.vector_is_persistent is True
+
+    def test_vector_is_persistent_true_without_store(self, mock_embedding, memory_config):
+        """无 vector store 时报告持久化（无降级信号，不误报内存模式）。"""
+        manager = MemoryManager(memory_config, user_id="test_user", embedding=mock_embedding)
+        assert manager.vector_is_persistent is True
+
+    def test_memory_policy_presets_factory(self, mock_vector_store, mock_embedding, memory_config):
+        """验证 AgentMemoryPolicy 强类型工厂预设及其属性。"""
+        # 1. Flow agent (L2-only, task scope)
+        flow_policy = AgentMemoryPolicy.preset_l2_flow(agent_id="ticket-bot", task_id="task-999")
+        assert flow_policy.write_policy == MemoryWritePolicy.TASK
+        assert flow_policy.task_id == "task-999"
+        assert flow_policy.allow_l3_extraction is False
+        assert flow_policy.auto_cleanup is True
+        assert flow_policy.read_scopes == (MemoryScopeLevel.GLOBAL, MemoryScopeLevel.TASK)
+
+        flow_manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            memory_policy=flow_policy,
+        )
+        assert flow_manager.scope.primary_namespace == "task:task-999"
+
+        # 2. FAQ / Search agent
+        faq_policy = AgentMemoryPolicy.preset_faq_retrieval(agent_id="search-bot")
+        assert faq_policy.write_policy == MemoryWritePolicy.CONVERSATION
+        assert faq_policy.allow_l3_extraction is False
+        assert faq_policy.auto_cleanup is True
+        assert faq_policy.read_scopes == (MemoryScopeLevel.GLOBAL, MemoryScopeLevel.CONVERSATION)
+
+        # 3. Standard assistant
+        std_policy = AgentMemoryPolicy.preset_standard(agent_id="general-bot")
+        assert std_policy.write_policy == MemoryWritePolicy.INHERIT
+        assert std_policy.allow_l3_extraction is True
+        assert std_policy.auto_cleanup is False
+

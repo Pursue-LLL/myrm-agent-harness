@@ -1,0 +1,408 @@
+"""Tests for SkillAgentReviewMixin (agent/skill_agent/review.py).
+
+Validates the session-end review orchestration layer:
+- _should_trigger_skill_review decision logic
+- _trigger_background_skill_review task scheduling
+- _cleanup_session orchestration
+- _build_recurrence_summary extraction
+- _maybe_archive_to_wiki threshold + scheduling
+"""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.types import Command
+
+from myrm_agent_harness.agent.skill_agent.review import SkillAgentReviewMixin
+from myrm_agent_harness.agent.types import AgentRunStatistics
+
+
+@dataclass
+class _FakeConfig:
+    chat_id: str | None = None
+
+
+def _discard_review_result(result: dict[str, object]) -> None:
+    """Stand-in review consumer: a review only runs when something consumes its result."""
+
+
+class FakeSkillAgent(SkillAgentReviewMixin):
+    """Minimal stub implementing the attributes SkillAgentReviewMixin requires."""
+
+    def __init__(
+        self,
+        *,
+        stats: AgentRunStatistics | None = None,
+        wiki_compiler: Any = None,
+        wiki_structure: Any = None,
+        extraction_llm: Any = None,
+        on_skill_review_ready: Any = _discard_review_result,
+        user_id: str | None = "user-1",
+        last_context: dict[str, object] | None = None,
+        agent_instance: Any = None,
+        llm: Any = None,
+        config: Any = None,
+        enable_memory_auto_extraction: bool = False,
+        memory_manager: Any = None,
+    ) -> None:
+        self.last_run_stats = stats
+        self._wiki_compiler = wiki_compiler
+        self._wiki_structure = wiki_structure
+        self._extraction_llm = extraction_llm
+        self._on_skill_review_ready = on_skill_review_ready
+        self._user_id = user_id
+        self._last_context = last_context
+        self._agent = agent_instance
+        self.llm = llm or MagicMock()
+        self.config = config or _FakeConfig()
+        self._enable_memory_auto_extraction = enable_memory_auto_extraction
+        self.memory_manager = memory_manager
+        self._active_skill: str | None = "test-skill"
+
+
+# ---------------------------------------------------------------------------
+# _build_recurrence_summary
+# ---------------------------------------------------------------------------
+
+
+class TestBuildRecurrenceSummary:
+    def test_string_query(self) -> None:
+        result = SkillAgentReviewMixin._build_recurrence_summary("How to debug Python?", [])
+        assert result == "How to debug Python?"
+
+    def test_list_query_extracts_user_role(self) -> None:
+        query = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi"},
+            {"role": "user", "content": "Fix bug"},
+        ]
+        result = SkillAgentReviewMixin._build_recurrence_summary(query, [])
+        assert "Hello" in result
+        assert "Fix bug" in result
+        assert "Hi" not in result
+
+    def test_truncates_long_input(self) -> None:
+        long_query = "x" * 500
+        result = SkillAgentReviewMixin._build_recurrence_summary(long_query, [])
+        assert len(result) == 300
+
+    def test_non_string_non_list_returns_empty(self) -> None:
+        assert SkillAgentReviewMixin._build_recurrence_summary(42, []) == ""
+
+    def test_empty_string_returns_empty(self) -> None:
+        assert SkillAgentReviewMixin._build_recurrence_summary("   ", []) == ""
+
+
+# ---------------------------------------------------------------------------
+# _should_trigger_skill_review
+# ---------------------------------------------------------------------------
+
+
+class TestShouldTriggerSkillReview:
+    def test_no_stats_returns_false(self) -> None:
+        agent = FakeSkillAgent(stats=None)
+        assert agent._should_trigger_skill_review("hello") is False
+
+    def test_deep_interaction_triggers(self) -> None:
+        stats = AgentRunStatistics(tool_call_count=3)
+        agent = FakeSkillAgent(stats=stats)
+        assert agent._should_trigger_skill_review("x" * 60) is True
+
+    def test_short_command_high_complexity_triggers(self) -> None:
+        stats = AgentRunStatistics(tool_call_count=5)
+        agent = FakeSkillAgent(stats=stats)
+        assert agent._should_trigger_skill_review("hi") is True
+
+    def test_low_stats_does_not_trigger(self) -> None:
+        stats = AgentRunStatistics(tool_call_count=1)
+        agent = FakeSkillAgent(stats=stats)
+        assert agent._should_trigger_skill_review("hey") is False
+
+    def test_too_complex_suppressed(self) -> None:
+        stats = AgentRunStatistics(tool_call_count=60)
+        agent = FakeSkillAgent(stats=stats)
+        assert agent._should_trigger_skill_review("x" * 100) is False
+
+    def test_no_review_consumer_never_triggers(self) -> None:
+        """Without an ``on_skill_review_ready`` consumer the review output would be discarded, so no LLM call is made."""
+        stats = AgentRunStatistics(tool_call_count=5)
+        agent = FakeSkillAgent(stats=stats, on_skill_review_ready=None)
+        assert agent._should_trigger_skill_review("x" * 60) is False
+
+    def test_multimodal_query(self) -> None:
+        stats = AgentRunStatistics(tool_call_count=3)
+        agent = FakeSkillAgent(stats=stats)
+        query = [{"type": "text", "text": "a" * 60}]
+        assert agent._should_trigger_skill_review(query) is True
+
+    def test_resume_query(self) -> None:
+        stats = AgentRunStatistics(tool_call_count=3)
+        agent = FakeSkillAgent(stats=stats)
+
+        class _ResumeQuery:
+            resume = "x" * 60
+
+        assert agent._should_trigger_skill_review(_ResumeQuery()) is True
+
+
+# ---------------------------------------------------------------------------
+# _trigger_background_skill_review
+# ---------------------------------------------------------------------------
+
+
+class TestTriggerBackgroundSkillReview:
+    @pytest.mark.asyncio
+    async def test_skips_when_too_few_messages(self) -> None:
+        agent = FakeSkillAgent()
+        await agent._trigger_background_skill_review("hi", None, [])
+
+    @pytest.mark.asyncio
+    async def test_schedules_task_with_chat_history(self) -> None:
+        mock_llm = MagicMock()
+        structured = MagicMock()
+        mock_rubric = MagicMock()
+        mock_rubric.total_score = 0.3
+        mock_rubric.result_type = "nothing"
+        structured.ainvoke = AsyncMock(return_value=mock_rubric)
+        mock_llm.with_structured_output.return_value = structured
+
+        agent = FakeSkillAgent(llm=mock_llm, extraction_llm=mock_llm)
+        history = [
+            HumanMessage(content="Fix the bug"),
+            AIMessage(content="I'll look into it"),
+        ]
+        await agent._trigger_background_skill_review("Fix the bug", history, ["I fixed the bug"])
+        await asyncio.sleep(0.1)
+
+    @pytest.mark.asyncio
+    async def test_callback_invoked_on_success(self) -> None:
+        mock_llm = MagicMock()
+        structured = MagicMock()
+        mock_rubric = MagicMock()
+        mock_rubric.total_score = 0.9
+        mock_rubric.anti_fragmentation_score = 0.9
+        mock_rubric.sandbox_compatibility_score = 0.9
+        mock_rubric.anti_pattern_score = 0.9
+        mock_rubric.result_type = "semantic_memory"
+        mock_rubric.skill_name = None
+        mock_rubric.skill_description = None
+        mock_rubric.trigger_condition = None
+        mock_rubric.skill_steps = None
+        mock_rubric.patch_content = None
+        mock_rubric.content = "User prefers Python"
+        structured.ainvoke = AsyncMock(return_value=mock_rubric)
+        mock_llm.with_structured_output.return_value = structured
+
+        callback = MagicMock()
+        agent = FakeSkillAgent(
+            llm=mock_llm,
+            extraction_llm=mock_llm,
+            on_skill_review_ready=callback,
+        )
+        history = [
+            HumanMessage(content="I prefer Python"),
+            AIMessage(content="Noted, I'll remember that"),
+        ]
+        await agent._trigger_background_skill_review("I prefer Python", history, ["Noted"])
+        await asyncio.sleep(0.3)
+        callback.assert_called_once()
+        call_data = callback.call_args[0][0]
+        assert call_data["has_value"] is True
+        assert call_data["type"] == "semantic_memory"
+
+
+class TestSkillReviewGoal:
+    """The reviewer is given the user's words as the goal, never a placeholder for attachments."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("query", "expected_goal"),
+        [
+            (
+                [
+                    {"type": "text", "text": "Fix the failing build"},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
+                ],
+                "Fix the failing build",
+            ),
+            ([{"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}], ""),
+            (Command(resume="approved"), ""),
+        ],
+        ids=["text-and-screenshot", "screenshot-only", "hitl-resume"],
+    )
+    async def test_original_goal_is_the_users_text(self, query: Any, expected_goal: str) -> None:
+        agent = FakeSkillAgent(llm=MagicMock(), extraction_llm=MagicMock())
+        history = [HumanMessage(content="earlier question"), AIMessage(content="earlier answer")]
+
+        with patch(
+            "myrm_agent_harness.agent.skills.evolution.review.reviewer.review_trajectory_with_llm",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as reviewer:
+            await agent._trigger_background_skill_review(query, history, ["Done."])
+            await asyncio.sleep(0.1)
+
+        reviewer.assert_awaited_once()
+        assert reviewer.await_args.kwargs["original_goal"] == expected_goal
+
+
+# ---------------------------------------------------------------------------
+# _maybe_archive_to_wiki
+# ---------------------------------------------------------------------------
+
+
+class TestMaybeArchiveToWiki:
+    def test_skips_when_no_wiki(self) -> None:
+        agent = FakeSkillAgent(wiki_compiler=None, wiki_structure=None)
+        agent._maybe_archive_to_wiki("query", ["short"])
+
+    def test_skips_short_reply(self) -> None:
+        agent = FakeSkillAgent(wiki_compiler=MagicMock(), wiki_structure=MagicMock())
+        agent._maybe_archive_to_wiki("query", ["tiny"])
+
+    @pytest.mark.asyncio
+    async def test_schedules_archive_for_long_reply(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.wiki import (
+            WikiCompiler,
+            WikiConfig,
+            WikiStructure,
+        )
+
+        wiki_dir = tmp_path / "wiki"
+        structure = WikiStructure(wiki_dir)
+        structure.ensure_structure()
+        compiler = WikiCompiler(MagicMock(), structure, WikiConfig())
+        compiler.enqueue_file = MagicMock()
+
+        agent = FakeSkillAgent(wiki_compiler=compiler, wiki_structure=structure)
+        long_reply = ["x" * 600]
+        agent._maybe_archive_to_wiki("query", long_reply, chat_id="review-chat")
+        await asyncio.sleep(0.2)
+
+        turn_files = list(structure.raw_dir.glob("turn_review-chat_*.md"))
+        assert len(turn_files) == 1
+        compiler.enqueue_file.assert_called_once()
+        archived = turn_files[0].read_text(encoding="utf-8")
+        assert "source_chat: review-chat" in archived
+
+    @pytest.mark.asyncio
+    async def test_archive_omits_source_chat_when_chat_id_unknown(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.wiki import (
+            WikiCompiler,
+            WikiConfig,
+            WikiStructure,
+        )
+
+        wiki_dir = tmp_path / "wiki"
+        structure = WikiStructure(wiki_dir)
+        structure.ensure_structure()
+        compiler = WikiCompiler(MagicMock(), structure, WikiConfig())
+        compiler.enqueue_file = MagicMock()
+
+        agent = FakeSkillAgent(wiki_compiler=compiler, wiki_structure=structure)
+        agent._maybe_archive_to_wiki("query", ["y" * 600], chat_id=None)
+        await asyncio.sleep(0.2)
+
+        turn_files = list(structure.raw_dir.glob("turn_unknown_*.md"))
+        assert len(turn_files) == 1
+        archived = turn_files[0].read_text(encoding="utf-8")
+        assert "source_chat" not in archived
+
+    @pytest.mark.asyncio
+    async def test_cleanup_session_forwards_chat_id_to_archive(self, tmp_path: Path) -> None:
+        """Session-end cleanup must forward the resolved chat_id into the wiki archive.
+
+        Regression: the archive path read ``config.chat_id``, which does not exist on the
+        frozen ``AgentRuntimeConfig`` in production, so source_chat was never written.
+        """
+        from myrm_agent_harness.toolkits.wiki import (
+            WikiCompiler,
+            WikiConfig,
+            WikiStructure,
+        )
+
+        wiki_dir = tmp_path / "wiki"
+        structure = WikiStructure(wiki_dir)
+        structure.ensure_structure()
+        compiler = WikiCompiler(MagicMock(), structure, WikiConfig())
+        compiler.enqueue_file = MagicMock()
+
+        agent = FakeSkillAgent(wiki_compiler=compiler, wiki_structure=structure)
+        await agent._cleanup_session("query", None, ["z" * 600], run_chat_id="cleanup-chat")
+        await asyncio.sleep(0.2)
+
+        turn_files = list(structure.raw_dir.glob("turn_cleanup-chat_*.md"))
+        assert len(turn_files) == 1
+        archived = turn_files[0].read_text(encoding="utf-8")
+        assert "source_chat: cleanup-chat" in archived
+
+
+# ---------------------------------------------------------------------------
+# _cleanup_session orchestration
+# ---------------------------------------------------------------------------
+
+
+class TestCleanupSession:
+    @pytest.mark.asyncio
+    async def test_resets_active_skill(self) -> None:
+        agent = FakeSkillAgent()
+        assert agent._active_skill == "test-skill"
+        await agent._cleanup_session("hello", None, ["reply"])
+        assert agent._active_skill is None
+
+    @pytest.mark.asyncio
+    async def test_calls_memory_end_session(self) -> None:
+        mm = MagicMock()
+        mm.active_session = MagicMock(chat_id="c1")
+        mm.end_session = AsyncMock(return_value=["mem1"])
+        mm.check_session_recurrence = AsyncMock()
+        agent = FakeSkillAgent(memory_manager=mm)
+        await agent._cleanup_session("hello", None, ["reply"])
+        await asyncio.sleep(0.1)
+        mm.end_session.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_triggers_recurrence_check(self) -> None:
+        mm = MagicMock()
+        mm.active_session = MagicMock(chat_id="c1")
+        mm.end_session = AsyncMock(return_value=[])
+        mm.check_session_recurrence = AsyncMock()
+        agent = FakeSkillAgent(memory_manager=mm)
+        await agent._cleanup_session("How to debug?", None, ["Use print"])
+        await asyncio.sleep(0.1)
+        mm.check_session_recurrence.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skill_review_triggered_when_stats_sufficient(self) -> None:
+        stats = AgentRunStatistics(tool_call_count=5)
+        agent = FakeSkillAgent(stats=stats)
+        with patch.object(agent, "_trigger_background_skill_review", new_callable=AsyncMock) as mock_trigger:
+            await agent._cleanup_session("x" * 60, None, ["reply"])
+            mock_trigger.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_no_review_when_stats_insufficient(self) -> None:
+        stats = AgentRunStatistics(tool_call_count=1)
+        agent = FakeSkillAgent(stats=stats)
+        with patch.object(agent, "_trigger_background_skill_review", new_callable=AsyncMock) as mock_trigger:
+            await agent._cleanup_session("hi", None, ["ok"])
+            mock_trigger.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_session_cleanup_hook_called(self) -> None:
+        hook = AsyncMock()
+        agent = FakeSkillAgent()
+        agent._on_session_cleanup = hook
+        await agent._cleanup_session("test", None, ["reply"])
+        await asyncio.sleep(0.1)
+        hook.assert_called_once()
+        messages = hook.call_args[0][0]
+        assert messages[-1]["role"] == "assistant"
+        assert messages[-1]["content"] == "reply"

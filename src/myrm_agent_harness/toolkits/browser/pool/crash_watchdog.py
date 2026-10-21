@@ -1,0 +1,249 @@
+"""Three-layer crash detection and semaphore safety net for browser pool.
+
+[INPUT]
+- patchright.async_api::Browser, Page (POS: Patchright browser and page instances)
+- .browser_launcher::BrowserInstance (POS: browser instance metadata)
+- utils.page_health::probe_alive, probe_browser_alive (POS: bounded browser and page health primitives)
+
+[OUTPUT]
+- CrashWatchdogMixin: three-layer crash detection + semaphore safety net mixin; `is_page_crashed` tells a caller its held page died
+
+[POS]
+Provides automatic crash recovery for GlobalBrowserPool:
+- L1: browser.on('disconnected') real-time browser process crash detection; a close the pool or a session
+  started (`BrowserInstance.expected_close`) and an external browser's disconnect are routine, not crashes
+- L2: page.on('crash') real-time page renderer crash detection
+- L3: _lifecycle_tick periodic fallback (30s interval); liveness = browser-level CDP round trip
+  first, pooled-page evaluate as second opinion, so a slow or wedged page never evicts a live browser
+- Semaphore safety net: prevents semaphore leaks or double releases on crash; a page crash returns a
+  permit only for a page a caller holds (a member of its `PagePool` busy set), never for an idle one
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from typing import TYPE_CHECKING
+
+from ..utils.page_health import probe_alive, probe_browser_alive
+
+if TYPE_CHECKING:
+    from patchright.async_api import Browser, Page
+
+    from .browser_launcher import BrowserInstance
+
+logger = logging.getLogger(__name__)
+
+
+class CrashWatchdogMixin:
+    """Three-layer crash detection mixin for GlobalBrowserPool.
+
+    Provides browser disconnect (L1), page crash (L2) event handlers,
+    lifecycle tick health checks (L3), and semaphore safety net logic.
+
+    Requires host class to have:
+    - _browsers: list[BrowserInstance]
+    - _lock: asyncio.Lock
+    - _global_semaphore: asyncio.Semaphore
+    - _current_pages_in_use: int
+    - _config: BrowserPoolConfig (with idle_timeout_seconds)
+    """
+
+    _browsers: list[BrowserInstance]
+    _lock: asyncio.Lock
+    _global_semaphore: asyncio.Semaphore
+    _current_pages_in_use: int
+    _crash_handled_pages: set[int]
+    _crash_count_browser: int
+    _crash_count_page: int
+    _crash_tasks: set[asyncio.Task[None]]
+
+    if TYPE_CHECKING:
+
+        async def _close_browser_instance(self, browser_inst: BrowserInstance) -> None: ...
+
+    def _register_disconnect_handler(self, inst: BrowserInstance) -> None:
+        """Register browser.on('disconnected') for real-time crash detection (L1)."""
+
+        def _on_disconnected(_browser: Browser) -> None:
+            crash_task = asyncio.create_task(self._handle_browser_disconnected(inst))
+            self._crash_tasks.add(crash_task)
+            crash_task.add_done_callback(self._crash_tasks.discard)
+
+        inst.browser.on("disconnected", _on_disconnected)
+
+    async def _handle_browser_disconnected(self, inst: BrowserInstance) -> None:
+        """Handle browser disconnect event — release semaphore slots and cleanup.
+
+        Only a managed browser that nobody asked to close is a crash. An external (CDP-connected)
+        browser disconnects normally (the user closed Chrome), and a close the pool or a session
+        initiated (`expected_close`) is routine: neither counts as a crash.
+        """
+        is_crash = inst.is_managed and not inst.expected_close
+
+        async with self._lock:
+            if inst._disconnected:
+                return
+            inst._disconnected = True
+
+            if is_crash:
+                self._crash_count_browser += 1
+
+            slots_to_release = inst.load
+            self._current_pages_in_use = max(0, self._current_pages_in_use - slots_to_release)
+
+            if inst in self._browsers:
+                self._browsers.remove(inst)
+
+        for _ in range(slots_to_release):
+            self._global_semaphore.release()
+
+        if is_crash:
+            logger.warning(
+                f"Browser crashed — released {slots_to_release} semaphore slots, "
+                f"crash_count_browser={self._crash_count_browser}",
+            )
+        else:
+            logger.info(f"Browser disconnected — released {slots_to_release} semaphore slots")
+
+        await self._close_browser_instance(inst)
+
+    def is_page_crashed(self, page: Page) -> bool:
+        """Whether the renderer of a page a caller holds has crashed (the caller's release clears the mark).
+
+        A crashed page stays open from the driver's point of view: `is_closed()` is False and every call on it fails.
+        """
+        return id(page) in self._crash_handled_pages
+
+    def _register_page_crash_handler(self, page: Page, inst: BrowserInstance) -> None:
+        """Register page.on('crash') for real-time page crash detection (L2)."""
+
+        def _on_page_crash(_page: Page) -> None:
+            crash_task = asyncio.create_task(self._handle_page_crashed(page, inst))
+            self._crash_tasks.add(crash_task)
+            crash_task.add_done_callback(self._crash_tasks.discard)
+
+        page.on("crash", _on_page_crash)
+
+    async def _handle_page_crashed(self, page: Page, inst: BrowserInstance) -> None:
+        """Handle page crash event — release one semaphore slot and track for safety net.
+
+        Only a page a caller holds carries a permit. A page that crashes while idle in its pool, or
+        whose caller already released it, has none to give back: returning one would raise the
+        concurrency limit for good and leave a marker that no release would ever clear.
+        """
+        page_id = id(page)
+
+        async with self._lock:
+            if inst._disconnected or page_id in self._crash_handled_pages:
+                return
+            if not any(page in pool._busy for pool in inst.page_pools.values()):
+                return
+
+            self._crash_handled_pages.add(page_id)
+            self._crash_count_page += 1
+            inst.load = max(0, inst.load - 1)
+            self._current_pages_in_use = max(0, self._current_pages_in_use - 1)
+
+            for pool in inst.page_pools.values():
+                pool._busy.discard(page)
+
+        self._global_semaphore.release()
+
+        logger.warning(
+            f"Page crashed — released 1 semaphore slot, crash_count_page={self._crash_count_page}",
+        )
+
+    async def _lifecycle_tick(self) -> None:
+        """Single lifecycle iteration: health-check all browsers + idle eviction (L3).
+
+        Checks ALL browsers (not just idle ones) to catch crashed browsers with active load.
+        For crashed browsers with load > 0, releases their semaphore slots.
+        """
+        # Phase 1 (lock): snapshot ALL browsers
+        async with self._lock:
+            all_browsers = list(self._browsers)
+
+        if not all_browsers:
+            return
+
+        # Phase 2 (no lock): parallel health check on ALL browsers
+        check_results = await asyncio.gather(
+            *[self._check_browser_alive(inst) for inst in all_browsers],
+        )
+
+        # Phase 3 (lock): handle crashed + idle eviction
+        evicted: list[tuple[BrowserInstance, int]] = []
+        now = time.monotonic()
+        idle_timeout = self._config.idle_timeout_seconds  # type: ignore[attr-defined]
+
+        async with self._lock:
+            for inst, alive in zip(all_browsers, check_results, strict=False):
+                if inst not in self._browsers or inst._disconnected:
+                    continue
+
+                if not alive:
+                    slots_to_release = inst.load
+                    inst._disconnected = True
+                    is_external = not inst.is_managed
+                    if not is_external:
+                        self._crash_count_browser += 1
+                    self._current_pages_in_use = max(0, self._current_pages_in_use - slots_to_release)
+                    if is_external:
+                        logger.info(
+                            f"Lifecycle: external browser disconnected (load={slots_to_release}), removing from pool"
+                        )
+                    else:
+                        logger.warning(f"Lifecycle: browser crashed (load={slots_to_release}), removing from pool")
+                    self._browsers.remove(inst)
+                    evicted.append((inst, slots_to_release))
+                    continue
+
+                if inst.load == 0 and idle_timeout > 0 and (now - inst.last_active_at) > idle_timeout:
+                    logger.info(
+                        f"Lifecycle: evicting idle browser (idle {now - inst.last_active_at:.0f}s > {idle_timeout}s)"
+                    )
+                    self._browsers.remove(inst)
+                    evicted.append((inst, 0))
+
+        # Phase 4 (no lock): release semaphore slots + close evicted instances
+        for inst, slots in evicted:
+            for _ in range(slots):
+                self._global_semaphore.release()
+            await self._close_browser_instance(inst)
+
+    @staticmethod
+    async def _check_browser_alive(inst: BrowserInstance) -> bool:
+        """Decide whether the browser is alive.
+
+        The browser process is probed first, independent of any page: a page stuck in a
+        stalled navigation or a spinning renderer answers no page-level command, yet the
+        browser still serves ``Browser.getVersion``, so a slow page is never mistaken for a
+        dead browser. Only when the process probe fails are pooled pages asked as a second
+        opinion (engines without a browser-level CDP endpoint, such as Firefox, land here).
+        """
+        if await probe_browser_alive(inst.browser):
+            return True
+        return await _pooled_page_answers(inst)
+
+
+async def _pooled_page_answers(inst: BrowserInstance) -> bool:
+    """True when any pooled page answers a liveness probe.
+
+    patchright exposes ``Browser.version``/``Browser.contexts`` as cached properties rather
+    than methods — calling them (``browser.contexts()``) raises TypeError, and cached
+    property access never sends a CDP request, so neither can detect a dead browser. A
+    browser without any pooled page is trusted as alive: a real process death is caught
+    synchronously by the L1 'disconnected' event.
+    """
+    probed = False
+    try:
+        for pool in inst.page_pools.values():
+            for page in (*pool._busy, *pool._idle):
+                probed = True
+                if await probe_alive(page):
+                    return True
+    except Exception:
+        return False
+    return not probed

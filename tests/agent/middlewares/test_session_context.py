@@ -1,0 +1,177 @@
+"""Tests for _session_context.py ContextVar safety.
+
+Validates that all ContextVar getters return safe defaults even when
+ContextVars have not been explicitly set in the current async context.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+
+from myrm_agent_harness.agent.middlewares._session_context import (
+    get_allowed_domains_map,
+    get_approval_session,
+    get_approval_user_id,
+    get_event_logger,
+    get_is_subagent,
+    get_privacy_policy,
+    get_security_config,
+    get_subagent_task_id,
+    get_terminal_errors,
+    get_workspace_root,
+    reset_terminal_errors,
+    set_allowed_domains_map,
+)
+from myrm_agent_harness.agent.security.types import PrivacyPolicy
+
+
+class TestAllowedDomainsMapDefault:
+    """get_allowed_domains_map must never return None."""
+
+    def test_default_is_empty_dict(self):
+        result = get_allowed_domains_map()
+        assert result is not None
+        assert isinstance(result, dict)
+        assert result == {}
+
+    def test_set_and_get(self):
+        test_map = {"example.com": ["GET", "POST"]}
+        set_allowed_domains_map(test_map)
+        result = get_allowed_domains_map()
+        assert result == test_map
+
+    def test_set_none_returns_empty_dict(self):
+        """Even if someone passes None, get should return {}."""
+        set_allowed_domains_map(None)  # type: ignore[arg-type]
+        result = get_allowed_domains_map()
+        assert isinstance(result, dict)
+
+    @pytest.mark.asyncio
+    async def test_isolation_across_tasks(self):
+        """ContextVars are isolated between tasks."""
+        set_allowed_domains_map({"parent.com": None})
+
+        child_result: dict[str, list[str] | None] = {}
+
+        async def child():
+            nonlocal child_result
+            child_result = get_allowed_domains_map()
+
+        await asyncio.create_task(child())
+        parent_result = get_allowed_domains_map()
+
+        assert parent_result == {"parent.com": None}
+        assert child_result == {"parent.com": None}
+
+
+class TestOtherContextVarDefaults:
+    """All ContextVar getters should return safe defaults without explicit set."""
+
+    def test_security_config_default(self):
+        assert get_security_config() is None
+
+    def test_workspace_root_default(self):
+        assert get_workspace_root() == ""
+
+    def test_approval_session_default(self):
+        assert get_approval_session() == ""
+
+    def test_approval_user_id_default(self):
+        assert get_approval_user_id() == ""
+
+    def test_event_logger_default(self):
+        assert get_event_logger() is None
+
+    def test_is_subagent_default(self):
+        assert get_is_subagent() is False
+
+    def test_subagent_task_id_default(self):
+        assert get_subagent_task_id() is None
+
+    def test_privacy_policy_default(self):
+        policy = get_privacy_policy()
+        assert isinstance(policy, PrivacyPolicy)
+
+
+class TestTerminalErrorsRegistry:
+    """Terminal errors registry should auto-create on first access."""
+
+    def test_auto_create(self):
+        registry = get_terminal_errors()
+        assert registry is not None
+
+    def test_reset(self):
+        registry = get_terminal_errors()
+        registry.add("test_error")
+        reset_terminal_errors()
+        registry_after = get_terminal_errors()
+        all_errors = registry_after.get_all()
+        assert "test_error" not in all_errors
+
+
+class TestActiveToolRegistrySessionFallback:
+    """Dynamic tool resolution must survive LangGraph copied-context execution.
+
+    run_agent_loop publishes the agent ToolRegistry via ContextVar, but LangGraph
+    executes graph nodes in copied contexts where that ContextVar is None.
+    The session-key fallback (mirroring the loop-guard pattern) must still
+    resolve runtime-only hooks such as ``_completion_check``.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _cleanup_session_registry(self):
+        """Drop the default-session registry/tools after each test so other
+        middleware tests never observe a leaked MagicMock via
+        ``get_active_tool_registry()`` (which prefers the session fallback)."""
+        import myrm_agent_harness.agent.middlewares._session_context as sc
+
+        yield
+        sc._session_tool_registries.pop("__default__", None)
+        sc._session_resolved_tools.pop("__default__", None)
+        try:
+            sc._active_tool_registry_var.set(None)
+            sc._active_resolved_tools_var.set(None)
+        except Exception:
+            pass
+
+    def test_set_then_get_returns_same_registry(self) -> None:
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_active_tool_registry,
+            set_active_tool_registry,
+        )
+
+        registry = MagicMock()
+        set_active_tool_registry(registry)
+        assert get_active_tool_registry() is registry
+
+    def test_get_falls_back_when_context_var_missing(self) -> None:
+        from unittest.mock import MagicMock
+
+        import myrm_agent_harness.agent.middlewares._session_context as sc
+
+        registry = MagicMock()
+        sc.set_active_tool_registry(registry)
+
+        token = sc._active_tool_registry_var.set(None)
+        try:
+            assert sc.get_active_tool_registry() is registry
+        finally:
+            sc._active_tool_registry_var.reset(token)
+
+    def test_resolved_tools_falls_back_when_context_var_missing(self) -> None:
+        from unittest.mock import MagicMock
+
+        import myrm_agent_harness.agent.middlewares._session_context as sc
+
+        tools = [MagicMock()]
+        sc.set_active_resolved_tools(tools)
+
+        token = sc._active_resolved_tools_var.set(None)
+        try:
+            assert sc.get_active_resolved_tools() == tools
+        finally:
+            sc._active_resolved_tools_var.reset(token)

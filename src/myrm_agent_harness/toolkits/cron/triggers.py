@@ -1,0 +1,319 @@
+"""Trigger type definitions and security helpers.
+
+Provides data models for 7 trigger kinds (cron, event, system_event,
+webhook, poll, stream, manual), ``TriggerConfig`` (container for per-job
+trigger rules), and security utilities (SSRF protection, ReDoS prevention,
+constant-time HMAC comparison).
+
+Concrete trigger matching and dispatching is implemented by the application
+layer via the ``TriggerProvider`` protocol in ``protocols.py``.
+
+[INPUT]
+- (none)
+
+[OUTPUT]
+- TriggerKind: Enum of all supported trigger kinds.
+- EventTrigger: Fires when an incoming message matches a regex pattern.
+- SystemEventTrigger: Fires on structured system events (e.g. GitHub webhook pa...
+- WebhookTrigger: Fires when an HTTP request hits the job's webhook endpoint.
+- PollTrigger: Periodically fetches a URL and fires when the content cha...
+- StreamTrigger: Listens on an outbound WS/SSE long connection and fires ...
+
+[POS]
+Trigger type definitions and security helpers.
+"""
+
+from __future__ import annotations
+
+import hmac
+import ipaddress
+import os
+import re
+import socket
+from dataclasses import dataclass, field
+from enum import StrEnum
+from urllib.parse import urlparse
+
+
+class TriggerKind(StrEnum):
+    CRON = "cron"
+    EVENT = "event"
+    SYSTEM_EVENT = "system"
+    WEBHOOK = "webhook"
+    POLL = "poll"
+    STREAM = "stream"
+    MANUAL = "manual"
+
+
+class StreamProtocol(StrEnum):
+    """Wire protocol for outbound stream connections."""
+
+    WS = "ws"
+    SSE = "sse"
+
+
+# ---------------------------------------------------------------------------
+# Trigger data models
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class EventTrigger:
+    """Fires when an incoming message matches a regex pattern.
+
+    ``max_pattern_bytes`` caps the compiled regex size to prevent ReDoS.
+    """
+
+    pattern: str
+    channel: str | None = None
+    max_pattern_bytes: int = 65_536
+
+
+@dataclass(frozen=True, slots=True)
+class SystemEventTrigger:
+    """Fires on structured system events (e.g. GitHub webhook payloads).
+
+    ``filters`` is a dict of payload field → expected value for exact matching.
+    """
+
+    source: str
+    event_type: str
+    filters: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class WebhookTrigger:
+    """Fires when an HTTP request hits the job's webhook endpoint.
+
+    ``path`` defaults to the job ID if not set.
+    ``secret`` is used for HMAC-SHA256 signature verification.
+    """
+
+    path: str | None = None
+    secret: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PollTrigger:
+    """Periodically fetches a URL and fires when the content changes.
+
+    ``json_path`` optionally extracts a sub-field from JSON responses.
+    ``change_detection`` enables content-hash comparison between polls.
+    """
+
+    url: str
+    json_path: str | None = None
+    interval_seconds: int = 300
+    change_detection: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class StreamTrigger:
+    """Listens on an outbound WS/SSE long connection and fires on matching events.
+
+    The Agent establishes an **outbound** connection from the local/sandbox
+    network to ``url``, enabling real-time event monitoring even behind NAT
+    (no public IP required — unlike ``WebhookTrigger``).
+
+    ``filter_json_path`` extracts a value from each incoming message via a
+    JSONPath expression (e.g. ``$.data.price``).
+    ``filter_regex`` is matched against the extracted value (or the raw
+    message if no json_path is set). Only matching events fire the job.
+
+    ``headers`` supplies custom headers for the initial HTTP handshake
+    (e.g. ``Authorization`` for authenticated streams).
+    """
+
+    url: str
+    protocol: StreamProtocol = StreamProtocol.WS
+    filter_json_path: str | None = None
+    filter_regex: str | None = None
+    headers: dict[str, str] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# TriggerConfig — per-job trigger rules container
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class TriggerConfig:
+    """Per-job trigger rules.  Multiple triggers of the same or different
+    kinds can be attached.  Any single match fires the job.
+
+    Uses tuples (not lists) for immutability — consistent with ``CronJob``'s
+    other collection fields (``required_capabilities``, ``allowed_roots``).
+    """
+
+    webhooks: tuple[WebhookTrigger, ...] = ()
+    events: tuple[EventTrigger, ...] = ()
+    system_events: tuple[SystemEventTrigger, ...] = ()
+    polls: tuple[PollTrigger, ...] = ()
+    streams: tuple[StreamTrigger, ...] = ()
+
+
+# ---------------------------------------------------------------------------
+# TriggerConfig serialization
+# ---------------------------------------------------------------------------
+
+
+def trigger_config_to_dict(tc: TriggerConfig | None) -> dict[str, list[dict[str, object]]] | None:
+    """Serialise ``TriggerConfig`` to a JSON-safe dict, or None."""
+    if tc is None:
+        return None
+    d: dict[str, list[dict[str, object]]] = {}
+    if tc.webhooks:
+        d["webhooks"] = [{"path": w.path, "secret": w.secret} for w in tc.webhooks]
+    if tc.events:
+        d["events"] = [
+            {"pattern": e.pattern, "channel": e.channel, "max_pattern_bytes": e.max_pattern_bytes} for e in tc.events
+        ]
+    if tc.system_events:
+        d["system_events"] = [
+            {"source": s.source, "event_type": s.event_type, "filters": s.filters} for s in tc.system_events
+        ]
+    if tc.polls:
+        d["polls"] = [
+            {
+                "url": p.url,
+                "json_path": p.json_path,
+                "interval_seconds": p.interval_seconds,
+                "change_detection": p.change_detection,
+            }
+            for p in tc.polls
+        ]
+    if tc.streams:
+        d["streams"] = [
+            {
+                "url": s.url,
+                "protocol": s.protocol.value,
+                "filter_json_path": s.filter_json_path,
+                "filter_regex": s.filter_regex,
+                "headers": s.headers if s.headers else None,
+            }
+            for s in tc.streams
+        ]
+    return d if d else None
+
+
+def dict_to_trigger_config(d: dict[str, list[dict[str, object]]] | None) -> TriggerConfig | None:
+    """Convert a JSON dict to ``TriggerConfig``, or None if missing/empty."""
+    if not d:
+        return None
+
+    webhooks = tuple(
+        WebhookTrigger(
+            path=str(w.get("path", "")),
+            secret=str(w.get("secret", "")) if w.get("secret") else None,
+        )
+        for w in d.get("webhooks", [])
+    )
+    events = tuple(
+        EventTrigger(
+            pattern=str(e["pattern"]),
+            channel=str(e["channel"]) if e.get("channel") else None,
+            max_pattern_bytes=int(e.get("max_pattern_bytes", 65_536)),  # type: ignore[arg-type]
+        )
+        for e in d.get("events", [])
+    )
+    system_events = tuple(
+        SystemEventTrigger(
+            source=str(s["source"]),
+            event_type=str(s["event_type"]),
+            filters=dict(s.get("filters", {})),  # type: ignore[arg-type]
+        )
+        for s in d.get("system_events", [])
+    )
+    polls = tuple(
+        PollTrigger(
+            url=str(p["url"]),
+            json_path=str(p["json_path"]) if p.get("json_path") else None,
+            interval_seconds=int(p.get("interval_seconds", 300)),  # type: ignore[arg-type]
+            change_detection=bool(p.get("change_detection", True)),
+        )
+        for p in d.get("polls", [])
+    )
+    streams = tuple(
+        StreamTrigger(
+            url=str(st["url"]),
+            protocol=StreamProtocol(str(st.get("protocol", "ws"))),
+            filter_json_path=str(st["filter_json_path"]) if st.get("filter_json_path") else None,
+            filter_regex=str(st["filter_regex"]) if st.get("filter_regex") else None,
+            headers=dict(st.get("headers", {})) if st.get("headers") else {},  # type: ignore[arg-type]
+        )
+        for st in d.get("streams", [])
+    )
+
+    tc = TriggerConfig(
+        webhooks=webhooks,
+        events=events,
+        system_events=system_events,
+        polls=polls,
+        streams=streams,
+    )
+    if not tc.webhooks and not tc.events and not tc.system_events and not tc.polls and not tc.streams:
+        return None
+    return tc
+
+
+# ---------------------------------------------------------------------------
+# Webhook path / secret generation
+# ---------------------------------------------------------------------------
+
+_WEBHOOK_PATH_LENGTH = 16
+_WEBHOOK_SECRET_LENGTH = 32
+
+
+def generate_webhook_path() -> str:
+    """Generate a URL-safe random webhook path (hex-encoded)."""
+    return os.urandom(_WEBHOOK_PATH_LENGTH).hex()
+
+
+def generate_webhook_secret() -> str:
+    """Generate a cryptographically secure webhook secret (hex-encoded)."""
+    return os.urandom(_WEBHOOK_SECRET_LENGTH).hex()
+
+
+# ---------------------------------------------------------------------------
+# Security utilities
+# ---------------------------------------------------------------------------
+
+_PRIVATE_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})  # noqa: S104  # hostname list, not a bind
+
+
+def validate_webhook_secret(expected: str, provided: str) -> bool:
+    """Constant-time comparison of webhook secrets to prevent timing attacks."""
+    return hmac.compare_digest(expected.encode(), provided.encode())
+
+
+def is_private_url(url: str) -> bool:
+    """SSRF protection: return True if *url* resolves to a private/internal address.
+
+    Performs DNS resolution to catch DNS-rebinding attacks where a public
+    hostname resolves to a private IP.
+    """
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        return True
+    if hostname in _PRIVATE_HOSTNAMES:
+        return True
+    try:
+        for info in socket.getaddrinfo(hostname, None):
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return True
+    except (socket.gaierror, ValueError):
+        return True
+    return False
+
+
+def validate_regex_pattern(pattern: str, *, max_bytes: int = 65_536) -> re.Pattern[str]:
+    """Compile a regex with a size limit to prevent ReDoS attacks.
+
+    Raises ``ValueError`` if the pattern source exceeds *max_bytes*.
+    """
+    encoded_len = len(pattern.encode())
+    if encoded_len > max_bytes:
+        raise ValueError(f"Regex pattern too large: {encoded_len} > {max_bytes} bytes")
+    return re.compile(pattern)

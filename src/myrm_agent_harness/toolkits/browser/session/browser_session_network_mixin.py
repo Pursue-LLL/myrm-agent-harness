@@ -1,0 +1,108 @@
+"""BrowserSession console and network log APIs.
+
+[INPUT]
+- session.console_logger::ConsoleLogger (POS: browser console capture)
+- session.network_logger::NetworkLogger (POS: network request log capture)
+- session.network_intelligence::NetworkIntelligence (POS: CDP-based API response body retrieval)
+- pool.config::BrowserEngine (POS: which engine a session runs on decides whether the console can be captured)
+
+[OUTPUT]
+- BrowserSessionNetworkMixin: get_console_log / get_network_log / get_network_detail / replay_network_request.
+- CONSOLE_CAPTURE_UNAVAILABLE: the answer `get_console_log` gives where the engine reports no console output.
+
+[POS]
+Console and network introspection APIs for BrowserSession. Delegates to NetworkLogger and
+NetworkIntelligence; replay uses in-page fetch via the active tab. The default Chromium engine
+never reports console output (its driver keeps `Console.enable` off to stay undetectable), so
+`get_console_log` says so there: an empty log would read as "the page has no errors".
+"""
+
+from __future__ import annotations
+
+import json
+
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
+from ..pool.config import BrowserEngine
+from .session_host import SessionHost
+
+# Replay response bounds: the JS side returns a wider window so a credential
+# crossing the final output cut stays structurally intact for redaction.
+_REPLAY_RAW_WINDOW = 16000
+_REPLAY_OUTPUT_MAX = 8000
+
+CONSOLE_CAPTURE_UNAVAILABLE = (
+    "Console capture is unavailable in this browser mode, so an empty console cannot be assumed. "
+    "Use network_log for failed requests or evaluate to inspect page state."
+)
+
+
+class BrowserSessionNetworkMixin(SessionHost):
+    def get_console_log(self) -> str:
+        """Get captured browser console messages (errors, warnings, logs)."""
+        engine = self._engine_preference or self._browser_pool.config.engine
+        if engine == BrowserEngine.CHROMIUM_PATCHRIGHT:
+            return CONSOLE_CAPTURE_UNAVAILABLE
+        return self._console_logger.get_summary()
+
+    def get_network_log(self, filter_mode: str = "api") -> str:
+        """Get network request logs."""
+        api_summary = self._network_intelligence.get_summary()
+
+        if api_summary and filter_mode == "api":
+            parts = [
+                "API Requests (use network_detail with index to view response body):",
+                api_summary,
+            ]
+            failed_summary = self._network_logger.get_summary("failed")
+            if "No network requests" not in failed_summary:
+                parts.append(f"\n{failed_summary}")
+            return "\n".join(parts)
+
+        summary = self._network_logger.get_summary(filter_mode)
+        if api_summary:
+            summary += f"\n\nAPI Requests (use network_detail with index to view response body):\n{api_summary}"
+        return summary
+
+    async def get_network_detail(self, index: int) -> str:
+        """Get response body for a tracked API request by index."""
+        return await self._network_intelligence.get_response_body(index)
+
+    async def replay_network_request(self, index: int) -> str:
+        """Replay a tracked API request using page.evaluate(fetch(...))."""
+        api_requests = self._network_intelligence.get_api_requests()
+        if index < 1 or index > len(api_requests):
+            return f"Error: Invalid index {index}. Valid range: 1-{len(api_requests)}"
+
+        record = api_requests[index - 1]
+
+        await self._ensure_components()
+        page = self._tab_controller.get_active_page()
+
+        url_js = json.dumps(record.url)
+        method_js = json.dumps(record.method)
+
+        fetch_opts_parts = [f'"method": {method_js}']
+        if record.post_data and record.method in ("POST", "PUT", "PATCH"):
+            body_js = json.dumps(record.post_data)
+            fetch_opts_parts.append(f'"body": {body_js}')
+            fetch_opts_parts.append('"headers": {"Content-Type": "application/json"}')
+
+        fetch_opts = "{" + ", ".join(fetch_opts_parts) + "}"
+
+        js_code = f"""
+            async () => {{
+                const resp = await fetch({url_js}, {fetch_opts});
+                const text = await resp.text();
+                return text.substring(0, {_REPLAY_RAW_WINDOW});
+            }}
+        """
+
+        try:
+            result = await page.evaluate(js_code)
+            raw = str(result) if result else ""
+            if not raw:
+                return "Empty response"
+            return redact_sensitive_text(raw)[:_REPLAY_OUTPUT_MAX]
+        except Exception:
+            return "Error replaying request"

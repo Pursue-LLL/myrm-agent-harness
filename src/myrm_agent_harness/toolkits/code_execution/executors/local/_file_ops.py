@@ -1,0 +1,256 @@
+"""Native file operations mixin for LocalExecutor.
+
+[INPUT]
+infra.atomic_write::async_atomic_write (POS: Atomic file writing utility)
+core.security.path::is_sensitive_file, is_protected_instruction_file, is_evidence_readonly_file, is_within_boundary (POS: path security domain)
+core.security.path.pattern::first_matching_pattern (POS: Path pattern matching — single source of truth for glob-style path protection)
+core.context_vars::protected_paths_var (POS: Foundation ContextVar registry)
+
+[OUTPUT]
+LocalFileOpsMixin: Mixin providing pathlib-based file I/O with a write guard that
+refuses credential paths, persona instruction files, read-only evidence and the
+active Goal's protected paths, alongside the executor's configured read-only roots.
+
+[POS]
+Native file operations for local executor. Provides zero-subprocess-overhead
+file read/write/delete using pathlib, with read-only path enforcement
+and the shared path-protection rules so sandbox writes agree with the file tools and
+the shell pre-flight.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+from myrm_agent_harness.core.security.ocap import CapabilityAction, enforce_capability_access
+from myrm_agent_harness.infra.atomic_write import async_atomic_write
+from myrm_agent_harness.toolkits.code_execution.interceptor import (
+    trigger_destructive_action_hook,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _current_session_id() -> str | None:
+    """Resolve the chat id bound by the agent runtime, or None outside an agent turn.
+
+    File writes are allowed outside an explicit agent context (e.g. CLI utilities),
+    in which case no snapshot hook fires and behavior matches the previous flow.
+    """
+    try:
+        from myrm_agent_harness.core.context_vars import chat_id_var
+
+        return chat_id_var.get().strip() or None
+    except Exception:
+        return None
+
+
+async def _trigger_snapshot_hook(
+    *,
+    workspace_path: str,
+    action_type: str,
+    path: str,
+    size: int | None = None,
+) -> None:
+    """Fire the destructive-action snapshot hook for a native file mutation.
+
+    The hook is a no-op outside an agent turn (session_id is None) and never
+    blocks the mutation (interceptor enforces its own timeout).
+    """
+    payload: dict[str, object] = {
+        "path": path,
+        "session_id": _current_session_id(),
+    }
+    if size is not None:
+        payload["size"] = size
+    await trigger_destructive_action_hook(
+        workspace_path=workspace_path,
+        action_type=action_type,
+        payload=payload,
+    )
+
+
+class LocalFileOpsMixin:
+    """Mixin providing local file operations via pathlib (zero subprocess overhead).
+
+    Requires the host class to provide: ``resolve_path``, ``_guard_write``,
+    ``_log_context_file_access``, and ``workspace_path``.
+    """
+
+    def _is_readonly(self, resolved_path: str) -> bool:
+        from myrm_agent_harness.core.security.path import is_within_boundary
+
+        return any(
+            is_within_boundary(resolved_path, p)
+            for p in self._readonly_paths  # type: ignore[attr-defined]
+        )
+
+    def _guard_write(self, resolved_path: str) -> None:
+        """Refuse a write that any protection rule forbids.
+
+        Credential paths are refused outright. Evidence directories and the active
+        Goal's protected paths are refused for writes, matching the ``VIEW`` bypass the
+        file-operation validators grant so a report can still be read back. Persona
+        instruction files are refused here rather than escalated to a human: this
+        executor has no approval channel, and the file tools and the permission
+        middleware both ask before allowing the same write, so declining is the
+        fail-closed direction for a surface that cannot ask.
+        """
+        enforce_capability_access(CapabilityAction.WRITE, resolved_path)
+        if self._is_readonly(resolved_path):
+            raise PermissionError(f"Write denied: path is read-only — {resolved_path}")
+
+        from myrm_agent_harness.core.context_vars import protected_paths_var
+        from myrm_agent_harness.core.security.path import (
+            is_evidence_readonly_file,
+            is_protected_instruction_file,
+            is_sensitive_file,
+        )
+        from myrm_agent_harness.core.security.path.pattern import first_matching_pattern
+
+        matched = first_matching_pattern(resolved_path, protected_paths_var.get())
+        if matched is not None:
+            raise PermissionError(
+                f"Write denied: '{resolved_path}' is protected by the active Goal (pattern: '{matched}')."
+            )
+        if is_evidence_readonly_file(resolved_path):
+            raise PermissionError(
+                f"Write denied: '{resolved_path}' is read-only session evidence. "
+                f"Write derived output to 'artifacts/' instead."
+            )
+        if is_sensitive_file(resolved_path):
+            raise PermissionError(f"Write denied: '{resolved_path}' matches a credential path rule.")
+        if is_protected_instruction_file(resolved_path):
+            raise PermissionError(
+                f"Write denied: '{resolved_path}' is a persona instruction file. "
+                f"Use file_write_tool so the write can be routed through approval."
+            )
+
+    async def read_file(self, path: str) -> str:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        enforce_capability_access(CapabilityAction.READ, safe)
+        self._log_context_file_access(safe, success=True)  # type: ignore[attr-defined]
+        p = Path(safe)
+        if not p.exists():
+            self._log_context_file_access(safe, success=False)  # type: ignore[attr-defined]
+            raise FileNotFoundError(f"File not found: {path}")
+
+        if safe.endswith(".gz"):
+            import gzip
+
+            return gzip.decompress(p.read_bytes()).decode("utf-8")
+
+        return p.read_text(encoding="utf-8")
+
+    async def read_file_bytes(self, path: str) -> bytes:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        enforce_capability_access(CapabilityAction.READ, safe)
+        p = Path(safe)
+        if not p.exists():
+            raise FileNotFoundError(f"File not found: {path}")
+        return p.read_bytes()
+
+    async def write_file(self, path: str, content: str) -> None:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        self._guard_write(safe)
+
+        # Trigger auto-snapshot hook
+        await _trigger_snapshot_hook(
+            workspace_path=self.workspace_path,  # type: ignore[attr-defined]
+            action_type="file_write",
+            path=safe,
+            size=len(content),
+        )
+
+        p = Path(safe)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+
+    async def write_file_bytes(self, path: str, content: bytes) -> None:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        self._guard_write(safe)
+
+        await _trigger_snapshot_hook(
+            workspace_path=self.workspace_path,  # type: ignore[attr-defined]
+            action_type="file_write",
+            path=safe,
+            size=len(content),
+        )
+
+        p = Path(safe)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(content)
+
+    async def write_file_atomic(self, path: str, content: str) -> None:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        self._guard_write(safe)
+
+        await _trigger_snapshot_hook(
+            workspace_path=self.workspace_path,  # type: ignore[attr-defined]
+            action_type="file_write",
+            path=safe,
+            size=len(content),
+        )
+
+        await async_atomic_write(safe, content)
+
+    async def write_file_bytes_atomic(self, path: str, content: bytes) -> None:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        self._guard_write(safe)
+
+        await _trigger_snapshot_hook(
+            workspace_path=self.workspace_path,  # type: ignore[attr-defined]
+            action_type="file_write",
+            path=safe,
+            size=len(content),
+        )
+
+        await async_atomic_write(safe, content)
+
+    async def append_file(self, path: str, content: str) -> None:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        self._guard_write(safe)
+
+        await _trigger_snapshot_hook(
+            workspace_path=self.workspace_path,  # type: ignore[attr-defined]
+            action_type="file_append",
+            path=safe,
+            size=len(content),
+        )
+
+        with open(safe, "a", encoding="utf-8") as f:
+            f.write(content)
+
+    async def delete_file(self, path: str) -> None:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        self._guard_write(safe)
+
+        await _trigger_snapshot_hook(
+            workspace_path=self.workspace_path,  # type: ignore[attr-defined]
+            action_type="file_delete",
+            path=safe,
+        )
+
+        Path(safe).unlink(missing_ok=True)
+
+    async def file_exists(self, path: str) -> bool:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        return Path(safe).exists()
+
+    async def is_file(self, path: str) -> bool:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        return Path(safe).is_file()
+
+    async def is_dir(self, path: str) -> bool:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        return Path(safe).is_dir()
+
+    async def mkdir(self, path: str) -> None:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        enforce_capability_access(CapabilityAction.WRITE, safe)
+        Path(safe).mkdir(parents=True, exist_ok=True)
+
+    async def list_files(self, path: str = ".", pattern: str = "*") -> list[str]:
+        safe = await self.resolve_path(path)  # type: ignore[attr-defined]
+        return [str(f) for f in Path(safe).glob(pattern) if f.is_file()]

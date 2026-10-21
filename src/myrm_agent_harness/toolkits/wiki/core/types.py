@@ -1,0 +1,169 @@
+"""Type definitions for Wiki toolkit.
+
+[INPUT]
+- dataclasses::dataclass, field (POS: standard library dataclass definition)
+- datetime::datetime, UTC (POS: standard library datetime handling)
+- pathlib::Path (POS: standard library file path operations)
+
+[OUTPUT]
+- ConceptInfo: concept information dataclass
+- WikiArticle: Wiki article dataclass
+- CompileResult: compilation result dataclass
+- SourceSnippet: chunk-level snippet for citation linking
+- QueryResult: query result dataclass
+- WikiRetrievalTrace, WikiRetrievalSeedTrace, WikiIndexTraceHit: structured retrieval trace metadata
+- LintIssue: lint issue dataclass
+- LintResult: lint result dataclass
+- WikiMetadata: Wiki metadata class
+
+[POS]
+Wiki toolkit type definition center. Defines all core data models (concepts, articles,
+compile results, query results, lint results, metadata), supporting type-safe data passing and serialization.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ConceptInfo:
+    """Extracted concept information."""
+
+    name: str
+    definition: str
+    mentions: int = 1
+    source_files: list[str] = field(default_factory=list)
+    related_concepts: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class WikiArticle:
+    """Compiled wiki article."""
+
+    concept_name: str
+    content: str
+    source_docs: list[str]
+    related_concepts: list[str]
+    backlinks: list[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True, slots=True)
+class CompileResult:
+    """Result of wiki compilation."""
+
+    concepts_count: int
+    articles_generated: int
+    backlinks_created: int
+    duration_ms: int = 0
+    articles_pending: int = 0
+    articles_published: int = 0
+    articles_blocked: int = 0
+    synthesis_pending: int = 0
+    errors: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class SourceSnippet:
+    """Citation snippet with explicit abstraction level (L0/L1/L2)."""
+
+    article_path: str
+    article_name: str
+    snippet: str
+    section: str = ""
+    level: str = "L2"
+    claim_id: str = ""
+    claim_text: str = ""
+    evidence_path: str = ""
+    line_range: str = ""
+    claim_status: str = ""
+    claim_confidence: float = 0.0
+    evidence_content_sha256: str = ""
+    evidence_snapshot_status: str = ""
+    hit_kind: str = "concept"
+    asset_filename: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class WikiIndexTraceHit:
+    """One index.md routing hit included in retrieval trace metadata."""
+
+    link_name: str
+    summary: str
+    score: float
+    page_type: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class WikiRetrievalSeedTrace:
+    """One retrieval seed before best-first convergence."""
+
+    concept_name: str
+    score: float
+    source: str
+
+
+@dataclass(frozen=True, slots=True)
+class WikiRetrievalTrace:
+    """Structured wiki_query retrieval path for GUI debugging."""
+
+    index_hits: tuple[WikiIndexTraceHit, ...] = ()
+    seeds: tuple[WikiRetrievalSeedTrace, ...] = ()
+    sidecar_directories: tuple[str, ...] = ()
+    selected_concepts: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class QueryResult:
+    """Result of wiki query."""
+
+    question: str
+    answer: str
+    related_articles: list[str]
+    should_archive: bool = False
+    confidence_score: float = 0.0
+    refused: bool = False
+    source_snippets: list[SourceSnippet] = field(default_factory=list)
+    retrieval_trace: WikiRetrievalTrace | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LintIssue:
+    """Wiki quality issue."""
+
+    issue_type: str  # "broken_link" | "incomplete" | "inconsistency" | "stale" | "drift" | "knowledge_gap"
+    severity: str  # "low" | "medium" | "high"
+    location: str  # File path or concept name
+    description: str
+    action_kind: str = "info"  # repair | recompile | navigate | info
+    can_auto_fix: bool = False  # True only for deterministic vault repairs (frontmatter type)
+    suggested_fix: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LintResult:
+    """Result of wiki maintenance."""
+
+    issues_found: int
+    issues_fixed: int
+    connections_discovered: int
+    duration_ms: int = 0
+    issues: list[LintIssue] = field(default_factory=list)
+    raw_security_removed: int = 0
+    raw_security_removed_paths: list[str] = field(default_factory=list)
+    ai_unavailable: bool = False  # the model was asked and answered nothing: structural repairs only
+    stopped: bool = False  # the host asked the run to stop; what was done before stays
+
+
+@dataclass(frozen=True, slots=True)
+class WikiMetadata:
+    """Wiki metadata stored in .metadata.json."""
+
+    last_compile_time: datetime
+    total_concepts: int
+    total_articles: int
+    total_raw_files: int
+    version: str = "1.0.0"

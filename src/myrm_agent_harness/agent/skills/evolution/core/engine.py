@@ -1,0 +1,564 @@
+"""Skill evolution engine - Core of self-evolution system.
+
+Implements 4 evolution types as a lightweight orchestrator:
+- FIX: Auto-repair failed skills via trace analysis
+- DERIVED: Optimize based on feedback (with Improvement Gate)
+- CAPTURED: Learn from patterns
+- OPTIMIZE_DESCRIPTION: Refine description for better matching
+
+Improvement Gate: the DERIVED path injects the original skill as a baseline
+candidate in evaluation. If no variant scores higher than the original,
+evolution is skipped to prevent quality regression.
+
+Returns standardized EvolutionProposal objects, delegating application
+and persistence to the business layer (Server/GUI).
+
+[INPUT]
+- agent.skills.evolution.db.store::SkillStore (POS: SQLite persistence for skill evolution system.)
+- agent.skills.evolution.execution.evaluator::BatchEvaluator (POS: Batch Evaluator for Skill Evolution.)
+- agent.skills.evolution.pipeline.trace_analyzer::TraceAnalyzer (POS: Trace Analyzer for Skill Evolution.)
+- agent.skills.evolution.pipeline.variant_generator::VariantGenerator (POS: Variant Generator for Skill Evolution.)
+- agent.event_log.protocol::EventLogBackend (POS: Protocol contract. Framework provides FileEventLogBackend; business layer may extend with SQLite / PostgreSQL implementations.)
+- agent.skills.evolution.pipeline.structured_extractor::StructuredExtractor (POS: Provides SkillCaptureResult, StructuredExtractor.)
+- agent.skills.evolution.safety.validator::SkillValidator (POS: Skill evolution validation system.)
+- agent.skills.evolution.execution.sandbox_validator::SandboxValidator (POS: Sandbox validation for evolved skills.)
+- agent.skills.evolution.core.eval_regression::filter_variants_by_regression (POS: Non-blocking regression gate for the skill evolution pipeline.)
+
+[OUTPUT]
+- SkillEvolutionEngine: Core orchestrator for skill self-evolution.
+
+[POS]
+Skill evolution engine - Core of self-evolution system.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import TYPE_CHECKING, Any
+
+from langchain_core.language_models import BaseChatModel
+
+from myrm_agent_harness.agent.skills.evolution.core.proposal_builder import (
+    ProposalBuilder,
+)
+from myrm_agent_harness.agent.skills.evolution.core.types import (
+    EnvironmentFingerprint,
+    EvolutionProposal,
+    EvolutionType,
+    SkillRecord,
+)
+from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
+from myrm_agent_harness.agent.skills.evolution.execution.evaluator import BatchEvaluator
+from myrm_agent_harness.agent.skills.evolution.pipeline.trace_analyzer import (
+    TraceAnalyzer,
+)
+from myrm_agent_harness.agent.skills.evolution.pipeline.variant_generator import (
+    VariantGenerator,
+)
+
+from .engine_batch_mixin import SkillEvolutionEngineBatchMixin
+from .eval_regression import filter_variants_by_regression
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.event_log.protocols import EventLogBackend
+
+logger = logging.getLogger(__name__)
+
+__all__ = ["SkillEvolutionEngine"]
+
+
+class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
+    """Core orchestrator for skill self-evolution.
+
+    Framework layer component:
+    - Analyzes full execution traces (TraceAnalyzer)
+    - Generates multiple variants (VariantGenerator)
+    - Evaluates variants via LLM-as-judge (BatchEvaluator)
+    - Outputs standardized EvolutionProposal
+    """
+
+    def __init__(
+        self,
+        store: SkillStore,
+        llm: BaseChatModel | None = None,
+        event_log_backend: EventLogBackend | None = None,
+        max_concurrent_evolutions: int = 5,
+        num_variants_per_evolution: int = 3,
+    ):
+        """Initialize the lightweight evolution engine.
+
+        Args:
+            store: SkillStore for persistence (read-only in engine).
+            llm: LLM client for generating evolved skills.
+            event_log_backend: Optional backend for trace extraction.
+            max_concurrent_evolutions: Max concurrent evolution tasks.
+            num_variants_per_evolution: Number of variants to generate per run.
+        """
+        self._store = store
+        self._llm = llm
+        self._semaphore = asyncio.Semaphore(max_concurrent_evolutions)
+        self._num_variants = num_variants_per_evolution
+
+        # Initialize sub-modules
+        self._trace_analyzer = TraceAnalyzer(event_log_backend) if event_log_backend else None
+        self._variant_generator = VariantGenerator(llm)
+        self._evaluator = BatchEvaluator(llm)
+        self._proposal_builder = ProposalBuilder()
+
+    async def fix_skill(
+        self,
+        skill_id: str,
+        error_message: str,
+        task_context: str | None = None,
+        session_id: str | None = None,
+    ) -> EvolutionProposal | None:
+        """FIX evolution: Propose repair for a failed skill.
+
+        The repair is always generated from the failure trajectory: variants
+        are produced and judged by the LLM, filtered by the EvalCase regression
+        gate, and returned as a proposal for the failing skill itself.
+        """
+        old_skill = self._store.get_skill(skill_id)
+        if not old_skill:
+            logger.error(f"FIX evolution: skill not found: {skill_id}")
+            return None
+
+        if old_skill.evolution_locked:
+            logger.warning(f"FIX skipped: skill '{old_skill.name}' is locked.")
+            return None
+
+        logger.info(f"FIX evolution started for '{old_skill.name}'")
+
+        # 1. Extract Trajectory
+        trajectory = ""
+        if self._trace_analyzer and session_id:
+            trajectory = await self._trace_analyzer.extract_trajectory_with_code(session_id, old_skill)
+        else:
+            trajectory = f"Trajectory extraction not available. Error: {error_message}"
+
+        # 1.5 Fetch historical constraints to prevent repeated mistakes
+        constraints = self._store.get_evolution_constraints(skill_id, limit=5)
+        formatted_constraints = "\n".join([f"- {c}" for c in constraints]) if constraints else ""
+
+        # 2. Generate Variants
+        feedback = f"Error: {error_message}\nContext: {task_context or 'None'}"
+        variants = await self._variant_generator.generate_variants(
+            skill=old_skill,
+            feedback=feedback,
+            trajectory=trajectory,
+            num_variants=self._num_variants,
+            constraints=formatted_constraints,
+        )
+
+        if not variants:
+            return None
+
+        # 2.5. EvalCase Regression Gate (non-blocking score penalty)
+        variants, regression_penalties = await filter_variants_by_regression(
+            old_skill,
+            variants,
+            logger,
+        )
+        if not variants:
+            logger.warning("All variants failed EvalCase regression for '%s'", old_skill.name)
+            return None
+
+        # 3. Evaluate Variants
+        best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
+            original_skill=old_skill,
+            variants=variants,
+            feedback=feedback,
+            trajectory=trajectory,
+        )
+
+        # Apply regression penalty to final score (non-blocking)
+        penalty = regression_penalties.get(best_variant, 0.0)
+        if penalty > 0:
+            score = max(0.0, score - penalty)
+            reason = f"[Regression penalty: -{penalty:.2f}] {reason}"
+
+        # 4. Build Proposal
+        proposal = self._proposal_builder.build_proposal(
+            skill=old_skill,
+            evolution_type=EvolutionType.FIX,
+            best_variant=best_variant,
+            score=score,
+            reasoning=reason,
+            task_context=task_context or "",
+            trajectory=trajectory,
+            is_general=is_general,
+        )
+
+        # 4.5 Persist learning: record successful fix as evolution constraint
+        if proposal and score >= 0.7:
+            constraint = f"FIX succeeded (score={score:.2f}): {error_message[:200]} → {reason[:200]}"
+            try:
+                await self._store.add_evolution_constraint(skill_id, constraint)
+            except Exception as e:
+                logger.debug("Failed to persist FIX constraint for %s: %s", skill_id, e)
+
+        return proposal
+
+    async def derive_skill_simple(self, skill_id: str, user_feedback: str) -> EvolutionProposal | None:
+        """DERIVED evolution: Optimize skill based on feedback."""
+        old_skill = self._store.get_skill(skill_id)
+        if not old_skill:
+            logger.error(f"DERIVED evolution: skill not found: {skill_id}")
+            return None
+
+        if old_skill.evolution_locked:
+            logger.warning(f"DERIVED skipped: '{old_skill.name}' is locked.")
+            return None
+
+        logger.info(f"DERIVED evolution started for '{old_skill.name}'")
+
+        trajectory = "User initiated optimization."
+        constraints = self._store.get_evolution_constraints(skill_id, limit=5)
+        formatted_constraints = "\n".join([f"- {c}" for c in constraints]) if constraints else ""
+
+        variants = await self._variant_generator.generate_variants(
+            skill=old_skill,
+            feedback=user_feedback,
+            trajectory=trajectory,
+            num_variants=self._num_variants,
+            constraints=formatted_constraints,
+        )
+
+        if not variants:
+            return None
+
+        # EvalCase Regression Gate (non-blocking score penalty)
+        variants, regression_penalties = await filter_variants_by_regression(
+            old_skill,
+            variants,
+            logger,
+        )
+        if not variants:
+            logger.warning("All variants failed EvalCase regression for '%s'", old_skill.name)
+            return None
+
+        # Improvement Gate: inject original as baseline to prevent quality regression
+        variants_with_baseline = [old_skill.content, *variants]
+
+        best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
+            original_skill=old_skill,
+            variants=variants_with_baseline,
+            feedback=user_feedback,
+            trajectory=trajectory,
+        )
+
+        if best_variant == old_skill.content:
+            logger.info("DERIVED improvement gate: original skill won evaluation for '%s'", old_skill.name)
+            return None
+
+        penalty = regression_penalties.get(best_variant, 0.0)
+        if penalty > 0:
+            score = max(0.0, score - penalty)
+            reason = f"[Regression penalty: -{penalty:.2f}] {reason}"
+
+        proposal = self._proposal_builder.build_proposal(
+            skill=old_skill,
+            evolution_type=EvolutionType.DERIVED,
+            best_variant=best_variant,
+            score=score,
+            reasoning=reason,
+            task_context=user_feedback,
+            trajectory=trajectory,
+            is_general=is_general,
+        )
+
+        if proposal and score >= 0.7:
+            constraint = f"DERIVED succeeded (score={score:.2f}): {user_feedback[:200]} → {reason[:200]}"
+            try:
+                await self._store.add_evolution_constraint(skill_id, constraint)
+            except Exception as e:
+                logger.debug("Failed to persist DERIVED constraint for %s: %s", skill_id, e)
+
+        return proposal
+
+    async def optimize_description(self, skill_id: str) -> EvolutionProposal | None:
+        """OPTIMIZE_DESCRIPTION evolution: Rewrite only the skill description.
+
+        Used when the skill body is correct but gets matched to wrong tasks.
+        Only changes the description (Use-when / NOT-for conditions), zero risk
+        to the skill content itself.
+        """
+        old_skill = self._store.get_skill(skill_id)
+        if not old_skill:
+            logger.error("OPTIMIZE_DESCRIPTION: skill not found: %s", skill_id)
+            return None
+
+        if old_skill.evolution_locked:
+            logger.warning("OPTIMIZE_DESCRIPTION skipped: '%s' is locked.", old_skill.name)
+            return None
+
+        logger.info("OPTIMIZE_DESCRIPTION started for '%s'", old_skill.name)
+
+        desc_variants = await self._variant_generator.generate_description_variants(
+            skill=old_skill,
+            num_variants=self._num_variants,
+        )
+
+        if not desc_variants:
+            return None
+
+        best_desc, score, reason, _ = await self._evaluator.evaluate_description_variants(
+            original_skill=old_skill,
+            variants=desc_variants,
+        )
+
+        return self._proposal_builder.build_proposal(
+            skill=old_skill,
+            evolution_type=EvolutionType.OPTIMIZE_DESCRIPTION,
+            best_variant=best_desc,
+            score=score,
+            reasoning=f"[Description optimization] {reason}",
+            task_context="Description-only update for better skill matching.",
+            trajectory="",
+            is_general=True,
+        )
+
+    async def extract_skill_from_slice(
+        self,
+        session_id: str,
+        tool_call_ids: list[str],
+        agent_id: str | None = None,
+    ) -> EvolutionProposal | None:
+        """SLICE_EXTRACTION: Extract a skill from a slice of execution trace.
+
+        Args:
+            session_id: The session ID to fetch trace from.
+            tool_call_ids: List of tool call IDs that form the coherent slice.
+            agent_id: Optional agent ID for scoping.
+
+        Returns:
+            EvolutionProposal or None if skipped/rejected.
+        """
+        if not self._trace_analyzer:
+            logger.warning("extract_skill_from_slice skipped: No TraceAnalyzer (event_log_backend missing)")
+            return None
+
+        logger.info(f"Extracting skill from slice: session={session_id}, calls={len(tool_call_ids)}")
+
+        # 1. Fetch trace slice via TraceAnalyzer
+        slice_result = await self._trace_analyzer.analyze_slice(
+            session_id=session_id,
+            tool_call_ids=tool_call_ids,
+        )
+        if not slice_result or not slice_result.is_coherent:
+            logger.info(
+                f"Slice {session_id} ({len(tool_call_ids)} calls) rejected by AST/Static analyzer: Not a coherent workflow."
+            )
+            return None
+
+        # 2. Extract pattern using LLM
+        trajectory = slice_result.formatted_trace
+        from myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor import (
+            StructuredExtractor,
+        )
+
+        if not self._llm:
+            return None
+
+        extractor = StructuredExtractor(self._llm)
+        result = await extractor.extract_from_trajectory(trajectory)
+
+        if not result or not result.is_general or float(result.confidence) < 0.8:
+            return None
+
+        from myrm_agent_harness.agent.skills.evolution.safety.validator import (
+            SkillValidator,
+        )
+
+        validator = SkillValidator()
+        temp_record = SkillRecord(
+            skill_id=result.name,
+            name=result.name,
+            description="Validation draft",
+            content=result.content,
+            path="",
+            lineage=None,  # type: ignore
+        )
+
+        validation = validator.validate(temp_record)
+        if not validation.valid:
+            return None
+
+        from myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator import (
+            SandboxValidator,
+        )
+
+        sandbox = SandboxValidator()
+        is_safe, _ = await sandbox.dry_run_skill(temp_record)
+        if not is_safe:
+            return None
+
+        # 3. Multi-dimensional security sanitization scan
+        from myrm_agent_harness.backends.skills.scanning.scanner import (
+            compute_scan_summary,
+            scan_skill_content,
+        )
+        from myrm_agent_harness.backends.skills.types import SkillTrustRecommendation
+
+        scan_result = scan_skill_content(result.name, result.content)
+        if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
+            logger.warning(f"Slice-extracted skill '{result.name}' rejected by security scan: {scan_result.summary}")
+            return None
+
+        security_summary_dict = compute_scan_summary(scan_result).to_dict()
+
+        from datetime import datetime
+
+        proposal = EvolutionProposal(
+            skill_id=result.name,
+            evolution_type=EvolutionType.SLICE_EXTRACTION,
+            original_content="",
+            proposed_content=result.content,
+            diff="",
+            score=float(result.confidence),
+            reasoning=f"Auto-extracted from slice. Safety: {result.safety_analysis}",
+            task_context=f"Session slice {len(tool_call_ids)} calls",
+            is_general=result.is_general,
+            created_at=datetime.now(),
+            agent_id=agent_id,
+            security_scan_summary=security_summary_dict,
+        )
+
+        return proposal
+
+    async def capture_skill_from_trajectory(
+        self,
+        trajectory: str,
+        session_id: str,
+        env_fingerprint: EnvironmentFingerprint | None = None,
+        agent_id: str | None = None,
+    ) -> EvolutionProposal | None:
+        """CAPTURED evolution: Learn from conversation trajectory.
+
+        Returns a proposal for a brand new skill if a reusable pattern is detected.
+        """
+        logger.info(f"CAPTURED evolution started for session {session_id}.")
+
+        from myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor import (
+            StructuredExtractor,
+        )
+
+        if not self._llm:
+            logger.error("No LLM provided to SkillEvolutionEngine.")
+            return None
+
+        extractor = StructuredExtractor(self._llm)
+        result = await extractor.extract_from_trajectory(trajectory)
+
+        if not result:
+            logger.debug(f"No valid skill extracted from trajectory of session {session_id}")
+            return None
+
+        if result.recommended_form == "skip":
+            logger.debug(f"Skill {result.name} skipped by form routing (reason: {result.form_reasoning})")
+            return None
+
+        if not result.is_general:
+            logger.debug(f"Skill {result.name} rejected: not generalizable.")
+            return None
+
+        if float(result.confidence) < 0.8:
+            logger.debug(f"Skill {result.name} rejected: low confidence ({result.confidence}).")
+            return None
+
+        # Deduplication check (Trigram / Similarity)
+        active_skills = self._store.get_active_skills()
+        if active_skills:
+            from difflib import SequenceMatcher
+
+            max_sim = 0.0
+            similar_skill = None
+            for s in active_skills:
+                # Compare content similarity
+                sim = SequenceMatcher(None, s.content, result.content).ratio()
+                if sim > max_sim:
+                    max_sim = sim
+                    similar_skill = s.name
+
+            if max_sim > 0.85:
+                logger.warning(
+                    f"Skill {result.name} rejected: Highly similar to existing skill {similar_skill} (sim={max_sim:.2f})."
+                )
+                return None
+
+        from myrm_agent_harness.agent.skills.evolution.safety.validator import (
+            SkillValidator,
+        )
+
+        validator = SkillValidator()
+        # Create a temporary record with the new content to validate
+        temp_record = SkillRecord(
+            skill_id=result.name,
+            name=result.name,
+            description="Validation draft",
+            content=result.content,
+            path="",
+            lineage=None,  # type: ignore
+        )
+
+        validation = validator.validate(temp_record)
+        if not validation.valid:
+            logger.warning(f"Skill {result.name} rejected: Validation failed - {validation.errors}")
+            return None
+
+        from myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator import (
+            SandboxValidator,
+        )
+
+        sandbox = SandboxValidator()
+        is_safe, error_msg = await sandbox.dry_run_skill(temp_record)
+        if not is_safe:
+            logger.warning(f"Skill {result.name} rejected: Sandbox dry-run failed: {error_msg}")
+            return None
+
+        # Multi-dimensional security sanitization scan
+        from myrm_agent_harness.backends.skills.scanning.scanner import (
+            compute_scan_summary,
+            scan_skill_content,
+        )
+        from myrm_agent_harness.backends.skills.types import SkillTrustRecommendation
+
+        scan_result = scan_skill_content(result.name, result.content)
+        if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
+            logger.warning(f"Captured skill '{result.name}' rejected by security scan: {scan_result.summary}")
+            return None
+
+        security_summary_dict = compute_scan_summary(scan_result).to_dict()
+
+        # Build proposal with form routing metadata
+        from datetime import datetime
+
+        form_metadata: dict[str, Any] | None = None
+        if result.recommended_form == "cron_job" and result.schedule_hint:
+            form_metadata = {
+                "schedule_hint": result.schedule_hint,
+                "form_reasoning": result.form_reasoning,
+            }
+        elif result.form_reasoning:
+            form_metadata = {"form_reasoning": result.form_reasoning}
+
+        proposal = EvolutionProposal(
+            skill_id=result.name,
+            evolution_type=EvolutionType.CAPTURED,
+            original_content="",
+            proposed_content=result.content,
+            diff="",
+            score=float(result.confidence),
+            reasoning=f"Auto-extracted. Safety: {result.safety_analysis}",
+            task_context=f"Session {session_id}",
+            is_general=result.is_general,
+            environment=env_fingerprint,
+            agent_id=agent_id,
+            recommended_form=result.recommended_form,
+            form_metadata=form_metadata,
+            created_at=datetime.now(),
+            security_scan_summary=security_summary_dict,
+        )
+
+        return proposal

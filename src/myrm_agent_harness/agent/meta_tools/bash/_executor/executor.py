@@ -1,0 +1,111 @@
+"""Bash code execution orchestrator (aggregate root).
+
+[INPUT]
+- .execute_mixin::BashExecutorExecuteMixin (POS: Primary synchronous bash/python/skill execution orchestration for BashExecutor)
+- .background_mixin::BashExecutorBackgroundMixin (POS: Background spawn via process registry.)
+- .prepare_mixin::BashExecutorPrepareMixin (POS: MCP proxy, code-type detection, skill staging.)
+- .context_mixin::BashExecutorContextMixin (POS: ExecutionContext build, logging, artifacts.)
+- .error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
+- .constants::MCP_MIN_TIMEOUT (POS: MCP skill execution timeout floor.)
+
+[OUTPUT]
+- BashExecutor: Code execution orchestrator aggregate root
+- BashExecutionError: Execution error with error_hint + error_category diagnostics
+- _MCP_MIN_TIMEOUT: Alias of MCP_MIN_TIMEOUT for public aggregate exports
+
+[POS]
+Bash executor aggregate root. MRO: Execute → Background → Prepare → Context (locked by architecture tests).
+Public import path: ``from ...bash._executor.executor import BashExecutor``.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from myrm_agent_harness.agent.meta_tools.bash._executor.background_mixin import (
+    BashExecutorBackgroundMixin,
+)
+from myrm_agent_harness.agent.meta_tools.bash._executor.constants import (
+    MCP_MIN_TIMEOUT,
+)
+from myrm_agent_harness.agent.meta_tools.bash._executor.context_mixin import (
+    BashExecutorContextMixin,
+)
+from myrm_agent_harness.agent.meta_tools.bash._executor.error import (
+    BashExecutionError,
+)
+from myrm_agent_harness.agent.meta_tools.bash._executor.execute_mixin import (
+    BashExecutorExecuteMixin,
+)
+from myrm_agent_harness.agent.meta_tools.bash._executor.mcp_citation_handler import (
+    MCPMetadataExtractor,
+)
+from myrm_agent_harness.agent.meta_tools.bash._executor.prepare_mixin import (
+    BashExecutorPrepareMixin,
+)
+from myrm_agent_harness.agent.meta_tools.bash._executor.skill_workspace_manager import (
+    SkillWorkspaceManager,
+)
+from myrm_agent_harness.agent.meta_tools.bash._executor.workspace_manager import (
+    WorkspaceManager,
+)
+from myrm_agent_harness.toolkits.code_execution import ExecutionConfig
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
+
+_MCP_MIN_TIMEOUT = MCP_MIN_TIMEOUT
+
+
+class BashExecutor(
+    BashExecutorExecuteMixin,
+    BashExecutorBackgroundMixin,
+    BashExecutorPrepareMixin,
+    BashExecutorContextMixin,
+):
+    """Code execution orchestrator (DI-based, stateless per call)."""
+
+    def __init__(
+        self,
+        executor: CodeExecutor,
+        enable_skill_execution: bool = True,
+    ) -> None:
+        self._executor = executor
+        self._enable_skill_execution = enable_skill_execution
+        self._skill_executor = None
+        self._mcp_proxy_started = False
+
+        self._workspace_manager = WorkspaceManager()
+        self._skill_manager = SkillWorkspaceManager()
+        self._metadata_extractor = MCPMetadataExtractor()
+
+        self._skill_env_map: dict[str, dict[str, str]] | None = None
+        self._skill_oauth_issuers: dict[str, str] | None = None
+        self._global_env: dict[str, str] | None = None
+
+        if enable_skill_execution:
+            from myrm_agent_harness.agent.skills.mcp.executor import skill_executor
+
+            self._skill_executor = skill_executor
+
+    @property
+    def config(self) -> ExecutionConfig:
+        """Execution config from the underlying CodeExecutor."""
+        if self._executor.config is None:
+            raise RuntimeError("CodeExecutor config is None")
+        return self._executor.config
+
+    def set_skill_env_map(self, env_map: dict[str, dict[str, str]]) -> None:
+        """Set per-skill resolved env vars for injection during execution."""
+        self._skill_env_map = env_map
+
+    def set_skill_oauth_issuers(self, issuers: dict[str, str]) -> None:
+        """Map skill directory name -> oauth issuer for scoped credential injection."""
+        self._skill_oauth_issuers = issuers
+
+    def set_global_env(self, global_env: dict[str, str]) -> None:
+        """Set global env vars for injection during execution."""
+        self._global_env = global_env
+
+
+__all__ = ["_MCP_MIN_TIMEOUT", "BashExecutionError", "BashExecutor"]

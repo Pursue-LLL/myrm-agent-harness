@@ -1,0 +1,416 @@
+"""Spend governance and cryptographic receipt primitives for Agent Commerce.
+
+[INPUT]
+- hashlib, hmac, json: Standard cryptographic and serialization libraries
+
+[OUTPUT]
+- parse_spend_amount: Extract normalized amount and currency from tool arguments
+- is_financial_or_spend_tool: Detect if tool invocation represents a financial transaction
+- is_shell_execution_tool: Determine whether a tool call represents a shell or bash execution primitive
+- is_irreversible_social_action: Detect if action is socially irreversible (git push, package publish, external notify)
+- compute_action_digest: Cryptographic HMAC-SHA256 digest of tool + args + amount
+- verify_action_digest: Timing-attack safe verification of action digest
+- compute_entry_hash: Compute HMAC-chained hash for append-only tamper-evident ledger
+- SpendPolicy: Data model for per-action and session spending caps
+- SpendReceipt: Immutable cryptographic receipt record
+
+[POS]
+Foundational Agent Commerce governance module in core/security/.
+Zero-overhead, pure deterministic algorithms ensuring YOLO-proof financial safety.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import logging
+from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_SPEND_SALT = "myrm-agent-spend-hmac-salt"
+GENESIS_PREV_HASH = "0" * 64
+
+_SPEND_TOOL_KEYWORDS = frozenset(
+    {
+        "charge",
+        "payment",
+        "payout",
+        "transfer",
+        "purchase",
+        "buy",
+        "checkout",
+        "stripe",
+        "alipay",
+        "wechat_pay",
+        "paypal",
+        "billing",
+        "withdraw",
+    }
+)
+
+
+_IRREVERSIBLE_SOCIAL_TOOLS = frozenset(
+    {
+        "channel_notify",
+        "channel_notify_tool",
+        "artifact_publish",
+    }
+)
+
+_SHELL_TOOL_NAMES = frozenset(
+    {
+        "shell_exec",
+        "bash",
+        "terminal",
+        "code_interpreter",
+        "bash_code_execute_tool",
+    }
+)
+
+
+def is_shell_execution_tool(tool_name: str, permission_type: str | None = None) -> bool:
+    """Determine whether a tool call represents a shell or bash execution primitive."""
+    if permission_type in ("shell_exec", "code_interpreter"):
+        return True
+    lower_name = tool_name.lower().strip()
+    return (
+        lower_name in _SHELL_TOOL_NAMES
+        or "bash" in lower_name
+        or "shell" in lower_name
+        or lower_name.startswith("terminal")
+    )
+
+
+def is_irreversible_social_action(tool_name: str, args: dict[str, object] | None = None) -> bool:
+    """Determine if a tool call constitutes a socially irreversible external action.
+
+    Socially irreversible actions (e.g. git push, public channel notification, package publishing)
+    cannot be rolled back once dispatched into external collaborative environments.
+    """
+    lower_name = tool_name.lower().strip()
+    if lower_name in _IRREVERSIBLE_SOCIAL_TOOLS:
+        return True
+
+    # Check for shell execution targeting git push or publish commands
+    if is_shell_execution_tool(lower_name) and isinstance(args, dict):
+        raw_cmd = str(args.get("command") or args.get("cmd") or args.get("code") or args.get("script") or "").strip()
+        if raw_cmd:
+            # Robust token parsing handling flags between command and subcommands (e.g. git -C /dir push)
+            tokens = raw_cmd.lower().split()
+            for idx, token in enumerate(tokens):
+                if token == "git":
+                    # Search forward within the same command clause for "push"
+                    for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                        if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                            break
+                        if tokens[sub_idx] == "push":
+                            return True
+                if token in ("npm", "pnpm", "yarn"):
+                    for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                        if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                            break
+                        if tokens[sub_idx] == "publish":
+                            return True
+                if token == "twine":
+                    for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                        if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                            break
+                        if tokens[sub_idx] == "upload":
+                            return True
+                if token in ("docker", "podman"):
+                    for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                        if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                            break
+                        if tokens[sub_idx] == "push":
+                            return True
+                if token == "gh":
+                    for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                        if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                            break
+                        if (
+                            tokens[sub_idx] in ("release", "pr")
+                            and sub_idx + 1 < len(tokens)
+                            and tokens[sub_idx + 1] in ("create", "merge")
+                        ):
+                            return True
+
+    return False
+
+
+def is_financial_or_spend_tool(tool_name: str, args: dict[str, object] | None = None) -> bool:
+    """Determine if a tool call constitutes a financial spending action."""
+    lower_name = tool_name.lower()
+    for kw in _SPEND_TOOL_KEYWORDS:
+        if kw in lower_name:
+            return True
+
+    return bool(
+        isinstance(args, dict)
+        and any(k in args for k in ("amount", "total_amount", "charge_amount", "price_cents", "unit_amount"))
+    )
+
+
+def parse_spend_amount(args: dict[str, object] | None) -> tuple[float | None, str | None]:
+    """Extract normalized numerical amount and currency from tool arguments."""
+    if not isinstance(args, dict):
+        return None, None
+
+    currency = str(args.get("currency") or "USD").upper().strip()
+
+    # Common amount fields
+    for field in (
+        "amount",
+        "total_amount",
+        "charge_amount",
+        "price_cents",
+        "unit_amount",
+        "amount_cents",
+        "price",
+        "cost",
+        "value",
+    ):
+        if field in args and args[field] is not None:
+            try:
+                raw_val = float(str(args[field]))
+                # Special handling for stripe-like cent representations if explicitly flagged
+                if "cent" in field or (currency == "USD" and "cents" in str(args.get("unit", "")).lower()):
+                    return raw_val / 100.0, currency
+                return raw_val, currency
+            except (ValueError, TypeError):
+                continue
+
+    return None, None
+
+
+def _canonical_json(data: object) -> str:
+    """Produce deterministic JSON representation for cryptographic signing."""
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str)
+
+
+def compute_action_digest(
+    tool_name: str,
+    args: dict[str, object] | None,
+    secret_salt: str = DEFAULT_SPEND_SALT,
+) -> str:
+    """Compute HMAC-SHA256 signature binding tool_name and exact arguments."""
+    canonical_args = _canonical_json(args if isinstance(args, dict) else {})
+    amount, currency = parse_spend_amount(args)
+    payload = f"{tool_name}:{amount}:{currency}:{canonical_args}".encode()
+    return hmac.new(secret_salt.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+
+def verify_action_digest(
+    tool_name: str,
+    args: dict[str, object] | None,
+    expected_digest: str,
+    secret_salt: str = DEFAULT_SPEND_SALT,
+) -> bool:
+    """Verify action digest against tool arguments with constant-time comparison."""
+    if not expected_digest:
+        return False
+    computed = compute_action_digest(tool_name, args, secret_salt=secret_salt)
+    return hmac.compare_digest(computed, expected_digest)
+
+
+def compute_entry_hash(
+    prev_hash: str,
+    timestamp: float,
+    tool_name: str,
+    amount: float | None,
+    currency: str | None,
+    action_digest: str,
+    idempotency_key: str,
+    secret_salt: str = DEFAULT_SPEND_SALT,
+) -> str:
+    """Compute hash for a single tamper-evident ledger entry chaining from prev_hash."""
+    payload = f"{prev_hash}:{timestamp:.3f}:{tool_name}:{amount}:{currency}:{action_digest}:{idempotency_key}".encode()
+    return hmac.new(secret_salt.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class SpendPolicy:
+    """Policy constraints for agent financial operations."""
+
+    per_action_cap: float = 50.0
+    session_cap: float = 200.0
+    enabled: bool = True
+    currency: str = "USD"
+
+    def is_action_allowed(self, amount: float | None, current_session_spent: float = 0.0) -> tuple[bool, str]:
+        """Check if proposed spend complies with policy caps."""
+        if not self.enabled:
+            return True, "Spend policy disabled"
+
+        if amount is None or amount <= 0:
+            return True, "No positive financial spend detected"
+
+        if amount > self.per_action_cap:
+            return (
+                False,
+                f"Amount ({amount:.2f} {self.currency}) exceeds per-action cap ({self.per_action_cap:.2f} {self.currency})",
+            )
+
+        if (current_session_spent + amount) > self.session_cap:
+            return False, (
+                f"Total session spend ({current_session_spent + amount:.2f} {self.currency}) "
+                f"exceeds session cap ({self.session_cap:.2f} {self.currency})"
+            )
+
+        return True, "Within spend policy caps"
+
+
+@dataclass(frozen=True, slots=True)
+class SpendReceipt:
+    """Immutable cryptographic receipt for executed financial spend."""
+
+    entry_id: str
+    session_id: str
+    prev_hash: str
+    entry_hash: str
+    tool_name: str
+    amount: float
+    currency: str
+    action_digest: str
+    idempotency_key: str
+    timestamp: float
+
+    def verify_integrity(self, secret_salt: str = DEFAULT_SPEND_SALT) -> bool:
+        """Verify receipt entry hash matches its chained inputs."""
+        expected = compute_entry_hash(
+            prev_hash=self.prev_hash,
+            timestamp=self.timestamp,
+            tool_name=self.tool_name,
+            amount=self.amount,
+            currency=self.currency,
+            action_digest=self.action_digest,
+            idempotency_key=self.idempotency_key,
+            secret_salt=secret_salt,
+        )
+        return hmac.compare_digest(self.entry_hash, expected)
+
+
+# ============================================================================
+# Script Content Integrity & TOCTOU Protection (§19 ApprovedScriptsChangePrevention)
+# ============================================================================
+
+_SCRIPT_EXTENSIONS = frozenset(
+    {
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".py",
+        ".pyw",
+        ".js",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".rb",
+        ".pl",
+        ".php",
+    }
+)
+
+_INTERPRETER_TOKENS = frozenset(
+    {
+        "bash",
+        "sh",
+        "zsh",
+        "python",
+        "python3",
+        "node",
+        "bun",
+        "deno",
+        "ruby",
+        "perl",
+    }
+)
+
+
+def compute_script_content_hash(target_path: str) -> str | None:
+    """Compute deterministic SHA-256 hash of a script file on disk.
+
+    Returns None if file does not exist, is not a regular file, or cannot be read.
+    """
+    from pathlib import Path
+
+    try:
+        p = Path(target_path).resolve()
+        if not p.is_file():
+            return None
+        hasher = hashlib.sha256()
+        with p.open("rb") as f:
+            while chunk := f.read(65536):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    except (OSError, PermissionError) as exc:
+        logger.debug("Failed computing script hash for %s: %s", target_path, exc)
+        return None
+
+
+def extract_script_file_target(tool_name: str, args: dict[str, object] | None) -> str | None:
+    """Extract candidate script file path from tool arguments if applicable.
+
+    Inspects common tool arguments: 'script_path', 'file_path', 'path', or shell commands
+    like `bash ./run.sh` or `python script.py`.
+    """
+    import os
+    from pathlib import Path
+
+    if not isinstance(args, dict):
+        return None
+
+    # 1. Direct argument fields
+    for field in ("script_path", "script", "file_path", "file"):
+        val = args.get(field)
+        if isinstance(val, str) and val.strip():
+            candidate = val.strip()
+            _, ext = os.path.splitext(candidate)
+            if ext.lower() in _SCRIPT_EXTENSIONS and os.path.isfile(candidate):
+                return str(Path(candidate).resolve())
+
+    # 2. Inspect shell commands: `python deploy.py`, `bash ./scripts/run.sh`
+    cmd_val = args.get("command") or args.get("cmd") or args.get("code")
+    if isinstance(cmd_val, str) and cmd_val.strip():
+        cmd_str = cmd_val.strip()
+        tokens = cmd_str.split()
+        if len(tokens) >= 2 and tokens[0].lower() in _INTERPRETER_TOKENS:
+            for token in tokens[1:]:
+                if token.startswith("-"):
+                    continue
+                _, ext = os.path.splitext(token)
+                if ext.lower() in _SCRIPT_EXTENSIONS and os.path.isfile(token):
+                    return str(Path(token).resolve())
+
+        # Direct executable invocation: `./run.sh`
+        if len(tokens) >= 1:
+            first = tokens[0]
+            _, ext = os.path.splitext(first)
+            if ext.lower() in _SCRIPT_EXTENSIONS and os.path.isfile(first):
+                return str(Path(first).resolve())
+
+    return None
+
+
+def verify_script_file_integrity(file_path: str, expected_hash: str) -> tuple[bool, str]:
+    """Verify that script file on disk matches expected cryptographic SHA-256 hash.
+
+    Returns (is_valid, reason).
+    """
+    if not expected_hash:
+        return True, ""
+
+    current_hash = compute_script_content_hash(file_path)
+    if current_hash is None:
+        return False, f"Script file '{file_path}' no longer exists or is unreadable"
+
+    if current_hash != expected_hash:
+        return (
+            False,
+            f"Script file '{file_path}' content was altered after approval. "
+            f"Expected SHA-256 '{expected_hash[:16]}...', current '{current_hash[:16]}...'. "
+            "Execution blocked to prevent TOCTOU script substitution.",
+        )
+
+    return True, ""

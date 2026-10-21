@@ -1,0 +1,536 @@
+# Sub-Agent System Design
+
+> Subagent 生命周期管理系统。提供受控委派、工具隔离、预算治理、检查点恢复和事件转发能力。
+
+---
+
+## 设计目标
+
+1. **安全隔离**：子 agent 的工具访问受四层安全约束（L0 类型准入 + L1 全局黑名单 + L2 per-config + L3 父子交集），防止权限逃逸。子 agent 的 taint labels 自动传播到父 agent 的 taint_tracker，防止跨 agent 注入攻击链
+2. **资源可控**：Token 预算、并发上限、嵌套深度、每节点子任务数、每运行树总后代数均可声明式配置
+3. **Token 精确追踪**：子 agent 用量从 `last_run_stats` 精确合并到父 tracker
+4. **层级解耦**：与 BaseAgent、progress 中间件、Goal 系统通过明确接口协作
+5. **声明式配置**：一个 `SubagentConfig` dataclass 描述子 agent 的全部行为
+
+---
+
+## 系统架构
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                      BaseAgent (父 agent)                      │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ SubagentManager                                        │  │
+│  │  - _children: dict[task_id, asyncio.Task]              │  │
+│  │  - _children_types: dict[task_id, agent_type]          │  │
+│  │  - _children_results: dict[task_id, SubAgentResult]    │  │
+│  │  - _semaphore: asyncio.Semaphore(5)                    │  │
+│  │  - _current_depth: int                                 │  │
+│  │  - _budget_state: DelegationBudgetState                │  │
+│  └────────────────────────────────────────────────────────┘  │
+│                                                               │
+│  LLM 工具集:                                                  │
+│  ├── delegate_task_tool (mode=single|batch|parallel)          │
+│  ├── subagent_control_tool (action=list|cancel|steer|wait)    │
+│  └── send_teammate_message_tool (orchestrator P2P)            │
+└──────────────────────────────────────────────────────────────┘
+         │ spawn_child()          │ cancel_all()
+         ▼                        ▼
+┌──────────────────┐  ┌──────────────────┐
+│  Child Agent A   │  │  Child Agent B   │
+│  (asyncio.Task)  │  │  (asyncio.Task)  │
+│  独立 TokenTracker│  │  独立 TokenTracker│
+│  过滤后工具集    │  │  过滤后工具集    │
+└──────────────────┘  └──────────────────┘
+```
+
+### 文件分布
+
+| 文件 | 职责 |
+|:--|:--|
+| `agent/sub_agents/types.py` | SubagentConfig（含 agent_factory/role/budget）, AgentFactory Protocol, SubAgentStatus, SubAgentResult, SubagentCatalog Protocol, DelegationCapabilityManifest 能力清单 |
+| `agent/sub_agents/handover.py` | 结构化交接单领域模型（HandoffFinding, AgentHandoverState，防止跨 Agent 上下文爆炸与事实证据化） |
+| `agent/sub_agents/checkpointer.py` | 子 agent 共享持久化 checkpointer（`get_subagent_checkpointer` 单例 + `drop_subagent_checkpoint_if_terminal` 终态线程清理 SSOT + `discard_stale_subagent_thread` 新子 agent 启动前清掉同编号的旧线程 + 只读沙箱 `:memory:` 容灾降级），HITL 审批中断恢复的关键 |
+| `agent/sub_agents/hitl_tool_policy.py` | HITL 工具策略 SSOT（`HitlToolPolicy`, `HITL_TOOL_POLICY`），供 subagent 能力清单读取，避免 `meta_tools` 包级循环导入 |
+| `agent/sub_agents/budget.py` | 委派运行树预算计数（max_descendants_per_run），防止递归/批量委派暴走 |
+| `agent/sub_agents/builder.py` | 子 agent 构建（async build_child_agent 支持 AgentFactory 委托、工具过滤、模型解析、结果截断、Token 合并） |
+| `agent/sub_agents/manager.py` | 核心执行器（spawn/cancel/wait/chain/merge + checkpoint save） |
+| `agent/sub_agents/approval_journal.py` | 委派审批往返的重放安全记录（`delegation_task_id` 稳定委派 id、`ApprovalJournal`/`ApprovalScope`）：LangGraph 在每次 `interrupt()` 后会从头重执行整个 `delegate_task` 调用，journal 让重放跳过已答复的审批、只在最前沿继续；记录丢失时旧答复只计数不送出（`stale_answers`），`approvals_unanswerable()` 标记的并行子委派以 `BLOCKED` 拒绝而不弹审批 |
+| `agent/sub_agents/checkpoint/saver.py` | 检查点保存/恢复（SubagentCheckpoint, SubagentCheckpointStorage, JSON后端） |
+| `agent/sub_agents/checkpoint/state_extractor.py` | 状态提取工具（extract_subagent_state_sync/async，从child agent提取context/stats/messages） |
+| `agent/sub_agents/config_loader.py` | YAML 配置加载器（SubagentConfigLoader, Pydantic 验证, 批量目录加载） |
+| `agent/hooks/graceful_shutdown.py` | 优雅关机管理器（GracefulShutdownManager，SIGTERM/SIGINT信号处理，单例模式） |
+| `agent/base_agent.py` | 委托入口 + `_last_context` 保存 + 父取消传播 |
+| `agent/meta_tools/spawn_subagent/delegate_task_tool.py` | LLM `delegate_task_tool`（mode=single\|batch\|parallel\|council\|alternatives 的路由；动态 roster） |
+| `agent/meta_tools/spawn_subagent/_delegate_single.py` | 单任务委派执行：agent_type 准入、重复委派指纹、readonly/spawn 策略、OCap 句柄、验证循环、审批恢复 |
+| `agent/meta_tools/spawn_subagent/_delegate_budget.py` | 预算准入、策略拒绝、重复委派指纹、动态 roster |
+| `agent/meta_tools/spawn_subagent/agent_manage_tool.py` | LLM `subagent_control_tool`（list/cancel/steer/wait） |
+| `agent/meta_tools/spawn_subagent/delegation_pause_gate.py` | Session 级委派暂停门闩（REST + tool 入口） |
+| `agent/dynamic_workflow/tools.py` | PTC `spawn_subagent` / `notify`（`use_workflow=True`；不进 `_TOOL_LAYERS`；下游同 `_spawn_child()`） |
+| `configs/subagents/` | 外部 YAML 配置文件（core 核心配置 + custom 自定义配置） |
+
+### 6 个核心抽象
+
+| 抽象 | 职责 | 关键字段 |
+|:--|:--|:--|
+| **SubagentConfig** | "是什么" — 声明式配置 | tools, disallowed_tools, model, llm, budget_tokens, max_spawn_depth, max_children_per_agent, max_descendants_per_run, max_batch_size, agent_factory, model_resolver, display_name, memory_isolation_policy, control_scope, delegation_role, workspace_policy |
+| **AgentFactory** | "谁来构建" — 业务层注入的 Agent 构建协议 | build(config, tools, task_description, parent_agent, current_depth, complexity_tier) → BaseAgent |
+| **ModelResolver** | "用什么模型" — 业务层注入的 model→LLM 解析协议 | resolve(model_name, complexity_tier, task_description) → BaseChatModel |
+| **SubAgentResult** | "结果是什么" — 结构化输出 | success, result, token_usage, duration, completed_at, status, accumulated_duration_seconds, handover_state（结构化交接状态 AgentHandoverState）, verification（独立对抗验证结果 VerificationSummary，仅当 worker 被验证时填充） |
+| **AgentHandoverState** | "交接单是什么" — 结构化接力状态 | summary, findings（含证据与置信度）, citations, artifact_refs, context_artifacts, task_completed, pending_todos, risks_or_notes, relevant_files |
+| **SubagentManager** | "怎么做" — 执行器 + 编排 | spawn_child, execute_batch_delegation, run_alternatives, run_chain, run_with_verification, cancel_all, wait_children(timeout) |
+| **SubAgentStatus** | "做到哪了" — 状态枚举 | PENDING, RUNNING, COMPLETED, FAILED, TIMED_OUT, CANCELLED, CANCELLED_BY_BUDGET, PENDING_APPROVAL, YIELDED, INTERRUPTED, BLOCKED |
+| **DelegationCapabilityManifest** | "能注入/能剥离什么" — 委派工具能力清单 | leaf_blocked_tools, orchestrator_child_tools, privileged_skill_tools |
+
+---
+
+## 核心组件说明
+
+### 1. 五层工具安全隔离
+
+```
+Layer 0: create_delegate_task_tool(allowed_types=...)
+         → 类型准入控制，限制可委托的 agent 类型
+
+Layer 1: DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
+         → delegate_task_tool + subagent_control_tool + skill_manage/discovery_tool
+           + HitlToolPolicy.subagent_blocked (from agent/sub_agents/hitl_tool_policy.py; HITL must stay on parent/web thread);
+           同一份 manifest 同时驱动 leaf 剥离和 orchestrator child-scoped 工具注入
+
+Layer 2: SubagentConfig
+         → tools (白名单) + disallowed_tools (黑名单)
+
+Layer 3: child ⊆ parent 交集约束
+         → 子 agent 工具集 ⊆ 父 agent 工具集
+
+Layer 4: Fine-grained Sandboxing (readonly)
+         → 支持通过 readonly 参数在运行时过滤文件写/命令执行等具有副作用的工具，实现细粒度安全沙箱。原生写/编辑/命令工具由 `disallowed_tools` 剔除；所有 `READ_ONLY_SANDBOX` 配置（readonly 子 Agent 与 Verifier）在 `builder.filter_tools` 中还会剔除未声明 `readOnlyHint` 的 MCP 工具（与审批快速通道同一判据 `resolve_safety_metadata`，未标注按有副作用处理；判据是 MCP server 自报的注解，框架不核实其真伪）。
+         → 当父 Security Profile 全局 `file_write=DENY`，或父 agent 自身运行在不含 WRITE 的 OCap 句柄下时，`spawn_prep.coerce_spawn_readonly()` 自动抬升 readonly（delegate + DW 共用 SSOT）。`delegate_task_tool` 的重复委派指纹含 `effective_readonly`，只改 readonly 的委派不会被误判为重复。
+
+Layer 5: OCap spawn handle（delegate_task 单/批量模式）
+         → 每次派生由 `spawn_capability.derive_spawn_capability()` 铸造一枚 HMAC 签名句柄，由文件与本地 shell 执行器在每次读/写/执行时校验。
+         → 范围 = 父 agent 自己的工作区 + 经父 agent 路径策略与会话授权放行的 `context_files`；模型传入的 `context` 只进任务文本，不进子 agent 运行时上下文（`spawn_prep.build_spawn_child_context` 只取父 agent 的工作区/会话字段）。
+         → 句柄只经 `capability_scope`（ContextVar）绑定到子 run，不写入子 agent 的运行时上下文：执行器校验与孙代派生读取的是同一枚句柄。
+         → Verifier 轮次（`READ_ONLY_SANDBOX` 配置）另由 `derive_verifier_capability()` 从委派者句柄衰减出 {READ, EXECUTE} 句柄；不含 WRITE 的句柄使本地执行器把工作区设为只读：原生写工具被拒绝，Shell 写入由宿主 OS 沙箱阻止；容器内没有嵌套 OS 沙箱，Shell 写入只靠提示词约束，轮次结束后审计会删除 Verifier 新增的文件（见 `toolkits/code_execution/EXECUTION_SYSTEM.md`）。
+         → 父 agent 已受句柄约束时从其句柄衰减，子不超父；council / alternatives 与 DW 的子 agent 不铸造句柄。
+```
+
+### 1.1 安全策略（SubagentConfig 声明式）
+
+| 策略 | 枚举 | 值 | 说明 |
+|:--|:--|:--|:--|
+| **ControlScope** | `LEAF` | 叶子节点 | 默认，禁止再次委托，强制 max_spawn_depth=0 |
+|  | `ORCHESTRATOR` | 受控协调者 | 仅可信配置可用；必须显式通过 `role="orchestrator"` 请求，运行时注入 child-scoped `delegate_task_tool` + `subagent_control_tool` + `send_teammate_message_tool` |
+| **MemoryIsolationPolicy** | `EPHEMERAL_SESSION` | 临时会话 | 默认，独立记忆空间 |
+|  | `READ_ONLY_GLOBAL` | 只读全局 | 阻止 memory write tools（memory_save/memory_manage_tool） |
+| **WorkspacePolicy** | `INHERIT` | 继承 | 默认，共享父工作空间 |
+|  | `ISOLATED_COPY` | 隔离副本 | `shutil.copytree` COW 克隆工作空间 + `_sync_tree` 完美镜像同步；单 delegate 成功后在 `executor_retry_mixin` 经 `apply_isolated_sync_back_with_snapshots` 逐文件登记 SnapshotStore（Revert 可用）；merge 失败时 `record_workspace_merge_failure` + result 标记 `workspace_merge_status=error`，turn 结束 `WORKSPACE_MERGE_FAILED` SSE + `completion_status=warning` + 前端 `WorkspaceMergeWarning` 可折叠面板 |
+
+### 2. Token 用量追踪与预算
+
+**实时预算检查**：在 `async for event in child_agent.run()` 循环中，从 `TOKEN_USAGE` 事件
+提取累积 `total_tokens`，与 `config.budget_tokens` 比较，超限时立即 break。
+这确保预算检查在流式执行过程中实时生效，而非等到 generator 完成后。
+
+**委派树预算检查**：`DelegationBudgetState` 在 root run 内共享，`spawn_child()` 先预留
+一个后代额度，再创建 asyncio task。`max_children_per_agent` 限制单节点同时运行子任务数，
+`max_descendants_per_run` 限制整棵委派树累计后代数；`delegate_task_tool` 的 `mode=batch` 受单次批量规模约束。
+预算拒绝返回结构化 `payload.reason="budget_exceeded"`，便于上层 UI 和日志解释。
+
+**完成后精确合并**：子 agent 完成后，从 `child_agent.last_run_stats` 获取
+最终 token 用量，通过 `_merge_child_stats()` 精确合并到父 tracker。
+
+合并内容：
+- 7 种 token 类型（prompt/completion/total/cached/cache_write/reasoning/citation）
+- 模型级用量和费用（model_usage + model_cost）
+- 总费用和费用状态（total_cost_usd + cost_status）
+
+**Race 模式预算准入**：`delegate_task_tool(mode=batch, race=True)` 使用结构化成本准入。
+它优先汇总各任务 `SubagentConfig.max_cost_usd`，否则基于 `budget_tokens + model`
+调用 token cost engine 估算；无法得到可信成本时返回 `budget_admission.status="unavailable"`，
+预算不足或预算守卫进入 finalization/exceeded 时自动降级为顺序执行并携带结构化原因。
+
+### 3. Context 自动继承
+
+`_inherit_parent_context()` 自动从父 agent 的 `_last_context` 和执行时环境提取继承关键字段：
+- `session_id` — `base_agent._setup_workspace()` 必需
+- `WorkspaceBinding` — 沙箱文件系统隔离的核心，子 agent 从 parent context 精准继承，确保二者操作同一个物理工作空间（但独立运行）。
+- `approval_session_key` — HITL 审批必需
+
+**Fork 模式上下文过滤**（`context_mode="fork"`）：
+
+通过 `_filter_fork_messages()` 实现结论性过滤，子 agent 仅继承父 agent 的结论性上下文：
+- **保留**：SystemMessage、HumanMessage、有 content 的 AIMessage（剥离 tool_calls 元数据）
+- **丢弃**：ToolMessage、纯 tool_calls 无 content 的 AIMessage
+- **截断**：`max_fork_tokens` 超预算时从最旧消息开始裁剪（保留 SystemMessage）
+
+配合 builder.py 的 `system_prompt = ""` 设计，子 agent 复用父 SystemMessage 实现 100% Prefix Cache Hit。
+
+### 4. 模型解析链（4 级）
+
+```
+Level 1: config.llm (预构建 LLM 实例)
+Level 2: config.model + config.model_resolver (名称字符串 → ModelResolver 解析为 LLM，支持 complexity_tier 智能路由)
+Level 3: config.model 无 resolver (仅日志记录，fallthrough)
+Level 4: parent LLM (继承父 agent 的 LLM，兜底)
+```
+
+业务层通过 `LLMManager.get_llm_from_config()` 预创建 LLM 实例设置到 `config.llm`，
+或通过注入 `ModelResolver` 使框架层可根据 model 名称字符串解析为 LLM 实例。
+框架层不直接访问 API key 等配置，保持层级解耦。
+
+### 5. 编排模式
+
+| 模式 | API | 用法 |
+|:--|:--|:--|
+| 同步 | `spawn_child(wait=True)` | 等待子 agent 完成后返回结果 |
+| 异步 | `spawn_child(wait=False)` + `wait_children()` | 启动子任务返回 Task ID，可随时查询结果 |
+| 并行批量 | `delegate_task_tool(mode=batch)` | `asyncio.gather` 并行执行多个子任务（`max_concurrent` 可调并发度，race 模式 Speculative Execution first-winner）；多写者 batch 结束后 `batch_merge` 串行合并 ISOLATED_COPY workspace 并登记 SnapshotStore（Revert 可用）；merge 失败时 `WORKSPACE_MERGE_FAILED` SSE + `message_end.completion_status=warning`，前端 MessageBox 显示 amber 警告条与 `WorkspaceMergeWarning` 错误列表 |
+| 链式 | `run_chain(configs)` | A → B → C，`{previous}` 模板传递 |
+| 替代方案 | `run_alternatives(task, configs)` | 并行派发 N 个子 agent 执行相同任务（各自 ISOLATED_COPY 隔离工作区），收集全部结果供 LLM 文本比较；隔离目录在返回前丢弃，不合并进 parent workspace。要落盘文件请用 single/batch delegate |
+| 验证式 | `run_with_verification(worker, verifier, task_id=..., ...)` | Worker → Verifier 对抗验证，FAIL 则注入反馈重试，最多 max_rounds 轮。支持 `WorkspacePolicy.READ_ONLY_SANDBOX` 模式，Verifier 在 {READ, EXECUTE} OCap 句柄（`derive_verifier_capability`，由委派者句柄衰减，无 WRITE）下运行，工作区只读（Shell 写入的 OS 级阻止见 Layer 5）；PASS 必须有执行器记录的“确实启动过进程”的证据，否则本轮无结论（`run_with_verification` 以 BLOCKED + `INCOMPLETE` 收尾，不触发 worker 重试），防止 LLM 幻觉。Verifier 由 `verifier_selection.resolve_verifier` 统一选定（delegate 与 Dynamic Workflow 共用）：默认取 worker 类型，强制 `READ_ONLY_SANDBOX` + leaf 作用域（不委派），且在任何 worker 启动前用真实 `filter_tools` 预检——Verifier 没有 `bash_code_execute_tool` 时直接返回错误，因为它的 PASS 永远不会被采信。传入业务 `task_id` 时，首轮 worker 以该 id 作为可见业务节点上树（`internal=False`），重试 worker 与 verifier 均为框架内部节点（`internal=True`），不出现在子任务树 / SSE / 通知中；最终验证结果镜像回业务节点。 |
+
+### 5.1 Worker / Coordinator 运行时角色
+
+`ControlScope` 是可信配置上限，`DelegateRole` 是本次委派请求的运行时角色。
+默认 `role="leaf"` 会把子 agent 收敛为 Worker，并移除再次委派能力；只有当 catalog
+配置为 `ControlScope.ORCHESTRATOR` 且请求显式使用 `role="orchestrator"` 时，Executor
+才会在子 agent 上重新绑定 child-scoped `delegate_task_tool` + `subagent_control_tool` + `send_teammate_message_tool`
+工具。注入列表来自 `DelegationCapabilityManifest.orchestrator_child_tools`，与 leaf 黑名单
+保持同源。这样 Coordinator 只能控制自己的子树，不能观察或干预兄弟任务。
+
+### 6. Force-Stop Checkpoint Save（自动中断恢复）
+
+**核心能力**：进程收到 SIGTERM/SIGINT 时自动保存所有运行中子Agent状态，重启后作为「被中断任务」呈现，由业务层按保存的任务描述重新发起（不按检查点续跑）。
+
+**架构组件**：
+- `GracefulShutdownManager`：单例模式，自动注册SIGTERM/SIGINT信号处理器
+- `SubagentCheckpointStorage`：轻量级JSON文件后端（默认 `{MYRM_DATA_DIR}/checkpoints/`，未设置时回退 `.myrm/checkpoints/`）
+- `BaseAgent.get_checkpoint_state()`：✅ 统一API接口，异步提取完整状态（messages+context+stats）
+- `checkpoint/state_extractor.py`：状态提取工具（extract_subagent_state_sync/async，复用BaseAgent API）
+
+**状态提取策略**：
+1. **同步提取**（signal handler context，技术限制）：
+   - `_last_context`：运行时上下文（session_id、workspace_path等）
+   - `last_run_stats`：token usage、duration、status
+   - ⚠️ messages为空（signal handler无法await异步checkpointer）
+2. **异步提取**（BaseAgent.get_checkpoint_state()）：
+   - ✅ LangGraph checkpointer：完整messages历史
+   - ✅ last_tool：最后执行的工具名
+   - ✅ 统一API接口，复用BaseAgent逻辑
+
+**重启后的呈现**：`OrphanRecoveryManager` 在启动时扫描检查点并通知 UI；用户在前端「重新发起」，用保存的 `task_description` 重跑任务。框架没有按检查点恢复子 agent 的入口，`SubagentCheckpointStorage.load` 只供 REST 读取与删除。
+
+**零侵入设计**：SubagentManager初始化时自动注册shutdown callback，用户无需修改代码。
+
+**REST API**：3个端点（list/delete/cleanup）暴露checkpoint管理能力。
+
+**完整实现（10/10）**：
+- ✅ BaseAgent.get_checkpoint_state()统一API（异步提取messages+context+stats）
+- ✅ **异步checkpoint save**（asyncio.run()在signal handler中，完整提取messages）
+- ✅ **CheckpointMetrics**监控数据结构（save/load成功率、平均耗时、.to_dict()导出）
+
+**设计理念**：
+框架提供数据结构和导出能力，业务层决定如何使用，符合FRAMEWORK_DESIGN_PRINCIPLES.md：
+- CheckpointMetrics：框架track，业务层monitoring
+
+**部署架构适配（Agent in Sandbox）**：
+- ✅ 每个用户一个独立沙箱容器（如Fly.io）
+- ✅ 容器挂载持久化Volume（EBS/Fly Volume）
+- ✅ 用户数据（`{MYRM_DATA_DIR}/checkpoints/`，生产由 server 注入 `MYRM_DATA_DIR`）存储在 Volume 中
+- ✅ 容器重启后数据保留
+- ✅ **JSON backend完全满足需求**（无需S3/Redis分布式存储）
+- ✅ SaaS多租户场景：每个用户独立Volume（天然隔离）
+
+### 7. Checkpointer 隔离与持久化
+
+子 agent 不继承父 agent 的 checkpointer（避免消息历史写入父线程造成状态污染），
+为让停在 HITL 审批上的子 agent 与父线程隔离、暂停状态不占进程内存，所有子 agent 共享一个**持久化 Volume 级独立**的 SQLite Checkpointer（测试环境自适应内存）。线程会落盘，但审批不跨进程重启续跑：重启后 journal 清空，旧线程被清掉，由新子 agent 重新向用户提问（见下）：
+
+- `agent/sub_agents/checkpointer.py` 提供 `get_subagent_checkpointer()`（懒加载单例）、`close_subagent_checkpointer()`、`reset_subagent_checkpointer()`、`drop_subagent_checkpoint_if_terminal(task_id, status)`（终态线程卫生清理 SSOT 门禁）与 `discard_stale_subagent_thread(thread_id)`（新子 agent 首次 spawn 前先查后删同编号的旧线程；存储打不开时不处理，线程内容读不出来时同样删除，自身不抛异常）。
+- 默认落盘至 `{MYRM_DATA_DIR}/subagent_checkpoints.sqlite`，并通过 WAL 模式与 busy_timeout 进行并发安全加固；在 `CHECKPOINTER_MODE=memory`、单测环境或只读沙箱卷发生权限异常时自动平滑回退至 `:memory:` 确保任务不崩溃。
+- 每个子 agent 的 `thread_id == task_id`（context 中 `approval_session_key`），
+  线程彼此隔离；审批中的子 agent 通过 `Command(resume=...)` 从同一线程恢复（journal 所在的 manager 存活期间）；进程重启后不续跑。
+- `drop_subagent_checkpoint_if_terminal` 仅在子 agent 到达**终态（非 PENDING_APPROVAL）**时
+  删除线程；PENDING_APPROVAL 线程持久保留供审批后 resume 通过。
+- 审批往返由 `approval_journal` 保证重放安全：`delegate_task` 因 `interrupt()` 每次都被 LangGraph 从头重执行，委派 id 由工具调用的 `checkpoint_ns` + 调用指纹派生（重执行前后一致），journal 记录每个 spawn/resume 步骤；重放只走过已答复的审批，仅在最前沿 spawn 或携带用户决定 resume，所以多次审批按序各到达一次，且不会重启子 agent、不会触发重复委派拦截；同一委派的各次审批共用 LangGraph 的一个中断 id，卡片编号因此带轮次（`<中断 id>.<轮次>`），每次审批各成一张卡，见 [STREAMING_SYSTEM.md](../streaming/STREAMING_SYSTEM.md) 的「并行中断与按卡片 id 作答」。journal 在内存里，随 manager（对话池化 agent）存活；manager 被回收（空闲回收默认 1800 秒）或进程重启后记录清空，丢失后的重执行没有任何步骤，LangGraph 重放给出的答复都发生在已不存在的子代理上：这些答复只计数（`stale_answers`）、不送给替代的新子代理，旧的暂停线程在新子代理 spawn 之前先清掉（`discard_stale_subagent_thread`），然后为新子代理的请求重新向用户提问，用户先前的同意永远不会落在没见过的请求上。审批超时（`SecurityConfig.approval_timeout_seconds` 默认 120 秒，服务端兜底 300 秒）通常先于空闲回收触发，所以丢失主要发生在进程重启，或超时被配置得比空闲回收更长时。批量/并行/裂变里的子委派在 `approvals_unanswerable()` 标记内运行（`parallel/runner.py`）：这些路径无法向用户展示审批，停在审批上的子代理以 `BLOCKED` 收尾并释放其暂停线程，错误文案提示该任务需要用户批准、应单独委派并等待结果（文案不含工具参数名，模型转述给用户时不会带出技术细节）；暂停后无人答复的记录留在 manager 内（每条至多一份工作区快照，上限 5000 个文件条目），随 manager 回收释放。同一条模型消息里两个单委派同时等审批时，每个待答中断是一张带 `interruptId` 的卡片，界面按 id 回传答复（`_internals/resume_addressing.py`，协议见 `streaming/STREAMING_SYSTEM.md`「并行中断与按 id 作答」）；不带 id 的普通值恢复（`Command(resume=value)`）在多个待答中断下仍被 LangGraph 拒绝（`langgraph/pregel/_loop.py:963`），IM 的 `/approve` 与超时计时器属此类：只有全局驳回会广播给全部待决中断，其余保持拒绝（失败关闭）。
+- 验证环节：worker 暂停于审批时先走完审批再验证，验证器基线快照在首次执行时固定；重试 worker 或验证器自身暂停（内部节点，用户看不到）按「无结论」收尾（BLOCKED）并释放其暂停线程。
+- 共享 saver 与父 agent 的 checkpointer 相互独立，父线程不被子线程污染。
+
+### 8. 状态追踪与自动清理
+
+- 11 种状态：PENDING → RUNNING → COMPLETED / FAILED / TIMED_OUT / CANCELLED / CANCELLED_BY_BUDGET / PENDING_APPROVAL / YIELDED / INTERRUPTED / BLOCKED
+- `BLOCKED` 只由验证环节产生：验证器没有给出可采信的结论（崩溃、超时、暂停等待审批、无执行证据的 PASS、多怀疑者无法达成法定票数），或被验证的 worker 停在无人能答复的审批上；产出既未被证伪也未被证实，调用方不应据此返工
+- `_cleanup_child` 回调在 `asyncio.Task` 完成时自动触发
+- `_children_types` 映射保证状态记录中 `agent_type` 准确
+- 超过 50 条完成记录时按 `completed_at` FIFO 清理最旧条目
+- `SubAgentResult.completed_at` 精确记录完成时间戳（`to_dict()` 在 `still_running=True` 时省略此字段）
+
+### 9. 进度与日志事件（自动透明度）
+
+**事件类型**：
+- `SUBAGENT_START` — 子 agent 开始执行
+- `SUBAGENT_PROGRESS` — 执行进度更新（**自动**）
+- `SUBAGENT_LOG` — 工具调用日志（**自动**）
+- `SUBAGENT_COMPLETION` — 子 agent 完成（push通知）
+- `SubagentLifecycleEvent(policy_denied)` — 委派策略拒绝（role 提权 / 深度耗尽），携带 `DelegationPolicyDecision`
+
+**自动机制**（框架内置，零侵入）：
+
+`SubagentManager` 在 event loop 中自动监听子 agent 事件并转发：
+
+1. **自动进度计算**：
+   - 监听 `TOKEN_USAGE` 事件
+   - 有预算时：`progress = current_tokens / budget_tokens`
+   - 无预算时：`progress = tool_count / 8`（基于工具调用次数估算）
+   - 节流机制：progress变化>=5%或时间间隔>=1s才发送（避免事件洪流）
+   - 追踪当前步骤：在`TOOL_START`时更新`current_tool_name`，显示具体工具名
+   - 自动发送 `SUBAGENT_PROGRESS` 事件，包含 `is_estimated`、`tool_count`、`current_step` 字段
+   - 显示："正在搜索...30%"
+
+2. **自动日志转发**：
+   - 监听 `TOOL_START` / `TOOL_END` / `TOOL_FAILURE` 事件
+   - 自动发送 `SUBAGENT_LOG` 事件
+   - 成功：显示"Calling tool: web_search" → "Tool completed: web_search (3200ms)"
+   - 失败：显示"Tool failed: web_search - Connection timeout"（level=ERROR）
+
+**优势**：
+- ✅ 零侵入：不需修改任何子 agent 代码
+- ✅ 自动生效：所有子 agent 自动获得进度和日志
+- ✅ 真实进度：基于 token 消耗，不是假心跳
+- ✅ 详细日志：追踪每个工具调用
+- ✅ ETA估算：基于token消耗速率计算剩余时间
+- ✅ 可扩展：支持自定义ProgressCalculator Protocol
+
+**前端展示**：
+- `SUBAGENT_PROGRESS` → 进度条 + **running `token_usage`**（节流 1s，与 progress 同 emit；Dashboard 树节点实时显示 tok）
+- `SUBAGENT_LOG` → 实时日志流："Calling tool: web_search" → "Tool completed"
+- `SUBAGENT_START`/`subagents_updated` → Subagent Dashboard 展示 role、control_scope、budget、effective_model 和 policy denial reason
+- Settings `AgentSubagentBinding` → 修改 `subagent_ids` 后 inline rebind 提示（需新开对话）
+
+### 10. 重复委派保护
+
+`delegate_task_tool`（单任务模式）对同一次运行内的每次委派计算指纹，指纹相同的第二次调用被拦截，并提示模型先反思上次失败原因、修改指令后再试。指纹覆盖任务文本、上下文、角色，以及决定委派如何运行的字段：`effective_readonly`、`complexity_tier`，以及请求验证时的 `verifier_prompt` / `verifier_agent_type` / `max_verification_rounds`。委派结果不缓存，每次放行的委派（含带验证的委派）都真正执行。
+
+### 11. 超时策略 (Timeout Policy)
+
+`timeout_seconds` 默认为 `None`（无 wall-clock 超时）。`SubagentConfig.__post_init__` 对输入值进行归一化：`≤ 0` 转为 `None`（等同于 Hermes `child_timeout_seconds: 0` 语义），正值下限强制为 `_MIN_TIMEOUT_SECONDS`（30s），防止配置错误导致无意义超时。子代理通过四层安全网自然结束：
+
+1. **max_turns**（默认 25）：最大迭代次数。子代理的 LangGraph `recursion_limit` 由 `max_turns * 2` 独立决定（`builder.build_child_agent`），**不继承父 agent 的迭代上限**——与 `build_standalone_agent`（编排器路径）语义一致，避免父上限偏低时子代理被提前截断、`max_turns` 配置失效。
+2. **staleness detection**（`stale_after_seconds=300`）：无进度时警告或取消
+3. **budget_tokens**：可选 token 预算上限
+4. **max_cost_usd**：可选费用上限
+
+当 `timeout_seconds` 显式设为正整数（≥ 30）时，启用两级超时：
+
+- **等待超时 (wait timeout)**：`config.timeout_seconds`，超时后返回 `SubAgentResult(status=TIMED_OUT, still_running=True)`，子 agent **继续后台运行**，不做 cancel。
+- **硬安全超时 (hard safety timeout)**：`config.timeout_seconds * 3`，作为最终安全网终止真正的 runaway agent；到期后结果为 `SubAgentResult(status=TIMED_OUT, error="Hard timeout after Ns")`（不带 `still_running`），而不是 `cancelled`；执行器在到期瞬间自己给出的失败或成功结果原样保留。
+- **LLM 决策权**：超时后 Parent Agent 可选择等待（`subagent_control_tool action=list`）、做别的事、或主动 cancel。
+- **`still_running` 字段**：`SubAgentResult.still_running: bool` 为 True 表示 agent 仍在后台运行。
+
+### 12. Chain 错误上下文
+
+`run_chain` 失败时，错误信息包含 `[chain step N/M (agent_type)]` 前缀，
+提供失败步骤索引和总步数，便于定位失败环节。
+
+### 13. 配置外部化
+
+Subagent 配置通过 YAML 文件管理，支持声明式定义和自动加载：
+
+配置目录结构：
+```
+configs/subagents/
+  ├── core/       # 框架提供的核心配置
+  └── custom/     # 用户自定义配置（优先级高于 core）
+```
+
+配置加载：
+- `SubagentConfigLoader` 提供 Pydantic 验证 + Action Tool SSOT 校验（`tools`/`disallowed_tools` 必须在 `tool_layers._TOOL_LAYERS` 注册）
+- 安全特性：文件大小限制、工具名称正则验证、system_prompt 长度限制
+- 错误处理：单文件加载失败跳过该文件；`filter_tools` 后 allowlist 为空则子 Agent 立即 `FAILED`（不空跑）
+
+内置 preset 工具名必须与 `@tool()` 注册名一致（SSOT：`tool_layers.py`）。例如 browser preset 使用 `browser_interact_tool`，analysis preset 使用 `memory_search_tool`。
+
+当 Agent 启用 browser 内置工具时，server 层在 `AgentFactory.create_general_agent` 自动 peripheral 绑定 prebuilt `browser-automation` skill（`is_core:false`，不占 Turn1 schema）。
+
+优势：
+- 扩展新 subagent 类型无需修改代码
+- 配置文件独立版本控制
+- 降低技术门槛（YAML vs Python）
+- 配置变更无需修改 Python 代码
+
+### 14. 生命周期 Hook
+
+```python
+SubAgentHook(
+    on_spawn=async_fn,    # 子 agent 创建时
+    on_complete=async_fn, # 子 agent 成功完成时
+    on_error=async_fn,    # 子 agent 失败时
+)
+```
+
+Hook 异常不影响主流程（catch + warning 日志）。
+
+---
+
+## 能力矩阵
+
+| 维度 | 当前实现 |
+|:--|:--|
+| 工具安全 | 类型准入、DelegationCapabilityManifest 同源能力清单、per-config allow/block list、父子工具交集和 readonly 沙箱 |
+| 运行时角色 | `ControlScope` 限定可信上限，`DelegateRole` 控制 leaf/orchestrator 运行时行为 |
+| 委派入口隔离 | leaf 子 agent 剥离 `delegate_task_tool`、`subagent_control_tool` 和技能管理工具；orchestrator 只注入 child-scoped 委派/控制/队友工具 |
+| 预算治理 | token、单节点子任务数、全树后代数、批量规模、race 成本准入和全局深度上限 |
+| 批处理语义 | `delegate_task_tool(mode=batch)` 返回 completed / partial_success / failed、成功/失败计数和 failure_reasons |
+| 策略可观测性 | `DelegationPolicyDecision` + typed SubagentLifecycleEvent 透传 role/control_scope/policy reason |
+| Token 合并 | 从 `last_run_stats` 精确合并子 agent token、模型用量和费用 |
+| 取消机制 | 支持 immediate、graceful、checkpoint 三种取消策略和父级传播 |
+| 结果压缩 | `max_result_tokens` 限制子任务返回给父任务的上下文体积 |
+| Context 继承 | 自动继承 `session_id`、`WorkspaceBinding`、审批会话等运行上下文 |
+| Fork 上下文过滤 | `context_mode="fork"` 结论性过滤（`_filter_fork_messages`）：保留 System/Human/AI 结论，剥离 ToolMessage 和 tool_calls，`max_fork_tokens` 预算截断 |
+| 模型解析 | 支持 config LLM、ModelResolver、父 agent LLM 的分层解析 |
+| 重复委派保护 | 同一次运行内指纹相同的委派被拦截；指纹含沙箱、模型档位与验证选项，只改这些的委派不被误判 |
+| 非致命超时 | `spawn_child(wait=True)` / `wait_children()` 超时后不 cancel，子 agent 继续后台运行（`still_running=True`） |
+| Chain 可调试性 | 链式编排错误包含 step index/total |
+| 配置管理 | YAML 配置加载、Pydantic 校验和注册表优先级 |
+| 自动进度与日志 | 子 agent 事件转发为统一的进度和日志事件 |
+| 失败 partial 回传 | 尝试内部超时（TimeoutError）/ MyrmLLMError / BudgetExceeded / generic Exception 四条失败路径经同一收尾函数返回结构化 `SubAgentResult(result=partial_output)`，截断保护防 context 爆炸；未发起任何尝试（`max_retries <= 0`）、硬安全超时被杀、取消三条出口不带 partial |
+| Hook 成对 | 每次 run（一次 `run_with_retry`）都以 `SUBAGENT_STOP` 收尾，与 `SUBAGENT_START` 成对：尝试返回的任何状态（成功 / 失败 / 让出 / 待审批）、超时 / MyrmLLMError / BudgetExceeded / generic Exception / 未发起任何尝试、取消，都由重试层的同一个收尾函数 `close_run` 发出；payload 含 `status`，成功带 `result`、失败带 `error`（取消为 `status=cancelled`、`error=Cancelled`）。STOP 投递是逐个 await 的，投递期间收到取消时，取消路径会再发一条 `status=cancelled` 的 STOP，单次取消下每个订阅者至少收到一条，最后一条是最终状态；第二次取消若落在取消路径自己的 hook 投递里，run 以 `CancelledError` 结束，不再发 STOP，订阅方需对未闭合的区间设兜底。硬安全超时杀掉的 run，STOP 是 `status=cancelled`（执行器自己观察到的终态），而返回给父 agent 的结果是 `timed_out`。待审批后的恢复是新的一次 run，各自成对 |
+
+### 15. Cooperative Subagent Cancellation
+
+**设计目标**：提供灵活的子 agent 取消策略，支持立即取消和优雅退出，确保资源正确管理。
+
+**取消策略（CancellationStrategy）**：
+
+| 策略 | 行为 | 适用场景 |
+|:--|:--|:--|
+| **IMMEDIATE** | 强制立即取消（asyncio.Task.cancel()） | 需要快速终止的任务 |
+| **GRACEFUL** | 等待当前工具调用完成后优雅退出（设置cancel_flag） | 默认策略，适合大多数场景 |
+| **CHECKPOINT** | 保存中间状态后取消（适用于可恢复任务） | 长时间运行的可恢复任务 |
+
+**实现机制**：
+
+1. **Cancel Flag**：
+   - `SubagentManager._cancel_flags: dict[str, bool]` 存储每个子 agent 的取消标志
+   - `cancel_child()` 根据 `cancellation_strategy` 决定行为：
+     - `IMMEDIATE`：直接调用 `task.cancel()`，同时设置 `_cancel_flags[task_id] = True`（供 list/SSE 立即向客户端报告 cancelled，避免取消请求发出到 cleanup 完成的窗口内仍广播 running）
+     - `GRACEFUL/CHECKPOINT`：设置 `_cancel_flags[task_id] = True`
+
+2. **优雅退出**：
+   - 在 `_run_single_attempt` 的 event loop 中检查 cancel_flag
+   - 检测到 cancel_flag 后，触发 `SUBAGENT_CANCEL_START` 钩子
+   - 抛出 `asyncio.CancelledError` 优雅退出
+
+3. **资源清理**：
+   - `_run_subagent_core` 使用 try-finally 块确保资源清理
+   - finally 块中清除 cancel_flag 并触发后代级联取消
+   - 即使取消或异常也能保证资源释放
+
+4. **生命周期钩子**：
+   - `SUBAGENT_CANCEL_START`：开始取消时触发
+   - `SUBAGENT_CANCEL_COMPLETE`：取消完成时触发
+
+**配置示例**：
+
+```python
+config = SubagentConfig(
+    system_prompt="...",
+    tools=(...),
+    cancellation_strategy=CancellationStrategy.GRACEFUL,  # 默认
+    graceful_cancel_timeout_seconds=5.0,  # 超时后强制取消，默认5秒
+)
+```
+
+5. **级联取消（Cascade Cancel）**：
+   - **第一层**（executor）：`executor.py` 的 CancelledError 处理中调用 `_cascade_cancel_descendants()` — 覆盖 IMMEDIATE 取消场景
+   - **第二层**（manager 安全网）：`manager.py:_run_subagent_core` 的 finally 块调用 `child.cancel_all_children(include_detached=not completed_normally)` — 覆盖 GRACEFUL/CHECKPOINT 主动退出及所有异常退出路径；正常完成的子代理保留其 `wait=false` 后台孙代理（与 §6 cleanup_run 语义一致）
+   - 防止多层 orchestrator 场景（A→B→C）中取消 B 后孙级 C 继续运行消耗 token
+   - 受 `max_spawn_depth` 硬性深度限制保护，不需要额外防环机制
+6. **父 run 结束清理 vs 后台子代理**：`run_lifecycle.py:cleanup_run` 在父 agent run 结束时调用 `cancel_all_children(include_detached=...)`：
+   - **正常完成**（`stats.was_cancelled=False`）→ `include_detached=False`：`wait=false` 异步 spawn 的**后台（detached）子代理不取消**，可继续运行直至完成（配合 §19 registry 观测/控制）；`wait=true` 子代理此时必然已 await 完成，不受影响
+   - **被取消 / 启动前取消**（`was_cancelled=True`）→ `include_detached=True`：级联取消所有子代理（含后台），与 §5 语义一致
+   - **用户显式 cancel**（cancel-all API / cancel-child / `cancel_active_children_for_session`）始终取消全部（含后台），不做区分
+   - 后台子代理由事件循环 + `manager._children` 强引用持有，父流结束后仍存活；`_cleanup_child` 在完成时写入 `COMPLETED_SUBAGENT_RESULTS` 供 REST/SSE 观测
+
+**优势**：
+- ✅ 灵活：支持三种取消策略，满足不同场景
+- ✅ 安全：确保资源正确释放，防止内存泄漏 + 超时保护防止无限等待
+- ✅ 优雅：GRACEFUL策略等待当前工具完成，避免状态不一致
+- ✅ 可观测：提供取消生命周期钩子，支持自定义逻辑
+- ✅ 完整：级联取消确保多层嵌套场景下所有后代任务被正确终止
+
+### 16. Active Context Injection（活跃子Agent上下文注入）
+
+**设计目标**：防止长对话上下文压缩后 LLM 丢失运行中子Agent信息，导致重复 spawn 浪费 token。
+
+**核心机制**：
+1. 每轮 LLM 推理前，从 `SubagentManager.list_children()` 筛选 `status=running` 的子Agent
+2. 通过 `format_active_subagent_context()` 格式化为简洁摘要（包含 task_id、agent_type、description）
+3. 作为 HumanMessage 追加到消息末尾（与 drain_notifications 一致，保护 Prompt Cache）
+4. 包含反重复 spawn 指导语，引导 LLM 使用 `subagent_control_tool action=list` 查询结果
+
+**触发条件**：仅当有活跃（running）子Agent时注入，无活跃子Agent时零开销。
+
+**与 drain_notifications 的关系**：
+- `drain_notifications`：已完成子Agent的结果通知（一次性消费）
+- `format_active_subagent_context`：当前运行中子Agent的状态快照（每轮刷新）
+- 两者互补，共同确保 LLM 对子Agent全生命周期的感知
+
+**优势**：
+- ✅ ~20行代码，复用现有 list_children() 数据
+- ✅ HumanMessage 注入，不破坏 Prompt Cache
+- ✅ 条件触发，无活跃子Agent时零 token 开销
+- ✅ 比 OpenClaw 更优（更简洁、更精确、缓存友好）
+
+### 17. 空闲唤醒与异步事件注入（Idle Wakeup & Event-Driven Continuation）
+
+**设计目标**：让大模型在派发长耗时后台任务时通过事件唤醒恢复推理，避免依赖循环轮询查询状态。
+
+**核心机制**：
+1. **状态挂起**：当大模型派发任务 `wait=False` 时，主智能体进入 Idle（空闲）状态，停止消耗 Token，挂起释放资源。
+2. **异步回调拦截**：后台子代理完成任务后，`SubagentManager._cleanup_child` 捕获到完成事件。
+3. **事件反转注入**：通过 `self._parent_agent.trigger_async_wakeup(result)` 向主智能体所在的 Session 注入一条系统事件 `ASYNC_WAKEUP`。
+4. **重新唤醒**：业务层（`myrm-agent-server/app/services/agent/wakeup_handler.py`）收到 `ASYNC_WAKEUP` 后，将子任务结果包在 `<system_notification type='async_result'>` 中追加为 **user/HumanMessage**（写入 chat history），再触发 headless GeneralAgent 续跑。不使用 `SystemMessage`，避免破坏 System 前缀 cache。
+
+**优势**：
+- ✅ **异步并发**：主 agent 可挂起长耗时子任务并等待事件唤醒。
+- ✅ **事件恢复**：通过事件注入恢复推理，避免主 agent 周期性查询子任务状态。
+
+### 18. 并发漏桶防爆队列（TokenBucket Scheduler）
+
+**设计目标**：降低多 Agent 并发派发子任务时触发大模型厂商 API 速率限制（HTTP 429）或本地显存耗尽（OOM）的风险。
+
+**核心机制**：
+- 在 `ChatLiteLLM` 的网络请求网关处，引入 `_GLOBAL_SEMAPHORE` (基于 `LLM_GLOBAL_MAX_CONCURRENCY` 环境变量)。
+- 主 Agent 和并发子 Agent 在发起实际的 LLM 推理请求时，都必须获取双重锁（全局漏桶锁 + 模型特定锁）。
+
+**优势**：
+- ✅ **并发削峰**：高并发请求转化为排队等待，降低瞬时超限风险。
+- ✅ **资源可控**：通过全局和模型级信号量约束并发推理请求。
+
+### 19. Server registry bridge（`session_tree.py`）
+
+**设计目标**：`wait=false` 异步 spawn 后，子 Agent 可在 parent gateway stream 结束后继续运行；Server REST/SSE 与 cancel 必须在无 active gateway 或每消息新 agent 实例时仍能观测和控制这些任务。
+
+**核心机制**（Harness `session_tree.py`，Server 薄封装于 `subagents.py` 与 `harness_bridge.py`）：
+1. spawn 写入 `ACTIVE_SUBAGENTS` + `ACTIVE_SUBAGENT_SESSIONS`（`_manager_spawn.py`）
+2. **list / SSE**：`merge_active_subagent_children(session_id, gateway_children)` 合并 gateway `list_children` 与 registry 行
+3. **已完成结果保留**：`_cleanup_child` 把非 internal 终态结果（completed/failed/cancelled）写入强引用注册表 `COMPLETED_SUBAGENT_RESULTS`（TTL 1h / 上限 1000 条 FIFO）。`ACTIVE_SUBAGENTS` 是弱引用且 cleanup 时即 pop，若父 gateway 流已结束（`_session_info` 清除）且 manager 被 GC，仅靠 ACTIVE_SUBAGENTS 会丢失已完成子 agent 历史；强引用注册表保证 REST/SSE 列表在父流结束后仍能渲染 completed/failed/cancelled 节点。
+4. **cancel-all**：当前 gateway agent 的 `cancel_all_children()` **加上** `cancel_active_children_for_session(session_id)`（每消息新建 agent 时 orphan manager 仍可达）
+5. **cancel / steer 单任务**：直接查 `ACTIVE_SUBAGENTS[task_id]`（无需 gateway；已完成任务已移出，返回 404 属预期）
+6. **checkpoint 恢复**：框架层不提供按检查点续跑的入口；中断任务以「重新发起」呈现（前端用保存的 `task_description` 重跑任务），`/checkpoint/resume` 与 subagents resume 端点不提供
+
+**与 OpenClaw 对齐点**：类似 `subagent-registry` + `killSubagentRunAdmin`——registry 独立于 parent turn 生命周期。
+
+**Prompt Cache**：纯 Server/Harness 控制面，零 LLM prompt 影响。
+
+---
+
+## 参考资料
+
+- 模块索引：[_ARCH.md](_ARCH.md)（维护者 roadmap 仅在私有 vortexai `temp-docs/`，非本仓路径）
+
+### 动态并发裂变 (Swarm Fission) 与结果自动落盘 (Auto-Vaulting)
+- **运行时动态并发裂变 (Swarm Fission)**：通过 `delegate_task_tool(mode=parallel)`，Agent 可以在运行时触发并行 Map-Reduce。工具通过 `langgraph.types.interrupt` 挂起当前 Agent（`SubAgentStatus.YIELDED`），Server 侧 `stream_with_swarm_fission_resume` 调用 Harness `execute_swarm_fission`（与 batch 同源 spawn）执行 `TaskRequest[]`，完成后以 `Command(resume=ParallelTaskResults)` 恢复父 Agent 汇总结果。
+- **Auto-Vaulting (自动落盘)**：当子 Agent 最终结果超过 `SubagentConfig.auto_vault_threshold`（默认 8000 字符，YAML 可配）时，`_auto_vault_or_truncate` 将其写入 `ArtifactVault`（`ISOLATED_COPY` 时写入 `_isolated_parent_workspace` 以便父 Agent/GUI 可读）并替换为摘要 + `vault://` 指针及 `file_read_tool(paths=["vault://…"])` 恢复提示；若当前 `ArtifactContext` 活跃，同时 `push_inline_artifact` 推送前端 SSE 卡片。父 Agent 用 `file_read_tool` 读 `vault://` URI 恢复全文，**不提供** LLM 侧 vault_put/get/extract 元工具（与 Hermes/deer-flow 行业做法一致）。

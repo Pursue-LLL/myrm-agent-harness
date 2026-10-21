@@ -1,0 +1,258 @@
+"""Priority-ordered search provider chain runner with self-healing quota tracking.
+
+[INPUT]
+- myrm_agent_harness.toolkits.web_search.providers.web_searcher::WebSearcher (POS: Web search orchestrator)
+- myrm_agent_harness.toolkits.web_search.providers.search_service_factory::credential_scope_digest (POS: Provider wiring for WebSearcher)
+- myrm_agent_harness.toolkits.web_search.core.error_handling::is_quota_or_rate_limit_error, is_persistent_quota_depleted_error
+
+[OUTPUT]
+- ProviderQuotaStatus: Enum of provider health states
+- ProviderQuotaState: Dataclass tracking the cooldown of one addressed scope (provider slug plus credential)
+- quota_tracker_key: Cooldown scope of a hop (provider slug + billed credential fingerprint)
+- ProviderQuotaTracker: Thread-safe in-memory tracker of per-scope cooldowns whose depleted and rate-limited states both expire
+- default_quota_tracker: Default singleton instance of ProviderQuotaTracker
+- search_provider_chain: async failover search across priority-ordered provider configs with smart skip
+
+[POS]
+Executes N-provider priority chain with wall-clock budget, per-hop allowance for hung providers, hand-over on empty
+answers, and self-healing quota auto-skip. Cooldowns are scoped per credential, never per provider slug.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import threading
+import time
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import TYPE_CHECKING
+
+from myrm_agent_harness.toolkits.web_search.core.error_handling import (
+    is_persistent_quota_depleted_error,
+    is_quota_or_rate_limit_error,
+)
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
+    AllQueriesFailedError,
+    SearchAPIError,
+)
+from myrm_agent_harness.toolkits.web_search.providers.search_service_factory import (
+    credential_scope_digest,
+)
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+    from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
+        SearchServiceConfig,
+    )
+
+logger = logging.getLogger(__name__)
+
+_CHAIN_WALL_CLOCK_SECONDS = 45.0
+_DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS = 5.0
+# Quota resets (billing cycles, top-ups) happen out of band and the tracker cannot observe them, so a depleted
+# provider is probed again after this window; a provider that is still exhausted is re-marked by that probe.
+_DEFAULT_DEPLETED_COOLDOWN_SECONDS = 3600.0
+
+
+class ProviderQuotaStatus(StrEnum):
+    """Health and quota state for an upstream search provider."""
+
+    HEALTHY = "healthy"
+    RATE_LIMITED = "rate_limited"
+    DEPLETED = "depleted"
+
+
+@dataclass
+class ProviderQuotaState:
+    """Cooldown snapshot of one addressed scope: a provider slug together with its credential."""
+
+    status: ProviderQuotaStatus = ProviderQuotaStatus.HEALTHY
+    unavailable_until: float = 0.0  # time.monotonic() deadline after which the scope is probed again
+    reason: str = ""
+
+
+class ProviderQuotaTracker:
+    """Thread-safe state machine tracking search quota depletion and transient throttling per cooldown scope."""
+
+    def __init__(self) -> None:
+        self._states: dict[str, ProviderQuotaState] = {}
+        self._lock = threading.Lock()
+
+    def get_status(self, scope: str) -> tuple[ProviderQuotaStatus, str]:
+        """Check the cooldown scope; an elapsed cooldown drops the state so the hop is probed again."""
+        with self._lock:
+            state = self._states.get(scope)
+            if state is None:
+                return ProviderQuotaStatus.HEALTHY, ""
+            if time.monotonic() < state.unavailable_until:
+                return state.status, state.reason
+            del self._states[scope]
+            return ProviderQuotaStatus.HEALTHY, ""
+
+    def mark_rate_limited(
+        self,
+        scope: str,
+        cooldown_seconds: float = _DEFAULT_RATE_LIMIT_COOLDOWN_SECONDS,
+        reason: str = "",
+    ) -> None:
+        """Mark a cooldown scope as transiently throttled with auto-recovery cooldown."""
+        with self._lock:
+            self._states[scope] = ProviderQuotaState(
+                status=ProviderQuotaStatus.RATE_LIMITED,
+                unavailable_until=time.monotonic() + cooldown_seconds,
+                reason=reason,
+            )
+
+    def mark_depleted(
+        self,
+        scope: str,
+        reason: str = "",
+        cooldown_seconds: float = _DEFAULT_DEPLETED_COOLDOWN_SECONDS,
+    ) -> None:
+        """Mark a cooldown scope as quota-exhausted until the cooldown elapses."""
+        with self._lock:
+            self._states[scope] = ProviderQuotaState(
+                status=ProviderQuotaStatus.DEPLETED,
+                unavailable_until=time.monotonic() + cooldown_seconds,
+                reason=reason,
+            )
+
+    def reset_provider(self, scope: str) -> None:
+        """Clear the quota state of one cooldown scope."""
+        with self._lock:
+            self._states.pop(scope, None)
+
+    def reset_all(self) -> None:
+        """Reset every tracked cooldown scope."""
+        with self._lock:
+            self._states.clear()
+
+
+default_quota_tracker = ProviderQuotaTracker()
+
+
+def quota_tracker_key(config: SearchServiceConfig) -> str:
+    """Cooldown scope of a hop: the provider slug plus the credential it is billed under.
+
+    Every cooldown recorded by :class:`ProviderQuotaTracker` is addressed by this key, so an already
+    benched credential keeps its state while a sibling key on the same slug stays eligible.
+
+    A slug alone names a provider family, not an account. Several entries of one chain — a second
+    paid key, or the replacement an operator installs right after a rejection — answer under the
+    same slug, so benching the slug would bench credentials that never failed and push traffic to
+    lower-priority providers. The credential identity comes from the factory's
+    ``credential_scope_digest``, the same one the result cache uses, so the two layers can never
+    disagree about which account a request belongs to.
+    """
+    return f"{config.search_service}:{credential_scope_digest(config)}"
+
+
+async def search_provider_chain(
+    chain: list[SearchServiceConfig],
+    query: str,
+    num_results: int,
+    *,
+    extra_params_override: dict[str, str | int | bool] | None = None,
+    quota_tracker: ProviderQuotaTracker | None = None,
+) -> tuple[list[SearchResult], str]:
+    """Search using a priority-ordered provider chain with intelligent quota auto-skip.
+
+    Any hop that gives no answer (quota, rate limit, outage, bad credentials, no reply in time, or an empty result
+    list) advances to the next provider until the chain's wall-clock budget is spent; only quota and rate-limit
+    failures also put that hop's credential on a cooldown. A hop that has not answered after half of the remaining
+    budget is abandoned unless it is the last one. When no provider produces results but one answered with an empty
+    list, the chain returns that empty answer and raises only when every provider failed.
+
+    Returns:
+        Tuple of (results, provider slug that produced them).
+    """
+    from myrm_agent_harness.toolkits.web_search.providers.web_searcher import WebSearcher
+
+    if not chain:
+        raise SearchAPIError("Search provider chain is empty")
+
+    tracker = quota_tracker if quota_tracker is not None else default_quota_tracker
+    last_error: Exception | None = None
+    deadline = time.monotonic() + _CHAIN_WALL_CLOCK_SECONDS
+
+    # Filter or reorder based on tracker status to avoid calling known-depleted providers
+    active_chain: list[SearchServiceConfig] = []
+    skipped_providers: list[tuple[str, str]] = []
+
+    for config in chain:
+        status, reason = tracker.get_status(quota_tracker_key(config))
+        if status in (ProviderQuotaStatus.DEPLETED, ProviderQuotaStatus.RATE_LIMITED):
+            skipped_providers.append((config.search_service, f"{status.value}: {reason}"))
+        else:
+            active_chain.append(config)
+
+    # Fallback: if all providers are marked depleted/throttled, attempt original chain anyway
+    execution_chain = active_chain if active_chain else chain
+    if not active_chain and skipped_providers:
+        logger.warning(
+            "All providers in search chain were marked unavailable (%s); forcing retry on full chain",
+            skipped_providers,
+        )
+
+    final_index = len(execution_chain) - 1
+    # A provider can answer HTTP 200 with no results while its upstream is blocked, which looks exactly like a
+    # successful search to everything above the chain, so an empty list passes the baton like a failure does.
+    empty_provider: str | None = None
+    for index, hop_config in enumerate(execution_chain):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        provider = hop_config.search_service
+        if index > 0:
+            # Logged when the next provider is attempted, not when the previous one fails: if that failure spent the
+            # chain budget, the deadline check above ends the chain and no hop happens.
+            previous_provider = execution_chain[index - 1].search_service
+            logger.warning(
+                "Search chain hop '%s' gave no answer, trying next provider: %s", previous_provider, provider
+            )
+        hop_searcher = WebSearcher(hop_config)
+        tracker_key = quota_tracker_key(hop_config)
+        # A hung hop would otherwise outlast the whole budget (its coalescing wait and retries add up to more than
+        # the chain allows) and no later provider would ever run, so every hop but the last yields after half of what
+        # remains. The last hop has nobody to hand over to; capping it would only add a doomed extra request.
+        allowance = remaining / 2 if index < final_index else None
+        try:
+            async with asyncio.timeout(allowance):
+                results = await hop_searcher.search(
+                    query=query,
+                    num_results=num_results,
+                    extra_params_override=extra_params_override,
+                )
+        except Exception as exc:
+            last_error = exc
+
+            # Update tracker state based on error severity
+            if is_persistent_quota_depleted_error(exc):
+                logger.warning(
+                    "Search provider '%s' persistent quota depleted, marking depleted: %s",
+                    provider,
+                    exc,
+                )
+                tracker.mark_depleted(tracker_key, reason=str(exc))
+            elif is_quota_or_rate_limit_error(exc):
+                logger.warning(
+                    "Search provider '%s' transient rate limit hit, cooling down: %s",
+                    provider,
+                    exc,
+                )
+                tracker.mark_rate_limited(tracker_key, reason=str(exc))
+        else:
+            if results:
+                return results, provider
+            empty_provider = provider
+
+    if empty_provider is not None:
+        return [], empty_provider
+
+    if last_error is None:
+        message = "All search providers in chain failed"
+    else:
+        # A timeout carries no text; the exception type keeps the failure reason readable downstream.
+        message = str(last_error) or type(last_error).__name__
+    raise AllQueriesFailedError(message) from last_error

@@ -1,0 +1,104 @@
+"""Event Log — append-only event journal for audit, replay, and observability.
+
+Framework-layer module providing structured event persistence alongside
+LangGraph Checkpointer. The checkpointer handles state snapshots for fast
+recovery; the event log captures the full decision trail for audit,
+debugging, cross-session analysis, and task-level replay.
+
+[INPUT]
+- agent.types::AgentEventType (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
+- security.audit::SecurityDecision (POS: Cross-cutting concern. Called from tool_interceptor_middleware and all security guard modules at every decision point.)
+- security.detection::leak_detector, (POS: Unicode  ID)
+- infra.tracing.propagation::get_current_trace_id (POS: Trace)
+
+[OUTPUT]
+- EventLogBackend: 5th framework protocol (append / query / get_all_session_ids / close)
+- StructuredEvent: typed event record
+- EventLogger: session-level analysis (classify → sanitize → buffer → write + analytics)
+- EventLogAnalytics: global-level analysis (cross-session aggregation)
+- FileEventLogBackend: built-in JSONL file backend
+- ExecutionTrace: task-level aggregation for replay and scoring
+- TraceMetadata: context dimensions (user_id, agent_id, task_type, trace_id)
+- Data classes: ToolUsageStats, ActivityPatterns, DailyActivity, GlobalActivityPatterns
+
+[POS]
+Complements Checkpointer with full event history. Optional — omitting
+``event_log_backend`` leaves agent behaviour unchanged.
+"""
+
+from .analytics import EventLogAnalytics
+from .integrity_gate import (
+    assert_log_integrity,
+    install_log_integrity_invariants,
+    verify_sequence_continuity,
+    verify_session_enclosure,
+)
+from .backends.file_backend import FileEventLogBackend
+from .durable_atomic_writer import DurableLogWriter, loop_write_all
+from .logger import EventLogger
+from .protocols import EventLogBackend, FlushableEventLogBackend
+from .torn_tail_repairer import (
+    TailInspectionResult,
+    TailRepairError,
+    TailRepairReport,
+    inspect_tail,
+    repair_torn_tail,
+)
+from .trace_types import ExecutionTrace, ToolCallRecord, TraceMetadata, TraceOutcome
+from .types import (
+    ActivityPatterns,
+    BashExecutionStats,
+    CustomMessagePayload,
+    CustomStatePayload,
+    DailyActivity,
+    EventFilter,
+    GlobalActivityPatterns,
+    HourlyToolUsage,
+    SessionAnalytics,
+    SessionEvent,
+    SessionSummary,
+    StructuredEvent,
+    ToolBreakdown,
+    ToolStabilityAnalytics,
+    ToolStabilityDaily,
+    ToolUsageStats,
+)
+
+__all__ = [
+    "ActivityPatterns",
+    "BashExecutionStats",
+    "CustomMessagePayload",
+    "CustomStatePayload",
+    "DailyActivity",
+    "DurableLogWriter",
+    "EventFilter",
+    "EventLogAnalytics",
+    "EventLogBackend",
+    "EventLogger",
+    "ExecutionTrace",
+    "FileEventLogBackend",
+    "FlushableEventLogBackend",
+    "GlobalActivityPatterns",
+    "HourlyToolUsage",
+    "SessionAnalytics",
+    "SessionEvent",
+    "SessionSummary",
+    "StructuredEvent",
+    "TailInspectionResult",
+    "TailRepairError",
+    "TailRepairReport",
+    "ToolBreakdown",
+    "ToolCallRecord",
+    "ToolStabilityAnalytics",
+    "ToolStabilityDaily",
+    "ToolUsageStats",
+    "TraceMetadata",
+    "TraceOutcome",
+    "assert_log_integrity",
+    "inspect_tail",
+    "install_log_integrity_invariants",
+    "loop_write_all",
+    "repair_torn_tail",
+    "verify_sequence_continuity",
+    "verify_session_enclosure",
+]

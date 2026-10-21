@@ -1,0 +1,327 @@
+"""Type definitions for computer use toolkit.
+
+[INPUT]
+- (none)
+
+[OUTPUT]
+- ComputerAction, DesktopInteractAction, DesktopVisionAction, ScrollDirection, ModifierKey, ScreenInfo, ScreenContext, ScreenLockState, ActionResult, WindowTextResult, ImageConstraints, PermissionStatus, ExecutionMode, ForegroundPermissionScope, ForegroundPermissionResult, ForegroundPermissionCallback, ScreenUnlockCallback, ComputerUseConfig
+
+[POS]
+Shared type definitions consumed by all computer_use submodules.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum, StrEnum
+from typing import Literal, Protocol
+
+DesktopInteractAction = Literal[
+    "click",
+    "dblclick",
+    "fill",
+    "set_value",
+    "type",
+    "fill_credential",
+    "press",
+    "hover",
+    "focus",
+    "scroll",
+    "toggle",
+    "expand",
+    "collapse",
+    "invoke",
+    "check",
+    "uncheck",
+]
+
+DesktopVisionAction = Literal[
+    "capture",
+    "screenshot",
+    "left_click",
+    "right_click",
+    "middle_click",
+    "double_click",
+    "triple_click",
+    "type",
+    "key",
+    "scroll",
+    "drag",
+    "mouse_move",
+    "wait",
+]
+
+ComputerAction = Literal[
+    "left_click",
+    "right_click",
+    "middle_click",
+    "double_click",
+    "triple_click",
+    "mouse_move",
+    "left_click_drag",
+    "scroll",
+    "key",
+    "type",
+    "screenshot",
+    "wait",
+]
+
+ScrollDirection = Literal["up", "down", "left", "right"]
+
+ModifierKey = Literal["ctrl", "shift", "alt", "meta"]
+
+
+@dataclass(frozen=True)
+class ScreenInfo:
+    """Physical screen dimensions and DPI information."""
+
+    width: int
+    height: int
+    dpi_scale: float = 1.0
+
+    @property
+    def physical_width(self) -> int:
+        return int(self.width * self.dpi_scale)
+
+    @property
+    def physical_height(self) -> int:
+        return int(self.height * self.dpi_scale)
+
+
+@dataclass
+class ActionResult:
+    """Result of a computer action execution."""
+
+    success: bool
+    output: str = ""
+    error: str = ""
+    screenshot_base64: str = ""
+    screenshot_size: tuple[int, int] = (0, 0)
+
+
+@dataclass(frozen=True)
+class ScreenContext:
+    """Contextual state at time of screenshot (active window, mouse position)."""
+
+    active_window: str = ""
+    mouse_x: int = 0
+    mouse_y: int = 0
+
+
+@dataclass(frozen=True)
+class WindowTextResult:
+    """Result of extracting text from the frontmost window via Accessibility API."""
+
+    window_title: str = ""
+    app_name: str = ""
+    text: str = ""
+    success: bool = True
+    needs_permission: bool = False
+
+
+@dataclass(frozen=True)
+class ImageConstraints:
+    """Vision encoder constraints for a specific model family.
+
+    Anthropic Claude: max_edge=1568, max_tokens=1568, px_per_token=28
+    OpenAI GPT-4V: max_edge=2048, max_tokens=2048, px_per_token=32
+    """
+
+    max_edge_px: int = 1568
+    max_tokens: int = 1568
+    px_per_token: int = 28
+    jpeg_quality: int = 75
+    min_screenshot_bytes: int = 1024
+
+
+CLAUDE_IMAGE_CONSTRAINTS = ImageConstraints(
+    max_edge_px=1568,
+    max_tokens=1568,
+    px_per_token=28,
+)
+
+CLAUDE_OPUS_47_IMAGE_CONSTRAINTS = ImageConstraints(
+    max_edge_px=2576,
+    max_tokens=3750,
+    px_per_token=28,
+)
+
+GPT4V_IMAGE_CONSTRAINTS = ImageConstraints(
+    max_edge_px=2048,
+    max_tokens=2048,
+    px_per_token=32,
+)
+
+DEFAULT_IMAGE_CONSTRAINTS = CLAUDE_IMAGE_CONSTRAINTS
+
+
+KNOWN_BROWSER_NAMES = frozenset(
+    {
+        "google chrome",
+        "chromium",
+        "firefox",
+        "safari",
+        "microsoft edge",
+        "brave browser",
+        "arc",
+        "patchright",
+        "camoufox",
+        "google-chrome",
+        "microsoft-edge",
+        "brave",
+    }
+)
+
+
+@dataclass(frozen=True)
+class PermissionStatus:
+    """OS-level permission status for desktop automation.
+
+    ``accessibility`` / ``screen_recording`` are OS grant signals.
+    ``screen_recording_capturable`` is optional functional capture readiness
+    (None = not probed; True/False = probe result). Empty or pure-black frames
+    count as not capturable. ``post_event_access`` is the event-posting TCC
+    grant (None = unprobed/unsupported platform). ``settings_deeplinks``
+    maps names to Settings URLs.
+    """
+
+    accessibility: bool = True
+    screen_recording: bool = True
+    screen_recording_capturable: bool | None = None
+    post_event_access: bool | None = None
+    platform: str = ""
+    settings_deeplinks: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def all_granted(self) -> bool:
+        """OS grants only (Hermes-style ready). Capture probe is separate."""
+        return self.accessibility and self.screen_recording
+
+    @property
+    def capture_ready(self) -> bool:
+        """True only when OS grants are OK and capture probe passed.
+
+        ``screen_recording_capturable is None`` (not probed) is not ready.
+        """
+        return self.all_granted and self.screen_recording_capturable is True
+
+
+class IPhoneMirrorState(StrEnum):
+    """Connection and display state for macOS iPhone Mirroring (com.apple.ScreenContinuity)."""
+
+    READY = "ready"
+    BLOCKED_CONNECT_PROMPT = "blocked_connect_prompt"
+    NOT_RUNNING = "not_running"
+    NOT_SUPPORTED = "not_supported"
+
+
+@dataclass(frozen=True)
+class IPhoneMirrorProbeResult:
+    """Diagnostic probe result for macOS iPhone Mirroring window."""
+
+    state: IPhoneMirrorState
+    is_supported: bool
+    window_bounds: tuple[int, int, int, int] | None = None  # (x, y, width, height)
+    detail: str = ""
+    remedy_hint: str = ""
+
+
+class ExecutionMode(Enum):
+    """Controls how the computer use session handles foreground-stealing operations.
+
+    - background_strict: Never steal foreground without explicit user permission.
+      If permission is denied or callback is unavailable, the operation fails gracefully.
+    - background_best_effort: Attempt background execution; if unavailable, request
+      permission before falling back to foreground.
+    - foreground: Execute all operations directly (legacy behavior, no permission checks).
+    """
+
+    background_strict = "background_strict"
+    background_best_effort = "background_best_effort"
+    foreground = "foreground"
+
+
+class ForegroundPermissionScope(Enum):
+    """Scope of a foreground permission grant (modeled after iOS permission UX)."""
+
+    once = "once"
+    session = "session"
+    always = "always"
+    envelope = "envelope"
+
+
+@dataclass(frozen=True)
+class ForegroundPermissionResult:
+    """Result returned by the permission callback."""
+
+    granted: bool
+    scope: ForegroundPermissionScope = ForegroundPermissionScope.once
+
+
+class ForegroundPermissionCallback(Protocol):
+    """Protocol that server/frontend must implement to show a permission prompt.
+
+    The harness calls this when it needs to steal foreground focus. The implementation
+    should present a UI prompt (WebSocket push, Tauri dialog, etc.) and return the
+    user's decision. For cloud-hosted sandboxes, implement as auto-grant.
+    """
+
+    async def __call__(
+        self,
+        *,
+        reason: str,
+        operation: str,
+        estimated_duration_seconds: float,
+        timeout_seconds: float = 30.0,
+        app_name: str = "",
+        window_title: str = "",
+        app_id: str = "",
+        require_app_approval: bool = True,
+    ) -> ForegroundPermissionResult:
+        """Request desktop control permission from the user.
+
+        Args:
+            reason: Human-readable explanation of why control is needed.
+            operation: The specific action being attempted (e.g. "click at (320, 480)").
+            estimated_duration_seconds: How long the operation will take.
+            timeout_seconds: Max time to wait for user response before auto-denying.
+            app_name: Human-readable application name for per-app first approval.
+            window_title: Foreground window title for display context.
+            app_id: Stable platform identifier (bundle ID / process exe) for trust keys.
+            require_app_approval: When False, only foreground/coordinate approval is requested.
+        """
+        ...
+
+
+class ScreenUnlockCallback(Protocol):
+    """Host-provided recovery for a locked screen; the harness never unlocks one itself.
+
+    Awaited when a guarded action finds the screen locked. The host decides whether and how
+    to unlock it (or to decline) and returns when done. The guard re-probes the lock state
+    afterwards and trusts only that probe, so a host that merely tries is enough. The guard
+    sets no deadline of its own: the host must bound its own wait.
+    """
+
+    async def __call__(self) -> None:
+        """Try to unlock the screen; return normally once finished or declined."""
+        ...
+
+
+@dataclass
+class ComputerUseConfig:
+    """Configuration for computer use session."""
+
+    image_constraints: ImageConstraints = field(default_factory=lambda: DEFAULT_IMAGE_CONSTRAINTS)
+    screenshot_delay: float = 1.0
+    typing_delay_ms: int = 12
+    typing_chunk_size: int = 50
+    execution_mode: ExecutionMode = ExecutionMode.background_best_effort
+
+
+class ScreenLockState(StrEnum):
+    """Physical hardware and session lock state of the desktop display."""
+
+    UNLOCKED = "unlocked"
+    LOCKED = "locked"
+    SLEEPING = "sleeping"
+    UNKNOWN = "unknown"

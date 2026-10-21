@@ -1,0 +1,870 @@
+"""Agent tool for scheduled task management.
+
+Single ``cron_manage`` tool with implicit schedule detection:
+fill ``cron_expr`` → cron, ``every_minutes`` → interval, ``at`` → one-shot.
+
+Includes a ContextVar-based self-scheduling guard that blocks ``add``/``update``
+when called from within a cron job execution, preventing infinite task chains.
+
+[INPUT]
+- toolkits.cron._cron_tool_description::resolve_cron_tool_description (POS: cron_manage_tool 提示词 SSOT 与多语言描述解析)
+
+[OUTPUT]
+- enter_cron_execution_context: Mark the current async context as running inside a cron job execution.
+- exit_cron_execution_context: Restore the previous cron execution context.
+- create_cron_tools: Create cron_manage_tool with on-demand blueprints, default_delivery, reminder jobs, locale-aware descriptions.
+
+[POS]
+Agent tool for scheduled task management.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from collections.abc import Callable
+from contextvars import ContextVar, Token
+from datetime import UTC, timedelta
+from datetime import datetime as dt
+from typing import TYPE_CHECKING, Literal
+
+from langchain_core.tools import BaseTool, tool
+
+from myrm_agent_harness.infra.incremental.types import MonitorConfig
+from myrm_agent_harness.toolkits.cron._cron_tool_description import (
+    resolve_cron_tool_description,
+)
+from myrm_agent_harness.toolkits.cron.engine.name_generator import generate_job_name
+from myrm_agent_harness.toolkits.cron.engine.parser import describe_schedule
+from myrm_agent_harness.toolkits.cron.triggers import (
+    PollTrigger,
+    StreamProtocol,
+    StreamTrigger,
+    TriggerConfig,
+)
+from myrm_agent_harness.toolkits.cron.types import (
+    ActiveHours,
+    CronJobPatch,
+    DeliveryConfig,
+    JobType,
+    Schedule,
+    ScheduleKind,
+    SessionTarget,
+)
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.cron.manager import CronManager
+
+# Blueprint filler: (blueprint_id, values_dict, tz) -> (schedule_dict, prompt, name, caps, tools, skills) | None
+BlueprintFiller = Callable[
+    [str, dict[str, str], str | None],
+    tuple[
+        dict[str, str | int | None],
+        str,
+        str,
+        tuple[str, ...],
+        tuple[str, ...] | None,
+        tuple[str, ...] | None,
+    ]
+    | None,
+]
+BlueprintCatalogProvider = Callable[[], str]
+DeliveryResolver = Callable[[str], DeliveryConfig]
+
+logger = logging.getLogger(__name__)
+
+_MIN_INTERVAL_MINUTES = 5
+
+_IN_CRON_EXECUTION: ContextVar[bool] = ContextVar("_in_cron_execution", default=False)
+_CRON_EXECUTION_MUTATING_ACTIONS = frozenset({"add", "update", "remove", "run", "pause", "resume"})
+
+
+def enter_cron_execution_context() -> Token[bool]:
+    """Mark the current async context as running inside a cron job callback.
+
+    Returns a token for ``exit_cron_execution_context``.
+    """
+    return _IN_CRON_EXECUTION.set(True)
+
+
+def exit_cron_execution_context(token: Token[bool]) -> None:
+    """Restore the previous cron execution context."""
+    _IN_CRON_EXECUTION.reset(token)
+
+
+def create_cron_tools(
+    manager: CronManager,
+    user_id: str,
+    *,
+    current_model: str = "",
+    chat_id: str | None = None,
+    agent_id: str | None = None,
+    blueprint_filler: BlueprintFiller | None = None,
+    blueprint_catalog_provider: BlueprintCatalogProvider | None = None,
+    delivery_resolver: DeliveryResolver | None = None,
+    default_delivery: DeliveryConfig | None = None,
+    description_locale: str | None = None,
+) -> list[BaseTool]:
+    """Create a single cron management tool bound to a user.
+
+    ``current_model`` is the model name of the calling Agent session,
+    used as default when the user doesn't specify a model for a new cron job.
+
+    ``blueprint_catalog_provider`` returns blueprint catalog text for the
+    on-demand ``action=blueprints`` lookup (not injected into Turn1 schema).
+
+    ``blueprint_filler`` is a callable that fills a blueprint by ID and slot
+    values, returning (schedule_dict, prompt, name) or None if unknown.
+
+    ``default_delivery`` is used when ``webhook_url`` is empty instead of
+    falling back to in-chat delivery (e.g. IM channel + recipient binding).
+
+    ``delivery_resolver`` maps webhook URLs to ``DeliveryConfig``. When omitted,
+    non-empty URLs use generic ``webhook`` delivery (no channel-specific heuristics).
+
+    ``description_locale`` selects the BCP-47 locale for LLM-facing tool description.
+    """
+
+    def _resolve_delivery(webhook_url: str) -> DeliveryConfig:
+        if delivery_resolver is not None:
+            return delivery_resolver(webhook_url)
+        if not webhook_url.strip():
+            if default_delivery is not None:
+                return default_delivery
+            return DeliveryConfig(channel="chat")
+        return DeliveryConfig(channel="webhook", target=webhook_url)
+
+    tool_description = resolve_cron_tool_description(description_locale)
+
+    @tool("cron_manage_tool", description=tool_description)
+    async def cron_manage(
+        action: Literal["add", "list", "update", "remove", "run", "pause", "resume", "blueprints"],
+        prompt: str = "",
+        command: str = "",
+        model: str = "",
+        cron_expr: str = "",
+        every_minutes: int = 0,
+        at: str = "",
+        tz: str = "",
+        job_id: str = "",
+        name: str = "",
+        name_filter: str = "",
+        webhook_url: str = "",
+        failure_webhook_url: str = "",
+        recurring_confirmed: bool = False,
+        active_start: str = "",
+        active_end: str = "",
+        active_tz: str = "",
+        max_fires: int = 0,
+        expires_after: str = "",
+        context_from: str = "",
+        blueprint: str = "",
+        blueprint_values: str = "",
+        monitor_type: str = "",
+        monitor_enabled: bool = False,
+        session_mode: str = "",
+        stream_url: str = "",
+        stream_protocol: str = "",
+        stream_filter_json_path: str = "",
+        stream_filter_regex: str = "",
+        stream_headers: str = "",
+        poll_url: str = "",
+        poll_json_path: str = "",
+        poll_interval_seconds: int = 0,
+        reminder: bool = False,
+        required_capabilities: str = "",
+        tools_allowed: str = "",
+        skill_ids: str = "",
+    ) -> str:
+        effective_model = model.strip() or current_model
+
+        if action in _CRON_EXECUTION_MUTATING_ACTIONS and _IN_CRON_EXECUTION.get():
+            return (
+                "Error: cannot create or modify scheduled tasks from within "
+                "a cron job execution. This prevents infinite task chains."
+            )
+
+        # Blueprint-based creation: fill prompt/schedule from blueprint template
+        bp_prompt = prompt
+        bp_cron_expr = cron_expr
+        bp_every_minutes = every_minutes
+        bp_at = at
+        bp_tz = tz
+        bp_name = name
+        bp_required_capabilities: tuple[str, ...] = ()
+        bp_tools_allowed: tuple[str, ...] | None = None
+        bp_skill_ids: tuple[str, ...] = ()
+
+        if action == "add" and blueprint.strip() and blueprint_filler:
+            bp_values: dict[str, str] = {}
+            if blueprint_values.strip():
+                try:
+                    bp_values = json.loads(blueprint_values)
+                except (json.JSONDecodeError, TypeError):
+                    return 'Error: blueprint_values must be valid JSON object, e.g. \'{"time": "08:00"}\'.'
+
+            fill_result = blueprint_filler(blueprint.strip(), bp_values, tz.strip() or None)
+            if fill_result is None:
+                return f"Error: unknown blueprint '{blueprint.strip()}'. Use list action or check available blueprints."
+
+            sched_dict, filled_prompt, filled_name, filled_caps, filled_tools, filled_skills = fill_result
+            bp_prompt = filled_prompt
+            bp_name = bp_name or filled_name
+            bp_required_capabilities = filled_caps
+            bp_tools_allowed = filled_tools
+            bp_skill_ids = filled_skills or ()
+
+            sched_kind = sched_dict.get("kind", "")
+            if sched_kind == "cron" and sched_dict.get("expr"):
+                bp_cron_expr = str(sched_dict["expr"])
+                bp_tz = str(sched_dict.get("tz") or tz or "")
+            elif sched_kind == "interval" and sched_dict.get("interval_ms"):
+                bp_every_minutes = int(sched_dict["interval_ms"]) // 60_000
+
+        effective_required_capabilities = (
+            _parse_csv_tuple(required_capabilities) if required_capabilities.strip() else bp_required_capabilities
+        )
+        effective_tools_allowed = tuple(_parse_csv_tuple(tools_allowed)) if tools_allowed.strip() else bp_tools_allowed
+        effective_skill_ids = tuple(_parse_csv_tuple(skill_ids)) if skill_ids.strip() else bp_skill_ids
+
+        dispatch = {
+            "add": lambda: _do_add(
+                manager,
+                user_id,
+                bp_prompt,
+                command,
+                effective_model,
+                bp_cron_expr,
+                bp_every_minutes,
+                bp_at,
+                bp_tz,
+                bp_name,
+                webhook_url,
+                failure_webhook_url,
+                recurring_confirmed,
+                active_start,
+                active_end,
+                active_tz,
+                chat_id,
+                max_fires,
+                expires_after,
+                agent_id=agent_id,
+                context_from=context_from,
+                monitor_type=monitor_type,
+                monitor_enabled=monitor_enabled,
+                session_mode=session_mode,
+                stream_url=stream_url,
+                stream_protocol=stream_protocol,
+                stream_filter_json_path=stream_filter_json_path,
+                stream_filter_regex=stream_filter_regex,
+                stream_headers=stream_headers,
+                poll_url=poll_url,
+                poll_json_path=poll_json_path,
+                poll_interval_seconds=poll_interval_seconds,
+                reminder=reminder,
+                required_capabilities=effective_required_capabilities,
+                tools_allowed=effective_tools_allowed,
+                skill_ids=effective_skill_ids,
+                resolve_delivery=_resolve_delivery,
+            ),
+            "list": lambda: _do_list(manager, user_id, name_filter),
+            "blueprints": lambda: _do_blueprints(blueprint_catalog_provider),
+            "update": lambda: _do_update(
+                manager,
+                user_id,
+                job_id,
+                prompt,
+                command,
+                model,
+                cron_expr,
+                every_minutes,
+                at,
+                tz,
+                name,
+                max_fires,
+                expires_after,
+                context_from=context_from,
+                monitor_type=monitor_type,
+                monitor_enabled=monitor_enabled,
+                session_mode=session_mode,
+                required_capabilities=_parse_csv_tuple(required_capabilities)
+                if required_capabilities.strip()
+                else None,
+                tools_allowed=tuple(_parse_csv_tuple(tools_allowed)) if tools_allowed.strip() else None,
+                skill_ids=tuple(_parse_csv_tuple(skill_ids)) if skill_ids.strip() else None,
+            ),
+            "remove": lambda: _do_remove(manager, user_id, job_id),
+            "run": lambda: _do_run(manager, user_id, job_id),
+            "pause": lambda: _do_pause(manager, user_id, job_id),
+            "resume": lambda: _do_resume(manager, user_id, job_id),
+        }
+        handler = dispatch.get(action)
+        if not handler:
+            return f"Unknown action: {action}"
+        return await handler()
+
+    return [cron_manage]
+
+
+# ---------------------------------------------------------------------------
+# Schedule builder (implicit type detection)
+# ---------------------------------------------------------------------------
+
+
+def _build_schedule(
+    cron_expr: str,
+    every_minutes: int,
+    at: str,
+    tz: str,
+) -> tuple[str | None, Schedule | None]:
+    """Return (error_msg, Schedule) — exactly one will be non-None."""
+    filled = sum([bool(cron_expr), every_minutes > 0, bool(at)])
+    if filled == 0:
+        return "Provide one of: cron_expr, every_minutes, or at.", None
+    if filled > 1:
+        return "Provide only ONE schedule param (cron_expr / every_minutes / at).", None
+
+    if cron_expr:
+        return None, Schedule(kind=ScheduleKind.CRON, expr=cron_expr, tz=tz or None)
+    if every_minutes > 0:
+        if every_minutes < _MIN_INTERVAL_MINUTES:
+            return (
+                f"every_minutes must be >= {_MIN_INTERVAL_MINUTES}. For one-time tasks use 'at' instead.",
+                None,
+            )
+        return None, Schedule(kind=ScheduleKind.INTERVAL, interval_ms=every_minutes * 60_000)
+    if at:
+        run_at = dt.fromisoformat(at)
+        if run_at.tzinfo is None:
+            run_at = run_at.replace(tzinfo=UTC)
+        return None, Schedule(kind=ScheduleKind.ONCE, run_at=run_at)
+
+    return "Could not determine schedule type.", None
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_DURATION_UNITS: dict[str, int] = {"d": 1, "w": 7, "m": 30}
+
+
+def _parse_expires_after(value: str) -> dt | None:
+    """Parse a human-friendly duration ("3d", "2w", "3m") or ISO 8601 datetime."""
+    value = value.strip()
+    if not value:
+        return None
+    if len(value) >= 2 and value[-1] in _DURATION_UNITS and value[:-1].isdigit():
+        days = int(value[:-1]) * _DURATION_UNITS[value[-1]]
+        return dt.now(UTC) + timedelta(days=days)
+    parsed = dt.fromisoformat(value)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+# ---------------------------------------------------------------------------
+# Action implementations
+# ---------------------------------------------------------------------------
+
+
+def _build_active_hours(start: str, end: str, active_tz: str) -> ActiveHours | None:
+    """Build ActiveHours if both start and end are provided."""
+    if not start.strip() or not end.strip():
+        return None
+    return ActiveHours(start=start.strip(), end=end.strip(), tz=active_tz.strip() or "UTC")
+
+
+_MIN_POLL_INTERVAL_SECONDS = 60
+_VALID_STREAM_PROTOCOLS = {"ws", "sse"}
+_VALID_MONITOR_TYPES = {"set", "hash"}
+
+
+def _build_monitor_config(
+    monitor_type: str,
+    monitor_enabled: bool,
+) -> tuple[str | None, MonitorConfig | None, bool]:
+    """Build MonitorConfig from tool parameters.
+
+    Returns (error_msg, config, should_clear).  When ``monitor_type`` is
+    ``"off"``, ``should_clear=True`` signals that monitoring should be removed.
+    """
+    mt = monitor_type.strip().lower()
+    if mt == "off":
+        return None, None, True
+    if not monitor_enabled and not mt:
+        return None, None, False
+    if not monitor_enabled:
+        return "Set monitor_enabled=true to enable monitoring.", None, False
+    mt = mt or "set"
+    if mt not in _VALID_MONITOR_TYPES:
+        valid = ", ".join(sorted(_VALID_MONITOR_TYPES))
+        return f"Invalid monitor_type '{monitor_type}'. Must be one of: {valid}.", None, False
+    return None, MonitorConfig(monitor_type=mt, enabled=True), False
+
+
+def _parse_csv_tuple(raw: str) -> tuple[str, ...]:
+    """Parse comma-separated IDs into a deduplicated tuple."""
+    if not raw.strip():
+        return ()
+    seen: set[str] = set()
+    items: list[str] = []
+    for part in raw.split(","):
+        token = part.strip()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        items.append(token)
+    return tuple(items)
+
+
+def _parse_context_from(raw: str) -> tuple[str, ...]:
+    """Parse comma-separated job IDs into a deduplicated tuple."""
+    if not raw.strip():
+        return ()
+    ids = [s.strip() for s in raw.split(",") if s.strip()]
+    seen: set[str] = set()
+    unique: list[str] = []
+    for ref_id in ids:
+        if ref_id not in seen:
+            seen.add(ref_id)
+            unique.append(ref_id)
+    return tuple(unique)
+
+
+_SESSION_MODE_MAP: dict[str, SessionTarget] = {
+    "isolated": SessionTarget.ISOLATED,
+    "main": SessionTarget.MAIN,
+    "daily": SessionTarget.DAILY,
+}
+
+
+def _parse_session_mode(raw: str) -> tuple[str | None, SessionTarget]:
+    """Parse session_mode string into SessionTarget enum.
+
+    Returns (error_msg, SessionTarget). error_msg is None on success.
+    """
+    cleaned = raw.strip().lower()
+    if not cleaned:
+        return None, SessionTarget.ISOLATED
+    target = _SESSION_MODE_MAP.get(cleaned)
+    if target is None:
+        valid = ", ".join(sorted(_SESSION_MODE_MAP))
+        return f"Invalid session_mode '{raw}'. Must be one of: {valid}.", SessionTarget.ISOLATED
+    return None, target
+
+
+def _build_trigger_config(
+    stream_url: str,
+    stream_protocol: str,
+    stream_filter_json_path: str,
+    stream_filter_regex: str,
+    stream_headers: str,
+    poll_url: str,
+    poll_json_path: str,
+    poll_interval_seconds: int,
+) -> tuple[str | None, TriggerConfig | None]:
+    """Build TriggerConfig from stream/poll tool parameters.
+
+    Returns (error_msg, TriggerConfig).  Both None when neither is specified.
+    """
+    streams: tuple[StreamTrigger, ...] = ()
+    polls: tuple[PollTrigger, ...] = ()
+
+    if stream_url.strip():
+        proto_str = stream_protocol.strip().lower() or "ws"
+        if proto_str not in _VALID_STREAM_PROTOCOLS:
+            valid = ", ".join(sorted(_VALID_STREAM_PROTOCOLS))
+            return f"Invalid stream_protocol '{stream_protocol}'. Must be one of: {valid}.", None
+
+        headers: dict[str, str] = {}
+        if stream_headers.strip():
+            try:
+                headers = json.loads(stream_headers)
+            except (json.JSONDecodeError, TypeError):
+                return "Error: stream_headers must be valid JSON object.", None
+
+        streams = (
+            StreamTrigger(
+                url=stream_url.strip(),
+                protocol=StreamProtocol(proto_str),
+                filter_json_path=stream_filter_json_path.strip() or None,
+                filter_regex=stream_filter_regex.strip() or None,
+                headers=headers,
+            ),
+        )
+
+    if poll_url.strip():
+        interval = poll_interval_seconds if poll_interval_seconds > 0 else 300
+        if interval < _MIN_POLL_INTERVAL_SECONDS:
+            return (
+                f"poll_interval_seconds must be >= {_MIN_POLL_INTERVAL_SECONDS}.",
+                None,
+            )
+        polls = (
+            PollTrigger(
+                url=poll_url.strip(),
+                json_path=poll_json_path.strip() or None,
+                interval_seconds=interval,
+            ),
+        )
+
+    if not streams and not polls:
+        return None, None
+
+    return None, TriggerConfig(streams=streams, polls=polls)
+
+
+async def _do_blueprints(provider: BlueprintCatalogProvider | None) -> str:
+    if provider is None:
+        return "Blueprint catalog is not available in this session."
+    return provider()
+
+
+async def _do_add(
+    mgr: CronManager,
+    user_id: str,
+    prompt: str,
+    command: str,
+    model: str,
+    cron_expr: str,
+    every_minutes: int,
+    at: str,
+    tz: str,
+    name: str,
+    webhook_url: str,
+    failure_webhook_url: str,
+    recurring_confirmed: bool,
+    active_start: str,
+    active_end: str,
+    active_tz: str,
+    chat_id: str | None = None,
+    max_fires: int = 0,
+    expires_after: str = "",
+    agent_id: str | None = None,
+    context_from: str = "",
+    monitor_type: str = "",
+    monitor_enabled: bool = False,
+    session_mode: str = "",
+    stream_url: str = "",
+    stream_protocol: str = "",
+    stream_filter_json_path: str = "",
+    stream_filter_regex: str = "",
+    stream_headers: str = "",
+    poll_url: str = "",
+    poll_json_path: str = "",
+    poll_interval_seconds: int = 0,
+    reminder: bool = False,
+    required_capabilities: tuple[str, ...] = (),
+    tools_allowed: tuple[str, ...] | None = None,
+    skill_ids: tuple[str, ...] = (),
+    *,
+    resolve_delivery: DeliveryResolver,
+) -> str:
+    has_prompt = bool(prompt.strip())
+    has_command = bool(command.strip())
+
+    if reminder and has_command:
+        return "Reminder tasks use prompt only — do not set command."
+    if reminder and not has_prompt:
+        return "Reminder tasks require a non-empty prompt."
+
+    if has_prompt and has_command:
+        return "Provide either prompt (agent task) or command (shell task), not both."
+    if not reminder and not has_prompt and not has_command:
+        return "Either prompt or command is required."
+
+    has_stream_or_poll = bool(stream_url.strip()) or bool(poll_url.strip())
+    has_schedule = any([cron_expr, every_minutes > 0, at])
+
+    if not has_schedule and not has_stream_or_poll:
+        return "Provide a schedule (cron_expr/every_minutes/at) or a trigger (stream_url/poll_url)."
+
+    schedule: Schedule | None = None
+    if has_schedule:
+        err, schedule = _build_schedule(cron_expr, every_minutes, at, tz)
+        if err or not schedule:
+            return err or "Schedule build failed."
+
+        is_recurring = schedule.kind in (ScheduleKind.CRON, ScheduleKind.INTERVAL)
+        if is_recurring and not recurring_confirmed:
+            return (
+                "Recurring schedules (cron_expr or every_minutes) require "
+                "recurring_confirmed=true to prevent accidental creation. "
+                "For one-time reminders, use 'at' instead."
+            )
+
+    if not has_schedule and has_stream_or_poll:
+        schedule = Schedule(kind=ScheduleKind.INTERVAL, interval_ms=_MIN_INTERVAL_MINUTES * 60_000)
+
+    if schedule is None:
+        return "Schedule build failed."
+
+    trig_err, trigger_config = _build_trigger_config(
+        stream_url,
+        stream_protocol,
+        stream_filter_json_path,
+        stream_filter_regex,
+        stream_headers,
+        poll_url,
+        poll_json_path,
+        poll_interval_seconds,
+    )
+    if trig_err:
+        return trig_err
+
+    if has_command:
+        job_type = JobType.SHELL
+        task_name = name.strip() or generate_job_name(command.strip())
+    elif reminder:
+        job_type = JobType.REMINDER
+        task_name = name.strip() or generate_job_name(prompt.strip())
+    else:
+        job_type = JobType.AGENT
+        task_name = name.strip() or generate_job_name(prompt.strip())
+
+    delivery = resolve_delivery(webhook_url)
+    failure_delivery = resolve_delivery(failure_webhook_url) if failure_webhook_url.strip() else None
+    active_hours = _build_active_hours(active_start, active_end, active_tz)
+
+    effective_max_fires: int | None = max_fires if max_fires > 0 else None
+    try:
+        expires_at = _parse_expires_after(expires_after)
+    except (ValueError, TypeError):
+        return f"Invalid expires_after format: '{expires_after}'. Use '3d', '2w', '3m', or ISO 8601."
+
+    parsed_context_from = _parse_context_from(context_from)
+    mon_err, monitor_config, _clear = _build_monitor_config(monitor_type, monitor_enabled)
+    if mon_err:
+        return mon_err
+
+    sm_err, session_target = _parse_session_mode(session_mode)
+    if sm_err:
+        return sm_err
+
+    try:
+        job = await mgr.create_job(
+            user_id=user_id,
+            name=task_name,
+            job_type=job_type,
+            schedule=schedule,
+            prompt=prompt.strip() or None,
+            command=command.strip() or None,
+            model=model.strip() or None,
+            chat_id=chat_id,
+            agent_id=agent_id,
+            delivery=delivery,
+            failure_delivery=failure_delivery,
+            active_hours=active_hours,
+            session_target=session_target,
+            max_fires=effective_max_fires,
+            expires_at=expires_at,
+            context_from=parsed_context_from,
+            monitor_config=monitor_config,
+            triggers=trigger_config,
+            required_capabilities=required_capabilities,
+            tools_allowed=tools_allowed,
+            skill_ids=skill_ids,
+        )
+    except ValueError as exc:
+        return str(exc)
+
+    next_run = job.next_run_at.strftime("%Y-%m-%d %H:%M UTC") if job.next_run_at else "N/A"
+    type_label = {
+        JobType.SHELL: "Shell",
+        JobType.REMINDER: "Reminder",
+    }.get(job_type, "Agent")
+
+    result: dict[str, str | int | None] = {
+        "status": "success",
+        "action": "add",
+        "job_id": job.id,
+        "name": job.name,
+        "job_type": type_label,
+        "model": job.model,
+        "schedule": describe_schedule(schedule),
+        "next_run": next_run,
+    }
+    if job.max_fires is not None:
+        result["max_fires"] = job.max_fires
+    if job.expires_at is not None:
+        result["expires_at"] = job.expires_at.strftime("%Y-%m-%d %H:%M UTC")
+    if job.context_from:
+        result["context_from"] = list(job.context_from)
+    if job.monitor_config and job.monitor_config.enabled:
+        result["monitor"] = job.monitor_config.monitor_type
+    if trigger_config:
+        if trigger_config.streams:
+            result["stream"] = trigger_config.streams[0].url
+        if trigger_config.polls:
+            result["poll"] = trigger_config.polls[0].url
+
+    return json.dumps(result, ensure_ascii=False)
+
+
+async def _do_list(mgr: CronManager, user_id: str, name_filter: str) -> str:
+    jobs = await mgr.list_jobs(user_id, name_filter=name_filter.strip() or None)
+    if not jobs:
+        return "No scheduled tasks."
+
+    lines: list[str] = [f"{len(jobs)} task(s):\n"]
+    for j in jobs:
+        next_run = j.next_run_at.strftime("%m-%d %H:%M") if j.next_run_at else "—"
+        icon = ">" if j.status.value == "active" else "||"
+        type_tag = {
+            JobType.SHELL: "[shell]",
+            JobType.REMINDER: "[reminder]",
+        }.get(j.job_type, "")
+        model_tag = f" ({j.model})" if j.model else ""
+        fires_tag = f" [{j.fire_count}/{j.max_fires}]" if j.max_fires else ""
+        ctx_tag = f" ←[{','.join(j.context_from)}]" if j.context_from else ""
+        mon_tag = f" [Δ{j.monitor_config.monitor_type}]" if j.monitor_config and j.monitor_config.enabled else ""
+        lines.append(
+            f"  {icon} [{j.id}] {j.name}{type_tag}{model_tag}{fires_tag}{ctx_tag}{mon_tag} | {j.status.value} | next: {next_run}"
+        )
+    return "\n".join(lines)
+
+
+async def _do_update(
+    mgr: CronManager,
+    user_id: str,
+    job_id: str,
+    prompt: str,
+    command: str,
+    model: str,
+    cron_expr: str,
+    every_minutes: int,
+    at: str,
+    tz: str,
+    name: str,
+    max_fires: int = 0,
+    expires_after: str = "",
+    context_from: str = "",
+    monitor_type: str = "",
+    monitor_enabled: bool = False,
+    session_mode: str = "",
+    required_capabilities: tuple[str, ...] | None = None,
+    tools_allowed: tuple[str, ...] | None = None,
+    skill_ids: tuple[str, ...] | None = None,
+) -> str:
+    if not job_id:
+        return "job_id required. Use action='list' first."
+
+    new_schedule: Schedule | None = None
+    if any([cron_expr, every_minutes > 0, at]):
+        err, new_schedule = _build_schedule(cron_expr, every_minutes, at, tz)
+        if err:
+            return err
+
+    effective_max_fires: int | None = max_fires if max_fires > 0 else None
+    try:
+        expires_at = _parse_expires_after(expires_after)
+    except (ValueError, TypeError):
+        return f"Invalid expires_after format: '{expires_after}'. Use '3d', '2w', '3m', or ISO 8601."
+
+    parsed_context_from = _parse_context_from(context_from) if context_from.strip() else None
+    mon_err, monitor_config, clear_monitor = _build_monitor_config(monitor_type, monitor_enabled)
+    if mon_err:
+        return mon_err
+
+    parsed_session_target: SessionTarget | None = None
+    if session_mode.strip():
+        sm_err, parsed_session_target = _parse_session_mode(session_mode)
+        if sm_err:
+            return sm_err
+
+    patch = CronJobPatch(
+        name=name.strip() or None,
+        prompt=prompt.strip() or None,
+        command=command.strip() or None,
+        model=model.strip() or None,
+        schedule=new_schedule,
+        max_fires=effective_max_fires,
+        expires_at=expires_at,
+        context_from=parsed_context_from,
+        monitor_config=monitor_config,
+        clear_monitor_config=clear_monitor,
+        session_target=parsed_session_target,
+        required_capabilities=required_capabilities,
+        tools_allowed=tools_allowed,
+        skill_ids=skill_ids,
+        clear_skill_ids=skill_ids is not None and len(skill_ids) == 0,
+    )
+
+    try:
+        job = await mgr.update_job(job_id, user_id, patch)
+    except ValueError as exc:
+        return str(exc)
+
+    if not job:
+        return f"Task {job_id} not found."
+
+    next_run = job.next_run_at.strftime("%Y-%m-%d %H:%M UTC") if job.next_run_at else "N/A"
+    type_label = {
+        JobType.SHELL: "Shell",
+        JobType.REMINDER: "Reminder",
+    }.get(job.job_type, "Agent")
+
+    result: dict[str, str | int | None] = {
+        "status": "success",
+        "action": "update",
+        "job_id": job.id,
+        "name": job.name,
+        "job_type": type_label,
+        "model": job.model,
+        "schedule": describe_schedule(job.schedule),
+        "next_run": next_run,
+    }
+    if job.max_fires is not None:
+        result["max_fires"] = job.max_fires
+        result["fire_count"] = job.fire_count
+    if job.expires_at is not None:
+        result["expires_at"] = job.expires_at.strftime("%Y-%m-%d %H:%M UTC")
+    if job.context_from:
+        result["context_from"] = list(job.context_from)
+    if job.monitor_config and job.monitor_config.enabled:
+        result["monitor"] = job.monitor_config.monitor_type
+
+    return json.dumps(result, ensure_ascii=False)
+
+
+async def _do_remove(mgr: CronManager, user_id: str, job_id: str) -> str:
+    if not job_id:
+        return "job_id required. Use action='list' to find IDs."
+    deleted = await mgr.delete_job(job_id, user_id)
+    return f"Task {job_id} deleted." if deleted else f"Task {job_id} not found."
+
+
+async def _do_run(mgr: CronManager, user_id: str, job_id: str) -> str:
+    if not job_id:
+        return "job_id required. Use action='list' to find IDs."
+    triggered = await mgr.trigger_now(job_id, user_id)
+    return f"Task {job_id} triggered." if triggered else f"Task {job_id} not found or not active."
+
+
+async def _do_pause(mgr: CronManager, user_id: str, job_id: str) -> str:
+    if not job_id:
+        return "job_id required. Use action='list' to find IDs."
+    job = await mgr.pause_job(job_id, user_id)
+    if not job:
+        return f"Task {job_id} not found."
+    return json.dumps(
+        {"status": "success", "action": "pause", "job_id": job.id, "name": job.name},
+        ensure_ascii=False,
+    )
+
+
+async def _do_resume(mgr: CronManager, user_id: str, job_id: str) -> str:
+    if not job_id:
+        return "job_id required. Use action='list' to find IDs."
+    try:
+        job = await mgr.resume_job(job_id, user_id)
+    except ValueError:
+        return f"Cannot resume task {job_id}"
+    if not job:
+        return f"Task {job_id} not found."
+    next_run = job.next_run_at.strftime("%Y-%m-%d %H:%M UTC") if job.next_run_at else "N/A"
+    return json.dumps(
+        {"status": "success", "action": "resume", "job_id": job.id, "name": job.name, "next_run": next_run},
+        ensure_ascii=False,
+    )

@@ -1,0 +1,23 @@
+# agent/streaming/broadcast/
+
+## Overview
+In-process **tool-call side-channel** pub-sub. **`ToolBroadcastBus`** singleton + **`ToolCallBroadcaster`** hook listener.
+
+**Chat UI tool progress** uses `ToolCallBroadcaster` → `EventLogger` → agent SSE stream (see `agent/streaming/stream_dispatcher.py`), not bus subscribers.
+
+**Bus subscribers** are optional server-side consumers (a business layer attaches its own transport adapters or analyzers); the shipped server registers none.
+
+**Not** [`observability/`](../../../observability/_ARCH.md) (metrics/Doctor) or [`infra/pubsub/`](../../../infra/pubsub/_ARCH.md) (Server business SSE).
+
+## File Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Re-exports ToolBroadcastBus, ToolCallBroadcaster, ToolCallEventData | ✅ |
+| event_bus.py | Core | ToolBroadcastBus — async pub-sub with backpressure for tool events | ✅ |
+| tool_call_broadcaster.py | Core | Hook listener publishing PRE/POST tool events. The callbacks resolve the event logger per event (the run installs its logger after the broadcaster is registered on the session registry), so a broadcaster registered once serves every later run of the session. | ✅ |
+| types.py | Config | ToolCallEventData, EventCallback | ✅ |
+
+## Key Dependencies
+
+- `agent.hooks`, `agent.event_log`, `agent.streaming.types`

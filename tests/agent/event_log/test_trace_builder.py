@@ -1,0 +1,1563 @@
+"""Unit tests for trace_types and trace_builder.
+
+Tests ExecutionTrace aggregation from raw events, metadata extraction,
+dimension filtering, and incremental builds.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from myrm_agent_harness.agent.event_log._common import _int_or_zero
+from myrm_agent_harness.agent.event_log.trace_builder import build_trace, query_traces
+from myrm_agent_harness.agent.event_log.trace_types import (
+    ExecutionTrace,
+    ToolCallRecord,
+    TraceMetadata,
+    TraceOutcome,
+)
+from myrm_agent_harness.agent.event_log.types import EventFilter, StructuredEvent
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+class InMemoryBackend:
+    """Minimal in-memory backend for testing."""
+
+    def __init__(self, events: dict[str, list[StructuredEvent]] | None = None) -> None:
+        self._events: dict[str, list[StructuredEvent]] = events or {}
+
+    async def append(self, events: list[StructuredEvent]) -> None:
+        for e in events:
+            self._events.setdefault(e.session_id, []).append(e)
+
+    async def get_events(self, session_id: str, event_filter: EventFilter | None = None) -> list[StructuredEvent]:
+        events = self._events.get(session_id, [])
+        if event_filter:
+            if event_filter.start_sequence is not None:
+                events = [e for e in events if e.sequence >= event_filter.start_sequence]
+            if event_filter.start_time is not None:
+                events = [e for e in events if e.timestamp >= event_filter.start_time]
+            if event_filter.end_time is not None:
+                events = [e for e in events if e.timestamp <= event_filter.end_time]
+            if event_filter.event_types:
+                events = [e for e in events if e.event_type in event_filter.event_types]
+            if event_filter.limit:
+                events = events[: event_filter.limit]
+        return events
+
+    async def get_all_session_ids(self) -> list[str]:
+        return sorted(self._events.keys())
+
+    async def get_latest_custom_state(
+        self,
+        session_id: str,
+        custom_type: str | None = None,
+        max_sequence: int | None = None,
+    ) -> dict[str, object]:
+        for event in reversed(self._events.get(session_id, [])):
+            if max_sequence is not None and event.sequence > max_sequence:
+                continue
+            if event.event_type == "custom":
+                payload = event.data
+                if isinstance(payload, dict) and (custom_type is None or payload.get("custom_type") == custom_type):
+                    return payload
+        return {}
+
+    async def close(self) -> None:
+        pass
+
+
+def _event(
+    seq: int,
+    event_type: str,
+    session_id: str = "sess-1",
+    ts: float = 1700000000.0,
+    **data: object,
+) -> StructuredEvent:
+    return StructuredEvent(
+        sequence=seq,
+        timestamp=ts + seq,
+        event_type=event_type,
+        session_id=session_id,
+        data=dict(data),
+    )
+
+
+# ---------------------------------------------------------------------------
+# TraceMetadata
+# ---------------------------------------------------------------------------
+
+
+class TestTraceMetadata:
+    def test_defaults(self) -> None:
+        meta = TraceMetadata()
+        assert meta.user_id is None
+        assert meta.agent_id is None
+        assert meta.task_type is None
+        assert meta.trace_id is None
+
+    def test_frozen(self) -> None:
+        meta = TraceMetadata(user_id="u1")
+        with pytest.raises(AttributeError):
+            meta.user_id = "u2"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# ToolCallRecord
+# ---------------------------------------------------------------------------
+
+
+class TestToolCallRecord:
+    def test_frozen(self) -> None:
+        record = ToolCallRecord(sequence=1, tool_name="bash", start_time=0.0)
+        with pytest.raises(AttributeError):
+            record.tool_name = "file_read"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# ExecutionTrace
+# ---------------------------------------------------------------------------
+
+
+class TestExecutionTrace:
+    def test_to_dict(self) -> None:
+        trace = ExecutionTrace(
+            session_id="s1",
+            metadata=TraceMetadata(user_id="u1", trace_id="abc123"),
+            outcome=TraceOutcome.SUCCESS,
+            start_time=100.0,
+            end_time=110.0,
+            duration_ms=10000.0,
+            task_input="do something",
+            output="done",
+        )
+        d = trace.to_dict()
+        assert d["session_id"] == "s1"
+        assert d["metadata"]["user_id"] == "u1"
+        assert d["outcome"] == "success"
+        assert d["duration_ms"] == 10000.0
+
+
+# ---------------------------------------------------------------------------
+# build_trace
+# ---------------------------------------------------------------------------
+
+
+class TestBuildTrace:
+    @pytest.mark.asyncio
+    async def test_basic_successful_trace(self) -> None:
+        events = [
+            _event(1, "session_start", _user_id="user-1", _agent_id="agent-1"),
+            _event(2, "tool_start", tool_name="file_read"),
+            _event(3, "tool_end", tool_name="file_read", duration_ms=100.0),
+            _event(4, "tool_start", tool_name="bash"),
+            _event(5, "tool_end", tool_name="bash", duration_ms=500.0),
+            _event(6, "session_end", summary={"input_tokens": 100, "output_tokens": 50}),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.session_id == "sess-1"
+        assert trace.metadata.user_id == "user-1"
+        assert trace.metadata.agent_id == "agent-1"
+        assert trace.outcome == TraceOutcome.SUCCESS
+        assert len(trace.tool_calls) == 2
+        assert trace.tool_calls[0].tool_name == "file_read"
+        assert trace.tool_calls[0].success is True
+        assert trace.tool_calls[0].duration_ms == 100.0
+        assert trace.tool_calls[1].tool_name == "bash"
+        assert trace.total_events == 6
+        assert trace.total_tokens == 150
+
+    @pytest.mark.asyncio
+    async def test_failed_trace(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash"),
+            _event(
+                3,
+                "tool_failure",
+                tool_name="bash",
+                error="command failed",
+                duration_ms=200.0,
+            ),
+            _event(4, "error", error="task failed", error_type="RuntimeError"),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.outcome == TraceOutcome.FAILURE
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].success is False
+        assert trace.tool_calls[0].error == "command failed"
+        assert len(trace.errors) == 1
+        assert trace.errors[0]["error_type"] == "RuntimeError"
+
+    @pytest.mark.asyncio
+    async def test_human_feedback(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tool_approval_request",
+                tool_name="bash",
+                action="run rm -rf /",
+                approved=False,
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.human_feedback) == 1
+        assert trace.human_feedback[0]["tool_name"] == "bash"
+        assert trace.human_feedback[0]["approved"] is False
+
+    @pytest.mark.asyncio
+    async def test_empty_session(self) -> None:
+        backend = InMemoryBackend({})
+        trace = await build_trace(backend, "nonexistent")
+
+        assert trace.session_id == "nonexistent"
+        assert trace.outcome == TraceOutcome.UNKNOWN
+        assert trace.total_events == 0
+
+    @pytest.mark.asyncio
+    async def test_incremental_build(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash"),
+            _event(3, "tool_end", tool_name="bash", duration_ms=100.0),
+            _event(4, "tool_start", tool_name="file_read"),
+            _event(5, "tool_end", tool_name="file_read", duration_ms=50.0),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+
+        trace = await build_trace(backend, "sess-1", start_sequence=4)
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].tool_name == "file_read"
+
+
+# ---------------------------------------------------------------------------
+# query_traces
+# ---------------------------------------------------------------------------
+
+
+class TestQueryTraces:
+    @pytest.mark.asyncio
+    async def test_filter_by_user_id(self) -> None:
+        backend = InMemoryBackend(
+            {
+                "sess-1": [
+                    _event(1, "session_start", session_id="sess-1", _user_id="user-a"),
+                    _event(2, "session_end", session_id="sess-1"),
+                ],
+                "sess-2": [
+                    _event(1, "session_start", session_id="sess-2", _user_id="user-b"),
+                    _event(2, "session_end", session_id="sess-2"),
+                ],
+            }
+        )
+
+        traces = await query_traces(backend, user_id="user-a")
+        assert len(traces) == 1
+        assert traces[0].session_id == "sess-1"
+
+    @pytest.mark.asyncio
+    async def test_limit(self) -> None:
+        backend = InMemoryBackend(
+            {
+                f"sess-{i}": [
+                    _event(1, "session_start", session_id=f"sess-{i}"),
+                    _event(2, "session_end", session_id=f"sess-{i}"),
+                ]
+                for i in range(5)
+            }
+        )
+
+        traces = await query_traces(backend, limit=2)
+        assert len(traces) == 2
+
+
+# ---------------------------------------------------------------------------
+# Edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestEdgeCases:
+    @pytest.mark.asyncio
+    async def test_tool_failure_without_preceding_tool_start(self) -> None:
+        """tool_failure without a matching tool_start should still produce a record."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_failure", tool_name="bash", error="unexpected failure"),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].success is False
+        assert trace.tool_calls[0].error == "unexpected failure"
+        assert trace.tool_calls[0].input_data == {}
+
+    @pytest.mark.asyncio
+    async def test_tool_start_without_tool_end(self) -> None:
+        """tool_start without a corresponding tool_end — pending tool is never completed."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="long_running"),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_tool_start_strips_event_metadata_from_input_data(self) -> None:
+        """Bookkeeping keys on a tool_start payload must not leak into input_data.
+
+        The streaming broadcaster (``ToolCallEventData.to_dict``) attaches
+        status/start_time/session_id/message_id/tool_call_id/version/fault_side
+        next to the real ``args``; only tool input may surface as input_data.
+        """
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tool_start",
+                tool_name="bash",
+                status="started",
+                start_time=1755000000.123,
+                duration_ms=120,
+                args={"command": "echo hi"},
+                session_id="sess-abc",
+                message_id="msg-9",
+                tool_call_id="call-7ab3",
+                version=2,
+                fault_side="harness_tool",
+            ),
+            _event(
+                3,
+                "tool_end",
+                tool_name="bash",
+                tool_call_id="call-7ab3",
+                duration_ms=120,
+                result="hi",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.input_data == {"args": {"command": "echo hi"}}
+        assert tc.tool_call_id == "call-7ab3"
+        assert tc.message_id == "msg-9"
+        assert tc.success is True
+
+    @pytest.mark.asyncio
+    async def test_missing_event_data_fields(self) -> None:
+        """Events with missing expected data fields should not crash."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start"),
+            _event(3, "tool_end"),
+            _event(4, "error"),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.total_events == 5
+        assert len(trace.tool_calls) == 0
+        assert len(trace.errors) == 1
+
+    @pytest.mark.asyncio
+    async def test_multiple_errors(self) -> None:
+        """Multiple error events should all be captured."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "error", error="first error", error_type="ValueError"),
+            _event(3, "error", error="second error", error_type="IOError"),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.outcome == TraceOutcome.FAILURE
+        assert len(trace.errors) == 2
+
+    @pytest.mark.asyncio
+    async def test_task_input_extraction_variants(self) -> None:
+        """session_start should try task_input, query, and message fields."""
+        for key in ("task_input", "query", "message"):
+            events = [
+                _event(1, "session_start", **{key: "hello world"}),
+                _event(2, "session_end"),
+            ]
+            backend = InMemoryBackend({"sess-1": events})
+            trace = await build_trace(backend, "sess-1")
+            assert trace.task_input == "hello world", f"Failed for key={key}"
+
+    @pytest.mark.asyncio
+    async def test_output_extraction_variants(self) -> None:
+        """session_end should try output and result fields."""
+        for key in ("output", "result"):
+            events = [
+                _event(1, "session_start"),
+                _event(2, "session_end", **{key: "completed"}),
+            ]
+            backend = InMemoryBackend({"sess-1": events})
+            trace = await build_trace(backend, "sess-1")
+            assert trace.output == "completed", f"Failed for key={key}"
+
+    @pytest.mark.asyncio
+    async def test_unknown_event_types_ignored(self) -> None:
+        """Unknown event types should be silently ignored."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "custom_metric", value=42),
+            _event(3, "internal_debug", msg="test"),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.total_events == 4
+        assert len(trace.tool_calls) == 0
+        assert len(trace.errors) == 0
+
+    @pytest.mark.asyncio
+    async def test_session_without_session_start(self) -> None:
+        """Events without session_start — start_time remains 0."""
+        events = [
+            _event(1, "tool_start", tool_name="bash"),
+            _event(2, "tool_end", tool_name="bash"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.start_time == 0.0
+        assert trace.total_events == 2
+
+    @pytest.mark.asyncio
+    async def test_session_without_session_end(self) -> None:
+        """Events without session_end — outcome remains UNKNOWN."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash"),
+            _event(3, "tool_end", tool_name="bash"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.outcome == TraceOutcome.UNKNOWN
+        assert trace.end_time == 0.0
+
+    @pytest.mark.asyncio
+    async def test_to_dict_with_tool_calls(self) -> None:
+        """to_dict should serialize tool_calls correctly."""
+        trace = ExecutionTrace(session_id="s1")
+        trace.tool_calls = [
+            ToolCallRecord(
+                sequence=1,
+                tool_name="bash",
+                start_time=100.0,
+                end_time=101.0,
+                duration_ms=1000.0,
+                success=True,
+            ),
+            ToolCallRecord(
+                sequence=2,
+                tool_name="file_read",
+                start_time=101.0,
+                end_time=102.0,
+                success=False,
+                error="not found",
+            ),
+        ]
+        d = trace.to_dict()
+        assert len(d["tool_calls"]) == 2
+        assert d["tool_calls"][0]["tool_name"] == "bash"
+        assert d["tool_calls"][1]["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_query_traces_filter_by_task_type(self) -> None:
+        """query_traces should filter by task_type."""
+        backend = InMemoryBackend(
+            {
+                "sess-1": [
+                    _event(1, "session_start", session_id="sess-1", _task_type="coding"),
+                    _event(2, "session_end", session_id="sess-1"),
+                ],
+                "sess-2": [
+                    _event(1, "session_start", session_id="sess-2", _task_type="search"),
+                    _event(2, "session_end", session_id="sess-2"),
+                ],
+            }
+        )
+
+        traces = await query_traces(backend, task_type="coding")
+        assert len(traces) == 1
+        assert traces[0].metadata.task_type == "coding"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_same_tool_calls(self) -> None:
+        """Two parallel calls to the same tool should both produce records (FIFO matching)."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash"),
+            _event(3, "tool_start", tool_name="bash"),
+            _event(4, "tool_end", tool_name="bash", duration_ms=100.0),
+            _event(5, "tool_end", tool_name="bash", duration_ms=200.0),
+            _event(6, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 2
+        assert trace.tool_calls[0].sequence == 2
+        assert trace.tool_calls[0].duration_ms == 100.0
+        assert trace.tool_calls[1].sequence == 3
+        assert trace.tool_calls[1].duration_ms == 200.0
+
+    @pytest.mark.asyncio
+    async def test_tool_end_without_matching_tool_start(self) -> None:
+        """tool_end with no matching pending tool_start should be silently ignored."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_end", tool_name="file_read", duration_ms=50.0),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_non_string_task_input_ignored(self) -> None:
+        """Non-string task_input (e.g. dict/int) should be ignored."""
+        events = [
+            _event(1, "session_start", task_input={"complex": True}),
+            _event(2, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.task_input == ""
+
+    @pytest.mark.asyncio
+    async def test_summary_non_dict_ignored(self) -> None:
+        """Non-dict summary in session_end should not crash."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "session_end", summary="just a string"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.total_tokens == 0
+
+    @pytest.mark.asyncio
+    async def test_negative_duration_when_end_before_start(self) -> None:
+        """duration_ms should be negative if end_time < start_time (clock drift)."""
+        events = [
+            _event(1, "session_start", ts=1700000010.0),
+            _event(2, "session_end", ts=1700000000.0),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.start_time == 1700000011.0
+        assert trace.end_time == 1700000002.0
+        assert trace.duration_ms < 0
+
+    @pytest.mark.asyncio
+    async def test_tool_end_missing_tool_name(self) -> None:
+        """tool_end without tool_name field should be silently ignored."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash"),
+            _event(3, "tool_end", duration_ms=50.0),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_query_traces_skips_empty_sessions(self) -> None:
+        """Sessions with no events should be skipped in query_traces."""
+        backend = InMemoryBackend(
+            {
+                "sess-1": [],
+                "sess-2": [
+                    _event(1, "session_start", session_id="sess-2"),
+                    _event(2, "session_end", session_id="sess-2"),
+                ],
+            }
+        )
+
+        traces = await query_traces(backend)
+        assert len(traces) == 1
+        assert traces[0].session_id == "sess-2"
+
+    @pytest.mark.asyncio
+    async def test_query_traces_time_range_filter(self) -> None:
+        """query_traces should pass start_time/end_time to backend filter."""
+        backend = InMemoryBackend(
+            {
+                "sess-1": [
+                    _event(1, "session_start", session_id="sess-1", ts=1700000000.0),
+                    _event(2, "session_end", session_id="sess-1", ts=1700000010.0),
+                ],
+                "sess-2": [
+                    _event(1, "session_start", session_id="sess-2", ts=1700001000.0),
+                    _event(2, "session_end", session_id="sess-2", ts=1700001010.0),
+                ],
+            }
+        )
+
+        traces = await query_traces(backend, start_time=1700000500.0)
+        assert len(traces) == 1
+        assert traces[0].session_id == "sess-2"
+
+    @pytest.mark.asyncio
+    async def test_tool_failure_missing_tool_name(self) -> None:
+        """tool_failure without tool_name should be silently ignored."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_failure", error="some error"),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_non_string_output_ignored(self) -> None:
+        """Non-string output (e.g. dict) in session_end should be ignored."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "session_end", output={"structured": True}),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.output == ""
+
+    @pytest.mark.asyncio
+    async def test_tool_failure_empty_error_yields_none(self) -> None:
+        """tool_failure with empty error string should set error=None."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash"),
+            _event(3, "tool_failure", tool_name="bash", error=""),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].error is None
+
+    @pytest.mark.asyncio
+    async def test_tool_end_captures_output_data(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash", command="echo hi"),
+            _event(
+                3,
+                "tool_end",
+                tool_name="bash",
+                duration_ms=50.0,
+                output="hi\n",
+                output_summary="hi",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].input_data == {"command": "echo hi"}
+        assert trace.tool_calls[0].output_data == "hi\n"
+        assert trace.tool_calls[0].output_summary == "hi"
+
+        d = trace.to_dict()
+        assert d["tool_calls"][0]["input_data"] == {"command": "echo hi"}
+        assert d["tool_calls"][0]["output_data"] == "hi\n"
+
+    @pytest.mark.asyncio
+    async def test_tool_end_output_data_falls_back_to_result_and_stringifies_scalars(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="calc", tool_call_id="c1"),
+            _event(3, "tool_end", tool_name="calc", tool_call_id="c1", output="", result=42),
+            _event(4, "tool_start", tool_name="noop", tool_call_id="c2"),
+            _event(5, "tool_end", tool_name="noop", tool_call_id="c2", output=None),
+        ]
+        trace = await build_trace(InMemoryBackend({"sess-1": events}), "sess-1")
+
+        assert [tc.output_data for tc in trace.tool_calls] == ["42", None]
+
+
+# ---------------------------------------------------------------------------
+# Instruction lineage: tool_call_id / message_id attribution
+# ---------------------------------------------------------------------------
+
+
+class TestLineageAttribution:
+    @pytest.mark.asyncio
+    async def test_concurrent_same_tool_paired_by_call_id(self) -> None:
+        """Concurrent calls to the same tool must pair by tool_call_id, not FIFO order."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tool_start",
+                tool_name="bash",
+                tool_call_id="call-a",
+                message_id="msg-1",
+            ),
+            _event(
+                3,
+                "tool_start",
+                tool_name="bash",
+                tool_call_id="call-b",
+                message_id="msg-2",
+            ),
+            # End events arrive in reversed completion order.
+            _event(
+                4,
+                "tool_end",
+                tool_name="bash",
+                tool_call_id="call-b",
+                duration_ms=200.0,
+            ),
+            _event(
+                5,
+                "tool_end",
+                tool_name="bash",
+                tool_call_id="call-a",
+                duration_ms=100.0,
+            ),
+            _event(6, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 2
+        by_id = {tc.tool_call_id: tc for tc in trace.tool_calls}
+        assert by_id["call-a"].sequence == 2
+        assert by_id["call-a"].duration_ms == 100.0
+        assert by_id["call-a"].message_id == "msg-1"
+        assert by_id["call-b"].sequence == 3
+        assert by_id["call-b"].duration_ms == 200.0
+        assert by_id["call-b"].message_id == "msg-2"
+
+    @pytest.mark.asyncio
+    async def test_failure_paired_by_call_id(self) -> None:
+        """tool_failure must consume the pending tool matching its tool_call_id."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tool_start",
+                tool_name="bash",
+                tool_call_id="call-a",
+                message_id="msg-1",
+            ),
+            _event(3, "tool_start", tool_name="bash", tool_call_id="call-b"),
+            _event(
+                4,
+                "tool_failure",
+                tool_name="bash",
+                tool_call_id="call-a",
+                error="boom",
+                duration_ms=30.0,
+            ),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].tool_call_id == "call-a"
+        assert trace.tool_calls[0].message_id == "msg-1"
+        assert trace.tool_calls[0].error == "boom"
+
+    @pytest.mark.asyncio
+    async def test_to_dict_serializes_lineage_fields(self) -> None:
+        """tool_call_id and message_id survive to_dict serialization."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tool_start",
+                tool_name="bash",
+                tool_call_id="call-1",
+                message_id="msg-1",
+            ),
+            _event(3, "tool_end", tool_name="bash", tool_call_id="call-1", duration_ms=50.0),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        d = trace.to_dict()
+        assert d["tool_calls"][0]["tool_call_id"] == "call-1"
+        assert d["tool_calls"][0]["message_id"] == "msg-1"
+
+    @pytest.mark.asyncio
+    async def test_legacy_events_fall_back_to_fifo(self) -> None:
+        """Events without tool_call_id keep the previous FIFO pairing behavior."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash"),
+            _event(3, "tool_start", tool_name="bash"),
+            _event(4, "tool_end", tool_name="bash", duration_ms=100.0),
+            _event(5, "tool_end", tool_name="bash", duration_ms=200.0),
+            _event(6, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 2
+        assert trace.tool_calls[0].sequence == 2
+        assert trace.tool_calls[0].duration_ms == 100.0
+        assert trace.tool_calls[1].sequence == 3
+        assert trace.tool_calls[1].duration_ms == 200.0
+
+    @pytest.mark.asyncio
+    async def test_call_id_match_wins_over_older_pending(self) -> None:
+        """An id-tagged tool_end must pair with its own call even when an older
+        untagged pending tool of the same name exists."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="web_search"),  # legacy, no id
+            _event(
+                3,
+                "tool_start",
+                tool_name="web_search",
+                tool_call_id="call-9",
+                message_id="msg-9",
+            ),
+            _event(
+                4,
+                "tool_end",
+                tool_name="web_search",
+                tool_call_id="call-9",
+                duration_ms=500.0,
+            ),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].tool_call_id == "call-9"
+        assert trace.tool_calls[0].message_id == "msg-9"
+        assert trace.tool_calls[0].duration_ms == 500.0
+
+    @pytest.mark.asyncio
+    async def test_token_usage_legacy_end_time_fallback(self) -> None:
+        ts = 1700000005.0
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "token_usage",
+                ts=ts,
+                usage={
+                    "prompt_tokens": 100,
+                    "completion_tokens": 50,
+                    "total_tokens": 150,
+                },
+                model_name="gpt-4o",
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.llm_calls) == 1
+        assert trace.llm_calls[0].end_time == ts + 2
+        assert trace.llm_calls[0].start_time == ts + 2
+        assert trace.llm_calls[0].model_name == "gpt-4o"
+        assert trace.llm_calls[0].total_tokens == 150
+
+    @pytest.mark.asyncio
+    async def test_llm_request_merged_with_token_usage(self) -> None:
+        ts = 1700000000.0
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "llm_request",
+                ts=ts,
+                model_name="gpt-4o",
+                prompt_preview="[user] hello",
+                message_count=3,
+            ),
+            _event(
+                3,
+                "token_usage",
+                ts=ts,
+                duration_ms=2000.0,
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                model_name="gpt-4o",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.llm_calls) == 1
+        lc = trace.llm_calls[0]
+        assert lc.sequence == 2
+        assert lc.start_time == ts + 2
+        assert lc.end_time == ts + 3
+        assert lc.prompt_preview == "[user] hello"
+        assert lc.message_count == 3
+        assert lc.duration_ms == 2000.0
+
+    @pytest.mark.asyncio
+    async def test_token_usage_legacy_duration_backcalculates_start(self) -> None:
+        ts = 1700000005.0
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "token_usage",
+                ts=ts,
+                duration_ms=3000.0,
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                model_name="gpt-4o",
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.llm_calls) == 1
+        lc = trace.llm_calls[0]
+        assert lc.end_time == ts + 2
+        assert lc.start_time == lc.end_time - 3.0
+        assert lc.duration_ms == 3000.0
+
+
+# ---------------------------------------------------------------------------
+# tasks_steps progress events (updates-stream tool invocations)
+# ---------------------------------------------------------------------------
+
+
+class TestTasksStepsProgress:
+    """The streaming layer reports tool invocations as ``tasks_steps`` events.
+
+    ``streaming.event_handlers._handle_tool_calls`` emits ``step_key``,
+    ``tool_call_id``, ``tool_name``, ``reason``, ``data`` and ``messageId``;
+    ``_handle_tool_result`` emits error steps with ``status=error`` and the
+    same messageId but no tool_call_id.
+    """
+
+    @pytest.mark.asyncio
+    async def test_start_step_creates_lineaged_record(self) -> None:
+        """A running tasks_steps step must create a lineaged ToolCallRecord."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-7",
+                tool_name="bash_code_execute_tool",
+                reason="get cwd",
+                data=[{"text": "run: pwd"}],
+                messageId="msg-1",
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.tool_name == "bash_code_execute_tool"
+        assert tc.tool_call_id == "call-7"
+        assert tc.message_id == "msg-1"
+        assert tc.start_time > 0
+        assert tc.end_time is None
+        assert tc.success is True
+        # Display rows / bookkeeping keys must not leak into input_data.
+        assert tc.input_data == {}
+        d = trace.to_dict()
+        assert d["tool_calls"][0]["tool_call_id"] == "call-7"
+        assert d["tool_calls"][0]["message_id"] == "msg-1"
+
+    @pytest.mark.asyncio
+    async def test_completed_status_is_success(self) -> None:
+        """A terminal-but-successful status (completed) must not mark the tool failed."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-88",
+                tool_name="bash_code_execute_tool",
+                status="completed",
+                data=[{"text": "run: pwd"}],
+                messageId="msg-1",
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.success is True
+        # Display rows / status must not leak into input_data.
+        assert tc.input_data == {}
+
+    @pytest.mark.asyncio
+    async def test_error_step_closes_running_record_by_context(self) -> None:
+        """An error step (no tool_call_id) must close the matching running record."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-8",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-2",
+            ),
+            _event(
+                3,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool_error",
+                tool_name="bash_code_execute_tool",
+                status="error",
+                error="exit code 1",
+                messageId="msg-2",
+                fault_side="harness_tool",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.tool_call_id == "call-8"
+        assert tc.success is False
+        assert tc.error == "exit code 1"
+        assert tc.end_time is not None
+        assert tc.fault_side == "harness_tool"
+
+    @pytest.mark.asyncio
+    async def test_completed_step_closes_existing_record(self) -> None:
+        """A terminal-but-successful step must close the matching open record."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-10",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-4",
+            ),
+            _event(
+                3,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-10",
+                tool_name="bash_code_execute_tool",
+                status="completed",
+                messageId="msg-4",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.success is True
+        assert tc.end_time is not None
+
+    @pytest.mark.asyncio
+    async def test_error_step_without_existing_record_appends_failure(self) -> None:
+        """An error step with no matching record must still surface a failure record."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool_error",
+                tool_name="bash_code_execute_tool",
+                status="error",
+                error="exit code 1",
+                messageId="msg-5",
+                fault_side="harness_tool",
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.success is False
+        assert tc.error == "exit code 1"
+        assert tc.fault_side == "harness_tool"
+        assert tc.end_time is not None
+
+    @pytest.mark.asyncio
+    async def test_tasks_step_start_then_tool_end_no_duplicate(self) -> None:
+        """A tasks_steps start + tool_end for the same call must be one record."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-9",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-3",
+            ),
+            _event(
+                3,
+                "tool_end",
+                tool_name="bash_code_execute_tool",
+                tool_call_id="call-9",
+                duration_ms=25.0,
+                output="ok\n",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.tool_call_id == "call-9"
+        assert tc.success is True
+        assert tc.end_time is not None
+        assert tc.duration_ms == 25.0
+        assert tc.output_data == "ok\n"
+
+    @pytest.mark.asyncio
+    async def test_error_step_with_call_id_merges_into_tool_failure(self) -> None:
+        """An error-status tasks_steps step carrying the tool_call_id must merge
+        into the tool_failure record instead of creating a duplicate.
+
+        ``streaming.event_handlers._handle_tool_result`` emits error steps with
+        ``tool_call_id`` so trace_builder can pair them with the lifecycle
+        ``tool_failure`` event of the same invocation.
+        """
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tool_start",
+                tool_name="bash_code_execute_tool",
+                tool_call_id="call-10",
+                message_id="msg-4",
+            ),
+            _event(
+                3,
+                "tool_failure",
+                tool_name="bash_code_execute_tool",
+                tool_call_id="call-10",
+                message_id="msg-4",
+                error="exit code 1",
+                fault_side="owner",
+            ),
+            _event(
+                4,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool_error",
+                tool_call_id="call-10",
+                tool_name="bash_code_execute_tool",
+                status="error",
+                error="exit code 1",
+                messageId="msg-4",
+                fault_side="owner",
+            ),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.tool_call_id == "call-10"
+        assert tc.success is False
+        assert tc.error == "exit code 1"
+        assert tc.fault_side == "owner"
+        assert tc.message_id == "msg-4"
+
+    @pytest.mark.asyncio
+    async def test_plan_steps_without_tool_name_ignored(self) -> None:
+        """Todo/progress plan steps (is_plan, no tool_name) are not tool calls."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="progress_root",
+                is_plan=True,
+                status="in_progress",
+                data=[{"text": "Task progress"}],
+            ),
+            _event(
+                3,
+                "tasks_steps",
+                step_key="reviewing_sources",
+                tool_name=None,
+                count=1,
+                data=[{"url": "https://example.com"}],
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_duplicate_running_steps_dedup_by_call_id(self) -> None:
+        """Repeated running steps for the same tool_call_id must not duplicate."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-1",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-1",
+            ),
+            _event(
+                3,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-1",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-1",
+            ),
+            _event(
+                4,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-1",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-1",
+            ),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].tool_call_id == "call-1"
+
+
+# ---------------------------------------------------------------------------
+# Fault-side attribution & first-irrecoverable
+# ---------------------------------------------------------------------------
+
+
+class TestFaultSideAttribution:
+    @pytest.mark.asyncio
+    async def test_error_event_carries_fault_side(self) -> None:
+        """error events must surface fault_side + error_kind + recovery_actions."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "error",
+                error="rate limit",
+                error_type="MyrmLLMError",
+                error_kind="rate_limit",
+                fault_side="env",
+                recovery_actions=[{"id": "retry", "label": "Retry", "url": "command://retry"}],
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.errors) == 1
+        err = trace.errors[0]
+        assert err["fault_side"] == "env"
+        assert err["error_kind"] == "rate_limit"
+        assert err["recovery_actions"] == [{"id": "retry", "label": "Retry", "url": "command://retry"}]
+
+        d = trace.to_dict()
+        assert d["errors"][0]["fault_side"] == "env"
+
+    @pytest.mark.asyncio
+    async def test_error_without_fault_side_omits_field(self) -> None:
+        """Legacy error events without attribution must not inject fake values."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "error", error="boom", error_type="ValueError"),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.errors) == 1
+        assert "fault_side" not in trace.errors[0]
+
+    @pytest.mark.asyncio
+    async def test_error_event_carries_diagnostic_result(self) -> None:
+        """error events must surface the localized diagnostic (recovery steps)."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "error",
+                error="billing exhausted",
+                error_type="MyrmLLMError",
+                error_kind="billing",
+                fault_side="env",
+                diagnostic_result={
+                    "error_type": "billing",
+                    "user_message": "Billing limit reached",
+                    "resolution_steps": [
+                        "Top up your account",
+                        "Retry in a few minutes",
+                    ],
+                    "locale": "en",
+                },
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.errors) == 1
+        err = trace.errors[0]
+        assert err["diagnostic_result"] == {
+            "error_type": "billing",
+            "user_message": "Billing limit reached",
+            "resolution_steps": ["Top up your account", "Retry in a few minutes"],
+            "locale": "en",
+        }
+
+        d = trace.to_dict()
+        assert d["errors"][0]["diagnostic_result"]["resolution_steps"][0] == "Top up your account"
+
+    @pytest.mark.asyncio
+    async def test_error_without_diagnostic_omits_field(self) -> None:
+        """error events without a diagnostic payload must not inject one."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "error", error="boom", error_type="ValueError"),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.errors) == 1
+        assert "diagnostic_result" not in trace.errors[0]
+
+    @pytest.mark.asyncio
+    async def test_tool_failure_carries_fault_side(self) -> None:
+        """tool_failure events must surface fault_side on the ToolCallRecord."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash", tool_call_id="c1"),
+            _event(
+                3,
+                "tool_failure",
+                tool_name="bash",
+                tool_call_id="c1",
+                error="segfault",
+                fault_side="harness_tool",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].fault_side == "harness_tool"
+        assert trace.tool_calls[0].success is False
+
+        d = trace.to_dict()
+        assert d["tool_calls"][0]["fault_side"] == "harness_tool"
+
+
+class TestFirstIrrecoverable:
+    @pytest.mark.asyncio
+    async def test_marks_first_error_in_failure_trace(self) -> None:
+        """The earliest error in a failing trace is the first-irrecoverable point."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "error", error="first", error_type="ValueError"),
+            _event(3, "tool_start", tool_name="bash"),
+            _event(4, "error", error="second", error_type="IOError"),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.first_irrecoverable_index == 0
+        assert trace.first_irrecoverable_timestamp is not None
+        assert trace.errors[0]["timestamp"] == trace.first_irrecoverable_timestamp
+
+        d = trace.to_dict()
+        assert d["first_irrecoverable_index"] == 0
+
+    @pytest.mark.asyncio
+    async def test_recovered_errors_have_no_irrecoverable_point(self) -> None:
+        """Errors succeeded by a successful tool call were recovered — no irrecoverable point."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "error", error="transient", error_type="MyrmLLMError"),
+            _event(3, "tool_start", tool_name="bash"),
+            _event(4, "tool_end", tool_name="bash", duration_ms=100.0),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.errors) == 1
+        assert trace.first_irrecoverable_index is None
+        assert trace.first_irrecoverable_timestamp is None
+
+        d = trace.to_dict()
+        assert d["first_irrecoverable_index"] is None
+
+    @pytest.mark.asyncio
+    async def test_no_errors_leaves_first_irrecoverable_none(self) -> None:
+        """Successful traces have no irrecoverable point."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash"),
+            _event(3, "tool_end", tool_name="bash"),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.first_irrecoverable_index is None
+        assert trace.first_irrecoverable_timestamp is None
+
+        d = trace.to_dict()
+        assert d["first_irrecoverable_index"] is None
+
+
+class TestCommonHelpers:
+    """Shared coercion helpers used across trace aggregation paths."""
+
+    def test_int_or_zero_handles_all_scalar_inputs(self) -> None:
+        assert _int_or_zero(True) == 0  # bools are not counts
+        assert _int_or_zero(42) == 42
+        assert _int_or_zero(3.7) == 3  # floats truncate
+        assert _int_or_zero(None) == 0
+        assert _int_or_zero("12") == 0  # non-numeric falls back to zero
+
+
+class TestTraceRetryAndAnomalies:
+    """Tests for LLM retry attempt tracking and heuristic anomaly detection."""
+
+    @pytest.mark.asyncio
+    async def test_llm_attempt_and_retry_recorded(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "token_usage",
+                duration_ms=1200.0,
+                attempt=3,
+                retry_count=2,
+                usage={
+                    "prompt_tokens": 100,
+                    "completion_tokens": 50,
+                    "total_tokens": 150,
+                },
+                model_name="deepseek-v3",
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.llm_calls) == 1
+        lc = trace.llm_calls[0]
+        assert lc.attempt == 3
+        assert lc.retry_count == 2
+
+        d = trace.to_dict()
+        assert d["llm_calls"][0]["attempt"] == 3
+        assert d["llm_calls"][0]["retry_count"] == 2
+        # Check retry backoff anomaly
+        assert any(a["anomaly_type"] == "retry_backoff" for a in d["anomalies"])
+
+    @pytest.mark.asyncio
+    async def test_tool_loop_anomaly_detected(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="code_search", input_data={"q": "foo"}),
+            _event(3, "tool_end", tool_name="code_search", success=False, error="timeout"),
+            _event(4, "tool_start", tool_name="code_search", input_data={"q": "foo"}),
+            _event(5, "tool_end", tool_name="code_search", success=False, error="timeout"),
+            _event(6, "tool_start", tool_name="code_search", input_data={"q": "foo"}),
+            _event(7, "tool_end", tool_name="code_search", success=False, error="timeout"),
+            _event(8, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-loop": events})
+        trace = await build_trace(backend, "sess-loop")
+
+        loop_anomalies = [a for a in trace.anomalies if a.anomaly_type == "tool_loop"]
+        assert len(loop_anomalies) == 1
+        assert loop_anomalies[0].severity == "critical"
+        assert loop_anomalies[0].tool_name == "code_search"
+
+    @pytest.mark.asyncio
+    async def test_token_surge_anomaly_detected(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "token_usage",
+                usage={
+                    "prompt_tokens": 4000,
+                    "completion_tokens": 100,
+                    "total_tokens": 4100,
+                },
+            ),
+            _event(
+                3,
+                "token_usage",
+                usage={
+                    "prompt_tokens": 20000,
+                    "completion_tokens": 100,
+                    "total_tokens": 20100,
+                },
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-surge": events})
+        trace = await build_trace(backend, "sess-surge")
+
+        surge_anomalies = [a for a in trace.anomalies if a.anomaly_type == "token_surge"]
+        assert len(surge_anomalies) == 1
+        assert surge_anomalies[0].severity == "warning"

@@ -1,0 +1,949 @@
+"""Tests for summarize processor circuit breaker logic and deterministic fallback."""
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+
+import myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor as _sp
+from myrm_agent_harness.agent.context_management.infra.schemas import (
+    ContextConfig,
+    StructuredSummary,
+)
+from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
+from myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor import (
+    MAX_CONSECUTIVE_SUMMARIZE_FAILURES,
+    SummarizeProcessor,
+    _build_deterministic_summary,
+    _classify_error_type,
+    _extract_focus_topic,
+    _get_failures,
+    _is_circuit_open,
+    _is_half_open_probe,
+    _record_fallback_call,
+    _set_failures,
+)
+from myrm_agent_harness.observability.metrics.circuit_breaker_metrics import (
+    circuit_breaker_state,
+)
+
+
+@pytest.fixture(autouse=True)
+def reset_circuit_breaker():
+    _set_failures(0)
+    _sp._fallback_calls = 0
+    _sp._circuit_open_time = None
+    _sp._skip_next_api_token_check = False
+    circuit_breaker_state.labels(component="summarize").set(0)
+    yield
+    _set_failures(0)
+    _sp._fallback_calls = 0
+    _sp._circuit_open_time = None
+    _sp._skip_next_api_token_check = False
+    circuit_breaker_state.labels(component="summarize").set(0)
+
+
+class TestSummarizeProcessorCircuitBreaker:
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
+    )
+    async def test_auth_failure_trips_circuit_breaker_immediately(self, mock_generate):
+        mock_generate.side_effect = Exception("401 Unauthorized")
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
+        )
+
+        result = await processor.process(context)
+
+        assert _get_failures() == MAX_CONSECUTIVE_SUMMARIZE_FAILURES
+        cb_labeled = circuit_breaker_state.labels(component="summarize")
+        if hasattr(cb_labeled, "_value"):
+            assert cb_labeled._value.get() == 2.0
+
+        # Check that deterministic fallback was used
+        assert any("fallback" in m.content.lower() for m in result.messages)
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
+    )
+    async def test_cooldown_recovery(self, mock_generate, mock_time):
+        mock_generate.side_effect = Exception("timeout")
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
+        )
+
+        # Trip the circuit breaker
+        mock_time.return_value = 1000.0
+        for _ in range(MAX_CONSECUTIVE_SUMMARIZE_FAILURES):
+            await processor.process(context)
+
+        assert _get_failures() == MAX_CONSECUTIVE_SUMMARIZE_FAILURES
+        cb_labeled = circuit_breaker_state.labels(component="summarize")
+        if hasattr(cb_labeled, "_value"):
+            assert cb_labeled._value.get() == 2.0
+
+        # Advance time past cooldown (1800 seconds)
+        mock_time.return_value = 1000.0 + 1801.0
+
+        # Next call should attempt recovery
+        from myrm_agent_harness.agent.context_management.infra.schemas import (
+            StructuredSummary,
+        )
+
+        mock_generate.side_effect = None
+        mock_generate.return_value = ([], StructuredSummary(user_goal="test"))
+
+        await processor.process(context)
+
+        assert _get_failures() == 0
+        cb_labeled2 = circuit_breaker_state.labels(component="summarize")
+        if hasattr(cb_labeled2, "_value"):
+            assert cb_labeled2._value.get() == 0.0
+
+
+class TestClassifyErrorType:
+    def test_auth_error(self) -> None:
+        assert _classify_error_type(Exception("401 Unauthorized")) == "auth"
+        assert _classify_error_type(Exception("Invalid API Key")) == "auth"
+
+    def test_permanent_error(self) -> None:
+        assert _classify_error_type(Exception("model not found")) == "permanent"
+        assert _classify_error_type(Exception("does not exist")) == "permanent"
+
+    def test_permanent_by_status_code(self) -> None:
+        exc = Exception("error")
+        exc.status_code = 404  # type: ignore[attr-defined]
+        assert _classify_error_type(exc) == "permanent"
+
+    def test_transient_error(self) -> None:
+        assert _classify_error_type(Exception("connection timeout")) == "transient"
+        assert _classify_error_type(Exception("some random error")) == "transient"
+
+
+class TestExtractFocusTopic:
+    def test_with_valid_intent(self) -> None:
+        metadata: dict[str, object] = {"compression_intent": {"user_goal_hint": "安全模块"}}
+        assert _extract_focus_topic(metadata) == "安全模块"
+
+    def test_with_empty_hint(self) -> None:
+        metadata: dict[str, object] = {"compression_intent": {"user_goal_hint": ""}}
+        assert _extract_focus_topic(metadata) == ""
+
+    def test_without_intent(self) -> None:
+        assert _extract_focus_topic({}) == ""
+
+    def test_non_dict_intent(self) -> None:
+        metadata: dict[str, object] = {"compression_intent": "not a dict"}
+        assert _extract_focus_topic(metadata) == ""
+
+
+class TestBuildDeterministicSummary:
+    def test_basic_extraction(self) -> None:
+        messages = [
+            HumanMessage(content="实现JWT认证"),
+            AIMessage(content="好的，已完成JWT认证"),
+        ]
+        summary = _build_deterministic_summary(messages, {})
+        assert "JWT" in summary.user_goal
+        assert "JWT" in summary.active_task
+        assert summary.last_action != ""
+
+    def test_compacted_pattern_extraction(self) -> None:
+        messages = [
+            HumanMessage(content="查看文件"),
+            AIMessage(content="COMPACTED: read_file(src/main.py) 内容..."),
+        ]
+        summary = _build_deterministic_summary(messages, {})
+        assert any("read_file" in a for a in summary.completed_actions)
+
+    def test_snapshot_path_from_metadata(self) -> None:
+        messages = [HumanMessage(content="test")]
+        metadata: dict[str, object] = {"context_snapshot_path": "/tmp/snapshot.json"}
+        summary = _build_deterministic_summary(messages, metadata)
+        assert summary.context_dump_path == "/tmp/snapshot.json"
+
+    def test_long_goal_truncation(self) -> None:
+        long_msg = "x" * 500
+        messages = [HumanMessage(content=long_msg)]
+        summary = _build_deterministic_summary(messages, {})
+        assert len(summary.active_task) <= 301
+
+    def test_empty_messages(self) -> None:
+        summary = _build_deterministic_summary([], {})
+        assert "Unable to extract" in summary.user_goal
+
+    def test_multimodal_goal_uses_visible_text_only(self) -> None:
+        image = {"type": "image_url", "image_url": {"url": "data:image/png;base64," + "iVBORw0KGgo" * 500}}
+        messages = [
+            HumanMessage(content=[image, {"type": "text", "text": "fix this error"}]),
+            AIMessage(content=[{"type": "text", "text": "done"}]),
+        ]
+        summary = _build_deterministic_summary(messages, {})
+        assert summary.active_task == "fix this error"
+        assert summary.user_goal.endswith("fix this error")
+        assert summary.last_action == "done"
+        assert "base64" not in summary.user_goal + summary.active_task + summary.last_action
+
+
+class TestSummarizeProcessorShouldProcess:
+    @pytest.mark.asyncio
+    async def test_skip_when_summary_exists(self) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
+        )
+        context.structured_summary = StructuredSummary(user_goal="already done")
+        assert await processor.should_process(context) is False
+
+    @pytest.mark.asyncio
+    async def test_skip_for_cache_preservation_resume(self) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
+        )
+        context.is_resume = True
+        result = await processor.process(context)
+        assert result.messages == context.messages
+
+    @pytest.mark.asyncio
+    async def test_no_llm_uses_deterministic_fallback(self) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test message content")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=None,
+        )
+        result = await processor.process(context)
+        assert any("fallback" in m.content.lower() for m in result.messages)
+        assert result.metadata.get("summarize_fallback_used") is True
+
+    @pytest.mark.asyncio
+    async def test_fallback_deduplicates_protected_head(self) -> None:
+        """Regression: fallback rebuild must deduplicate messages already in protected head."""
+        summary_block = HumanMessage(
+            content=(
+                "[Previous conversation summary]\n<!-- SUMMARY_JSON\n"
+                '{"user_goal": "g", "active_task": "", "completed_actions": [], "key_findings": [],'
+                ' "errors_and_fixes": [], "files_modified": [], "last_action": ""}\n-->'
+            )
+        )
+        messages = [
+            SystemMessage(content="system prompt " * 50),
+            summary_block,
+            HumanMessage(content="first user instruction " * 200),
+            AIMessage(content="first response " * 200),
+            HumanMessage(content="second user " * 500),
+            AIMessage(content="second response " * 500),
+            HumanMessage(content="third user " * 800),
+            AIMessage(content="third response " * 800),
+        ]
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=messages,
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=None,
+        )
+        result = await processor.process(context)
+
+        ids = [id(m) for m in result.messages]
+        assert len(ids) == len(set(ids)), "fallback rebuild must not duplicate protected-head messages"
+        # Protected head (system + first real user turn) retained exactly once
+        assert messages[0] in result.messages
+        assert messages[2] in result.messages
+        assert messages[3] in result.messages
+        # Stale summary block must not leak into the rebuilt list
+        assert not any(
+            "Previous conversation summary" in m.content for m in result.messages if isinstance(m.content, str)
+        )
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
+    )
+    async def test_successful_llm_summary(self, mock_generate) -> None:
+        summary = StructuredSummary(user_goal="目标", last_action="完成")
+        mock_generate.return_value = ([HumanMessage(content="summary msg")], summary)
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
+        )
+        result = await processor.process(context)
+        assert result.structured_summary is not None
+        assert result.structured_summary.user_goal == "目标"
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
+    )
+    async def test_transient_failure_increments_counter(self, mock_generate) -> None:
+        mock_generate.side_effect = Exception("connection refused")
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
+        )
+        prev = _get_failures()
+        await processor.process(context)
+        assert _get_failures() == prev + 1
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
+    )
+    async def test_focus_topic_passed_through(self, mock_generate) -> None:
+        summary = StructuredSummary(user_goal="目标", last_action="完成")
+        mock_generate.return_value = ([HumanMessage(content="s")], summary)
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
+            metadata={"compression_intent": {"user_goal_hint": "安全"}},
+        )
+        await processor.process(context)
+        call_kwargs = mock_generate.call_args[1]
+        assert call_kwargs.get("focus_topic") == "安全"
+
+
+class TestSetFailuresCooldown:
+    """Cover _set_failures tiered cooldown branches."""
+
+    def test_auth_cooldown(self) -> None:
+        _set_failures(MAX_CONSECUTIVE_SUMMARIZE_FAILURES, "auth")
+        assert _sp._circuit_cooldown_seconds == 1800
+
+    def test_permanent_cooldown(self) -> None:
+        _set_failures(MAX_CONSECUTIVE_SUMMARIZE_FAILURES, "permanent")
+        assert _sp._circuit_cooldown_seconds == 600
+
+    def test_transient_cooldown(self) -> None:
+        _set_failures(MAX_CONSECUTIVE_SUMMARIZE_FAILURES, "transient")
+        assert _sp._circuit_cooldown_seconds == 60
+
+    def test_below_threshold_no_open_time(self) -> None:
+        _set_failures(1)
+        assert _sp._circuit_open_time is None or _sp._summarize_failures == 1
+
+
+class TestIsCircuitOpen:
+    """Cover _is_circuit_open branches."""
+
+    def test_below_threshold_returns_false(self) -> None:
+        _set_failures(0)
+        assert _is_circuit_open() is False
+
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    def test_open_sets_time_on_first_call(self, mock_time) -> None:
+        mock_time.return_value = 5000.0
+        _set_failures(MAX_CONSECUTIVE_SUMMARIZE_FAILURES)
+        _sp._circuit_open_time = None
+        assert _is_circuit_open() is True
+        assert _sp._circuit_open_time == 5000.0
+
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    def test_within_cooldown_stays_open(self, mock_time) -> None:
+        mock_time.return_value = 5000.0
+        _set_failures(MAX_CONSECUTIVE_SUMMARIZE_FAILURES, "transient")
+        _sp._circuit_open_time = 4950.0
+        assert _is_circuit_open() is True
+
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    def test_past_cooldown_resets(self, mock_time) -> None:
+        mock_time.return_value = 10000.0
+        _set_failures(MAX_CONSECUTIVE_SUMMARIZE_FAILURES, "transient")
+        _sp._circuit_open_time = 5000.0
+        _sp._circuit_cooldown_seconds = 60
+        assert _is_circuit_open() is False
+        assert _get_failures() == 0
+
+
+class TestIsHalfOpenProbe:
+    """Cover _is_half_open_probe logic."""
+
+    def test_zero_calls_not_probe(self) -> None:
+        _sp._fallback_calls = 0
+        assert _is_half_open_probe() is False
+
+    def test_odd_calls_not_probe(self) -> None:
+        _sp._fallback_calls = 1
+        assert _is_half_open_probe() is False
+
+    def test_even_calls_is_probe(self) -> None:
+        _sp._fallback_calls = 2
+        assert _is_half_open_probe() is True
+
+
+class TestShouldBypassForHotCache:
+    """Cover _should_bypass_for_hot_cache branches."""
+
+    def test_above_90_percent_never_bypass(self) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(messages=[], user_query="t", metadata={"last_activity_time": 0.0})
+        assert processor._should_bypass_for_hot_cache(context, 120000) is False
+
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    def test_recent_activity_bypasses(self, mock_time) -> None:
+        mock_time.return_value = 1000.0
+        processor = SummarizeProcessor()
+        context = ProcessorContext(messages=[], user_query="t", metadata={"last_activity_time": 999.0})
+        assert processor._should_bypass_for_hot_cache(context, 50000) is True
+
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    def test_old_activity_no_bypass(self, mock_time) -> None:
+        mock_time.return_value = 1000.0
+        processor = SummarizeProcessor()
+        context = ProcessorContext(messages=[], user_query="t", metadata={"last_activity_time": 100.0})
+        assert processor._should_bypass_for_hot_cache(context, 50000) is False
+
+    def test_no_activity_time_no_bypass(self) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(messages=[], user_query="t", metadata={})
+        assert processor._should_bypass_for_hot_cache(context, 50000) is False
+
+
+class TestShouldProcessBranches:
+    """Cover should_process branches beyond existing tests."""
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.should_summarize",
+        return_value=False,
+    )
+    async def test_should_summarize_false_returns_false(self, _mock) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+        )
+        assert await processor.should_process(context) is False
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.estimate_processor_context_tokens",
+        return_value=50000,
+    )
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.should_summarize",
+        return_value=True,
+    )
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time",
+        return_value=1000.0,
+    )
+    async def test_hot_cache_bypass_sets_debt(self, _t, _ss, _et) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            metadata={"last_activity_time": 999.5},
+        )
+        result = await processor.should_process(context)
+        assert result is False
+        assert context.metadata.get("compaction_debt_pending") is True
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.should_summarize",
+        return_value=True,
+    )
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time",
+        return_value=1000.0,
+    )
+    async def test_hot_cache_does_not_bypass_when_full_context_over_90_percent(self, _t, _ss) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="short")],
+            user_query="test",
+            metadata={
+                "last_activity_time": 999.5,
+                "bound_tool_overhead_tokens": 6000,
+                "last_provider_prompt_tokens": 118_000,
+            },
+        )
+        assert await processor.should_process(context) is True
+        assert context.metadata.get("compaction_debt_pending") is not True
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.estimate_processor_context_tokens",
+        return_value=50000,
+    )
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.should_summarize",
+        return_value=True,
+    )
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time",
+        return_value=10000.0,
+    )
+    async def test_cold_cache_triggers_summarize(self, _t, _ss, _et) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            metadata={"last_activity_time": 1.0},
+        )
+        assert await processor.should_process(context) is True
+
+    @pytest.mark.asyncio
+    async def test_skip_next_api_token_check_flag(self) -> None:
+        _sp._skip_next_api_token_check = True
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+        )
+        await processor.should_process(context)
+        assert _sp._skip_next_api_token_check is False
+
+
+class TestProcessNotifyCompaction:
+    """Verify notify_compaction() is called in both success and fallback paths."""
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
+    )
+    @patch("myrm_agent_harness.agent.context_management.infra.cache_break_detector.get_cache_break_detector")
+    async def test_success_path_calls_notify_compaction(self, mock_detector_fn, mock_generate) -> None:
+        mock_detector = AsyncMock()
+        mock_detector.notify_compaction = lambda: None
+        mock_detector_fn.return_value = mock_detector
+
+        summary = StructuredSummary(user_goal="test goal")
+        mock_generate.return_value = ([HumanMessage(content="s")], summary)
+
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
+        )
+        result = await processor.process(context)
+        assert result.structured_summary is not None
+        mock_detector_fn.assert_called()
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.context_management.infra.cache_break_detector.get_cache_break_detector")
+    async def test_fallback_path_calls_notify_compaction(self, mock_detector_fn) -> None:
+        mock_detector = AsyncMock()
+        mock_detector.notify_compaction = lambda: None
+        mock_detector_fn.return_value = mock_detector
+
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test content here")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=None,
+        )
+        result = await processor.process(context)
+        assert result.metadata.get("summarize_fallback_used") is True
+        mock_detector_fn.assert_called()
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
+    )
+    async def test_success_path_sets_last_summarized_message_id(self, mock_generate) -> None:
+        summary = StructuredSummary(user_goal="goal")
+        mock_generate.return_value = ([HumanMessage(content="s")], summary)
+
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
+            metadata={"last_message_db_id": "msg-123"},
+        )
+        result = await processor.process(context)
+        assert result.last_summarized_message_id == "msg-123"
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
+    )
+    async def test_success_path_sets_skip_flag(self, mock_generate) -> None:
+        summary = StructuredSummary(user_goal="goal")
+        mock_generate.return_value = ([HumanMessage(content="s")], summary)
+
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            llm=AsyncMock(),
+        )
+        await processor.process(context)
+        assert _sp._skip_next_api_token_check is True
+
+
+class TestProcessHITLSkip:
+    """Cover HITL session skip path."""
+
+    @pytest.mark.asyncio
+    async def test_hitl_session_skips_processing(self) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            merged_context={"hitl_session_active": True},
+        )
+        result = await processor.process(context)
+        assert result.messages == [HumanMessage(content="test")]
+
+
+class TestProcessPermanentError:
+    """Cover permanent error classification in process exception handling."""
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
+    )
+    async def test_permanent_error_increments_counter(self, mock_generate) -> None:
+        mock_generate.side_effect = Exception("model not found")
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            llm=AsyncMock(),
+        )
+        await processor.process(context)
+        assert _get_failures() == 1
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
+    )
+    async def test_timeout_error_tracked_as_timeout(self, mock_generate) -> None:
+        mock_generate.side_effect = Exception("request timeout")
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            llm=AsyncMock(),
+        )
+        await processor.process(context)
+        assert _get_failures() == 1
+
+
+class TestSummarizeProcessorSummarizerLLM:
+    """Cover dedicated summarizer_llm invocation over primary llm."""
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize")
+    async def test_uses_summarizer_llm_when_provided(self, mock_guarded) -> None:
+        primary_llm = AsyncMock()
+        aux_compactor_llm = AsyncMock()
+        summary = StructuredSummary(user_goal="compaction goal")
+        mock_guarded.return_value = ([HumanMessage(content="s")], summary)
+
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="long conversation turn")],
+            user_query="query",
+            llm=primary_llm,
+            summarizer_llm=aux_compactor_llm,
+        )
+
+        await processor.process(context)
+        # Verify _guarded_summarize received aux_compactor_llm instead of primary_llm
+        assert mock_guarded.call_args.kwargs.get("llm") is aux_compactor_llm
+
+
+class TestRecordFallbackCall:
+    def test_increments(self) -> None:
+        _sp._fallback_calls = 0
+        _record_fallback_call()
+        assert _sp._fallback_calls == 1
+        _record_fallback_call()
+        assert _sp._fallback_calls == 2
+
+
+class TestProcessorName:
+    def test_name_is_summarize(self) -> None:
+        assert SummarizeProcessor().name == "summarize"
+
+
+class TestPreCompactionDeterministicPruneShortCircuit:
+    """Cover deterministic pre-compaction tool-result pruning short-circuit (DSH pattern)."""
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize")
+    async def test_pre_compaction_prune_bypasses_llm_summarize_when_tokens_reduced_below_ceiling(
+        self, mock_guarded
+    ) -> None:
+        """When deterministic prune brings context below trigger ceiling, bypass LLM summarization completely."""
+        cfg = ContextConfig(max_context_tokens=10000)
+        processor = SummarizeProcessor(config=cfg)
+
+        large_tool_output = "result_data " * 2000  # ~4000 tokens
+        msgs = [
+            HumanMessage(content="user request"),
+            AIMessage(
+                content="thinking...",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_tool_output, name="grep_tool", tool_call_id="tc1"),
+            AIMessage(
+                content="step2...",
+                tool_calls=[{"id": "tc2", "name": "web_search", "args": {}}],
+            ),
+            ToolMessage(content="mid_content", name="web_search", tool_call_id="tc2"),
+            AIMessage(
+                content="step3...",
+                tool_calls=[{"id": "tc3", "name": "bash", "args": {}}],
+            ),
+            ToolMessage(content="short", name="bash", tool_call_id="tc3"),
+        ]
+
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={
+                "enable_pre_compact_tool_prune": True,
+                "pre_compact_prune_threshold_tokens": 100,
+                "pre_compact_keep_recent_calls": 2,
+            },
+        )
+
+        result = await processor.process(context)
+
+        # 1. Deterministic prune should have bypassed LLM summarize completely
+        mock_guarded.assert_not_called()
+        assert result.metadata.get("deterministic_prune_bypassed_summarize") is True
+        assert result.tokens_saved > 2000
+        # 2. Large tool message should be pruned in-place
+        assert "[Tool output pruned: original size" in str(result.messages[2].content)
+        # 3. Recent 2 tool messages should remain intact
+        assert result.messages[4].content == "mid_content"
+        assert result.messages[6].content == "short"
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize")
+    async def test_pre_compaction_prune_falls_through_to_llm_when_tokens_still_exceed_ceiling(
+        self, mock_guarded
+    ) -> None:
+        """When text messages are still too large after pruning, fall through to guarded LLM summarize."""
+        cfg = ContextConfig(max_context_tokens=1000)
+        processor = SummarizeProcessor(config=cfg)
+
+        summary = StructuredSummary(user_goal="persisted goal")
+        mock_guarded.return_value = ([HumanMessage(content="summarized")], summary)
+
+        # Massive user conversation that cannot be resolved by tool pruning alone
+        huge_text = "conversation_context " * 1500
+        msgs = [
+            HumanMessage(content=huge_text),
+            AIMessage(
+                content="thinking...",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content="short tool output", name="grep_tool", tool_call_id="tc1"),
+            AIMessage(content="done"),
+        ]
+
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={"enable_pre_compact_tool_prune": True},
+        )
+
+        result = await processor.process(context)
+
+        # Still exceeds ceiling -> LLM summarization must be called as fallback
+        mock_guarded.assert_called_once()
+        assert result.structured_summary is summary
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize")
+    async def test_pre_compaction_prune_disabled_via_metadata(self, mock_guarded) -> None:
+        """When enable_pre_compact_tool_prune=False, proceed directly to LLM summarize without pruning."""
+        cfg = ContextConfig(max_context_tokens=10000)
+        processor = SummarizeProcessor(config=cfg)
+
+        summary = StructuredSummary(user_goal="persisted goal")
+        mock_guarded.return_value = ([HumanMessage(content="summarized")], summary)
+
+        large_tool_output = "result_data " * 2000
+        msgs = [
+            HumanMessage(content="user request"),
+            AIMessage(
+                content="thinking...",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_tool_output, name="grep_tool", tool_call_id="tc1"),
+            AIMessage(content="done"),
+        ]
+
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={"enable_pre_compact_tool_prune": False},
+        )
+
+        result = await processor.process(context)
+
+        mock_guarded.assert_called_once()
+        assert result.metadata.get("deterministic_prune_bypassed_summarize") is None
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize")
+    async def test_pre_compaction_prune_with_offload_archives_to_persistent_storage(self, mock_guarded) -> None:
+        """When on_prune_offload is provided, pruned tool results are archived with persistent references."""
+        offload_mock = AsyncMock(return_value="/vault/archive/tool_output.gz")
+        cfg = ContextConfig(max_context_tokens=10000)
+        processor = SummarizeProcessor(config=cfg, on_prune_offload=offload_mock)
+
+        large_tool_output = "result_data " * 2000
+        msgs = [
+            HumanMessage(content="user request"),
+            AIMessage(
+                content="thinking...",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_tool_output, name="grep_tool", tool_call_id="tc1"),
+            AIMessage(
+                content="step2...",
+                tool_calls=[{"id": "tc2", "name": "web_search", "args": {}}],
+            ),
+            ToolMessage(content="mid_content", name="web_search", tool_call_id="tc2"),
+            AIMessage(
+                content="step3...",
+                tool_calls=[{"id": "tc3", "name": "bash", "args": {}}],
+            ),
+            ToolMessage(content="short", name="bash", tool_call_id="tc3"),
+        ]
+
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={
+                "enable_pre_compact_tool_prune": True,
+                "pre_compact_prune_threshold_tokens": 100,
+                "pre_compact_keep_recent_calls": 2,
+            },
+        )
+
+        result = await processor.process(context)
+
+        mock_guarded.assert_not_called()
+        offload_mock.assert_called_once()
+        assert result.metadata.get("deterministic_prune_bypassed_summarize") is True
+        # Tool message content should contain the archive path rendered reference
+        assert "/vault/archive/tool_output.gz" in str(result.messages[2].content)
+        assert "[Tool result archived" in str(result.messages[2].content)
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize")
+    async def test_pre_compaction_prune_keep_recent_calls_hard_boundary_min_2(self, mock_guarded) -> None:
+        """Even if caller sets pre_compact_keep_recent_calls=0, hard floor ensures last 2 calls are kept."""
+        cfg = ContextConfig(max_context_tokens=10000)
+        processor = SummarizeProcessor(config=cfg)
+
+        large_1 = "large_one " * 1500
+        large_2 = "large_two " * 1500
+        large_3 = "large_three " * 1500
+        msgs = [
+            HumanMessage(content="start"),
+            AIMessage(
+                content="step1",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_1, name="grep_tool", tool_call_id="tc1"),
+            AIMessage(
+                content="step2",
+                tool_calls=[{"id": "tc2", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_2, name="grep_tool", tool_call_id="tc2"),
+            AIMessage(
+                content="step3",
+                tool_calls=[{"id": "tc3", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_3, name="grep_tool", tool_call_id="tc3"),
+        ]
+
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={
+                "enable_pre_compact_tool_prune": True,
+                "pre_compact_prune_threshold_tokens": 100,
+                # Try setting to 0 to bypass protection
+                "pre_compact_keep_recent_calls": 0,
+            },
+        )
+
+        result = await processor.process(context)
+
+        mock_guarded.assert_not_called()
+        # Step 1 should be pruned (head/tail truncated with reason)
+        assert "[Tool output pruned: original size" in str(result.messages[2].content)
+        assert "summarize_short_circuit" in str(result.messages[2].content)
+        # Step 2 and Step 3 must remain intact due to min 2 hard boundary guard
+        assert result.messages[4].content == large_2
+        assert result.messages[6].content == large_3
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize")
+    async def test_preflight_fence_bypasses_llm_on_oversized_payload(self, mock_guarded) -> None:
+        """When total payload exceeds physical safe watermark, bypass LLM to prevent ContextLengthExceeded."""
+        cfg = ContextConfig(max_context_tokens=10000)
+        processor = SummarizeProcessor(config=cfg)
+
+        msgs = [HumanMessage(content="overflow " * 3000)]
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={"llm_max_context_tokens": 3000},
+        )
+
+        result = await processor.process(context)
+
+        mock_guarded.assert_not_called()
+        assert result.metadata.get("summarize_fallback_used") is True

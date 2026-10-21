@@ -1,0 +1,310 @@
+"""Unified tool registry — single place that manages tool sources, dedup, and ordering.
+
+1. agent/context_management/PROMPT_CACHE_PRACTICE.md §2.1 工具分层排序
+
+[INPUT]
+- langchain_core.tools::BaseTool (POS: LangChain tool instances)
+- .types::ToolEntry (POS: tool entry with bind mode and source)
+- .tool_layers::ToolLayer (POS: CORE HIGH_PRIORITY EXTENDED EXTERNAL cache ordering)
+
+[OUTPUT]
+- ToolRegistry: register / register_runtime_hook → resolve / snapshot pipeline
+
+[POS]
+Replaces scattered ``_deduplicate_tools()`` + ``sort_tools()`` in BaseAgent/SkillAgent.
+Orchestration signals (DR/Verifier) are **not** registered here — see ``agent/orchestration/``.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, cast
+
+from myrm_agent_harness.agent.orchestration.hooks import is_runtime_hook
+from myrm_agent_harness.agent.tool_management.tool_catalog import get_tool_product_id
+from myrm_agent_harness.agent.tool_management.tool_layers import (
+    _TOOL_LAYERS,
+    ToolLayer,
+    get_tool_layer,
+    get_tool_registry_sort_key,
+    get_tool_replay_safety,
+    tool_layer_snapshot_label,
+)
+from myrm_agent_harness.agent.tool_management.types import (
+    ReplaySafety,
+    ToolBindMode,
+    ToolEntry,
+    ToolSnapshot,
+    ToolSource,
+    source_priority,
+)
+
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
+logger = logging.getLogger(__name__)
+
+
+def _extract_summary(description: str, max_len: int = 120) -> str:
+    """Extract a concise summary from a tool description (first non-empty line)."""
+    for line in description.split("\n"):
+        stripped = line.strip()
+        if stripped:
+            return stripped[:max_len] + "..." if len(stripped) > max_len else stripped
+    return ""
+
+
+def _safe_extract_schema(tool: BaseTool) -> dict[str, object] | None:
+    """Extract JSON Schema from a tool's args_schema, returning None on failure.
+
+    MCP tools carry a native JSON Schema ``dict`` as ``args_schema`` (see
+    ``tool_converter``); it is returned verbatim. Built-in tools keep
+    Pydantic models and are serialized via ``model_json_schema``.
+    """
+    schema = getattr(tool, "args_schema", None)
+    if schema is None:
+        return None
+    try:
+        if isinstance(schema, dict):
+            return cast("dict[str, object]", schema)
+        result: dict[str, object] = schema.model_json_schema()
+        return result
+    except Exception:
+        return None
+
+
+class ToolRegistry:
+    """Accumulates tools from multiple sources and produces a final ordered list.
+
+    Usage::
+
+        reg = ToolRegistry()
+        reg.register(bash_code_execute_tool, source=ToolSource.META)
+        reg.register(user_tool, source=ToolSource.USER)
+        tools = reg.resolve()
+    """
+
+    def __init__(self) -> None:
+        self._entries: list[ToolEntry] = []
+
+    def register(
+        self,
+        tool: BaseTool,
+        *,
+        source: ToolSource,
+        layer: ToolLayer | None = None,
+        provider: str | None = None,
+        allowed_domains: list[str] | None = None,
+        bind_mode: ToolBindMode = ToolBindMode.TURN1,
+        replay_safety: ReplaySafety | None = None,
+    ) -> None:
+        """Add a tool to the registry.
+
+        Parameters
+        ----------
+        tool:
+            A LangChain ``BaseTool`` instance.
+        source:
+            Where the tool comes from (META / USER / MIDDLEWARE).
+        layer:
+            Explicit cache-ordering layer.  When ``None`` the layer is
+            looked up from the global ``_TOOL_LAYERS`` mapping (falling
+            back to ``EXTERNAL`` for framework-external tools).
+        provider:
+            Human-readable identifier of the tool provider, e.g.
+            ``"skill:web_search"`` or ``"mcp:github"``.  ``None`` for
+            built-in tools.
+        bind_mode:
+            ``TURN1``: bound on first model turn.
+            ``RUNTIME_ONLY``: internal hooks (e.g. ``_completion_check``);
+            excluded from Turn1; executable when middleware injects tool_calls.
+        replay_safety:
+            ReplaySafety classification (SAFE / NEVER). Defaults to lookup in
+            SSOT _TOOL_REPLAY_SAFETY, falling back to NEVER.
+        """
+        resolved_layer = layer if layer is not None else get_tool_layer(tool.name)
+        resolved_safety = replay_safety if replay_safety is not None else get_tool_replay_safety(tool.name)
+
+        if tool.name not in _TOOL_LAYERS and layer is None and provider is None and not is_runtime_hook(tool.name):
+            logger.warning(
+                "Tool '%s' (source=%s) not in harness _TOOL_LAYERS registry, "
+                "defaulting to EXTERNAL. Register harness tools in tool_layers.py "
+                "or server vendor tools in _tool_layer_bootstrap.py.",
+                tool.name,
+                source.value,
+            )
+
+        self._entries.append(
+            ToolEntry(
+                tool=tool,
+                source=source,
+                layer=resolved_layer,
+                provider=provider,
+                allowed_domains=allowed_domains,
+                bind_mode=bind_mode,
+                replay_safety=resolved_safety,
+            )
+        )
+
+    def register_runtime_hook(
+        self,
+        tool: BaseTool,
+        *,
+        source: ToolSource = ToolSource.MIDDLEWARE,
+    ) -> None:
+        """Register a middleware runtime hook (RUNTIME_ONLY, excluded from action-tool layers)."""
+        if not is_runtime_hook(tool.name):
+            msg = f"register_runtime_hook: '{tool.name}' is not in RUNTIME_HOOK_NAMES SSOT"
+            raise ValueError(msg)
+        self.register(tool, source=source, bind_mode=ToolBindMode.RUNTIME_ONLY)
+
+    def register_many(
+        self,
+        tools: list[BaseTool],
+        *,
+        source: ToolSource,
+        layer: ToolLayer | None = None,
+        provider: str | None = None,
+        allowed_domains: list[str] | None = None,
+        bind_mode: ToolBindMode = ToolBindMode.TURN1,
+    ) -> None:
+        for t in tools:
+            self.register(
+                t,
+                source=source,
+                layer=layer,
+                provider=provider,
+                allowed_domains=allowed_domains,
+                bind_mode=bind_mode,
+            )
+
+    def _resolve_entries(self) -> list[ToolEntry]:
+        """Deduplicate and sort entries (shared by resolve/snapshot)."""
+        best: dict[str, ToolEntry] = {}
+        for entry in self._entries:
+            name = entry.tool.name
+            existing = best.get(name)
+            if existing is None or source_priority(entry.source) < source_priority(existing.source):
+                best[name] = entry
+
+        return sorted(
+            best.values(),
+            key=lambda e: get_tool_registry_sort_key(
+                e.tool.name,
+                e.layer or get_tool_layer(e.tool.name),
+            ),
+        )
+
+    def resolve(self, *, no_builtin_tools: bool = False) -> list[BaseTool]:
+        """Deduplicate and sort all registered tools.
+
+        Dedup rule: on name collision the entry with the **highest source
+        priority** wins (META > USER > MIDDLEWARE).
+
+        Sort rule: first by ``ToolLayer`` (CORE → HIGH_PRIORITY → EXTENDED → EXTERNAL),
+        then HIGH_PRIORITY group priority, then alphabetically within each tier.
+
+        When ``no_builtin_tools=True``, only user-provided/external domain tools are kept;
+        all built-in framework meta tools (source == ToolSource.META) are excluded.
+
+        Only returns Turn1-bound tools (``bind_mode == TURN1``).
+        """
+        entries = self._resolve_entries()
+
+        # Update allowed domains map in session context
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_allowed_domains_map,
+            set_allowed_domains_map,
+        )
+
+        current_map = get_allowed_domains_map().copy()
+        for e in entries:
+            if e.allowed_domains is not None:
+                current_map[e.tool.name] = e.allowed_domains
+        set_allowed_domains_map(current_map)
+
+        if no_builtin_tools:
+            resolved_tools = [
+                e.tool for e in entries if e.bind_mode == ToolBindMode.TURN1 and e.source != ToolSource.META
+            ]
+        else:
+            resolved_tools = [e.tool for e in entries if e.bind_mode == ToolBindMode.TURN1]
+
+        # Weave dynamic schemas (e.g. cross-tool hints)
+        resolved_names = {t.name for t in resolved_tools}
+        final_tools = []
+        for tool in resolved_tools:
+            modifier = getattr(tool, "dynamic_schema_modifier", None)
+            # Check if callable and not a MagicMock (to prevent test breakage)
+            if modifier is not None and callable(modifier) and not type(modifier).__name__.endswith("Mock"):
+                try:
+                    tool = modifier(resolved_names)
+                except Exception as ex:
+                    logger.warning("Tool %s dynamic_schema_modifier failed: %s", tool.name, ex)
+            final_tools.append(tool)
+
+        return final_tools
+
+    def get_runtime_tools(self) -> list[BaseTool]:
+        """Return RUNTIME_ONLY tools executable when middleware injects tool_calls."""
+        entries = self._resolve_entries()
+        return [e.tool for e in entries if e.bind_mode == ToolBindMode.RUNTIME_ONLY]
+
+    def snapshot(self) -> list[ToolSnapshot]:
+        """Return a serializable snapshot of all registered tools (internal/debug).
+
+        For GUI exposure use ``emit_tools_snapshot`` which filters to Turn1 only.
+        """
+        snapshots: list[ToolSnapshot] = []
+        for entry in self._resolve_entries():
+            tool = entry.tool
+            desc = tool.description or ""
+            params = _safe_extract_schema(tool)
+
+            snapshots.append(
+                ToolSnapshot(
+                    name=tool.name,
+                    summary=_extract_summary(desc),
+                    description=desc,
+                    source=entry.source.value,
+                    provider=entry.provider,
+                    layer=tool_layer_snapshot_label(entry.layer or get_tool_layer(tool.name)),
+                    parameters_schema=params,
+                    bind_mode=entry.bind_mode.value,
+                    replay_safety=entry.replay_safety.value,
+                    builtin_tool_id=get_tool_product_id(tool.name),
+                )
+            )
+        return snapshots
+
+    @property
+    def entry_count(self) -> int:
+        return len(self._entries)
+
+    def has_tool(self, name: str) -> bool:
+        """Check whether a tool with the given name has been registered."""
+        return any(e.tool.name == name for e in self._entries)
+
+    def remove_tool(self, name: str) -> bool:
+        """Remove all registry entries for *name*. Returns True if any were removed."""
+        before = len(self._entries)
+        self._entries = [e for e in self._entries if e.tool.name != name]
+        return len(self._entries) < before
+
+    def entries_by_source(self) -> dict[ToolSource, list[str]]:
+        """Diagnostic helper — group tool names by source."""
+        result: dict[ToolSource, list[str]] = {}
+        for entry in self._entries:
+            result.setdefault(entry.source, []).append(entry.tool.name)
+        return result
+
+    @staticmethod
+    def register_external_layer_specs(specs: dict[str, ToolLayer]) -> None:
+        """Register external tool layer specifications into the global tool layers mapping.
+
+        Parameters
+        ----------
+        specs:
+            Mapping from tool names to ToolLayer enum members.
+        """
+        _TOOL_LAYERS.update(specs)

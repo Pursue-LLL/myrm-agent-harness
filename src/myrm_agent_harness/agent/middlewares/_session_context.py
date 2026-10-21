@@ -1,0 +1,438 @@
+"""Middleware session context — shared ContextVars for the middleware chain.
+
+Provides per-request context (SecurityConfig, workspace root, session key,
+user ID, EventLogger) that multiple middlewares consume. Centralizes these
+ContextVars so they are not owned by any single middleware.
+
+[INPUT]
+- agent.security.terminal_error_registry::TerminalErrorRegistry (POS: Turn-scoped terminal error state + durable God-Mode file injection channel.)
+- agent.security.types::PrivacyPolicy, SecurityConfig (POS: Foundation layer of the security type hierarchy.)
+- agent.event_log.logger::EventLogger (POS: Integration façade. Async-buffered writes ensure zero impact on the event production hot path.)
+- core.security.guards.privacy_tracker::set_privacy_policy (POS: Per-turn privacy state tracker. ContextVar-based privacy policy access.)
+- agent.middlewares.security.outbound_privacy_guard::install_outbound_privacy_guard (POS: Wire-level half of the privacy layer: the guardrail middleware covers the agent loop, this guard covers every other ChatLiteLLM call.)
+
+[OUTPUT]
+- set_allowed_domains_map: Set the allowed domains map for the current async context.
+- get_allowed_domains_map: Get the allowed domains map for the current async context.
+- set_security_config: Set the active SecurityConfig for the current async context; an enabled privacy policy also arms the outbound privacy guard.
+- get_security_config: Get the active SecurityConfig for the current async context.
+- get_privacy_policy: Active PrivacyPolicy for the current async context (set via set_security_config, which delegates to core.security.guards.privacy_tracker).
+- set_pseudonym_store / get_pseudonym_store: Context-local PseudonymStore for memory-write PII pseudonymization.
+- set_workspace_root: Set the workspace root for PathPolicy evaluation in the current async context.
+- set_goal_provider / get_goal_provider: Per-run GoalProvider for goal_focus_middleware.
+- set_canary_token / get_canary_token: Session-scoped canary token for output-side injection detection.
+- set_is_shadow_agent / reset_is_shadow_agent / get_is_shadow_agent: Background shadow-agent bulkhead flag.
+- set_turn_allowed_tool_names / get_turn_allowed_tool_names: Per-turn merged tool allowlist for execution-layer enforcement.
+- set_active_tool_registry / get_active_tool_registry / set_active_resolved_tools / get_active_resolved_tools: Tools published for the current agent run (ContextVar with a session-key fallback for LangGraph's copied contexts).
+- clear_active_tools_for_tests: Wipe every published registry and tool list for test isolation.
+
+[POS]
+Middleware session context — shared ContextVars for the middleware chain.
+"""
+
+from __future__ import annotations
+
+from contextvars import ContextVar, Token
+from typing import TYPE_CHECKING
+
+from myrm_agent_harness.agent.security.managed_approval_policy import (
+    ManagedApprovalPolicy,
+    get_process_managed_approval_policy,
+)
+from myrm_agent_harness.agent.security.terminal_error_registry import (
+    TerminalErrorRegistry,
+)
+from myrm_agent_harness.agent.security.types import PrivacyPolicy, SecurityConfig
+from myrm_agent_harness.core.context_vars import approval_session_var, protected_paths_var
+
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
+    from myrm_agent_harness.agent.event_log.logger import EventLogger
+    from myrm_agent_harness.agent.goals.protocols import GoalProvider
+    from myrm_agent_harness.agent.security.detection.pseudonym_store import (
+        PseudonymStore,
+    )
+    from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
+
+_security_config_var: ContextVar[SecurityConfig | None] = ContextVar("security_config", default=None)
+_workspace_root_var: ContextVar[str] = ContextVar("workspace_root", default="")
+_pseudonym_store_var: ContextVar[PseudonymStore | None] = ContextVar("pseudonym_store", default=None)
+_active_message_id_var: ContextVar[str | None] = ContextVar("active_message_id", default=None)
+_agent_id_var: ContextVar[str] = ContextVar("agent_id", default="")
+_agent_primary_model_var: ContextVar[str] = ContextVar("agent_primary_model", default="")
+_managed_approval_policy_var: ContextVar[ManagedApprovalPolicy | None] = ContextVar(
+    "managed_approval_policy", default=None
+)
+_user_id_var: ContextVar[str] = ContextVar("approval_user_id", default="")
+_event_logger_var: ContextVar[EventLogger | None] = ContextVar("event_logger", default=None)
+_allowed_domains_map_var: ContextVar[dict[str, list[str] | None] | None] = ContextVar(
+    "allowed_domains_map", default=None
+)
+_is_subagent_var: ContextVar[bool] = ContextVar("is_subagent", default=False)
+_subagent_task_id_var: ContextVar[str | None] = ContextVar("subagent_task_id", default=None)
+_is_shadow_agent_var: ContextVar[bool] = ContextVar("is_shadow_agent", default=False)
+_canary_token_var: ContextVar[str] = ContextVar("canary_token", default="")
+_goal_provider_var: ContextVar[GoalProvider | None] = ContextVar("goal_provider", default=None)
+
+
+def set_goal_provider(provider: GoalProvider | None) -> None:
+    """Set the GoalProvider for the current async context."""
+    _goal_provider_var.set(provider)
+
+
+def get_goal_provider() -> GoalProvider | None:
+    """Get the GoalProvider for the current async context."""
+    return _goal_provider_var.get()
+
+
+def set_allowed_domains_map(domains_map: dict[str, list[str] | None]) -> None:
+    """Set the allowed domains map for the current async context."""
+    _allowed_domains_map_var.set(domains_map)
+
+
+def get_allowed_domains_map() -> dict[str, list[str] | None]:
+    """Get the allowed domains map for the current async context."""
+    val = _allowed_domains_map_var.get()
+    return val if val is not None else {}
+
+
+EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY = "_effective_security_config"
+
+
+def resolve_security_config_from_runtime(
+    runtime: object | None,
+) -> SecurityConfig | None:
+    """Read SecurityConfig from LangGraph runtime.context when ContextVar is missing."""
+    if runtime is None:
+        return None
+    ctx = getattr(runtime, "context", None)
+    if not isinstance(ctx, dict):
+        return None
+    snap = ctx.get(EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY)
+    return snap if isinstance(snap, SecurityConfig) else None
+
+
+def set_security_config(config: SecurityConfig | None) -> None:
+    """Set the active SecurityConfig for the current async context.
+
+    A run with an enabled privacy policy also arms the outbound privacy guard, so the model calls that bypass the
+    agent loop (summaries, memory extraction, sub-agents) are covered without the host wiring anything.
+    """
+    _security_config_var.set(config)
+    from myrm_agent_harness.core.security.guards.privacy_tracker import (
+        set_privacy_policy,
+    )
+
+    policy = config.privacy_policy if config else None
+    set_privacy_policy(policy)
+    if policy is not None and policy.enabled:
+        from myrm_agent_harness.agent.middlewares.security.outbound_privacy_guard import (
+            install_outbound_privacy_guard,
+        )
+
+        install_outbound_privacy_guard()
+
+
+def get_security_config() -> SecurityConfig | None:
+    """Get the active SecurityConfig for the current async context."""
+    return _security_config_var.get()
+
+
+def set_workspace_root(path: str) -> None:
+    """Set the workspace root for PathPolicy evaluation in the current async context."""
+    _workspace_root_var.set(path)
+    from myrm_agent_harness.core.context_vars import workspace_root_var
+
+    workspace_root_var.set(path)
+
+
+def get_workspace_root() -> str:
+    """Get the workspace root for the current async context."""
+    return _workspace_root_var.get()
+
+
+def set_approval_session(session_key: str) -> None:
+    """Set the session key for approval routing."""
+    approval_session_var.set(session_key)
+    from myrm_agent_harness.core.context_vars import chat_id_var
+
+    chat_id_var.set(session_key)
+
+
+def get_approval_session() -> str:
+    """Get the session key for the current async context."""
+    return approval_session_var.get()
+
+
+def set_active_message_id(message_id: str | None) -> None:
+    """Bind the current assistant turn message id for tool/UI side effects."""
+    _active_message_id_var.set(message_id)
+
+
+def get_active_message_id() -> str | None:
+    """Return the bound assistant turn message id when set in this async context."""
+    return _active_message_id_var.get()
+
+
+def set_agent_id(agent_id: str) -> None:
+    """Set the agent ID for the current async context."""
+    _agent_id_var.set(agent_id)
+
+
+def get_agent_id() -> str:
+    """Get the agent ID for the current async context."""
+    return _agent_id_var.get()
+
+
+def set_agent_primary_model_slug(model_slug: str) -> None:
+    """Set the agent primary LLM model slug for MAP model matching."""
+    _agent_primary_model_var.set(model_slug.strip())
+
+
+def get_agent_primary_model_slug() -> str:
+    """Get the agent primary LLM model slug for the current async context."""
+    return _agent_primary_model_var.get()
+
+
+def set_managed_approval_policy(policy: ManagedApprovalPolicy | None) -> None:
+    """Bind session-scoped MAP; None resets to process default at read time."""
+    _managed_approval_policy_var.set(policy)
+
+
+def get_managed_approval_policy() -> ManagedApprovalPolicy:
+    """Return session MAP or process-wide default when unset."""
+    session_policy = _managed_approval_policy_var.get()
+    if session_policy is not None:
+        return session_policy
+    return get_process_managed_approval_policy()
+
+
+def set_approval_user_id(user_id: str) -> None:
+    """Set the user ID for allowlist lookups in the current async context."""
+    _user_id_var.set(user_id)
+
+
+def get_approval_user_id() -> str:
+    """Get the user ID for the current async context."""
+    return _user_id_var.get()
+
+
+def get_privacy_policy() -> PrivacyPolicy:
+    """Get the active PrivacyPolicy from SecurityConfig.
+
+    Delegates to core.security.guards.privacy_tracker.get_privacy_policy()
+    which uses its own ContextVar, kept in sync by set_security_config().
+    """
+    from myrm_agent_harness.core.security.guards.privacy_tracker import (
+        get_privacy_policy as _core_get_privacy_policy,
+    )
+
+    return _core_get_privacy_policy()
+
+
+def set_pseudonym_store(store: PseudonymStore | None) -> None:
+    """Set the PseudonymStore for the current async context."""
+    _pseudonym_store_var.set(store)
+
+
+def get_pseudonym_store() -> PseudonymStore | None:
+    """Get the PseudonymStore for the current async context.
+
+    Returns None if pseudonymization is not configured.
+    """
+    return _pseudonym_store_var.get()
+
+
+def set_event_logger(logger: EventLogger | None) -> None:
+    """Set the EventLogger for the current async context."""
+    _event_logger_var.set(logger)
+
+
+def get_event_logger() -> EventLogger | None:
+    """Get the EventLogger for the current async context."""
+    return _event_logger_var.get()
+
+
+_terminal_errors_var: ContextVar[TerminalErrorRegistry] = ContextVar("terminal_errors")
+
+
+def get_terminal_errors() -> TerminalErrorRegistry:
+    """Get the registry of terminal error categories (e.g. 'network_blocked') detected in the current turn."""
+    try:
+        return _terminal_errors_var.get()
+    except LookupError:
+        registry = TerminalErrorRegistry()
+        _terminal_errors_var.set(registry)
+        return registry
+
+
+def reset_terminal_errors() -> None:
+    """Reset the set of terminal errors for the current async context."""
+    try:
+        registry = _terminal_errors_var.get()
+        registry.clear()
+    except LookupError:
+        registry = TerminalErrorRegistry()
+        registry.clear()
+        _terminal_errors_var.set(registry)
+
+
+_active_tool_registry_var: ContextVar[ToolRegistry | None] = ContextVar("active_tool_registry", default=None)
+_active_resolved_tools_var: ContextVar[list[BaseTool] | None] = ContextVar("active_resolved_tools", default=None)
+# LangGraph executes graph nodes in copied contexts, so ContextVar state set in
+# run_agent_loop does not survive into ToolNode execution. Mirror the loop-guard
+# pattern (ContextVar + session-key fallback) so runtime-only hooks such as
+# `_completion_check` can still be resolved by resolve_dynamic_tool.
+_session_tool_registries: dict[str, ToolRegistry] = {}
+_session_resolved_tools: dict[str, list[BaseTool]] = {}
+
+
+def _active_tools_session_key() -> str:
+    from myrm_agent_harness.core.context_vars import chat_id_var
+
+    try:
+        session_key = chat_id_var.get()
+    except LookupError:
+        session_key = ""
+    return session_key if session_key else get_approval_session() or "__default__"
+
+
+def set_active_tool_registry(registry: ToolRegistry) -> None:
+    """Publish the agent's ToolRegistry for dynamic tool resolution during execution."""
+    _active_tool_registry_var.set(registry)
+    _session_tool_registries[_active_tools_session_key()] = registry
+
+
+def get_active_tool_registry() -> ToolRegistry | None:
+    """Return the ToolRegistry for the current agent run, if set."""
+    registry = _active_tool_registry_var.get()
+    if registry is not None:
+        return registry
+    return _session_tool_registries.get(_active_tools_session_key())
+
+
+def set_active_resolved_tools(tools: list[BaseTool]) -> None:
+    """Publish the resolved tool instances bound to the current agent graph."""
+    _active_resolved_tools_var.set(tools)
+    _session_resolved_tools[_active_tools_session_key()] = tools
+
+
+def get_active_resolved_tools() -> list[BaseTool] | None:
+    """Return resolved tools for the current agent run, if set."""
+    tools = _active_resolved_tools_var.get()
+    if tools is not None:
+        return tools
+    return _session_resolved_tools.get(_active_tools_session_key())
+
+
+def clear_active_tools_for_tests() -> None:
+    """Drop every published tool registry and resolved-tool list for test isolation.
+
+    The session maps are process-wide, so a registry published by one test (any test that builds an
+    agent) stays visible to every later test of the process and takes priority over the registry a
+    middleware was constructed with.
+    """
+    _active_tool_registry_var.set(None)
+    _active_resolved_tools_var.set(None)
+    _session_tool_registries.clear()
+    _session_resolved_tools.clear()
+
+
+def set_is_subagent(is_subagent: bool) -> None:
+    """Mark the current execution context as a subagent.
+
+    This is critical for preventing autonomous subagents from triggering
+    UI-based approval flows that would cause deadlocks.
+    """
+    _is_subagent_var.set(is_subagent)
+
+
+def get_is_subagent() -> bool:
+    """Check if the current execution context is a subagent.
+
+    Returns:
+        True if running in a subagent context, False otherwise.
+    """
+    return _is_subagent_var.get()
+
+
+def set_subagent_task_id(task_id: str | None) -> None:
+    """Set the task ID for the current subagent context."""
+    _subagent_task_id_var.set(task_id)
+
+
+def get_subagent_task_id() -> str | None:
+    """Get the task ID for the current subagent context.
+
+    Returns:
+        The subagent task ID, or None if not in a subagent context.
+    """
+    return _subagent_task_id_var.get()
+
+
+def set_is_shadow_agent(is_shadow: bool) -> Token[bool]:
+    """Mark the current execution context as a background shadow agent."""
+    return _is_shadow_agent_var.set(is_shadow)
+
+
+def reset_is_shadow_agent(token: Token[bool]) -> None:
+    """Restore the previous shadow-agent flag."""
+    _is_shadow_agent_var.reset(token)
+
+
+def get_is_shadow_agent() -> bool:
+    """Return True when running inside a shadow-agent bulkhead context."""
+    return _is_shadow_agent_var.get()
+
+
+def set_canary_token(token: str) -> None:
+    """Set the canary token for the current session."""
+    _canary_token_var.set(token)
+
+
+def get_canary_token() -> str:
+    """Get the canary token for the current session.
+
+    Returns empty string if no canary has been set.
+    """
+    return _canary_token_var.get()
+
+
+_turn_allowed_tool_names_var: ContextVar[frozenset[str] | None] = ContextVar("turn_allowed_tool_names", default=None)
+
+
+def set_protected_paths(patterns: tuple[str, ...]) -> None:
+    """Set the Goal-scoped protected file path patterns for the current context."""
+    protected_paths_var.set(patterns)
+
+
+def get_protected_paths() -> tuple[str, ...]:
+    """Get the Goal-scoped protected file path patterns.
+
+    Returns an empty tuple when no Goal is active or no protection configured.
+    """
+    return protected_paths_var.get()
+
+
+def set_turn_allowed_tool_names(allowed: frozenset[str] | None) -> None:
+    """Publish the per-turn tool allowlist for execution-layer enforcement."""
+    _turn_allowed_tool_names_var.set(allowed)
+
+
+def get_turn_allowed_tool_names() -> frozenset[str] | None:
+    """Return the current turn tool allowlist, or None when unrestricted."""
+    return _turn_allowed_tool_names_var.get()
+
+
+_session_notes_summary_var: ContextVar[str | None] = ContextVar("session_notes_summary", default=None)
+
+
+def set_session_notes_summary(summary: str | None) -> None:
+    """Publish Session Notes summary text for downstream tail injectors in the same model call."""
+    _session_notes_summary_var.set(summary)
+
+
+def get_session_notes_summary() -> str | None:
+    """Return Session Notes summary when ready for the current model call."""
+    return _session_notes_summary_var.get()

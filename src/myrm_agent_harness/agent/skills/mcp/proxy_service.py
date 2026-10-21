@@ -1,0 +1,504 @@
+"""MCP 技能代理服务
+
+提供 MCP 技能调用的核心逻辑（纯 Python）。
+IPC Server 内部使用此服务处理子进程的 MCP 工具调用请求。
+
+特性：
+- 相同参数的调用会被缓存 10 分钟，避免重复调用浪费资源
+- 提供 handle_mcp_invoke() 函数供 IPC Proxy 和自定义集成使用
+
+[INPUT]
+- utils.lru_cache::LRUCache (POS: LRU  TTL  LRU)
+- backends.skills.types::SkillMetadata (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
+- toolkits.mcp::MCPConfig (POS: MCP toolkit entry point. Aggregates client management, agent tool fetching, connection pooling, configuration, and security validation for unified MCP protocol support.)
+- toolkits.mcp.client::MCPServerConfigProtocol (POS: MCP client management layer. Handles MCP server connection setup, transport config conversion, and multi-server client initialization with optional auth injection.)
+
+[OUTPUT]
+- MCPSkillProxyService: MCP skill invoke with LRU cache (canonical tool-name keys), required-arg probe validation
+- MCPInvokeResult: handle_mcp_invoke result envelope
+- get_mcp_skill_proxy_service: singleton accessor
+- handle_mcp_invoke: framework entry for PTC MCP tool calls
+
+[POS]
+Provides MCPSkillProxyService, MCPInvokeResult, get_mcp_skill_proxy_service.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import time
+from typing import TYPE_CHECKING, TypedDict
+
+from myrm_agent_harness.core.security.detection.content_boundary import (
+    extract_wrapped_payload,
+)
+from myrm_agent_harness.toolkits.mcp.schema import prepare_mcp_call_arguments
+from myrm_agent_harness.utils.lru_cache import LRUCache
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.backends.skills.types import SkillMetadata
+    from myrm_agent_harness.toolkits.mcp import MCPConfig
+
+logger = logging.getLogger(__name__)
+
+READ_ONLY_CACHE_TTL_SECONDS = 60
+"""Session-scoped cache lifetime for ``readOnlyHint`` tools.
+
+Short by design: the cache absorbs repeated identical lookups inside one script,
+it does not memoize across a conversation. A longer TTL makes status polling
+return stale data and lets one tenant observe another tenant's result. Mutating
+tools never enter this cache.
+"""
+
+
+def _resolve_mcp_input_schema(
+    tool_schema_entry: dict[str, object],
+) -> dict[str, object]:
+    """Normalize MCP tool schema entry to JSON Schema dict."""
+    from typing import cast
+
+    from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import (
+        normalize_input_schema,
+    )
+
+    return cast(
+        "dict[str, object]",
+        normalize_input_schema(tool_schema_entry.get("inputSchema")),
+    )
+
+
+def _validate_required_mcp_params(
+    tool_name: str,
+    params: dict[str, object],
+    tool_schema_entry: dict[str, object] | None,
+) -> dict[str, object] | None:
+    """Check required arguments before dispatch; return error payload if missing."""
+    if not tool_schema_entry:
+        return None
+    try:
+        schema = _resolve_mcp_input_schema(tool_schema_entry)
+        required = schema.get("required")
+        if not isinstance(required, list) or not required:
+            return None
+        missing = [name for name in required if isinstance(name, str) and name not in params]
+        if not missing:
+            return None
+        return {
+            "error": (
+                f"tool_call to '{tool_name}' is missing required argument(s): "
+                f"{', '.join(missing)}. The tool was NOT invoked."
+            ),
+            "parameters": schema,
+            "hint": "Retry tool_call with 'arguments' matching the parameters schema above.",
+        }
+    except Exception:
+        return None
+
+
+class MCPSkillProxyService:
+    """MCP 技能代理服务
+
+    专门处理 MCP 技能的调用，封装所有调用逻辑：
+    - 从 skill_registry 获取配置
+    - 工具查找（按服务器名+工具名匹配）
+    - 工具调用
+    - 结果解析
+    - 相同参数的调用缓存（10 分钟有效期）
+    """
+
+    def __init__(self) -> None:
+        """初始化代理服务"""
+        self._cache: LRUCache[object] = LRUCache(
+            maxsize=1000,
+            ttl=READ_ONLY_CACHE_TTL_SECONDS,
+            id="mcp_skill_readonly_cache",
+        )
+
+    def _make_cache_key(
+        self,
+        session_id: str,
+        skill_name: str,
+        tool_name: str,
+        params: dict[str, object],
+    ) -> str:
+        """生成缓存键（必须含会话，避免跨租户/跨会话串数据）
+
+        Args:
+            session_id: 调用方会话 ID
+            skill_name: 技能名称
+            tool_name: 工具名称
+            params: 工具参数
+
+        Returns:
+            缓存键字符串
+        """
+        # 将参数序列化为 JSON 并计算哈希
+        params_json = json.dumps(params, sort_keys=True, ensure_ascii=False)
+        params_hash = hashlib.md5(params_json.encode()).hexdigest()[:16]
+        return f"{session_id}.{skill_name}.{tool_name}:{params_hash}"
+
+    @staticmethod
+    def _is_read_only_tool(skill_name: str, tool_name: str) -> bool:
+        """Return True only when the MCP server declared ``readOnlyHint``.
+
+        Fail-closed: an unknown tool is treated as mutating. Caching a write or a
+        status poll would either swallow the side effect or pin a stale value.
+        """
+        from myrm_agent_harness.core.security.tool_registry.registry import (
+            get_ptc_safety_metadata,
+        )
+
+        entry = get_ptc_safety_metadata(skill_name, tool_name)
+        if entry is None:
+            return False
+        safety, _annotations = entry
+        return safety.is_read_only
+
+    def _canonical_cache_tool_name(self, skill_name: str, tool_name: str) -> str:
+        """Resolve caller tool name to the MCP catalog name for cache keys."""
+        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
+            resolve_mcp_tool_name,
+        )
+        from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
+
+        skill_meta = skill_registry.get_mcp_skill_for_ipc(skill_name)
+        if skill_meta is None or skill_meta.mcp is None:
+            return tool_name
+        matched = resolve_mcp_tool_name(tool_name, skill_meta.mcp.tools)
+        return matched or tool_name
+
+    async def invoke_tool(
+        self,
+        skill_name: str,
+        tool_name: str,
+        params: dict[str, object],
+        *,
+        trace_id: str = "-",
+        session_id: str = "-",
+    ) -> object:
+        """调用 MCP 工具
+
+        从 skill_registry 获取技能配置并调用对应的 MCP 工具。
+        技能必须在 Agent 初始化时已通过 mcp_skill_generator 注册。
+
+        仅声明 ``readOnlyHint`` 的工具会在会话内短缓存；写操作每次都真实调用。
+
+        Args:
+            skill_name: 技能名称
+            tool_name: 工具名称
+            params: 工具参数
+            trace_id: PTC 调用链追踪 ID
+            session_id: 调用方会话 ID（缓存隔离维度）
+
+        Returns:
+            工具返回结果
+
+        Raises:
+            RuntimeError: 如果找不到技能或工具
+        """
+        log_prefix = f"[PTC:{trace_id}]"
+        matched_for_schema = self._canonical_cache_tool_name(skill_name, tool_name)
+        schema_entry: dict[str, object] | None = None
+        from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
+
+        skill_meta_for_schema = skill_registry.get_mcp_skill_for_ipc(skill_name)
+        if skill_meta_for_schema and skill_meta_for_schema.mcp:
+            schema_entry = skill_meta_for_schema.mcp.tool_schemas.get(matched_for_schema)
+        input_schema = _resolve_mcp_input_schema(schema_entry) if isinstance(schema_entry, dict) else None
+        cleaned_params = prepare_mcp_call_arguments(params, input_schema)
+
+        cache_key: str | None = None
+        if self._is_read_only_tool(skill_name, matched_for_schema):
+            cache_key = self._make_cache_key(session_id, skill_name, matched_for_schema, cleaned_params)
+            cached_result = self._cache.get(cache_key)
+            if cached_result is not None:
+                logger.debug(f"{log_prefix} Read-only cache hit: {skill_name}.{tool_name}")
+                return cached_result
+
+        logger.info(f"{log_prefix} Invoking: {skill_name}.{tool_name}")
+        logger.debug(f"{log_prefix} Params: {cleaned_params}")
+
+        t0 = time.monotonic()
+        result = await self._invoke_from_registry(skill_name, tool_name, cleaned_params)
+        elapsed_ms = (time.monotonic() - t0) * 1000
+
+        if cache_key is not None:
+            self._cache.set(cache_key, result)
+
+        logger.info(f"{log_prefix} MCP {skill_name}.{tool_name} completed in {elapsed_ms:.0f}ms")
+        return result
+
+    # =========================================================================
+    # 调用实现
+    # =========================================================================
+
+    async def _invoke_from_registry(self, skill_name: str, tool_name: str, params: dict[str, object]) -> object:
+        """从 skill_registry 获取配置并调用工具
+
+        Args:
+            skill_name: 技能名称
+            tool_name: 工具名称
+            params: 工具参数
+
+        Returns:
+            工具返回结果
+
+        Raises:
+            RuntimeError: 如果找不到技能或技能不是 MCP 技能
+        """
+        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
+            resolve_mcp_tool_name,
+        )
+        from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
+
+        skill_meta = skill_registry.get_mcp_skill_for_ipc(skill_name)
+        if not skill_meta:
+            raise RuntimeError(f"Skill not found: {skill_name}")
+
+        if not skill_meta.is_mcp_skill:
+            raise RuntimeError(f"Skill '{skill_name}' is not an MCP skill")
+
+        mcp_config = self._convert_skill_meta_config(skill_meta)
+        # 从 mcp.server 获取服务器名
+        assert skill_meta.mcp is not None
+        mcp_server = skill_meta.mcp.server
+
+        matched_tool_name = resolve_mcp_tool_name(tool_name, skill_meta.mcp.tools)
+        if not matched_tool_name:
+            raise RuntimeError(
+                f"Tool '{tool_name}' not found in MCP skill '{skill_name}'. "
+                f"Available: {', '.join(skill_meta.mcp.tools[:5])}"
+            )
+
+        validation_error = _validate_required_mcp_params(
+            matched_tool_name,
+            params,
+            skill_meta.mcp.tool_schemas.get(matched_tool_name),
+        )
+        if validation_error is not None:
+            return validation_error
+
+        return await self._find_and_invoke(mcp_config, mcp_server, matched_tool_name, params)
+
+    async def _find_and_invoke(
+        self,
+        mcp_config: list[MCPConfig],
+        mcp_server: str,
+        tool_name: str,
+        params: dict[str, object],
+    ) -> object:
+        """Invoke an MCP tool on the warm pooled session.
+
+        The connection manager keeps one persistent, already-initialized session
+        per server, so the call reuses the live process/connection instead of
+        spawning a fresh subprocess and re-running ``initialize`` each time.
+        Server- and tool-name variant resolution is handled by the connection.
+
+        Raises:
+            RuntimeError: if the target server or tool cannot be found.
+        """
+        from typing import cast
+
+        from myrm_agent_harness.toolkits.mcp.client import MCPServerConfigProtocol
+        from myrm_agent_harness.toolkits.mcp.connection_manager import (
+            get_mcp_connection_manager,
+        )
+
+        manager = await get_mcp_connection_manager()
+        # MCPConfig implements MCPServerConfigProtocol — safe structural cast.
+        config_as_protocol = cast("list[MCPServerConfigProtocol]", mcp_config)
+        conn = await manager.get_connection(config_as_protocol)
+
+        raw_result = await conn.call(mcp_server, tool_name, params)
+        return self.parse_mcp_result(raw_result)
+
+    # =========================================================================
+    # 配置转换
+    # =========================================================================
+
+    def _convert_skill_meta_config(self, skill_meta: SkillMetadata) -> list[MCPConfig]:
+        """从技能元数据中提取并转换 MCP 配置
+
+        Args:
+            skill_meta: 技能元数据
+
+        Returns:
+            转换后的 MCPConfig 列表
+
+        Raises:
+            RuntimeError: 如果技能不是 MCP 技能或配置缺失
+        """
+        from myrm_agent_harness.toolkits.mcp import MCPConfig
+
+        if not skill_meta.is_mcp_skill or not skill_meta.mcp:
+            raise RuntimeError(f"Skill '{skill_meta.name}' is not an MCP skill")
+
+        # 从 mcp.config 中获取配置
+        mcp_config_raw = skill_meta.mcp.config
+        if not mcp_config_raw:
+            raise RuntimeError(f"mcp_config not found in skill metadata for: {skill_meta.name}")
+
+        mcp_config: list[MCPConfig] = []
+        for cfg in mcp_config_raw:
+            if isinstance(cfg, dict):
+                cfg_copy = dict(cfg)
+                injected_headers = cfg_copy.pop("_injected_auth_headers", None)
+                instance = MCPConfig(**cfg_copy)  # type: ignore[arg-type]
+                if injected_headers is not None:
+                    object.__setattr__(instance, "_injected_auth_headers", injected_headers)
+                mcp_config.append(instance)
+            elif isinstance(cfg, MCPConfig):
+                mcp_config.append(cfg)
+        return mcp_config
+
+    # =========================================================================
+    # 结果解析
+    # =========================================================================
+
+    def parse_mcp_result(self, raw_result: object) -> object:
+        """解析 MCP 工具返回结果
+
+        MCP 返回格式可能是：
+        - 元组 (content, artifact)
+        - 字符串列表
+        - 字典 {'type': 'text', 'text': '...', 'id': '...'} - 需要提取 text 字段
+        - 纯字符串
+        """
+        # 处理元组格式 (content, artifact)
+        if isinstance(raw_result, tuple) and len(raw_result) >= 1:
+            content = raw_result[0]
+        else:
+            content = raw_result
+
+        # 如果是字符串列表
+        if isinstance(content, list):
+            parsed_items = []
+            for item in content:
+                if isinstance(item, str):
+                    try:
+                        parsed_items.append(json.loads(item))
+                    except (json.JSONDecodeError, ValueError):
+                        parsed_items.append(item)
+                else:
+                    parsed_items.append(item)
+
+            if len(parsed_items) == 1:
+                return self._parse_final(parsed_items[0])
+
+            if all(isinstance(item, str) for item in content):
+                combined = "".join(content)
+                try:
+                    return self._parse_final(json.loads(combined))
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+            return [self._parse_final(item) for item in parsed_items]
+
+        # 如果是字符串
+        if isinstance(content, str):
+            try:
+                return self._parse_final(json.loads(content))
+            except (json.JSONDecodeError, ValueError):
+                return self._normalize_ptc_value(content)
+
+        return self._parse_final(content)
+
+    def _parse_final(self, content: object) -> object:
+        """提取 MCP 文本内容并递归 normalize（unwrap 边界 + 尝试 JSON 解析）。"""
+        return self._normalize_ptc_value(self._extract_text_content(content))
+
+    def _normalize_ptc_value(self, value: object) -> object:
+        """Unwrap security envelopes and parse JSON strings for PTC Python consumers."""
+        if isinstance(value, list):
+            return [self._normalize_ptc_value(item) for item in value]
+        if not isinstance(value, str):
+            return value
+        unwrapped = extract_wrapped_payload(value)
+        try:
+            return json.loads(unwrapped)
+        except (json.JSONDecodeError, ValueError):
+            return unwrapped
+
+    def _extract_text_content(self, content: object) -> object:
+        """提取 MCP 内容中的实际数据
+
+        MCP 返回的内容可能是 {'type': 'text', 'text': '...', 'id': '...'} 格式，
+        我们只需要 'text' 字段的值。如果 text 是 JSON 字符串，则解析它。
+
+        Args:
+            content: MCP 返回的内容
+
+        Returns:
+            提取后的实际数据
+        """
+        if not isinstance(content, dict):
+            return content
+
+        # 检查是否是 MCP 文本内容格式
+        if content.get("type") == "text" and "text" in content:
+            text_value = content["text"]
+            # 尝试解析 text 字段中的 JSON
+            if isinstance(text_value, str):
+                try:
+                    return json.loads(text_value)
+                except (json.JSONDecodeError, ValueError):
+                    return text_value
+            return text_value
+
+        # 不是 MCP 格式，返回原内容
+        return content
+
+
+# =============================================================================
+# 全局单例
+# =============================================================================
+
+_service: MCPSkillProxyService | None = None
+
+
+def get_mcp_skill_proxy_service() -> MCPSkillProxyService:
+    """获取 MCP 技能代理服务单例"""
+    global _service
+    if _service is None:
+        _service = MCPSkillProxyService()
+    return _service
+
+
+class MCPInvokeResult(TypedDict, total=False):
+    """handle_mcp_invoke() 的返回类型"""
+
+    success: bool
+    result: object
+    error: str
+
+
+async def handle_mcp_invoke(
+    skill_name: str,
+    tool_name: str,
+    params: dict[str, object],
+    *,
+    session_id: str = "-",
+) -> MCPInvokeResult:
+    """处理 MCP 工具调用（纯 Python，Web 框架无关）
+
+    被 IPC Proxy 内部调用，也可供自定义集成使用。
+
+    Args:
+        skill_name: 技能名称
+        tool_name: 工具名称
+        params: 工具参数
+        session_id: 调用方会话 ID（只读缓存隔离维度）
+
+    Returns:
+        MCPInvokeResult: {"success": True, "result": ...} 或 {"success": False, "error": "..."}
+    """
+    try:
+        service = get_mcp_skill_proxy_service()
+        result = await service.invoke_tool(skill_name, tool_name, params, session_id=session_id)
+        return MCPInvokeResult(success=True, result=result)
+    except Exception as e:
+        error_msg = f"{type(e).__name__}: {e}"
+        logger.warning(f"handle_mcp_invoke failed: {skill_name}.{tool_name}, error: {error_msg}")
+        return MCPInvokeResult(success=False, error=error_msg)

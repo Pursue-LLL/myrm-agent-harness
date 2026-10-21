@@ -1,0 +1,165 @@
+"""Distribution mode detection for source vs compiled core artifacts.
+
+[INPUT]
+- install_guard._generated.core_ip_manifest::CORE_IP_IMPORTS (POS: Generated core IP import path list)
+- install_guard.platform::get_runtime_platform_key (POS: Runtime platform key)
+
+[OUTPUT]
+- DistributionMode, DistributionNotReadyError, assert_distribution_ready, get_distribution_mode, is_compiled_distribution
+
+[POS]
+Release vs editable install probe. Validates compiled core wheel version and platform key match.
+"""
+
+from __future__ import annotations
+
+import importlib
+from enum import StrEnum
+from functools import lru_cache
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
+from importlib.util import find_spec
+from pathlib import Path
+
+from myrm_agent_harness.runtime.install_guard._generated.core_ip_manifest import (
+    CORE_IP_IMPORTS,
+    CORE_IP_SOURCE_RELPATHS,
+)
+
+
+class DistributionNotReadyError(RuntimeError):
+    """Raised when manifest IP modules are neither present as source nor compiled."""
+
+
+class DistributionMode(StrEnum):
+    """How the harness package is installed on the current machine."""
+
+    SOURCE = "source"
+    COMPILED = "compiled"
+    INCOMPLETE = "incomplete"
+
+
+def _manifest_py_paths() -> tuple[Path, ...]:
+    import myrm_agent_harness
+
+    pkg_root = Path(myrm_agent_harness.__file__).resolve().parent
+    return tuple(pkg_root / rel for rel in CORE_IP_SOURCE_RELPATHS)
+
+
+def _manifest_py_present() -> bool:
+    return all(path.is_file() for path in _manifest_py_paths())
+
+
+def _assert_core_release_version_match() -> None:
+    """Fail closed when compiled core wheel version differs from release wheel."""
+    if _manifest_py_present():
+        return
+    if find_spec("myrm_agent_harness_core") is None:
+        return
+
+    try:
+        release_version = pkg_version("myrm-agent-harness")
+    except PackageNotFoundError:
+        return
+
+    import myrm_agent_harness_core
+
+    core_version = myrm_agent_harness_core.__version__
+    if core_version != release_version:
+        msg = (
+            "Harness distribution version mismatch: "
+            f"myrm-agent-harness=={release_version} but "
+            f"platform core wheel reports {core_version}. "
+            "Reinstall matching core and release wheels from the same build."
+        )
+        raise DistributionNotReadyError(msg)
+
+
+def _import_core_ip_module(import_name: str) -> None:
+    """Import a manifest module; surface compiled-layout failures as ImportError."""
+    import sys
+
+    parts = import_name.split(".")
+    for end in range(2, len(parts)):
+        parent = ".".join(parts[:end])
+        if parent not in sys.modules:
+            importlib.import_module(parent)
+    importlib.import_module(import_name)
+
+
+def assert_distribution_ready() -> None:
+    """Verify manifest IP modules are importable (``.py`` source or compiled ``.so``)."""
+    if _manifest_py_present():
+        return
+
+    missing: list[str] = []
+    sorted_imports = sorted(CORE_IP_IMPORTS, key=lambda name: (name.count("."), name))
+    for import_name in sorted_imports:
+        try:
+            _import_core_ip_module(import_name)
+        except (ImportError, KeyError):
+            missing.append(import_name)
+
+    if missing:
+        joined = ", ".join(missing)
+        msg = (
+            "Harness distribution incomplete: core IP modules are missing. "
+            "Install myrm-agent-harness-core-{platform} alongside the release wheel. "
+            f"Missing: {joined}"
+        )
+        raise DistributionNotReadyError(msg)
+
+    _assert_core_release_version_match()
+    _assert_core_platform_key_match()
+
+
+def _assert_core_platform_key_match() -> None:
+    """Fail closed when the installed core wheel targets a different platform key."""
+    if _manifest_py_present():
+        return
+    if find_spec("myrm_agent_harness_core") is None:
+        return
+
+    import myrm_agent_harness_core
+
+    from myrm_agent_harness.runtime.install_guard.platform import get_runtime_platform_key
+
+    expected_key = get_runtime_platform_key()
+    installed_key = myrm_agent_harness_core.get_platform_key()
+    if installed_key == "unknown":
+        msg = (
+            "Harness platform core wheel is not stamped with a platform key. "
+            f"Install myrm-agent-harness-core-{expected_key} from the same production build "
+            "as the release wheel (assemble_production / verify-harness-distribution)."
+        )
+        raise DistributionNotReadyError(msg)
+
+    if installed_key != expected_key:
+        msg = (
+            "Harness platform core wheel mismatch: "
+            f"expected myrm-agent-harness-core-{expected_key} but "
+            f"installed core wheel reports platform key {installed_key!r}. "
+            "Reinstall the matching platform core wheel for this machine."
+        )
+        raise DistributionNotReadyError(msg)
+
+
+@lru_cache(maxsize=1)
+def get_distribution_mode() -> DistributionMode:
+    """Return whether compiled core extensions are active."""
+    if _manifest_py_present():
+        return DistributionMode.SOURCE
+    if find_spec("myrm_agent_harness_core") is not None:
+        sorted_imports = sorted(CORE_IP_IMPORTS, key=lambda name: (name.count("."), name))
+        for import_name in sorted_imports:
+            try:
+                _import_core_ip_module(import_name)
+            except (ImportError, KeyError):
+                return DistributionMode.INCOMPLETE
+        return DistributionMode.COMPILED
+    return DistributionMode.INCOMPLETE
+
+
+def is_compiled_distribution() -> bool:
+    """Return True when platform core extensions are installed."""
+    return get_distribution_mode() is DistributionMode.COMPILED

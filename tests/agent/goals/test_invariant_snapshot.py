@@ -1,0 +1,243 @@
+"""Tests for invariant_snapshot: capture, verify, clear lifecycle."""
+
+from __future__ import annotations
+
+import os
+
+import pytest
+
+from myrm_agent_harness.agent.goals.invariant_snapshot import (
+    ProtectedFileViolation,
+    _snapshots,
+    capture_protected_snapshot,
+    clear_snapshot,
+    register_protected_artifact,
+    verify_protected_integrity,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clean_snapshots():
+    _snapshots.clear()
+    yield
+    _snapshots.clear()
+
+
+@pytest.fixture
+def workspace(tmp_path):
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_a.py").write_text("assert True")
+    (tmp_path / "tests" / "test_b.py").write_text("assert False")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.py").write_text("print('hello')")
+    return str(tmp_path)
+
+
+@pytest.fixture
+def dotfile_workspace(tmp_path):
+    """Workspace whose protected files are dotfiles — the class the old
+    ``glob.glob`` sweep could never capture, so its rules protected nothing."""
+    (tmp_path / "app" / "config").mkdir(parents=True)
+    (tmp_path / "app" / "config" / ".env").write_text("SECRET=1")
+    (tmp_path / ".env").write_text("SECRET=0")
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "x.csv").write_text("a,b")
+    return str(tmp_path)
+
+
+class TestCaptureProtectedSnapshot:
+    def test_captures_matching_files(self, workspace: str):
+        count = capture_protected_snapshot("g1", ["tests/**"], workspace)
+        assert count == 2
+        assert "g1" in _snapshots
+
+    def test_empty_patterns_returns_zero(self, workspace: str):
+        count = capture_protected_snapshot("g2", [], workspace)
+        assert count == 0
+        assert "g2" not in _snapshots
+
+    def test_no_matching_files(self, workspace: str):
+        count = capture_protected_snapshot("g3", ["nonexistent/**"], workspace)
+        assert count == 0
+
+    def test_captures_dotfiles_at_every_depth(self, dotfile_workspace: str):
+        """A ``*`` wildcard must reach leading-dot files to protect them."""
+        count = capture_protected_snapshot("g_dot", ["*.env"], dotfile_workspace)
+        assert count == 2
+
+    def test_captures_dotfile_with_explicit_dot_pattern(self, dotfile_workspace: str):
+        count = capture_protected_snapshot("g_dot2", ["**/.env*"], dotfile_workspace)
+        assert count == 2
+
+    def test_captures_relative_prefixed_pattern(self, dotfile_workspace: str):
+        count = capture_protected_snapshot("g_csv", ["data/*.csv"], dotfile_workspace)
+        assert count == 1
+
+    def test_inert_rule_is_logged(self, dotfile_workspace: str, caplog):
+        """A rule that protects nothing must be reported, not silently trusted."""
+        with caplog.at_level("WARNING"):
+            capture_protected_snapshot("g_dead", ["*.pem"], dotfile_workspace)
+        assert "protect nothing" in caplog.text
+        assert "*.pem" in caplog.text
+
+    def test_overwrites_previous_snapshot(self, workspace: str):
+        capture_protected_snapshot("g1", ["tests/**"], workspace)
+        capture_protected_snapshot("g1", ["src/**"], workspace)
+        assert _snapshots["g1"].patterns == ["src/**"]
+
+
+class TestVerifyProtectedIntegrity:
+    def test_no_snapshot_returns_empty(self):
+        assert verify_protected_integrity("nonexistent") == []
+
+    def test_intact_files_return_empty(self, workspace: str):
+        capture_protected_snapshot("g1", ["tests/**"], workspace)
+        violations = verify_protected_integrity("g1")
+        assert violations == []
+        assert (
+            "g1" in _snapshots
+        )  # non-destructive: snapshot preserved for repeated verify
+
+    def test_detects_modified_file(self, workspace: str):
+        capture_protected_snapshot("g1", ["tests/**"], workspace)
+        with open(os.path.join(workspace, "tests", "test_a.py"), "w") as f:
+            f.write("TAMPERED")
+        violations = verify_protected_integrity("g1")
+        assert len(violations) == 1
+        assert violations[0].kind == "modified"
+        assert "test_a.py" in violations[0].path
+
+    def test_detects_deleted_file(self, workspace: str):
+        capture_protected_snapshot("g1", ["tests/**"], workspace)
+        os.remove(os.path.join(workspace, "tests", "test_b.py"))
+        violations = verify_protected_integrity("g1")
+        assert len(violations) == 1
+        assert violations[0].kind == "deleted"
+
+    def test_detects_created_file(self, workspace: str):
+        capture_protected_snapshot("g1", ["tests/**"], workspace)
+        with open(os.path.join(workspace, "tests", "test_c.py"), "w") as f:
+            f.write("new file")
+        violations = verify_protected_integrity("g1")
+        assert len(violations) == 1
+        assert violations[0].kind == "created"
+
+    def test_multiple_violations(self, workspace: str):
+        capture_protected_snapshot("g1", ["tests/**"], workspace)
+        with open(os.path.join(workspace, "tests", "test_a.py"), "w") as f:
+            f.write("TAMPERED")
+        os.remove(os.path.join(workspace, "tests", "test_b.py"))
+        violations = verify_protected_integrity("g1")
+        assert len(violations) == 2
+        kinds = {v.kind for v in violations}
+        assert kinds == {"modified", "deleted"}
+
+    def test_verify_preserves_snapshot(self, workspace: str):
+        capture_protected_snapshot("g1", ["tests/**"], workspace)
+        verify_protected_integrity("g1")
+        assert "g1" in _snapshots  # non-destructive; clear_snapshot handles cleanup
+
+    def test_repeated_verify_detects_tamper(self, workspace: str):
+        capture_protected_snapshot("g1", ["tests/**"], workspace)
+        assert verify_protected_integrity("g1") == []
+        with open(os.path.join(workspace, "tests", "test_a.py"), "w") as f:
+            f.write("TAMPERED")
+        violations = verify_protected_integrity("g1")
+        assert len(violations) == 1
+        assert violations[0].kind == "modified"
+
+    def test_detects_tamper_of_nested_dotfile(self, dotfile_workspace: str):
+        """The regression this layer existed for: a dotfile edited out-of-band
+        must be caught even though the pre-write guard never saw the write."""
+        capture_protected_snapshot("g_dot", ["*.env"], dotfile_workspace)
+        target = os.path.join(dotfile_workspace, "app", "config", ".env")
+        with open(target, "w") as f:
+            f.write("SECRET=leaked")
+        violations = verify_protected_integrity("g_dot")
+        assert len(violations) == 1
+        assert violations[0].kind == "modified"
+        assert violations[0].pattern == "*.env"
+
+    def test_detects_deleted_nested_dotfile(self, dotfile_workspace: str):
+        capture_protected_snapshot("g_dot", ["*.env"], dotfile_workspace)
+        os.remove(os.path.join(dotfile_workspace, "app", "config", ".env"))
+        violations = verify_protected_integrity("g_dot")
+        assert [v.kind for v in violations] == ["deleted"]
+
+    def test_unmatched_pattern_does_not_fake_intact(
+        self, dotfile_workspace: str, caplog
+    ):
+        """With no baseline the layer must warn, never log "all intact"."""
+        capture_protected_snapshot("g_dead", ["*.pem"], dotfile_workspace)
+        with caplog.at_level("WARNING"):
+            violations = verify_protected_integrity("g_dead")
+        assert violations == []
+        assert "no protected files to verify" in caplog.text
+        assert "all protected files intact" not in caplog.text.lower()
+
+
+class TestRegisterProtectedArtifact:
+    def test_dynamic_register_and_tamper_detection(self, workspace: str):
+        # Initial snapshot without dynamic test file
+        capture_protected_snapshot("g1", [], workspace)
+
+        # Agent dynamically generates a test file
+        dyn_test = os.path.join(workspace, "tests", "test_dynamic.py")
+        with open(dyn_test, "w") as f:
+            f.write("assert calculate_tax(100) == 10")
+
+        # Dynamically protect it
+        ok = register_protected_artifact("g1", dyn_test, workspace_root=workspace)
+        assert ok is True
+        assert verify_protected_integrity("g1") == []
+
+        # Subsequent self-healing step weakens or modifies the assertion
+        with open(dyn_test, "w") as f:
+            f.write("assert True")  # weakened assertion!
+
+        violations = verify_protected_integrity("g1")
+        assert len(violations) == 1
+        assert violations[0].kind == "modified"
+        assert "test_dynamic.py" in violations[0].path
+
+    def test_register_nonexistent_file(self, workspace: str):
+        ok = register_protected_artifact(
+            "g1", "nonexistent.py", workspace_root=workspace
+        )
+        assert ok is False
+
+    def test_register_creates_new_snapshot_if_none_exists(self, workspace: str):
+        dyn_file = os.path.join(workspace, "new_file.py")
+        with open(dyn_file, "w") as f:
+            f.write("initial content")
+
+        ok = register_protected_artifact("new_goal", dyn_file, workspace_root=workspace)
+        assert ok is True
+        assert verify_protected_integrity("new_goal") == []
+
+        # Also test append to patterns if already existing
+        dyn_file_2 = os.path.join(workspace, "new_file_2.py")
+        with open(dyn_file_2, "w") as f:
+            f.write("content 2")
+        ok2 = register_protected_artifact(
+            "new_goal", dyn_file_2, workspace_root=workspace
+        )
+        assert ok2 is True
+        assert verify_protected_integrity("new_goal") == []
+
+
+class TestClearSnapshot:
+    def test_clears_existing(self, workspace: str):
+        capture_protected_snapshot("g1", ["tests/**"], workspace)
+        clear_snapshot("g1")
+        assert "g1" not in _snapshots
+
+    def test_noop_on_missing(self):
+        clear_snapshot("nonexistent")  # should not raise
+
+
+class TestProtectedFileViolation:
+    def test_dataclass_frozen(self):
+        v = ProtectedFileViolation(path="/a/b.py", pattern="tests/**", kind="modified")
+        with pytest.raises(AttributeError):
+            v.path = "/other"  # type: ignore[misc]

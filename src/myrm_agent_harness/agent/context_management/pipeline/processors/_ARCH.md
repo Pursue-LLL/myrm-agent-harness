@@ -1,0 +1,43 @@
+# processors/
+
+## Overview
+Pipeline processors module.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Pipeline processors module. | — |
+| active_tool_result_prune_processor.py | Core | Per-step active pruning of large tool results from earlier steps with Prompt Cache prefix protection (`min_reclaim_tokens` gate). Replaces results exceeding threshold (default 2048 tokens) with archive placeholders or deterministic DSH-style head-and-tail truncated placeholders at zero LLM cost; content within the head/tail budget is preserved verbatim and non-reducing replacements are skipped, so no payload is silently dropped and savings never go negative. Records `active_tool_prune` compression events via TaskMetrics. Positioned after FilterProcessor, before CacheTtlPruneProcessor. Provides `prune_tool_results_deterministic` for direct reuse in emergency compaction recovery. | ✅ |
+| cache_breakpoint_validator.py | Core | Validates breakpoints against provider constraints: | ✅ |
+| cache_optimizer.py | Core | ExplicitCacheProcessor for Anthropic/Qwen: 4-strategy breakpoints, 20-block window protection, endpoint-aware TTL (1h for direct API/LiteLLM anthropic routing, 5min for proxies). | ✅ |
+| cache_ttl_prune_processor.py | Core | Token-aware cache-TTL pruning; emergency ratio uses messages + bind-tools + optional API max (same SSOT as compress). | ✅ |
+| cache_ttl_prune_helpers.py | Internal | Cache TTL pruning helper layer. Keeps DTOs, archive write/reuse counters, pure content conversion, archive placeholder rendering, and message replacement helpers outside the processor orchestration file. | ✅ |
+| compress_processor.py | Core | CompressProcessor with full-context budget (estimate_processor_context_tokens), Hot Cache Bypass, Anti-Thrashing. | ✅ |
+| filter_processor.py | Core | LLM semantic filter for oversized single tool outputs; skips LLM summary for failed-tool IDs, tool errors, and focus/goal tool-call groups via retention_helpers (structure trim only). Only truncates individual messages exceeding `tool_result_evict_threshold`; does NOT apply aggregate truncation (removed for prompt cache stability). Persists the full output under `.context/{chat_id}/evicted/` when a chat scope exists and passes the saved path (or none) to the filter message. | ✅ |
+| media_filter.py | Core | Proactive media filter — strips image/video/audio for text-only models before LLM call. | ✅ |
+| vision_fallback_processor.py | Core | Converts surviving image blocks to text via VisionFallbackEngine capacity failover chain (`vision_fallback_model_cfgs` / cfg) when primary model is text-only. Runs immediately before MediaFilterProcessor. Resolves non-base64 `/api/media` URLs via injected `file_content_reader`. Shared `apply_vision_fallback_to_messages` is also used by stream recovery on MEDIA_REJECTED. | ✅ |
+| media_resolver.py | Core | Resolves non-base64 image URLs (HTTP/file/API references) to base64 data URLs right before LLM invocation. Supports `file://` local paths, HTTP(S) StorageProvider URLs, and `/api/media/` paths via injected `FileContentReader`. Every resolved image passes through `compress_if_needed` (responsive send-time compression: oversized Tauri/third-party images downsampled to 2048px; small images and animated GIFs/WebP pass through untouched; CPU-bound compression runs via `asyncio.to_thread` so the event loop is never blocked). Positioned after MediaFilter so only surviving images are resolved. | ✅ |
+| media_budget_governor.py | Core | MediaBudgetGovernorProcessor & CumulativeImageBudgetGovernor: manages multi-turn cumulative image payload limits (default 10MB budget) via 3-Tier Progressive Visual Ladder (Focus 2048px → Context 512px WebP downsample → Semantic text summary) and emergency_evict_from_message_dicts for in-flight 400/413 payload recovery. Protects against HTTP 400 Payload Too Large while preserving prompt cache invariance. | ✅ |
+| normalize_processor.py | Core | Provides NormalizeProcessor. | ✅ |
+| post_compaction_reread_processor.py | Core | Post-compaction active file reread. After compaction (tokens_saved > 0), reads top-5 recently modified files from ArtifactTracker and injects their content as HumanMessage, eliminating redundant read_file tool calls. | ✅ |
+| post_compaction_refetch_guard_processor.py | Core | One-shot tail hint when repeated archive restores for the same path are detected after compaction (anti refetch loop). | ✅ |
+| reasoning_anchor_processor.py | Core | ReasoningAnchorProcessor: extracts decision, constraint, and finding anchors into SessionAnchorLedger before ThinkingBlockCleaner, and injects preserved anchors into latest HumanMessage without disturbing Prompt Prefix Cache. | ✅ |
+| selective_eviction_processor.py | Core | SelectiveEvictionProcessor: deterministic mark-driven selective eviction of transient hints and scratchpads prior to heavy tool-call compression and LLM summarization, strictly honoring Tool Pair Invariant and whitelist immunity for pinned rules. | ✅ |
+| session_notes_processor.py | Core | Provides SessionNotesProcessor. | ✅ |
+| summarize_processor.py | Core | SummarizeProcessor with CompactorPreflightFence safety pre-check (proactively bypasses LLM to deterministic fallback when payload exceeds model physical safe watermark, preventing ContextLengthExceeded crashes on extreme long contexts), pre-compaction replacement structured summary direct mounting (bypassing LLM summarize at zero API cost), pre-compaction deterministic tool-result pruning short-circuit (DSH pattern bypassing LLM summarize when under 90% safe ceiling, integrated with `on_prune_offload` persistent archiving and hard boundary `pre_prune_keep >= 2` against Goodhart degradation), full-context hot-cache 90% gate (estimate_processor_context_tokens), progress-aware timeout guard, cancellation-safe cleanup, lifecycle events. | ✅ |
+| pre_compact_processor.py | Core | Pre-compaction three-state control & semantic memory recall processor. Intercepts compaction with PreCompactDecision (Cancel / Replace / Passthrough), enforces 90% watermark safety veto against context overflow, mounts external structured summaries to bypass expensive LLM runs, and injects durable memory recall. | ✅ |
+| thinking_cleaner.py | Core | Provides ThinkingBlockCleaner: three-scope cleanup — (1) strips content thinking/redacted_thinking blocks from non-latest assistant turns and from latest turn when current model is non-Anthropic (prevents leaking after model switch), (2) removes reasoning_content from additional_kwargs per-provider (Anthropic always; DeepSeek/MiMo/Kimi on plain-text before last user turn), (3) removes thinking_blocks from additional_kwargs for non-Anthropic models. Detects Anthropic models via substring match covering direct/Bedrock/Vertex AI/OpenRouter naming. | ✅ |
+| loop_fold_processor.py | Core | Provides LoopInspectionFoldingProcessor: collapses redundant unchanged loop-inspection iterations in conversation history, keeping the initial baseline observation and the latest status while replacing intermediate rounds with concise markers. Zero LLM cost; bounds context growth in long-running recurring loops without breaking prompt cache affinity. | ✅ |
+| adaptive_tool_result_compactor.py | Core | Specialized multi-format lossless compaction operators for tool results. | ✅ |
+| adaptive_tool_result_router_processor.py | Core | Adaptive Tool Result Content Router & Auto-Compactor Processor. | ✅ |
+| content_router_types.py | Types | Data types and schemas for adaptive tool result content routing and auto-compaction. | ✅ |
+| gcf_tabular_codec.py | Core | Pure algorithmic lossless GCF (Grid-Column Format) codec with flattening and bridge support. | ✅ |
+| gcf_tabular_compress_processor.py | Core | GCF 表格列式无损压缩处理器. | ✅ |
+| gcf_tabular_types.py | Types | Types and models for gcf tabular. | ✅ |
+| tool_result_content_sniffer.py | Core | High-throughput lightweight content sniffer for polymorphic tool outputs. | ✅ |
+
+## Key Dependencies
+
+- `observability`
+- `utils`

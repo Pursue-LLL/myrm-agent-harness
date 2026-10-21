@@ -1,0 +1,215 @@
+"""Python script subprocess execution with sandbox and timeout.
+
+[INPUT]
+executors.base::ExecutionContext (POS: Code executor base classes)
+executors.base::ExecutionResult (POS: Code executor base classes)
+executors.common::parse_execution_output (POS: Shared execution utilities)
+code_execution.sandbox::detect_sandbox_provider (POS: Sandbox detection and wrapping)
+code_execution.security.validator::sanitize_env (POS: Environment sanitization)
+
+[OUTPUT]
+run_python_subprocess: Execute a Python script in a sandboxed subprocess with timeout.
+
+[POS]
+Python subprocess execution. Handles environment preparation, sandbox wrapping,
+graceful timeout (SIGTERM → SIGKILL), and output parsing for Python code execution.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import signal
+import traceback
+from pathlib import Path
+from types import ModuleType
+
+from myrm_agent_harness.toolkits.code_execution.executors.base import (
+    ExecutionContext,
+    ExecutionResult,
+)
+from myrm_agent_harness.toolkits.code_execution.executors.common import (
+    parse_execution_output,
+)
+
+logger = logging.getLogger(__name__)
+
+
+async def _kill_process_tree(process: asyncio.subprocess.Process, os_compat: ModuleType) -> None:
+    """Terminate the child's whole process group, escalating to SIGKILL.
+
+    Shared by the timeout and cancellation paths so both leave no orphaned
+    descendants behind. Never raises: cleanup failures must not mask the
+    original timeout/cancel outcome.
+    """
+    kill_group = getattr(os_compat, "kill_process_group", None)
+    try:
+        if process.returncode is not None:
+            return
+        if process.pid and kill_group:
+            kill_group(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=2)
+        except TimeoutError:
+            if process.pid and kill_group:
+                kill_group(process.pid, signal.SIGKILL)
+            else:
+                process.kill()
+            await process.wait()
+    except ProcessLookupError:
+        return
+    except Exception as e:
+        logger.warning("Process group cleanup failed: %s", e)
+
+
+async def run_python_subprocess(
+    script_path: Path,
+    timeout: int,
+    python_executable: str,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+    allow_network: bool = True,
+    context: ExecutionContext | None = None,
+) -> ExecutionResult:
+    """Execute a Python script via subprocess with sandbox and timeout.
+
+    Args:
+        script_path: Path to the Python script to execute.
+        timeout: Timeout in seconds.
+        python_executable: Path to the Python interpreter.
+        cwd: Working directory.
+        env: User-defined environment variables.
+        allow_network: Whether to allow network access.
+        context: Optional execution context for readonly_workspace flag.
+
+    Returns:
+        Execution result with stdout, stderr, exit code.
+    """
+    try:
+        from myrm_agent_harness.toolkits.code_execution.sandbox import (
+            detect_sandbox_provider,
+        )
+        from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
+            SandboxPolicy,
+        )
+        from myrm_agent_harness.toolkits.code_execution.security.validator import (
+            sanitize_env,
+        )
+
+        process_env = sanitize_env(os.environ.copy())
+        # Strip hostile parent PYTHONPATH to prevent cross-venv binary mismatch & ModuleNotFoundError traps
+        process_env.pop("PYTHONPATH", None)
+
+        # Inject venv site-packages into PYTHONPATH if python_executable is from a venv
+        python_exec_path = Path(python_executable)
+        venv_root = python_exec_path.parent.parent
+        venv_lib = venv_root / "lib"
+        extra_paths = []
+        if venv_lib.exists():
+            for sp in venv_lib.glob("python*/site-packages"):
+                extra_paths.append(str(sp))
+
+        python_path = os.pathsep.join(extra_paths) if extra_paths else ""
+
+        if env:
+            sanitized_user_env = sanitize_env(env)
+            user_pythonpath = sanitized_user_env.pop("PYTHONPATH", None)
+            process_env.update(sanitized_user_env)
+            if user_pythonpath:
+                python_path = f"{user_pythonpath}{os.pathsep}{python_path}" if python_path else user_pythonpath
+            logger.debug(f" User env vars: {list(env.keys())}")
+
+        if python_path:
+            process_env["PYTHONPATH"] = python_path
+        else:
+            process_env.pop("PYTHONPATH", None)
+
+        # Post-override scrubbing guarantee: strip any non-inheritable host secrets (Codex #38941)
+        from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+            is_non_inheritable_env_var,
+        )
+
+        # Verified PTC orchestration sessions carry their stub dir on PYTHONPATH
+        # (allowed by sanitize_env); the scrub below must not remove it, or
+        # `import myrm_tools` fails inside orchestration scripts. Same marker
+        # heuristic as env_isolation._is_ptc_orchestration_env.
+        ptc_session = "_MYRM_PTC_SOCKET" in process_env or "_MYRM_PTC_PORT" in process_env
+        for k in list(process_env.keys()):
+            if k == "PYTHONPATH" and ptc_session:
+                continue
+            if is_non_inheritable_env_var(k, process_env.get(k)):
+                process_env.pop(k, None)
+
+        logger.info(f" [LocalExecutor] Using Python: {python_executable}")
+
+        work_dir_str = str(cwd) if cwd else "/tmp"
+        provider, sandbox_status = detect_sandbox_provider()
+
+        if sandbox_status.enabled:
+            policy = SandboxPolicy(
+                writable_paths=(() if context and context.readonly_workspace else (work_dir_str,)),
+                allow_network=allow_network,
+            )
+            wrapped_cmd, wrapped_args = provider.wrap_command(
+                python_executable, (str(script_path),), work_dir_str, policy
+            )
+            full_cmd_executable = wrapped_cmd
+            full_cmd_args = wrapped_args
+        else:
+            full_cmd_executable = python_executable
+            full_cmd_args = (str(script_path),)
+
+        from myrm_agent_harness.utils import os_compat
+
+        kwargs = os_compat.get_process_group_kwargs()
+
+        process = await asyncio.create_subprocess_exec(
+            full_cmd_executable,
+            *full_cmd_args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+            env=process_env,
+            **kwargs,
+        )
+
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        except TimeoutError:
+            await _kill_process_tree(process, os_compat)
+            return ExecutionResult(
+                success=False,
+                error=f"Execution timed out after {timeout}s",
+                stderr="Timeout",
+            )
+        except asyncio.CancelledError:
+            # Host task cancelled (user pressed Stop). Reap the process group before
+            # propagating, otherwise the sandboxed child and its workers keep running.
+            await _kill_process_tree(process, os_compat)
+            raise
+
+        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        stderr = stderr_bytes.decode("utf-8", errors="replace")
+        exit_code = process.returncode or 0
+
+        output = parse_execution_output(stdout, stderr, exit_code)
+
+        return ExecutionResult(
+            success=output.success,
+            result=output.result,
+            stdout=output.stdout,
+            stderr=output.stderr,
+            error=output.error,
+            exit_code=exit_code,
+        )
+
+    except Exception as e:
+        traceback.print_exc()
+        return ExecutionResult(
+            success=False,
+            error=f"{type(e).__name__}: {e!s}",
+            stderr=str(e),
+        )

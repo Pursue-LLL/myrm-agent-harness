@@ -1,0 +1,337 @@
+"""Unit tests for metrics collection and export."""
+
+import time
+
+import pytest
+
+from myrm_agent_harness.infra.tracing.metrics import (
+    MetricsExporter,
+    get_meter,
+    setup_metrics,
+)
+
+
+@pytest.fixture(autouse=True)
+def reset_metrics():
+    """Reset metrics state between tests."""
+    import myrm_agent_harness.infra.tracing.metrics.exporter as exporter_module
+
+    exporter_module._meter_provider = None
+    exporter_module._initialized = False
+    yield
+
+
+def test_setup_metrics_console():
+    """Test metrics setup with console exporter."""
+    setup_metrics(
+        service_name="test-service",
+        exporter=MetricsExporter.CONSOLE,
+        export_interval_ms=1000,
+    )
+
+    # Verify meter can be obtained
+    meter = get_meter("test")
+    assert meter is not None
+
+
+def test_setup_metrics_idempotent():
+    """Test metrics setup is idempotent."""
+    setup_metrics(service_name="test-service")
+    setup_metrics(service_name="test-service")  # Should not raise
+
+
+def test_counter_metric():
+    """Test creating and using a counter metric."""
+    setup_metrics(service_name="test-service", export_interval_ms=1000)
+
+    meter = get_meter("test")
+    counter = meter.create_counter(
+        name="test_counter",
+        description="Test counter metric",
+        unit="1",
+    )
+
+    # Record some values
+    counter.add(1, {"key": "value1"})
+    counter.add(5, {"key": "value2"})
+    counter.add(3, {"key": "value1"})
+
+    # No assertion - just verify no errors
+
+
+def test_histogram_metric():
+    """Test creating and using a histogram metric."""
+    setup_metrics(service_name="test-service", export_interval_ms=1000)
+
+    meter = get_meter("test")
+    histogram = meter.create_histogram(
+        name="test_histogram",
+        description="Test histogram metric",
+        unit="ms",
+    )
+
+    # Record some latencies
+    histogram.record(10.5, {"endpoint": "/api/v1"})
+    histogram.record(25.3, {"endpoint": "/api/v1"})
+    histogram.record(15.7, {"endpoint": "/api/v2"})
+
+
+def test_gauge_metric():
+    """Test creating and using a gauge metric."""
+    setup_metrics(service_name="test-service", export_interval_ms=1000)
+
+    meter = get_meter("test")
+
+    from opentelemetry.metrics import Observation
+
+    # Create observable gauge with callback
+    def get_memory_usage(options):
+        return [
+            Observation(100.5, {"type": "heap"}),
+            Observation(50.2, {"type": "stack"}),
+        ]
+
+    meter.create_observable_gauge(
+        name="test_gauge",
+        description="Test gauge metric",
+        unit="MB",
+        callbacks=[get_memory_usage],
+    )
+
+    # Wait a bit for callback to be invoked
+    time.sleep(0.1)
+
+
+def test_up_down_counter_metric():
+    """Test creating and using an up-down counter metric."""
+    setup_metrics(service_name="test-service", export_interval_ms=1000)
+
+    meter = get_meter("test")
+    counter = meter.create_up_down_counter(
+        name="test_up_down_counter",
+        description="Test up-down counter metric",
+        unit="1",
+    )
+
+    # Record some values
+    counter.add(10, {"queue": "pending"})
+    counter.add(-5, {"queue": "pending"})
+    counter.add(3, {"queue": "pending"})
+
+
+def test_multiple_meters():
+    """Test creating multiple meters."""
+    setup_metrics(service_name="test-service")
+
+    meter1 = get_meter("module1")
+    meter2 = get_meter("module2")
+
+    assert meter1 is not None
+    assert meter2 is not None
+
+    # Create metrics in different meters
+    counter1 = meter1.create_counter("counter1")
+    counter2 = meter2.create_counter("counter2")
+
+    counter1.add(1)
+    counter2.add(2)
+
+    def test_get_meter_provider():
+        """Test getting MeterProvider instance."""
+        from myrm_agent_harness.infra.tracing.metrics.exporter import get_meter_provider
+
+        # Initially None - wait, in test environment it might be preserved from other tests.
+        # But after setup, it MUST NOT be None if SDK is available
+        try:
+            import opentelemetry.sdk.metrics  # noqa
+        except ImportError:
+            pytest.skip("opentelemetry-sdk not installed")
+
+        # After setup
+        setup_metrics(service_name="test-service")
+        provider = get_meter_provider()
+        assert provider is not None
+
+
+def test_setup_metrics_invalid_exporter():
+    """Test setup with invalid exporter raises error."""
+    try:
+        import opentelemetry.sdk.metrics  # noqa
+    except ImportError:
+        pytest.skip("opentelemetry-sdk not installed")
+    with pytest.raises(ValueError, match="Unsupported exporter"):
+        setup_metrics(service_name="test", exporter="invalid")  # type: ignore
+
+
+def test_setup_metrics_otlp_missing_endpoint():
+    """Test OTLP exporter requires endpoint parameter or raises ImportError."""
+    try:
+        import opentelemetry.sdk.metrics  # noqa
+    except ImportError:
+        pytest.skip("opentelemetry-sdk not installed")
+    try:
+        with pytest.raises(ValueError, match="otlp_endpoint is required"):
+            setup_metrics(
+                service_name="test",
+                exporter=MetricsExporter.OTLP,
+                otlp_endpoint=None,
+            )
+    except (ImportError, TypeError):
+        # OTLP package not installed, skip
+        pytest.skip("OTLP exporter package not installed")
+
+
+def test_setup_metrics_otlp_success():
+    """Test OTLP exporter setup with valid endpoint."""
+    try:
+        setup_metrics(
+            service_name="test",
+            exporter=MetricsExporter.OTLP,
+            otlp_endpoint="http://localhost:4317",
+        )
+        # If package is installed, should succeed
+        meter = get_meter("test")
+        assert meter is not None
+    except (ImportError, TypeError):
+        # If package not installed, should raise informative error
+        pytest.skip("OTLP exporter package not installed")
+
+
+def test_sanitize_metric_labels_blocks_high_cardinality():
+    """Verify CardinalityFirewall strips unbounded keys and preserves safe keys."""
+    from myrm_agent_harness.infra.tracing.metrics import sanitize_metric_labels
+
+    raw_labels = {
+        "session_id": "sess_abc123",
+        "turn_id": "turn_001",
+        "workspace": "/home/user/my_project",
+        "tool": "bash",
+        "status": "success",
+        "count": 42,
+    }
+    sanitized = sanitize_metric_labels(raw_labels)
+
+    assert "session_id" not in sanitized
+    assert "turn_id" not in sanitized
+    assert "workspace" not in sanitized
+    assert sanitized["tool"] == "bash"
+    assert sanitized["status"] == "success"
+    assert sanitized["count"] == "42"
+
+
+def test_metrics_collector_with_cardinality_firewall():
+    """Verify MetricsCollector transparently cleans high-cardinality labels."""
+    from unittest.mock import MagicMock
+
+    from myrm_agent_harness.infra.tracing.metrics.collector import MetricsCollector
+
+    mock_meter = MagicMock()
+    mock_counter = MagicMock()
+    mock_meter.create_counter.return_value = mock_counter
+
+    collector = MetricsCollector(mock_meter)
+    collector.counter(
+        "agent.tool.calls",
+        1,
+        labels={"session_id": "sess-999", "tool": "file_read"},
+    )
+
+    mock_counter.add.assert_called_once_with(1, attributes={"tool": "file_read"})
+
+
+def test_dynamic_label_manager_lru_and_threshold():
+    """Verify DynamicLabelManager tracks frequent entities and falls back to 'other'."""
+    from myrm_agent_harness.infra.tracing.metrics.cardinality import DynamicLabelManager
+
+    manager = DynamicLabelManager(max_tracked=2, access_threshold=2)
+
+    # First access - below threshold -> 'other'
+    assert manager.get_label_value("model-a") == "other"
+    # Second access - meets threshold -> tracked
+    assert manager.get_label_value("model-a") == "model-a"
+
+    # model-b first access -> 'other'
+    assert manager.get_label_value("model-b") == "other"
+    # model-b second access -> tracked (cache now has model-a, model-b)
+    assert manager.get_label_value("model-b") == "model-b"
+
+    # model-c first and second access - cache is full
+    assert manager.get_label_value("model-c") == "other"
+    # Third access to model-c (count 3) exceeds model-a/b (count 2), evicts least frequent
+    assert manager.get_label_value("model-c") == "other"
+    assert manager.get_label_value("model-c") == "model-c"
+
+    # Test thread safety and utility functions
+    assert len(manager.get_tracked_entities()) <= 2
+    manager.clear()
+    assert len(manager.get_tracked_entities()) == 0
+
+
+def test_metrics_collector_gauge_and_histogram():
+    """Verify MetricsCollector gauge and histogram methods sanitize labels properly."""
+    from unittest.mock import MagicMock
+
+    from myrm_agent_harness.infra.tracing.metrics.collector import MetricsCollector
+
+    mock_meter = MagicMock()
+    mock_gauge = MagicMock()
+    mock_histogram = MagicMock()
+    mock_meter.create_gauge.return_value = mock_gauge
+    mock_meter.create_histogram.return_value = mock_histogram
+
+    collector = MetricsCollector(mock_meter)
+    collector.gauge("agent.memory.mb", 512.0, labels={"session_id": "s1", "tier": "standard"})
+    mock_gauge.record.assert_called_once_with(512.0, attributes={"tier": "standard"})
+
+    collector.histogram("agent.turn.duration_ms", 120.5, labels={"workspace": "/tmp/ws", "status": "ok"})
+    mock_histogram.record.assert_called_once_with(120.5, attributes={"status": "ok"})
+
+
+def test_force_flush_metrics_bounded():
+    """Verify force_flush_metrics handles uninitialized and active states."""
+    from myrm_agent_harness.infra.tracing.metrics import (
+        MetricsExporter,
+        force_flush_metrics,
+        setup_metrics,
+    )
+
+    # Uninitialized returns False
+    assert not force_flush_metrics()
+
+    setup_metrics(service_name="test-flush", exporter=MetricsExporter.CONSOLE)
+    # Active console provider flush completes quickly
+    assert force_flush_metrics(timeout_ms=1000.0) is True
+
+
+def test_setup_metrics_validation_and_accessors():
+    """Verify input validation and status accessors for metrics exporter."""
+    from myrm_agent_harness.infra.tracing.metrics import (
+        MetricsExporter,
+        get_meter_provider,
+        is_metrics_initialized,
+        setup_metrics,
+        shutdown_metrics,
+    )
+
+    # Initial state
+    assert not is_metrics_initialized()
+    assert get_meter_provider() is None
+
+    # Invalid exporter
+    with pytest.raises(ValueError, match="Unsupported exporter"):
+        setup_metrics(exporter="unsupported_type")  # type: ignore
+
+    # Missing OTLP endpoint
+    with pytest.raises(ValueError, match="otlp_endpoint is required"):
+        setup_metrics(exporter=MetricsExporter.OTLP, otlp_endpoint="")
+
+    # Valid console setup
+    setup_metrics(service_name="test-accessors", exporter=MetricsExporter.CONSOLE)
+    assert is_metrics_initialized()
+    assert get_meter_provider() is not None
+
+    # Clean shutdown
+    assert shutdown_metrics(timeout_ms=1000.0) is True
+    assert not is_metrics_initialized()
+    assert get_meter_provider() is None
+

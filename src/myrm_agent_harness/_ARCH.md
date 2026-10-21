@@ -1,0 +1,47 @@
+# myrm_agent_harness/
+
+## Overview
+Myrm Agent Harness — a production-grade framework for building, deploying, and managing AI agents with skill systems, context management, security, and observability.
+
+## Harness layer cheatsheet
+
+| Layer | One line | Memory hook |
+|-------|----------|-------------|
+| `core/` | Foundation types (security, config, events) — no domain engines | Brick |
+| `toolkits/` | Self-contained capability packages — usable without Agent runtime | Plugin |
+| `agent/` | LLM turn logic, session, streaming, HITL, meta_tools | Brain |
+| `runtime/` | Single Agent **instance** survival (checkpoint, memory pressure, doctor) | Instance caretaker |
+| `infra/` | Atomic primitives (locks, pubsub, delivery) | Plumbing |
+
+**Code placement:** import `agent/` or need current session at definition time → `agent/` or host server; complete reusable capability → `toolkits/`; instance health → `runtime/`; pure types → `core/` or `infra/`. Async media queue → `toolkits/tasks/` ([tasks/TASK_QUEUE_SYSTEM.md](toolkits/tasks/TASK_QUEUE_SYSTEM.md)).
+
+Full cross-layer map: [ARCHITECTURE.md](../../ARCHITECTURE.md) §跨层概念映射.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Core | Package entry — lazy re-exports via api/ | — |
+| api/ | Core | Public API surface for external consumers (factory, Protocol, DTO) |
+| Submodule | Description |
+|-----------|-------------|
+| agent/ | Agent core module — runtime, context management, skill system. External consumers use api/ instead. |
+| backends/ | Backend implementations — profiles, secrets, and skills storage adapters. |
+| core/ | Framework-agnostic foundation layer — security, config, events, hooks, artifacts, features. Used by both agent/ and toolkits/. |
+| eval/ | Eval Framework — Agent behavior quality evaluation (Protocol-based; not a toolkit). See [eval/_ARCH.md](eval/_ARCH.md). |
+| infra/ | Infrastructure layer — file locks, message delivery, OpenTelemetry tracing (`infra/tracing/`), state monitoring. |
+| observability/ | Cross-cutting metrics, health diagnostics, ContextVar log tracing. See [observability/_ARCH.md](observability/_ARCH.md). |
+| runtime/ | Agent runtime infrastructure for single-instance execution. Includes `install_guard/` for dual-wheel install readiness. |
+| toolkits/ | Generic, framework-agnostic toolkit collection (like lodash). MUST NOT depend on agent/. |
+| utils/ | Utility library — error handling, logging, text processing, token tracking, URL tools. |
+
+## Easily Confused Top-Level Packages
+
+| Name | Role | Do NOT confuse with |
+|------|------|---------------------|
+| `eval/` | Shipped Agent eval engine (`AgentExecutor` Protocol, assertions, reports) | `tests/eval/` (harness tests); pytest helpers live in `tests/support/` |
+| `observability/` | Prometheus metrics, `/health` diagnostics, stdlib log trace_id | `agent/streaming/broadcast/` (ToolBroadcastBus); `infra/pubsub/` (PubSubBus); `infra/tracing/` (OTEL) |
+
+## Key Dependencies
+
+- No internal dependencies (top-level package entry point)

@@ -1,0 +1,971 @@
+"""Additional coverage for file_read_handlers and file_read_tool vault-adjacent paths."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from langchain_core.runnables import RunnableConfig
+
+from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers import (
+    _dispatch_truncation_event,
+    _read_via_service,
+    append_media_text_parts,
+    build_multimodal_result,
+    process_text_paths,
+)
+from myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool import (
+    FileReadInput,
+    create_file_read_tool,
+)
+from myrm_agent_harness.utils.errors import ToolError
+
+_DUMMY_CONFIG = RunnableConfig()
+
+
+class TestFileReadInputNormalization:
+    def test_normalize_json_string_paths(self) -> None:
+        model = FileReadInput(paths='["a.txt", "b.txt"]')
+        assert model.paths == ["a.txt", "b.txt"]
+
+    def test_normalize_single_string_path(self) -> None:
+        model = FileReadInput(paths="solo.txt")
+        assert model.paths == ["solo.txt"]
+
+    def test_normalize_list_paths(self) -> None:
+        model = FileReadInput(paths=["x.py"])
+        assert model.paths == ["x.py"]
+
+
+@pytest.mark.asyncio
+async def test_build_multimodal_vision_and_pdf(tmp_path: Path) -> None:
+    img = tmp_path / "pic.png"
+    img.write_bytes(b"\x89PNG\r\n\x1a\n")
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+
+    mock_executor = MagicMock()
+    mock_executor.workspace_path = str(tmp_path)
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_image_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value=[{"type": "text", "text": "img block"}],
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_pdf_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="pdf text",
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_video_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="video text",
+        ),
+    ):
+        blocks = await build_multimodal_result(
+            image_paths=[str(img)],
+            pdf_paths=[str(pdf)],
+            document_paths=[],
+            text_paths=["notes.txt"],
+            vault_paths=[],
+            executor=mock_executor,
+            skills=None,
+            reason="test",
+            url_errors=[],
+            supports_vision=True,
+            video_paths=[str(tmp_path / "clip.mp4")],
+            config=_DUMMY_CONFIG,
+        )
+
+    texts = [b["text"] for b in blocks if isinstance(b, dict) and b.get("type") == "text"]
+    assert any("img block" in t for t in texts)
+    assert any("pdf text" in t for t in texts)
+    assert any("video text" in t for t in texts)
+
+
+@pytest.mark.asyncio
+async def test_append_media_vision_fallback_path() -> None:
+    mock_executor = MagicMock()
+    parts: list[str] = []
+    with patch(
+        "myrm_agent_harness.toolkits.llms.vision.fallback_engine.VisionFallbackEngine.describe_local_image",
+        new_callable=AsyncMock,
+        return_value="described",
+    ):
+        await append_media_text_parts(
+            parts,
+            image_paths=["z.png"],
+            pdf_paths=[],
+            document_paths=[],
+            video_paths=[],
+            executor=mock_executor,
+            supports_vision=False,
+            vision_fallback_model_cfg={"model": "gpt-4o-mini", "api_key": "k"},
+            parse_mode=None,
+        )
+    assert "described" in parts[0]
+
+
+@pytest.mark.asyncio
+async def test_build_multimodal_pdf_list_blocks() -> None:
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_pdf_as_content_blocks",
+        new_callable=AsyncMock,
+        return_value=[{"type": "text", "text": "pdf blocks"}],
+    ):
+        blocks = await build_multimodal_result(
+            image_paths=[],
+            pdf_paths=["a.pdf"],
+            document_paths=[],
+            text_paths=[],
+            vault_paths=[],
+            executor=MagicMock(),
+            skills=None,
+            reason=None,
+            url_errors=[],
+            supports_vision=True,
+            config=_DUMMY_CONFIG,
+        )
+    assert any("pdf blocks" in b.get("text", "") for b in blocks if isinstance(b, dict))
+
+    blocks = await build_multimodal_result(
+        image_paths=[],
+        pdf_paths=[],
+        document_paths=[],
+        text_paths=[],
+        vault_paths=[],
+        executor=MagicMock(),
+        skills=None,
+        reason=None,
+        url_errors=[],
+        supports_vision=False,
+        config=_DUMMY_CONFIG,
+    )
+    assert blocks[0]["text"] == "No results."
+
+
+@pytest.mark.asyncio
+async def test_append_media_text_parts_with_executor(tmp_path: Path) -> None:
+    mock_executor = MagicMock()
+    parts: list[str] = []
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_image_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="image text",
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_pdf_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="pdf text",
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_document_as_text",
+            new_callable=AsyncMock,
+            return_value="doc text",
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_video_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="video text",
+        ),
+    ):
+        await append_media_text_parts(
+            parts,
+            image_paths=["a.png"],
+            pdf_paths=["b.pdf"],
+            document_paths=["c.docx"],
+            video_paths=["d.mp4"],
+            executor=mock_executor,
+            supports_vision=True,
+            vision_fallback_model_cfg=None,
+            parse_mode=None,
+        )
+    assert parts == ["image text", "pdf text", "doc text", "video text"]
+
+
+@pytest.mark.asyncio
+async def test_read_via_service_dispatches_truncation_event() -> None:
+    mock_service = MagicMock()
+    mock_service.execute = AsyncMock(return_value="long output")
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.FileOperationService",
+            return_value=mock_service,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.truncate_file_output",
+            return_value=("short", True, {"tokens": 1}),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers._dispatch_truncation_event",
+            new_callable=AsyncMock,
+        ) as mock_dispatch,
+    ):
+        out = await _read_via_service("f.txt", MagicMock(), None, None, config=_DUMMY_CONFIG)
+    assert out == "short"
+    mock_dispatch.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_truncation_event() -> None:
+    with patch(
+        "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+        new_callable=AsyncMock,
+    ) as mock_event:
+        await _dispatch_truncation_event({"k": "v"}, tool="file_read", config=_DUMMY_CONFIG)
+    mock_event.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_process_text_paths_preview_mode(tmp_path: Path) -> None:
+    big = tmp_path / "big.txt"
+    big.write_text("line\n" * 50, encoding="utf-8")
+    mock_executor = MagicMock()
+    mock_executor.workspace_path = str(tmp_path)
+
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_file_preview",
+        new_callable=AsyncMock,
+        return_value="preview chunk",
+    ):
+        parts = await process_text_paths(
+            [str(big)],
+            mock_executor,
+            None,
+            None,
+            "preview",
+            10,
+            config=_DUMMY_CONFIG,
+        )
+    assert "preview mode" in parts[0]
+    assert "preview chunk" in parts[0]
+
+
+@pytest.mark.asyncio
+async def test_process_text_paths_stream_mode(tmp_path: Path) -> None:
+    f = tmp_path / "stream.txt"
+    f.write_text("stream data\n", encoding="utf-8")
+    mock_executor = MagicMock()
+    mock_executor.workspace_path = str(tmp_path)
+
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_file_chunked",
+        new_callable=AsyncMock,
+        return_value="chunked",
+    ):
+        parts = await process_text_paths(
+            [str(f)],
+            mock_executor,
+            None,
+            None,
+            "stream",
+            5,
+            config=_DUMMY_CONFIG,
+        )
+    assert "chunked" in parts[0]
+
+
+@pytest.mark.asyncio
+async def test_file_read_tool_multimodal_with_preserve_context(tmp_path: Path) -> None:
+    img = tmp_path / "chart.png"
+    img.write_bytes(b"\x89PNG\r\n\x1a\n")
+    mock_executor = MagicMock()
+    mock_executor.workspace_path = str(tmp_path)
+
+    tool = create_file_read_tool()
+    ctx = {"supports_vision": True}
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
+            return_value=ctx,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_image_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value=[{"type": "text", "text": "vision ok"}],
+        ),
+    ):
+        result = await tool.ainvoke(
+            {"paths": [str(img)], "preserve_in_context": True},
+            config=_DUMMY_CONFIG,
+        )
+
+    assert isinstance(result, list)
+    texts = [b["text"] for b in result if isinstance(b, dict)]
+    assert any("<preserve_context>" in t for t in texts)
+
+
+@pytest.mark.asyncio
+async def test_file_read_tool_raises_tool_error_on_missing_file() -> None:
+    tool = create_file_read_tool()
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=MagicMock(workspace_path="/tmp"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            side_effect=FileNotFoundError("missing"),
+        ),
+        pytest.raises(ToolError, match="missing"),
+    ):
+        await tool.ainvoke({"paths": ["missing.txt"]}, config=_DUMMY_CONFIG)
+
+
+@pytest.mark.asyncio
+async def test_file_read_tool_raises_tool_error_on_permission_error() -> None:
+    tool = create_file_read_tool()
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=MagicMock(workspace_path="/tmp"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            side_effect=PermissionError("denied"),
+        ),
+        pytest.raises(ToolError, match="denied"),
+    ):
+        await tool.ainvoke({"paths": ["secret.txt"]}, config=_DUMMY_CONFIG)
+
+
+@pytest.mark.asyncio
+async def test_file_read_tool_raises_tool_error_on_unexpected() -> None:
+    tool = create_file_read_tool()
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            side_effect=RuntimeError("boom"),
+        ),
+        pytest.raises(ToolError, match="Unexpected error"),
+    ):
+        await tool.ainvoke({"paths": ["x.txt"]}, config=_DUMMY_CONFIG)
+
+
+@pytest.mark.asyncio
+async def test_file_read_tool_text_preserve_in_context(tmp_path: Path) -> None:
+    f = tmp_path / "note.txt"
+    f.write_text("note", encoding="utf-8")
+    mock_executor = MagicMock()
+    mock_executor.workspace_path = str(tmp_path)
+    tool = create_file_read_tool()
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.process_text_paths",
+            new_callable=AsyncMock,
+            return_value=["note body"],
+        ),
+    ):
+        result = await tool.ainvoke(
+            {"paths": [str(f)], "preserve_in_context": True},
+            config=_DUMMY_CONFIG,
+        )
+    assert isinstance(result, str)
+    assert "<preserve_context>" in result
+
+
+@pytest.mark.asyncio
+async def test_file_read_tool_redacts_secrets(tmp_path: Path) -> None:
+    f = tmp_path / "config.txt"
+    f.write_text("config", encoding="utf-8")
+    mock_executor = MagicMock()
+    mock_executor.workspace_path = str(tmp_path)
+
+    async def _file_exists(p: str) -> bool:
+        return Path(p).exists()
+
+    async def _is_dir(p: str) -> bool:
+        return Path(p).is_dir()
+
+    async def _read_file(p: str) -> str:
+        return Path(p).read_text(encoding="utf-8")
+
+    async def _read_file_bytes(p: str) -> bytes:
+        return Path(p).read_bytes()
+
+    mock_executor.file_exists = _file_exists
+    mock_executor.is_dir = _is_dir
+    mock_executor.read_file = _read_file
+    mock_executor.read_file_bytes = _read_file_bytes
+
+    tool = create_file_read_tool()
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            return_value=[
+                "app.api.key=mysecretvalue12345678",
+                "deploy --api-key=sk-abcdefghijklmnop1234",
+            ],
+        ),
+    ):
+        result = await tool.ainvoke(
+            {"paths": [str(f)]},
+            config=_DUMMY_CONFIG,
+        )
+    assert isinstance(result, str)
+    assert "mysecretvalue12345678" not in result
+    assert "sk-abcdefghijklmnop1234" not in result
+    assert "mysecr" in result
+    assert "sk-abc" in result
+
+
+@pytest.mark.asyncio
+async def test_build_multimodal_image_list_blocks() -> None:
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_image_as_content_blocks",
+        new_callable=AsyncMock,
+        return_value=[{"type": "text", "text": "img-list"}],
+    ):
+        blocks = await build_multimodal_result(
+            image_paths=["a.png"],
+            pdf_paths=[],
+            document_paths=[],
+            text_paths=[],
+            vault_paths=[],
+            executor=MagicMock(),
+            skills=None,
+            reason=None,
+            url_errors=[],
+            supports_vision=True,
+            config=_DUMMY_CONFIG,
+        )
+    assert any("img-list" in b.get("text", "") for b in blocks if isinstance(b, dict))
+
+
+@pytest.mark.asyncio
+async def test_build_multimodal_image_no_vision_string_result() -> None:
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_image_as_content_blocks",
+        new_callable=AsyncMock,
+        return_value="plain image text",
+    ):
+        blocks = await build_multimodal_result(
+            image_paths=["a.png"],
+            pdf_paths=[],
+            document_paths=[],
+            text_paths=[],
+            vault_paths=[],
+            executor=MagicMock(),
+            skills=None,
+            reason=None,
+            url_errors=[],
+            supports_vision=False,
+            config=_DUMMY_CONFIG,
+        )
+    assert blocks[0]["text"] == "plain image text"
+
+
+@pytest.mark.asyncio
+async def test_build_multimodal_image_uses_ocr_tier_when_no_vision_route_exists() -> None:
+    """A text-only model with no vision chain still reads image text via the OCR tier.
+
+    Regression: the OCR tier existed but nothing invoked it, so such a model got only a
+    metadata line ("model does not support vision") for every image.
+    """
+    with patch(
+        "myrm_agent_harness.toolkits.llms.vision.ocr_tier.OcrTierEngine.describe_local_image",
+        new_callable=AsyncMock,
+    ) as mock_ocr:
+        from myrm_agent_harness.toolkits.llms.vision.types import VisionBackendKind, VisionResult
+
+        mock_ocr.return_value = VisionResult(
+            text="INVOICE TOTAL 12345.67",
+            backend_kind=VisionBackendKind.OCR,
+        )
+        blocks = await build_multimodal_result(
+            image_paths=["a.png"],
+            pdf_paths=[],
+            document_paths=[],
+            text_paths=[],
+            vault_paths=[],
+            executor=MagicMock(),
+            skills=None,
+            reason=None,
+            url_errors=[],
+            supports_vision=False,
+            config=_DUMMY_CONFIG,
+        )
+
+    mock_ocr.assert_awaited_once()
+    assert "INVOICE TOTAL 12345.67" in blocks[0]["text"]
+
+
+@pytest.mark.asyncio
+async def test_build_multimodal_image_empty_ocr_falls_back_to_metadata() -> None:
+    """When the OCR tier finds no text, the caller must keep its metadata response."""
+    from myrm_agent_harness.toolkits.llms.vision.types import VisionBackendKind, VisionResult
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.llms.vision.ocr_tier.OcrTierEngine.describe_local_image",
+            new_callable=AsyncMock,
+            return_value=VisionResult(
+                text="[OCR found no readable text]",
+                backend_kind=VisionBackendKind.OCR,
+            ),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_image_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="metadata only",
+        ),
+    ):
+        blocks = await build_multimodal_result(
+            image_paths=["a.png"],
+            pdf_paths=[],
+            document_paths=[],
+            text_paths=[],
+            vault_paths=[],
+            executor=MagicMock(),
+            skills=None,
+            reason=None,
+            url_errors=[],
+            supports_vision=False,
+            config=_DUMMY_CONFIG,
+        )
+
+    assert blocks[0]["text"] == "metadata only"
+
+
+@pytest.mark.asyncio
+async def test_build_multimodal_image_propagates_block_list_from_plain_reader() -> None:
+    """When the OCR tier finds nothing, a block list from the plain reader must be extended, not dropped.
+
+    ``read_image_as_content_blocks`` may return blocks; appending it as one item would bury
+    the content inside a text block instead of surfacing it.
+    """
+    from myrm_agent_harness.toolkits.llms.vision.types import VisionBackendKind, VisionResult
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.llms.vision.ocr_tier.OcrTierEngine.describe_local_image",
+            new_callable=AsyncMock,
+            return_value=VisionResult(
+                text="[OCR found no readable text]",
+                backend_kind=VisionBackendKind.OCR,
+            ),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_image_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value=[{"type": "text", "text": "block-a"}, {"type": "text", "text": "block-b"}],
+        ),
+    ):
+        blocks = await build_multimodal_result(
+            image_paths=["a.png"],
+            pdf_paths=[],
+            document_paths=[],
+            text_paths=[],
+            vault_paths=[],
+            executor=MagicMock(),
+            skills=None,
+            reason=None,
+            url_errors=[],
+            supports_vision=False,
+            config=_DUMMY_CONFIG,
+        )
+
+    assert [block["text"] for block in blocks] == ["block-a", "block-b"]
+
+
+class TestReadImageViaOcr:
+    """The last-resort OCR tier: text, no text, and unavailable."""
+
+    @pytest.mark.asyncio
+    async def test_returns_text_when_ocr_reads_the_image(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers import (
+            _read_image_via_ocr,
+        )
+        from myrm_agent_harness.toolkits.llms.vision.types import VisionBackendKind, VisionResult
+
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.ocr_tier.OcrTierEngine.describe_local_image",
+            new_callable=AsyncMock,
+            return_value=VisionResult(text="INVOICE 42", backend_kind=VisionBackendKind.OCR),
+        ):
+            result = await _read_image_via_ocr("a.png", AsyncMock())
+
+        assert result is not None
+        assert "INVOICE 42" in result
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_ocr_finds_no_text(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers import (
+            _read_image_via_ocr,
+        )
+        from myrm_agent_harness.toolkits.llms.vision.types import VisionBackendKind, VisionResult
+
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.ocr_tier.OcrTierEngine.describe_local_image",
+            new_callable=AsyncMock,
+            return_value=VisionResult(text="[OCR found no readable text]", backend_kind=VisionBackendKind.OCR),
+        ):
+            result = await _read_image_via_ocr("a.png", AsyncMock())
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_the_ocr_extra_is_absent(self) -> None:
+        """A missing extra must not be reported as "the image had no text"."""
+        from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers import (
+            _read_image_via_ocr,
+        )
+
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.ocr_tier.OcrTierEngine.describe_local_image",
+            new_callable=AsyncMock,
+            side_effect=ImportError("rapidocr is required"),
+        ):
+            result = await _read_image_via_ocr("a.png", AsyncMock())
+
+        assert result is None
+
+
+@pytest.mark.asyncio
+async def test_build_multimodal_video_list_blocks() -> None:
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_video_as_content_blocks",
+        new_callable=AsyncMock,
+        return_value=[{"type": "text", "text": "vid-list"}],
+    ):
+        blocks = await build_multimodal_result(
+            image_paths=[],
+            pdf_paths=[],
+            document_paths=[],
+            text_paths=[],
+            vault_paths=[],
+            executor=MagicMock(),
+            skills=None,
+            reason=None,
+            url_errors=[],
+            supports_vision=True,
+            video_paths=["clip.mp4"],
+            config=_DUMMY_CONFIG,
+        )
+    assert any("vid-list" in b.get("text", "") for b in blocks if isinstance(b, dict))
+
+
+@pytest.mark.asyncio
+async def test_append_media_vision_fallback_failure() -> None:
+    mock_executor = MagicMock()
+    parts: list[str] = []
+    with patch(
+        "myrm_agent_harness.toolkits.llms.vision.fallback_engine.VisionFallbackEngine.describe_local_image",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("api down"),
+    ):
+        await append_media_text_parts(
+            parts,
+            image_paths=["z.png"],
+            pdf_paths=[],
+            document_paths=[],
+            video_paths=[],
+            executor=mock_executor,
+            supports_vision=False,
+            vision_fallback_model_cfg={"model": "gpt-4o-mini", "api_key": "k"},
+            parse_mode=None,
+        )
+    assert "Vision analysis unavailable" in parts[0]
+
+
+@pytest.mark.asyncio
+async def test_process_text_paths_mcp_and_directory(tmp_path: Path) -> None:
+    mock_executor = MagicMock()
+    mock_executor.workspace_path = str(tmp_path)
+    d = tmp_path / "folder"
+    d.mkdir()
+
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers._read_via_service",
+        new_callable=AsyncMock,
+        side_effect=["mcp content", "dir listing"],
+    ) as mock_read:
+        parts = await process_text_paths(
+            ["/mcp/skill/doc.md", str(d)],
+            mock_executor,
+            None,
+            None,
+            "all",
+            10,
+            config=_DUMMY_CONFIG,
+        )
+    assert parts == ["mcp content", "dir listing"]
+    assert mock_read.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_process_text_paths_exception_fallback(tmp_path: Path) -> None:
+    f = tmp_path / "broken.txt"
+    f.write_text("ok", encoding="utf-8")
+    mock_executor = MagicMock()
+    mock_executor.workspace_path = str(tmp_path)
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers.read_file_preview",
+            new_callable=AsyncMock,
+            side_effect=OSError("read fail"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers._read_via_service",
+            new_callable=AsyncMock,
+            return_value="fallback content",
+        ) as mock_service,
+    ):
+        parts = await process_text_paths(
+            [str(f)],
+            mock_executor,
+            None,
+            None,
+            "preview",
+            10,
+            config=_DUMMY_CONFIG,
+        )
+    mock_service.assert_awaited()
+    assert parts[-1] == "fallback content"
+
+
+@pytest.mark.asyncio
+async def test_file_read_blocks_disabled_skill_path() -> None:
+    tool = create_file_read_tool()
+    mock_executor = MagicMock()
+    mock_executor.resolve_path = AsyncMock(return_value="/workspace/skills/off/secret.md")
+    config = RunnableConfig(
+        configurable={"context": {"disabled_skill_roots": ["/workspace/skills/off"]}},
+    )
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        pytest.raises(ToolError, match="blocked"),
+    ):
+        await tool.ainvoke({"paths": ["skills/off/secret.md"]}, config=config)
+
+
+@pytest.mark.asyncio
+async def test_file_read_file_not_found_includes_similar_path_hint(
+    tmp_path: Path,
+) -> None:
+    tool = create_file_read_tool()
+    (tmp_path / "readme.md").write_text("hello", encoding="utf-8")
+    target = str(tmp_path / "redme.md")
+    mock_executor = MagicMock()
+    mock_executor.resolve_path = AsyncMock(return_value=target)
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            side_effect=FileNotFoundError(f"not found: {target}"),
+        ),
+        pytest.raises(ToolError) as exc_info,
+    ):
+        await tool.ainvoke({"paths": [target]}, config=_DUMMY_CONFIG)
+
+    assert exc_info.value.user_hint is not None
+    assert "Did you mean" in exc_info.value.user_hint
+
+
+@pytest.mark.asyncio
+async def test_file_read_rejects_url_paths_only() -> None:
+    tool = create_file_read_tool()
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+        return_value=MagicMock(),
+    ):
+        result = await tool.ainvoke({"paths": ["https://example.com/doc"]}, config=_DUMMY_CONFIG)
+    assert isinstance(result, str)
+    assert "cannot read URLs" in result
+
+
+@pytest.mark.asyncio
+async def test_file_read_raises_value_error_when_no_valid_paths() -> None:
+    tool = create_file_read_tool()
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=MagicMock(),
+        ),
+        pytest.raises(ToolError) as exc_info,
+    ):
+        await tool.ainvoke({"paths": []}, config=_DUMMY_CONFIG)
+    assert exc_info.value.user_hint is not None
+    assert "Invalid parameter" in exc_info.value.user_hint
+
+
+@pytest.mark.asyncio
+async def test_file_read_permission_error_wrapped() -> None:
+    tool = create_file_read_tool()
+    mock_executor = MagicMock()
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            side_effect=PermissionError("denied"),
+        ),
+        pytest.raises(ToolError) as exc_info,
+    ):
+        await tool.ainvoke({"paths": ["secret.txt"]}, config=_DUMMY_CONFIG)
+    assert exc_info.value.user_hint is not None
+    assert "Permission denied" in exc_info.value.user_hint
+
+
+@pytest.mark.asyncio
+async def test_file_read_disabled_path_when_resolve_raises_value_error() -> None:
+    tool = create_file_read_tool()
+    mock_executor = MagicMock()
+    mock_executor.resolve_path = AsyncMock(side_effect=ValueError("bad path"))
+    config = RunnableConfig(
+        configurable={"context": {"disabled_skill_roots": ["/workspace/skills/off"]}},
+    )
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        pytest.raises(ToolError, match="blocked"),
+    ):
+        await tool.ainvoke(
+            {"paths": ["/workspace/skills/off/secret.md"]},
+            config=config,
+        )
+
+
+@pytest.mark.asyncio
+async def test_file_read_appends_mcp_next_step_hint_for_mcp_doc_batch() -> None:
+    """Reading a batch of /mcp/ function docs must append the [MCP NEXT STEP]
+    hint so the agent continues toward a single bash PTC call."""
+    tool = create_file_read_tool()
+    mock_executor = MagicMock()
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.ensure_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            return_value=["=== func a ===", "=== func b ==="],
+        ),
+    ):
+        result = await tool.ainvoke(
+            {"paths": ["/mcp/demo_skill/get_a.md", "/mcp/demo_skill/get_b.md"]},
+            config=_DUMMY_CONFIG,
+        )
+    assert isinstance(result, str)
+    assert "[MCP NEXT STEP]" in result
+    assert "[RESULT]" in result
+
+
+@pytest.mark.asyncio
+async def test_file_read_no_hint_for_plain_workspace_paths() -> None:
+    """Plain workspace reads must stay untouched by the MCP next-step hint."""
+    tool = create_file_read_tool()
+    mock_executor = MagicMock()
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.ensure_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            return_value=["workspace content"],
+        ),
+    ):
+        result = await tool.ainvoke(
+            {"paths": ["src/foo.py"]},
+            config=_DUMMY_CONFIG,
+        )
+    assert isinstance(result, str)
+    assert "[MCP NEXT STEP]" not in result
+
+
+@pytest.mark.asyncio
+async def test_process_text_paths_structure_mode(tmp_path: Path) -> None:
+    """验证 parse_mode='structure' 时结构化提取 Python 代码大纲"""
+    py_file = tmp_path / "service.py"
+    code = "class OrderService:\n    def create_order(self):\n        pass\n\ndef helper():\n    pass\n"
+    mock_executor = MagicMock()
+    mock_executor.workspace_path = str(tmp_path)
+
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers._read_via_service",
+        new_callable=AsyncMock,
+        return_value=code,
+    ):
+        parts = await process_text_paths(
+            [str(py_file)],
+            mock_executor,
+            None,
+            None,
+            "all",
+            10,
+            config=_DUMMY_CONFIG,
+            parse_mode="structure",
+        )
+    assert len(parts) == 1
+    assert "[DOCUMENT STRUCTURE OUTLINE: service.py]:" in parts[0]
+    assert "class OrderService" in parts[0]
+    assert "def OrderService.create_order" in parts[0]
+    assert "def helper" in parts[0]
+
+
+@pytest.mark.asyncio
+async def test_pdf_reader_structure_mode() -> None:
+    """验证 parse_mode='structure' 时 PDF 读取走大纲提取契约"""
+    from myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader import (
+        read_pdf_as_content_blocks,
+    )
+    from myrm_agent_harness.toolkits.file_parsers.base import PDFHeading, PDFParseResult
+
+    mock_executor = MagicMock()
+    mock_executor.read_file_bytes = AsyncMock(return_value=b"%PDF-1.4 mock")
+
+    mock_res = PDFParseResult(
+        text="",
+        tables=[],
+        metadata={"page_count": 10},
+        headings=[
+            PDFHeading(level=1, title="Introduction", page_num=1),
+            PDFHeading(level=2, title="System Architecture", page_num=3),
+        ],
+    )
+
+    with patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf.PDFPlumberParser.parse_sync", return_value=mock_res):
+        out = await read_pdf_as_content_blocks(
+            "paper.pdf", mock_executor, supports_vision=False, parse_mode="structure"
+        )
+        assert isinstance(out, str)
+        assert "[DOCUMENT STRUCTURE OUTLINE: paper.pdf (Total Pages: 10)]:" in out
+        assert "- Page 1: Introduction" in out
+        assert "  - Page 3: System Architecture" in out

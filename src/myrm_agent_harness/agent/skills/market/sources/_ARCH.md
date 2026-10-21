@@ -1,0 +1,28 @@
+# sources/
+
+## Overview
+Skill data sources. Each source implements the `SkillSource` protocol (base.py) and is
+registered in `service.py`. Sources are queried in parallel with per-source timeout;
+individual failures are logged and silently skipped.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Skill data sources. | — |
+| aliyun.py | Core | Aliyun AgentExplorer 技能搜索源（需 AK/SK，无凭据时静默跳过）。 | ✅ |
+| base.py | Core | Provides SkillSource protocol. | ✅ |
+| clawhub.py | Core | Provides ClawHubSource. | ✅ |
+| clawhub_registry.py | Core | ClawHub registry URL SSOT (`CLAWHUB_URL`), legacy env bootstrap, strict JSON probe. | ✅ |
+| github.py | Core | Provides GitHubSkillSource, GitHubRef, parse_github_url. | ✅ |
+| github_tap.py | Core | Custom GitHub repository tap source for private and organization skill collection subscription. | ✅ |
+| lobehub.py | Core | Provides LobeHubSource. | ✅ |
+| modelscope.py | Core | ModelScope 魔搭社区技能搜索源（搜索无需认证，80K+ 技能）。 | ✅ |
+| prebuilt.py | Core | Prebuilt skill search source. | ✅ |
+| skills_sh.py | Core | Provides SkillsShSource. | ✅ |
+| static_index.py | Core | `StaticIndexSkillSource` — centralized static skills index data source. | ✅ |
+| wellknown.py | Core | .well-known/skills/ endpoint source for custom/enterprise registries. | ✅ |
+
+## Key Dependencies
+
+- `backends`

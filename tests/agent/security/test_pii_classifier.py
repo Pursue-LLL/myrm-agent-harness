@@ -1,0 +1,365 @@
+"""Tests for pii_classifier — PII detection and classification."""
+
+import pytest
+
+from myrm_agent_harness.agent.security.detection.pii_classifier import (
+    classify_content,
+    classify_tool_params,
+    classify_tool_result,
+    contains_level,
+)
+from myrm_agent_harness.agent.security.types import PrivacyPolicy, SensitivityLevel
+from myrm_agent_harness.core.security.detection.pii_patterns import china_id_valid
+
+_ENABLED = PrivacyPolicy(enabled=True)
+_DISABLED = PrivacyPolicy(enabled=False)
+
+
+class TestFastPath:
+    def test_disabled_policy_returns_s1(self) -> None:
+        result = classify_content("sensitive phone 13812345678", _DISABLED)
+        assert result.level == SensitivityLevel.S1
+
+    def test_empty_content_returns_s1(self) -> None:
+        assert classify_content("", _ENABLED).level == SensitivityLevel.S1
+
+    def test_short_content_skips(self) -> None:
+        assert classify_content("abc", _ENABLED).level == SensitivityLevel.S1
+
+
+class TestS3Detection:
+    """Confidential data detection — identity docs, financial, passwords."""
+
+    def test_china_id_card_valid(self) -> None:
+        # Valid checksum ID
+        result = classify_content("身份证号码 110101199003074530", _ENABLED)
+        assert result.level == SensitivityLevel.S3
+        assert "china_id_card" in result.patterns
+
+    def test_china_id_card_invalid_checksum_skipped(self) -> None:
+        result = classify_content("number 110101199003074531", _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+    def test_bank_card_luhn_valid(self) -> None:
+        # 4532015112830366 passes Luhn
+        result = classify_content("卡号 4532015112830366", _ENABLED)
+        assert result.level == SensitivityLevel.S3
+        assert "bank_card" in result.patterns
+
+    def test_bank_card_invalid_luhn_skipped(self) -> None:
+        result = classify_content("number 6222021234567890019", _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+    def test_password_context(self) -> None:
+        result = classify_content("password=MySecret123!", _ENABLED)
+        assert result.level == SensitivityLevel.S3
+        assert "password_context" in result.patterns
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("我的密码是 Zk9%mango42 帮我登录", SensitivityLevel.S3),
+            ("密码：888888 谢谢", SensitivityLevel.S3),
+            ("DB_PASSWORD=hunter2xyz", SensitivityLevel.S3),
+            ('{"password":"abc12345","x":1}', SensitivityLevel.S3),
+            ("password=password) # default", SensitivityLevel.S1),
+            ("password=${DB_PASS}", SensitivityLevel.S1),
+        ],
+        ids=["cjk-sentence", "cjk-colon", "env-name", "json", "label-itself", "template"],
+    )
+    def test_password_is_decided_by_value_not_by_label_alone(self, text: str, expected: SensitivityLevel) -> None:
+        assert classify_content(text, _ENABLED).level == expected
+
+    @pytest.mark.parametrize(
+        "text",
+        ["password: [REDACTED] [PII:password] ok", "password=[REDACTED:env_credential] set", 'pwd = "[REDACTED] x'],
+        ids=["redactor-marker", "leak-marker", "quoted"],
+    )
+    def test_a_password_the_redactor_masked_is_not_a_password(self, text: str) -> None:
+        assert classify_content(text, _ENABLED).level == SensitivityLevel.S1
+
+    def test_china_passport(self) -> None:
+        result = classify_content("护照 E12345678", _ENABLED)
+        assert result.level == SensitivityLevel.S3
+        assert "china_passport" in result.patterns
+
+
+class TestS2Detection:
+    """Sensitive data detection — contact info, location."""
+
+    def test_china_phone(self) -> None:
+        result = classify_content("我的手机号 13812345678", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+        assert "china_phone" in result.patterns
+
+    def test_china_phone_with_prefix(self) -> None:
+        result = classify_content("call +86 13812345678", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+
+    def test_bare_ascii_china_phone_detected(self) -> None:
+        # Regression: the ASCII short-text fast path used to skip china_phone, so a bare
+        # phone number in an <20-char ASCII text was misclassified as S1 (public).
+        result = classify_content("13800138000", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+        assert "china_phone" in result.patterns
+
+    def test_bare_ascii_china_courier_detected(self) -> None:
+        # Regression: china_courier matches pure ASCII (SF/YT/EMS + digits) and was
+        # skipped by the same fast path.
+        result = classify_content("SF1234567890123", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+        assert "china_courier" in result.patterns
+
+    def test_short_ascii_english_stays_s1(self) -> None:
+        # The fast path must still skip CJK-only patterns without false positives.
+        result = classify_content("ok hello there", _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+    def test_email(self) -> None:
+        result = classify_content("请联系 zhangsan@company.com", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+        assert "email" in result.patterns
+
+    def test_credit_card_visible_format(self) -> None:
+        # A grouped number that fails the Luhn check is not a card number the S3 rule can vouch for.
+        result = classify_content("card 4532-0151-1283-0367", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+        assert "credit_card_visible" in result.patterns
+
+    def test_private_ip(self) -> None:
+        result = classify_content("connect to 192.168.1.100", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+        assert "private_ip" in result.patterns
+
+    def test_us_ssn(self) -> None:
+        result = classify_content("SSN is 123-45-6789", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+        assert "us_ssn" in result.patterns
+
+    def test_intl_phone(self) -> None:
+        result = classify_content("call +1-202-555-0123", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+        assert "intl_phone" in result.patterns
+
+
+class TestPlaceholderExclusion:
+    def test_placeholder_email_skipped(self) -> None:
+        result = classify_content("email: user@example.com", _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+    def test_placeholder_phone_skipped(self) -> None:
+        result = classify_content("phone: 12345678901", _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+    def test_test_email_skipped(self) -> None:
+        result = classify_content("test@test.com", _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+
+class TestCustomKeywords:
+    def test_custom_s3_keyword(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("社保号码",))
+        result = classify_content("请提供 社保号码 信息", policy)
+        assert result.level == SensitivityLevel.S3
+        assert any("custom_s3_keyword" in p for p in result.patterns)
+
+    def test_custom_s2_keyword(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=("微信号",))
+        result = classify_content("请发 微信号 给我", policy)
+        assert result.level == SensitivityLevel.S2
+
+    def test_a_multi_word_s3_keyword_split_by_a_line_break_is_s3(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("Project Atlas",))
+        result = classify_content("see Project\nAtlas now", policy)
+        assert result.level == SensitivityLevel.S3
+
+    def test_custom_s3_pattern(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_patterns_s3=(r"PROJ-\d{6}",))
+        result = classify_content("project PROJ-123456", policy)
+        assert result.level == SensitivityLevel.S3
+        assert result.patterns == [r"custom_s3_pattern:PROJ-\d{6}"]
+
+    def test_a_chinese_s3_keyword_inside_a_sentence_is_s3(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("凤凰计划",))
+        result = classify_content("帮我总结凤凰计划Q3预算超支原因，发给李总", policy)
+        assert result.level == SensitivityLevel.S3
+        assert result.patterns == ["custom_s3_keyword:凤凰计划"]
+
+    def test_a_chinese_s2_keyword_inside_a_sentence_is_s2(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=("微信号",))
+        result = classify_content("请把我的微信号发给客户张总", policy)
+        assert result.level == SensitivityLevel.S2
+        assert result.patterns == ["custom_s2_keyword:微信号"]
+
+    def test_a_keyword_shorter_than_the_built_in_minimum_is_still_detected(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("凤凰计划",), custom_keywords_s2=("绝密",))
+        assert classify_content("凤凰计划", policy).level == SensitivityLevel.S3
+        assert classify_content("绝密", policy).level == SensitivityLevel.S2
+
+    def test_the_minimum_length_still_skips_built_in_detection(self) -> None:
+        assert classify_content("1381234", _ENABLED).level == SensitivityLevel.S1
+
+    def test_a_keyword_that_is_a_whole_word_next_to_chinese_text_matches(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("project",))
+        assert classify_content("我的project计划很重要", policy).level == SensitivityLevel.S3
+
+    def test_s3_wins_over_s2_when_both_keywords_are_present(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=("微信号",), custom_keywords_s3=("凤凰计划",))
+        assert classify_content("微信号和凤凰计划都在这里", policy).level == SensitivityLevel.S3
+
+    def test_a_custom_keyword_in_the_second_place_of_a_text_is_found(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("凤凰计划",))
+        assert classify_content("先说别的事，最后再提一次凤凰计划。", policy).level == SensitivityLevel.S3
+
+
+class TestToolParams:
+    def test_a_short_param_value_carrying_a_custom_keyword_is_detected(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s3=("凤凰计划",))
+        result = classify_tool_params("create_note", {"title": "凤凰计划"}, policy)
+        assert result.level == SensitivityLevel.S3
+        assert result.patterns == ["param:title:custom_s3_keyword:凤凰计划"]
+
+    def test_sensitive_tool_s3(self) -> None:
+        policy = PrivacyPolicy(enabled=True, sensitive_tools_s3=("vault_read",))
+        result = classify_tool_params("vault_read", {"key": "abc"}, policy)
+        assert result.level == SensitivityLevel.S3
+
+    def test_sensitive_path_env(self) -> None:
+        result = classify_tool_params("read_file", {"path": "/home/user/.env"}, _ENABLED)
+        assert result.level == SensitivityLevel.S3
+        assert any("sensitive_file_ext" in p or "sensitive_path" in p for p in result.patterns)
+
+    def test_sensitive_path_ssh_key(self) -> None:
+        result = classify_tool_params("read_file", {"file": "/home/user/.ssh/id_rsa"}, _ENABLED)
+        assert result.level == SensitivityLevel.S3
+
+    def test_pii_in_param_value(self) -> None:
+        result = classify_tool_params("send_email", {"body": "请联系 zhangsan@company.com"}, _ENABLED)
+        assert result.level == SensitivityLevel.S2
+
+    def test_disabled_returns_s1(self) -> None:
+        result = classify_tool_params("vault_read", {"key": "abc"}, _DISABLED)
+        assert result.level == SensitivityLevel.S1
+
+
+class TestToolResult:
+    def test_pii_in_result(self) -> None:
+        result = classify_tool_result("用户手机号 13812345678", "read_file", _ENABLED)
+        assert result.level == SensitivityLevel.S2
+
+    def test_clean_result(self) -> None:
+        result = classify_tool_result("Task completed successfully", "shell_exec", _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+
+class TestContainsLevel:
+    """Whether a text holds content of one level, whatever else it holds at a higher one."""
+
+    def test_s2_content_next_to_s3_content_is_found(self) -> None:
+        text = "卡号 4532015112830366，电话 13800138000"
+
+        assert contains_level(text, _ENABLED, SensitivityLevel.S2) is True
+        assert contains_level(text, _ENABLED, SensitivityLevel.S3) is True
+
+    def test_a_level_the_text_does_not_hold_is_not_found(self) -> None:
+        text = "卡号 4532015112830366 请记一下"
+
+        assert contains_level(text, _ENABLED, SensitivityLevel.S3) is True
+        assert contains_level(text, _ENABLED, SensitivityLevel.S2) is False
+
+    def test_nothing_sensitive_holds_no_level(self) -> None:
+        assert contains_level("今天天气不错，适合出去走走", _ENABLED, SensitivityLevel.S2) is False
+
+    def test_a_disabled_policy_holds_no_level(self) -> None:
+        assert contains_level("电话 13800138000", _DISABLED, SensitivityLevel.S2) is False
+
+
+class TestKeywordMatching:
+    @staticmethod
+    def _level(text: str, keyword: str) -> SensitivityLevel:
+        return classify_content(text, PrivacyPolicy(enabled=True, custom_keywords_s2=(keyword,))).level
+
+    def test_exact_match(self) -> None:
+        assert self._level("my 社保号码 is here", "社保号码") == SensitivityLevel.S2
+
+    def test_no_match(self) -> None:
+        assert self._level("normal text", "社保号码") == SensitivityLevel.S1
+
+    def test_file_extension(self) -> None:
+        assert self._level("read config.env file", ".env") == SensitivityLevel.S2
+
+    def test_partial_word_boundary(self) -> None:
+        assert self._level("password123", "pass") == SensitivityLevel.S1
+
+    def test_a_whole_word_after_an_in_word_occurrence_is_found(self) -> None:
+        assert self._level("the spinners ran, then pin the note", "pin") == SensitivityLevel.S2
+
+
+class TestS3ShortCircuit:
+    """Verify that S3 detection short-circuits (doesn't continue to S2)."""
+
+    def test_s3_with_s2_present(self) -> None:
+        # Both S3 (password) and S2 (phone) present — should return S3
+        content = "password=secret123 call 13812345678"
+        result = classify_content(content, _ENABLED)
+        assert result.level == SensitivityLevel.S3
+
+
+class TestCoverageGaps:
+    """Boundary branches: keyword boundaries, placeholder S3, invalid regex, tool paths."""
+
+    def test_keyword_preceded_by_alnum_misses(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=("pin",))
+        assert classify_content("spinners", policy).level == SensitivityLevel.S1
+
+    def test_custom_s2_keyword_within_word_misses(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=("pin",))
+        result = classify_content("the spinners ran fast", policy)
+        assert result.level == SensitivityLevel.S1
+
+    def test_china_id_non_digit_body_invalid(self) -> None:
+        assert not china_id_valid("110101a99003074530")
+
+    def test_custom_s3_invalid_regex_ignored(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_patterns_s3=("([",))
+        assert classify_content("hello world", policy).level == SensitivityLevel.S1
+
+    def test_custom_s2_invalid_regex_ignored(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_patterns_s2=("([",))
+        result = classify_content("hello world", policy)
+        assert result.level == SensitivityLevel.S1
+
+    def test_credential_leak_delegates_to_s3(self) -> None:
+        result = classify_content("the token is sk-ant-abcdefghijklmnopqrstuvwxyz123456", _ENABLED)
+        assert result.level == SensitivityLevel.S3
+        assert any(p.startswith("credential:") for p in result.patterns)
+
+    def test_custom_s2_pattern_matches(self) -> None:
+        policy = PrivacyPolicy(enabled=True, custom_patterns_s2=("项目代号",))
+        result = classify_content("本周项目代号为 alpha", policy)
+        assert result.level == SensitivityLevel.S2
+
+    def test_sensitive_tool_s2(self) -> None:
+        policy = PrivacyPolicy(enabled=True, sensitive_tools_s2=("search",))
+        result = classify_tool_params("web_search", {"query": "weather"}, policy)
+        assert result.level == SensitivityLevel.S2
+
+    def test_default_sensitive_extension(self) -> None:
+        result = classify_tool_params("read_file", {"path": "/tmp/app.jks"}, _ENABLED)
+        assert result.level == SensitivityLevel.S3
+
+    def test_default_sensitive_name(self) -> None:
+        result = classify_tool_params("read_file", {"path": "/root/.ssh/config"}, _ENABLED)
+        assert result.level == SensitivityLevel.S3
+
+    def test_non_string_param_value_skipped(self) -> None:
+        result = classify_tool_params("echo", {"count": 42, "flag": True}, _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+    def test_clean_params_return_s1(self) -> None:
+        result = classify_tool_params("echo", {"message": "hello world"}, _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+    def test_command_paths_extracted(self) -> None:
+        result = classify_tool_params("bash", {"command": "cat /etc/passwd"}, _ENABLED)
+        assert result.level == SensitivityLevel.S1

@@ -1,0 +1,810 @@
+"""DesktopSession — semantic desktop control with @dref registry.
+
+[INPUT]
+- dref, perception, execution.healer, session, som_overlay, types, security.credential_vault modules
+
+[OUTPUT]
+- DesktopSession: AX snapshot, @dref registry, interact/vision, permissions, inspector export
+- create_desktop_session(...) -> DesktopSession
+
+[POS]
+Semantic desktop control session. Bridges AX perception, @dref registry, coordinate fallback, and WebUI view updates.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from collections.abc import Callable
+
+from myrm_agent_harness.toolkits.computer_use.dref.errors import (
+    AXPermissionRequiredError,
+    AXTreeEmptyError,
+    DRefStaleError,
+)
+from myrm_agent_harness.toolkits.computer_use.dref.registry import DRefRegistry
+from myrm_agent_harness.toolkits.computer_use.dref.types import (
+    ElementRef,
+    SnapshotScope,
+)
+from myrm_agent_harness.toolkits.computer_use.execution.healer import try_bbox_click
+from myrm_agent_harness.toolkits.computer_use.iphone_mirror import (
+    is_iphone_mirror_app,
+    probe_iphone_mirror_state,
+)
+from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import compute_ref_diff
+from myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch import (
+    capture_snapshot,
+    inspect_backend,
+    invoke_element,
+)
+from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
+    refs_for_view_update,
+)
+from myrm_agent_harness.toolkits.computer_use.perception.renderer import (
+    render_diff_tree,
+    render_snapshot_tree,
+)
+from myrm_agent_harness.toolkits.computer_use.session import (
+    ComputerSession,
+    create_computer_session,
+)
+from myrm_agent_harness.toolkits.computer_use.som_overlay import (
+    apply_som_overlay_to_jpeg_base64,
+    build_som_index_map,
+)
+from myrm_agent_harness.toolkits.computer_use.types import (
+    ActionResult,
+    ComputerUseConfig,
+    DesktopInteractAction,
+    DesktopVisionAction,
+    ForegroundPermissionCallback,
+    IPhoneMirrorState,
+    ModifierKey,
+    PermissionStatus,
+    ScrollDirection,
+)
+
+logger = logging.getLogger(__name__)
+
+_APPROVAL_REVALIDATION_THRESHOLD_SEC = 5.0
+
+ViewUpdateCallback = Callable[[dict[str, object]], None]
+
+
+class DesktopSession(ComputerSession):
+    """Computer session extended with AX snapshot, @dref registry, and view updates."""
+
+    def __init__(
+        self,
+        backend: object,
+        config: ComputerUseConfig | None = None,
+        view_update_callback: ViewUpdateCallback | None = None,
+        permission_callback: ForegroundPermissionCallback | None = None,
+    ) -> None:
+        super().__init__(backend=backend, config=config, permission_callback=permission_callback)  # type: ignore[arg-type]
+        self._refs = DRefRegistry()
+        self._view_update_callback = view_update_callback
+        self._last_tree_text: str = ""
+        self._last_snapshot_time: float = 0.0
+        self._action_lock: asyncio.Lock = asyncio.Lock()
+
+    @property
+    def ref_registry(self) -> DRefRegistry:
+        return self._refs
+
+    def set_view_update_callback(self, callback: ViewUpdateCallback | None) -> None:
+        self._view_update_callback = callback
+
+    def reanchor_visual_state(self) -> None:
+        """Clear cached AX refs, snapshots, and scaler to enforce re-anchoring upon wake."""
+        super().reanchor_visual_state()
+        self._refs.clear()
+        self._last_snapshot_time = 0.0
+        self._last_tree_text = ""
+        logger.info("[REANCHOR] DesktopSession visual state cleared; next snapshot will refresh DOM/AX tree")
+
+    async def _revalidate_if_stale_after_approval(
+        self,
+        *,
+        interact_ref: str | None = None,
+    ) -> str | None:
+        """Refresh desktop state when user approval delayed the operation."""
+        elapsed = time.time() - self._last_snapshot_time
+        if elapsed <= _APPROVAL_REVALIDATION_THRESHOLD_SEC:
+            return None
+
+        from myrm_agent_harness.toolkits.computer_use import safety
+
+        logger.info(
+            "[SECURITY] Re-validating desktop state after approval delay (delayed %.1fs)",
+            elapsed,
+        )
+        try:
+            if interact_ref is not None:
+                meta, refs = capture_snapshot(self._backend, "foreground", None)
+                blocked = safety.is_sensitive_app(meta.app_name, meta.window_title, meta.app_id)
+                if blocked:
+                    logger.warning("[SECURITY] Sensitive app guard (interact): %s", blocked)
+                    return f"Safety: {blocked}"
+                if interact_ref not in refs:
+                    return (
+                        "Safety Re-validation failed: The screen has changed significantly during approval. "
+                        f"The target element '@{interact_ref}' is no longer found. "
+                        "Please take a new snapshot to refresh the view and try again."
+                    )
+                self._refs.replace(refs, meta)
+                self._last_snapshot_time = time.time()
+                return None
+
+            shot = await self.take_screenshot()
+            if not shot.success:
+                return f"Safety Re-validation failed: Could not refresh screen state ({shot.error})."
+            self._last_snapshot_time = time.time()
+            return None
+        except Exception as exc:
+            return f"Safety Re-validation failed: Could not re-verify screen state ({exc!s})."
+
+    def _snapshot_screen_fields(self) -> dict[str, int | float]:
+        info = self.screen_info
+        return {
+            "screen_width": info.width,
+            "screen_height": info.height,
+            "dpi_scale": info.dpi_scale,
+        }
+
+    async def _capture_guard_screenshot(self) -> tuple[str, tuple[int, int]]:
+        """Capture a guard-evidence screenshot (base64, image size) for HITL cards."""
+        shot = await self.take_screenshot()
+        if not shot.success:
+            return "", (0, 0)
+        return shot.screenshot_base64 or "", shot.screenshot_size
+
+    def _annotate_screenshot_som(
+        self,
+        screenshot_b64: str,
+        refs: dict[str, ElementRef],
+        som_index_map: dict[str, int] | None,
+    ) -> str:
+        if not screenshot_b64 or not som_index_map or self.scaler is None:
+            return screenshot_b64
+        return apply_som_overlay_to_jpeg_base64(
+            screenshot_b64,
+            refs,
+            self.scaler,
+            som_index_map,
+        )
+
+    async def desktop_snapshot(
+        self,
+        scope: SnapshotScope = "foreground",
+        app_name: str | None = None,
+        include_screenshot: bool = False,
+        query: str | None = None,
+        role: str | None = None,
+        wait_seconds: float = 0.0,
+    ) -> str | list[object]:
+        from myrm_agent_harness.toolkits.computer_use import safety
+
+        if wait_seconds > 0:
+            effective_delay = min(max(float(wait_seconds), 0.0), 10.0)
+            await asyncio.sleep(effective_delay)
+
+        if (refusal := await self._screen_guard.refusal(snapshot=True)) is not None:
+            return refusal
+
+        try:
+            meta, refs = capture_snapshot(self._backend, scope, app_name=app_name, query=query, role=role)
+        except AXPermissionRequiredError as exc:
+            await self._emit_permission_view_update()
+            return str(exc)
+        except AXTreeEmptyError as exc:
+            return str(exc)
+
+        blocked = safety.is_sensitive_app(meta.app_name, meta.window_title, meta.app_id)
+        if blocked:
+            logger.warning("[SECURITY] Sensitive app guard: %s (app=%s)", blocked, meta.app_name)
+            return f"Safety: {blocked}"
+
+        prev_refs = self._refs.all_refs()
+        prev_meta = self._refs.meta
+
+        self._refs.replace(refs, meta)
+        self._last_snapshot_time = time.time()
+
+        som_index_map = build_som_index_map(refs) if include_screenshot else None
+
+        use_diff = False
+        diff_text = ""
+        if not include_screenshot and prev_refs:
+            diff = compute_ref_diff(prev_refs, refs, prev_meta, meta)
+            if not diff.use_full_view:
+                diff_text, enriched_meta = render_diff_tree(meta, diff)
+                use_diff = True
+
+        if not use_diff:
+            tree_text, enriched_meta = render_snapshot_tree(meta, refs, som_index_map=som_index_map)
+        else:
+            tree_text = diff_text
+
+        self._last_tree_text = tree_text
+
+        screenshot_b64 = ""
+        screenshot_size = (0, 0)
+        if include_screenshot:
+            target_app = app_name if scope == "target" else None
+            shot = await self.take_screenshot(app_name=target_app)
+            screenshot_b64 = self._annotate_screenshot_som(
+                shot.screenshot_base64,
+                refs,
+                som_index_map,
+            )
+            screenshot_size = shot.screenshot_size
+
+        await self._emit_view_update(
+            screenshot_base64=screenshot_b64,
+            screenshot_size=screenshot_size,
+            refs=refs,
+            meta=enriched_meta,
+            som_index_map=som_index_map,
+        )
+
+        header = f"Desktop snapshot ready ({enriched_meta.ref_count} refs, ~{enriched_meta.token_estimate} tokens)."
+        if is_iphone_mirror_app(meta.app_name, meta.app_id):
+            probe = probe_iphone_mirror_state()
+            if probe.state == IPhoneMirrorState.BLOCKED_CONNECT_PROMPT:
+                header = f"{header}\n[IPHONE_MIRROR_GATE] {probe.detail} {probe.remedy_hint}"
+        if include_screenshot and screenshot_b64:
+            from langchain_core.messages.content import (
+                ContentBlock,
+                create_image_block,
+                create_text_block,
+            )
+
+            blocks: list[ContentBlock] = [
+                create_text_block(f"{header}\n\n{tree_text}"),
+                create_image_block(base64=screenshot_b64, mime_type="image/jpeg"),
+            ]
+            return blocks
+        return f"{header}\n\n{tree_text}"
+
+    async def desktop_interact(
+        self,
+        ref: str,
+        action: DesktopInteractAction,
+        text: str = "",
+        modifiers: list[ModifierKey] | None = None,
+        wait_seconds: float = 0.0,
+    ) -> str | list[object]:
+        await self._ensure_not_user_takeover()
+        if (refusal := await self._screen_guard.refusal()) is not None:
+            return refusal
+        async with self._action_lock:
+            meta = self._refs.meta
+            app_name = meta.app_name if meta else ""
+            window_title = meta.window_title if meta else ""
+            app_id = meta.app_id if meta else ""
+
+            from myrm_agent_harness.toolkits.computer_use import safety
+
+            app_denied = await self.check_app_approval(
+                app_name=app_name,
+                window_title=window_title,
+                app_id=app_id,
+                operation=f"desktop_interact({action}, @{ref})",
+            )
+            if app_denied is not None:
+                return f"Control denied: {app_denied.error}"
+
+            try:
+                stale_error = await self._revalidate_if_stale_after_approval(interact_ref=ref)
+                if stale_error is not None:
+                    return stale_error
+
+                try:
+                    element = self._refs.get(ref)
+                except DRefStaleError as exc:
+                    remedy_hint = (
+                        f"[REMEDY_HINT: The element reference @{ref} is stale because the UI state has changed. "
+                        "Call desktop_snapshot_tool(scope='foreground') to refresh the @dref element tree.]"
+                    )
+                    return f"{exc}\n{remedy_hint}"
+
+                # [SECURITY] iPhone Mirroring connect/pairing gate — hard block,
+                # not approvable: user must confirm connection on the device.
+                mirror_blocked = safety.is_iphone_mirror_blocked_action(
+                    app_name=app_name,
+                    window_title=window_title,
+                    app_id=meta.app_id if meta else "",
+                    action_text=f"{element.name} {text}".strip(),
+                )
+                if mirror_blocked:
+                    logger.warning(
+                        "[SECURITY] iPhone mirror connect gate (interact): %s",
+                        mirror_blocked,
+                    )
+                    return f"Safety: {mirror_blocked}"
+
+                # [SECURITY] Desktop semantic guard — destructive AX control gate
+                # sharing the cross-channel lexicon with the browser DOM gate.
+                from myrm_agent_harness.toolkits.computer_use.semantic_gate import (
+                    DesktopGuardContext,
+                    enforce_desktop_interact_guard,
+                )
+
+                semantic_blocked = await enforce_desktop_interact_guard(
+                    ctx=DesktopGuardContext(
+                        app_name=app_name,
+                        window_title=window_title,
+                        screenshot_provider=self._capture_guard_screenshot,
+                        scaler=self.scaler,
+                    ),
+                    ref_id=element.ref_id,
+                    role=element.role,
+                    name=element.name,
+                    action=action,
+                    text=text,
+                )
+                if semantic_blocked is not None:
+                    return semantic_blocked
+
+                effective_action = action
+                effective_text = text
+
+                if action == "fill_credential":
+                    from myrm_agent_harness.core.security.credential_vault import (
+                        get_global_credential_vault,
+                    )
+
+                    vault = get_global_credential_vault()
+                    is_totp = text.endswith("-totp")
+                    try:
+                        if is_totp:
+                            effective_text = vault.get_totp_token(text)
+                        else:
+                            effective_text = vault.get_password(text)
+                    except Exception:
+                        return f"Failed to retrieve credential for label '{text}'"
+                    effective_action = "fill"
+                elif action == "set_value":
+                    effective_action = "set_value"
+
+                snapshot_app = self._refs.meta.app_name if self._refs.meta else None
+                ax_result = invoke_element(
+                    self._backend,
+                    element,
+                    effective_action,
+                    effective_text,
+                    app_name=snapshot_app,
+                )
+                if not ax_result.success:
+                    bbox_result = await try_bbox_click(self, element, effective_action, effective_text, modifiers)
+                    if not bbox_result.success:
+                        remedy_hint = (
+                            f"[REMEDY_HINT: Action '{action}' on @{element.ref_id} failed via accessibility invocation "
+                            f"({ax_result.error}) and bounding-box fallback ({bbox_result.error}). "
+                            "The target window may be minimized, occluded, or scrolled off-screen. "
+                            "Suggested remedies: 1) Call desktop_snapshot_tool(scope='foreground') to verify window state; "
+                            "2) Call desktop_snapshot_tool(scope='target', app_name='...') to bring the app window forward; "
+                            "3) Use desktop_vision_tool if the element is custom-rendered on canvas.]"
+                        )
+                        return (
+                            f"desktop_interact failed for @{element.ref_id}: "
+                            f"{ax_result.error}; bbox fallback: {bbox_result.error}\n{remedy_hint}"
+                        )
+
+                base_delay = self._config.screenshot_delay
+                if wait_seconds > 0:
+                    base_delay += min(max(float(wait_seconds), 0.0), 10.0)
+                await asyncio.sleep(base_delay)
+                if self._refs.meta and self._refs.meta.app_name:
+                    follow_up = await self.desktop_snapshot(
+                        scope="target",
+                        app_name=self._refs.meta.app_name,
+                        include_screenshot=False,
+                    )
+                else:
+                    follow_up = await self.desktop_snapshot(
+                        scope="foreground",
+                        include_screenshot=False,
+                    )
+                if action == "fill_credential":
+                    result_prefix = f"Filled credential '{text}' into @{element.ref_id} [CREDENTIAL_FILLED]\n\n"
+                else:
+                    result_prefix = f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
+                if isinstance(follow_up, list):
+                    first = follow_up[0]
+                    if hasattr(first, "text"):
+                        first.text = result_prefix + getattr(first, "text", "")
+                    return follow_up
+                return f"{result_prefix}{follow_up}"
+            finally:
+                self.clear_operation_foreground_waiver()
+
+    async def desktop_vision_capture(self) -> str | list[object]:
+        result = await self.take_screenshot()
+        if not result.success:
+            return f"Capture failed: {result.error}"
+        return self._build_multimodal_response(result, "Desktop vision capture.")
+
+    async def desktop_vision_action(
+        self,
+        action: DesktopVisionAction,
+        coordinate: list[int] | None = None,
+        text: str | None = None,
+        scroll_direction: ScrollDirection | None = None,
+        scroll_amount: int = 3,
+        start_coordinate: list[int] | None = None,
+        duration: float = 2.0,
+        modifiers: list[ModifierKey] | None = None,
+    ) -> str | list[object]:
+        await self._ensure_not_user_takeover()
+        if (refusal := await self._screen_guard.refusal()) is not None:
+            return refusal
+        async with self._action_lock:
+            from myrm_agent_harness.toolkits.computer_use import safety
+
+            # Reject invalid key / type payloads before any display I/O —
+            # argument safety must not require a capturable display to fail closed.
+            if action == "key":
+                if not text:
+                    return "Error: text (key combo) is required for key action"
+                key_blocked = safety.is_blocked_key_combo(text)
+                if key_blocked:
+                    return f"Safety: {key_blocked}"
+                operator_blocked = safety.is_operator_as_key_name(text)
+                if operator_blocked:
+                    remedy_hint = (
+                        "[REMEDY_HINT: Printable operators are not keyboard key names. "
+                        "Use action=type to enter the character, or desktop_interact_tool "
+                        "to click the calculator/@dref button.]"
+                    )
+                    return f"Safety: {operator_blocked}\n{remedy_hint}"
+            elif action == "type":
+                if not text:
+                    return "Error: text is required for type action"
+                text_blocked = safety.is_dangerous_type_text(text)
+                if text_blocked:
+                    return f"Safety: {text_blocked}"
+
+            # [SECURITY] Sensitive app guard — lightweight foreground app check.
+            fg_info = inspect_backend(self._backend)
+            fg_app = str(fg_info.get("app_name", "") or "")
+            fg_title = str(fg_info.get("window_title", "") or "")
+            fg_app_id = str(fg_info.get("app_id", "") or "")
+
+            blocked = safety.is_sensitive_app(fg_app, fg_title, fg_app_id)
+            if blocked:
+                logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
+                return f"Safety: {blocked}"
+
+            # [SECURITY] iPhone Mirroring gate — during a connect/pairing prompt
+            # no coordinate/keyboard action may reach the screen (would either
+            # mis-click the pairing dialog or steal focus from it).
+            if is_iphone_mirror_app(fg_app, fg_app_id):
+                probe = probe_iphone_mirror_state()
+                if probe.state == IPhoneMirrorState.BLOCKED_CONNECT_PROMPT:
+                    logger.warning(
+                        "[SECURITY] iPhone mirror connect gate (vision): %s",
+                        probe.detail,
+                    )
+                    return f"Safety: {probe.remedy_hint}"
+
+            # [SECURITY] Foreground permission gate for coordinate-based actions.
+            if safety.is_foreground_required(action):
+                app_denied = await self.check_app_approval(
+                    app_name=fg_app,
+                    window_title=fg_title,
+                    app_id=fg_app_id,
+                    operation=f"desktop_vision_action({action})",
+                )
+                if app_denied is not None:
+                    return f"Control denied: {app_denied.error}"
+
+                try:
+                    permission_denied = await self.check_foreground_permission(
+                        reason=f"Vision action '{action}' requires foreground mouse/keyboard control",
+                        operation=f"desktop_vision_action({action})",
+                        estimated_duration_seconds=5.0,
+                        app_name=fg_app,
+                        window_title=fg_title,
+                        app_id=fg_app_id,
+                    )
+                    if permission_denied is not None:
+                        return f"Permission denied: {permission_denied.error}"
+
+                    stale_error = await self._revalidate_if_stale_after_approval()
+                    if stale_error is not None:
+                        return stale_error
+                finally:
+                    self.clear_operation_foreground_waiver()
+
+            # [SECURITY] Desktop semantic guard — coordinate landing-point gate
+            # hit-testing the interactive AX refs; unresolvable coordinates pass.
+            from myrm_agent_harness.toolkits.computer_use.semantic_gate import (
+                DesktopGuardContext,
+                enforce_desktop_vision_guard,
+            )
+
+            semantic_blocked = await enforce_desktop_vision_guard(
+                ctx=DesktopGuardContext(
+                    app_name=fg_app,
+                    window_title=fg_title,
+                    screenshot_provider=self._capture_guard_screenshot,
+                    scaler=self.scaler,
+                ),
+                refs=self._refs.all_refs(),
+                action=action,
+                coordinate=coordinate,
+            )
+            if semantic_blocked is not None:
+                return semantic_blocked
+
+            if action in (
+                "left_click",
+                "right_click",
+                "middle_click",
+                "double_click",
+                "triple_click",
+            ):
+                if coordinate is None or len(coordinate) != 2:
+                    return "Error: coordinate [x, y] is required for click actions"
+                clicks = {"double_click": 2, "triple_click": 3}.get(action, 1)
+                button = {"right_click": "right", "middle_click": "middle"}.get(action, "left")
+                result = await self.click_at(
+                    coordinate[0],
+                    coordinate[1],
+                    button=button,
+                    clicks=clicks,
+                    modifiers=modifiers,
+                )
+            elif action == "type":
+                # Dangerous type payloads are rejected at method entry (no display I/O).
+                result = await self.type_text(text or "")
+            elif action == "key":
+                # Operator / blocked-key payloads are rejected at method entry (no display I/O).
+                result = await self.key_press(text or "")
+            elif action == "scroll":
+                if coordinate is None or len(coordinate) != 2 or not scroll_direction:
+                    return "Error: coordinate and scroll_direction are required for scroll"
+                result = await self.scroll_at(
+                    coordinate[0],
+                    coordinate[1],
+                    scroll_direction,
+                    scroll_amount,
+                    modifiers=modifiers,
+                )
+            elif action == "drag":
+                if start_coordinate is None or coordinate is None:
+                    return "Error: start_coordinate and coordinate are required for drag"
+                result = await self.drag(
+                    start_coordinate[0],
+                    start_coordinate[1],
+                    coordinate[0],
+                    coordinate[1],
+                    modifiers=modifiers,
+                )
+            elif action == "mouse_move":
+                if coordinate is None or len(coordinate) != 2:
+                    return "Error: coordinate [x, y] is required for mouse_move"
+                result = await self.mouse_move_to(coordinate[0], coordinate[1])
+            elif action in ("capture", "screenshot"):
+                return await self.desktop_vision_capture()
+            elif action == "wait":
+                result = await self.wait_seconds(duration)
+            else:
+                return f"Error: unknown vision action '{action}'"
+
+            if not result.success:
+                return f"Vision action '{action}' failed: {result.error}"
+            if result.screenshot_base64:
+                return self._build_multimodal_response(result, f"Vision action '{action}' completed.")
+            return f"Vision action '{action}' completed."
+
+    def _build_multimodal_response(self, result: ActionResult, action_description: str) -> list[object]:
+        from langchain_core.messages.content import (
+            ContentBlock,
+            create_image_block,
+            create_text_block,
+        )
+
+        info = self.screen_info
+        ctx = self.screen_context
+        context_parts = [
+            action_description,
+            f"Screen: {info.width}x{info.height}, DPI: {info.dpi_scale}x. "
+            f"Image size: {result.screenshot_size[0]}x{result.screenshot_size[1]}.",
+        ]
+        if ctx.active_window:
+            context_parts.append(f"Active window: {ctx.active_window}")
+        context_parts.append(f"Mouse position: ({ctx.mouse_x}, {ctx.mouse_y})")
+        if result.output:
+            context_parts.append(result.output)
+        blocks: list[ContentBlock] = [
+            create_text_block("\n".join(context_parts)),
+            create_image_block(base64=result.screenshot_base64, mime_type="image/jpeg"),
+        ]
+        return blocks
+
+    async def _emit_view_update(
+        self,
+        *,
+        screenshot_base64: str,
+        screenshot_size: tuple[int, int],
+        refs: dict[str, object],
+        meta: object,
+        som_index_map: dict[str, int] | None = None,
+    ) -> None:
+        from myrm_agent_harness.core.events.types import AgentEventType
+        from myrm_agent_harness.toolkits.computer_use.dref.types import (
+            ElementRef,
+            SnapshotMeta,
+        )
+        from myrm_agent_harness.utils.runtime.progress_sink import (
+            get_tool_progress_sink,
+        )
+
+        assert isinstance(meta, SnapshotMeta)
+        element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
+        viewport_width = screenshot_size[0] or self.screen_info.width
+        viewport_height = screenshot_size[1] or self.screen_info.height
+        payload = {
+            "screenshot_base64": screenshot_base64,
+            "mime_type": "image/jpeg" if screenshot_base64 else "",
+            "refs": refs_for_view_update(
+                element_refs,
+                viewport_width=viewport_width,
+                viewport_height=viewport_height,
+                som_index_map=som_index_map,
+            ),
+            "app_name": meta.app_name,
+            "window_title": meta.window_title,
+            "scope": meta.scope,
+            "needs_permission": meta.needs_permission,
+            "viewport_width": viewport_width,
+            "viewport_height": viewport_height,
+            **self._snapshot_screen_fields(),
+        }
+        if self._view_update_callback is not None:
+            self._view_update_callback(payload)
+
+        sink = get_tool_progress_sink()
+        if sink is not None:
+            await sink.emit(
+                {
+                    "type": AgentEventType.DESKTOP_VIEW_UPDATE.value,
+                    "data": payload,
+                }
+            )
+
+    async def _emit_permission_view_update(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
+
+        meta = SnapshotMeta(
+            ref_count=0,
+            app_name="",
+            window_title="",
+            scope="foreground",
+            needs_permission=True,
+        )
+        await self._emit_view_update(
+            screenshot_base64="",
+            screenshot_size=(0, 0),
+            refs={},
+            meta=meta,
+        )
+
+    async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
+        """Delegate to the platform backend to probe OS-level permissions."""
+        return await super().check_permissions(probe_capture=probe_capture)
+
+    def export_registry_view(self) -> dict[str, object] | None:
+        """Return last DRefRegistry snapshot for inspector/API without re-capturing AX."""
+        from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef
+
+        meta = self._refs.meta
+        refs = self._refs.all_refs()
+        if meta is None or not refs:
+            return None
+        element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
+        if not element_refs:
+            return None
+        info = self.screen_info
+        viewport_width = info.width
+        viewport_height = info.height
+        return {
+            "screenshot_base64": "",
+            "mime_type": "",
+            "refs": refs_for_view_update(
+                element_refs,
+                viewport_width=viewport_width,
+                viewport_height=viewport_height,
+                som_index_map=None,
+            ),
+            "app_name": meta.app_name,
+            "window_title": meta.window_title,
+            "scope": meta.scope,
+            "needs_permission": meta.needs_permission,
+            "viewport_width": viewport_width,
+            "viewport_height": viewport_height,
+            "registry_generation": self._refs.generation,
+            **self._snapshot_screen_fields(),
+        }
+
+    async def export_inspector_snapshot(self) -> dict[str, object]:
+        """Capture foreground desktop state for WebUI inspector refresh."""
+        from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef
+
+        try:
+            meta, refs = capture_snapshot(self._backend, "foreground", None)
+        except AXPermissionRequiredError:
+            await self._emit_permission_view_update()
+            info = self.screen_info
+            return {
+                "screenshot_base64": "",
+                "mime_type": "",
+                "refs": {},
+                "app_name": "",
+                "window_title": "",
+                "scope": "foreground",
+                "needs_permission": True,
+                "viewport_width": info.width,
+                "viewport_height": info.height,
+                **self._snapshot_screen_fields(),
+            }
+
+        self._refs.replace(refs, meta)
+        som_index_map = build_som_index_map(refs)
+        try:
+            shot = await self.take_screenshot()
+        except Exception as exc:
+            logger.warning("[DESKTOP] Inspector screenshot capture failed: %s", exc)
+            shot = ActionResult(success=False, error=str(exc))
+        screenshot_b64 = shot.screenshot_base64 if shot.success else ""
+        screenshot_size = shot.screenshot_size if shot.success else (0, 0)
+        element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
+        if screenshot_b64:
+            screenshot_b64 = self._annotate_screenshot_som(screenshot_b64, element_refs, som_index_map)
+        viewport_width = screenshot_size[0] or self.screen_info.width
+        viewport_height = screenshot_size[1] or self.screen_info.height
+
+        await self._emit_view_update(
+            screenshot_base64=screenshot_b64,
+            screenshot_size=screenshot_size,
+            refs=refs,
+            meta=meta,
+            som_index_map=som_index_map,
+        )
+
+        return {
+            "screenshot_base64": screenshot_b64,
+            "mime_type": "image/jpeg" if screenshot_b64 else "",
+            "refs": refs_for_view_update(
+                element_refs,
+                viewport_width=viewport_width,
+                viewport_height=viewport_height,
+                som_index_map=som_index_map,
+            ),
+            "app_name": meta.app_name,
+            "window_title": meta.window_title,
+            "scope": meta.scope,
+            "needs_permission": meta.needs_permission,
+            "viewport_width": viewport_width,
+            "viewport_height": viewport_height,
+            **self._snapshot_screen_fields(),
+        }
+
+
+def create_desktop_session(
+    config: ComputerUseConfig | None = None,
+    view_update_callback: ViewUpdateCallback | None = None,
+    permission_callback: ForegroundPermissionCallback | None = None,
+) -> DesktopSession:
+    base = create_computer_session(config=config)
+    return DesktopSession(
+        backend=base._backend,
+        config=base._config,
+        view_update_callback=view_update_callback,
+        permission_callback=permission_callback,
+    )

@@ -1,0 +1,112 @@
+"""Integration test: skill selection records usage stats consumed by Curator."""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import pytest
+
+from myrm_agent_harness.agent.skills.curator import SkillCurator
+from myrm_agent_harness.backends.skills.curator_config import CuratorConfig
+from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillUsageStats
+from myrm_agent_harness.backends.skills.usage_recorder import (
+    begin_skill_run_usage,
+    commit_skill_run_usage,
+    record_skill_selection,
+    set_stats_collector,
+)
+
+
+@pytest.fixture(autouse=True)
+def _reset_usage_recorder() -> Iterator[None]:
+    """Isolate usage_recorder singleton state between tests."""
+    set_stats_collector(None)
+    begin_skill_run_usage()
+    yield
+    set_stats_collector(None)
+    begin_skill_run_usage()
+
+
+def test_select_records_stats_and_curator_sweep_reads_them(tmp_path: Path) -> None:
+    """record_skill_selection writes .stats.json; inactive skills become stale on sweep."""
+    skill_dir = tmp_path / "demo_skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text("# demo_skill\n")
+
+    collector = SkillStatsCollector()
+    set_stats_collector(collector)
+
+    skill_meta = SkillMetadata(
+        name="demo_skill",
+        description="Integration test skill",
+        storage_path=str(skill_dir),
+    )
+
+    begin_skill_run_usage()
+    record_skill_selection(skill_meta)
+    # Run dedupe: a second selection in the same run must not double-count
+    record_skill_selection(skill_meta)
+    commit_skill_run_usage()
+
+    stats_file = skill_dir / ".stats.json"
+    assert stats_file.exists()
+    stats_data = json.loads(stats_file.read_text())
+    assert stats_data["call_count"] == 1
+    assert stats_data["last_used_at"] is not None
+
+    # Simulate long inactivity and run curator sweep
+    old_last_used = datetime.now(UTC) - timedelta(days=60)
+    inactive_stats = SkillUsageStats(
+        call_count=1,
+        success_count=1,
+        failure_count=0,
+        last_used_at=old_last_used,
+        created_at=old_last_used,
+    )
+    inactive_skill = SkillMetadata(
+        name="demo_skill",
+        description="Integration test skill",
+        storage_path=str(skill_dir),
+        usage_stats=inactive_stats,
+    )
+
+    config = CuratorConfig(stale_after_days=30, grace_period_days=0)
+    curator = SkillCurator(collector, config)
+    result = curator.run([inactive_skill], force=True)
+
+    assert result.stale_count >= 1
+    persisted = json.loads(stats_file.read_text())
+    assert persisted["lifecycle_status"] == "stale"
+
+
+def test_set_stats_collector_uses_shared_instance(tmp_path: Path) -> None:
+    """Injected collector is used by record_skill_selection (server/harness SSOT)."""
+    from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+    from myrm_agent_harness.backends.skills.usage_recorder import (
+        get_injected_stats_collector,
+        record_skill_selection,
+        set_stats_collector,
+    )
+
+    skill_dir = tmp_path / "shared_skill"
+    skill_dir.mkdir()
+
+    shared = SkillStatsCollector()
+    set_stats_collector(shared)
+    assert get_injected_stats_collector() is shared
+
+    skill_meta = SkillMetadata(
+        name="shared_skill",
+        description="Shared collector test",
+        storage_path=str(skill_dir),
+    )
+    begin_skill_run_usage()
+    record_skill_selection(skill_meta)
+    commit_skill_run_usage()
+
+    assert (skill_dir / ".stats.json").exists()
+    assert shared.get_stats(skill_dir).call_count == 1

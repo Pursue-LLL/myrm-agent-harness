@@ -1,0 +1,172 @@
+"""Progress middleware — inject todo blueprint into HumanMessage when todos exist.
+
+[INPUT]
+- progress.schemas::TodoStore (POS: active todos)
+- langchain.agents.middleware::ModelRequest, wrap_model_call (POS: LC middleware)
+
+[OUTPUT]
+- progress_middleware: Injects non-persistent todo focus into last HumanMessage
+
+[POS]
+Surfaces active todos to the model without polluting persistent message history.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from collections.abc import Awaitable, Callable
+
+from langchain.agents.middleware import ModelRequest, ModelResponse, wrap_model_call
+from langchain_core.messages import HumanMessage
+
+from myrm_agent_harness.agent.meta_tools.progress.schemas import TodoItem, TodoStatus, TodoStore
+
+logger = logging.getLogger(__name__)
+
+_PROGRESS_BLOCK_PATTERN = re.compile(
+    r"\n*\s*\[SYSTEM INSTRUCTION\]\s*\n## Task progress \(active todos\)[\s\S]*$",
+    re.MULTILINE,
+)
+
+
+def _strip_previous_progress(content: str) -> str:
+    """Remove any trailing progress injection block from previous turns."""
+    return _PROGRESS_BLOCK_PATTERN.sub("", content).rstrip()
+
+
+def _build_progress_injection(store: TodoStore, incomplete: list[TodoItem]) -> str:
+    """Build compact and focus-preserving todo injection text."""
+    lines: list[str] = [
+        "[SYSTEM INSTRUCTION]",
+        "## Task progress (active todos)",
+        f"**Goal:** {store.goal or 'Multi-step task'}",
+        "",
+    ]
+
+    completed_count = sum(1 for item in store.todos if item.status == TodoStatus.COMPLETED)
+    cancelled_count = sum(1 for item in store.todos if item.status == TodoStatus.CANCELLED)
+    blocked_count = sum(1 for item in store.todos if item.status == TodoStatus.BLOCKED)
+
+    # Determine focused item: prefer currently in_progress item, then first pending item,
+    # skip blocked items when executable items exist.
+    active_in_progress = next((item for item in incomplete if item.status == TodoStatus.IN_PROGRESS), None)
+    active_pending = next((item for item in incomplete if item.status == TodoStatus.PENDING), None)
+    focus_item = active_in_progress or active_pending or (incomplete[0] if incomplete else None)
+    all_incomplete_blocked = bool(incomplete and all(item.status == TodoStatus.BLOCKED for item in incomplete))
+
+    # If there are completed/cancelled items and list is long (> 4 items), summarize completed
+    if len(store.todos) > 4 and (completed_count > 0 or cancelled_count > 0):
+        summary_parts: list[str] = []
+        if completed_count > 0:
+            summary_parts.append(f"{completed_count} completed")
+        if cancelled_count > 0:
+            summary_parts.append(f"{cancelled_count} cancelled")
+        lines.append(f"[✓] {', '.join(summary_parts)}")
+
+        # Show incomplete items (up to 4 items)
+        max_visible_incomplete = 4
+        for item in incomplete[:max_visible_incomplete]:
+            marker = ">" if focus_item and item.id == focus_item.id else "-"
+            lines.append(f"{marker} [{item.status.value}] {item.id}: {item.content}")
+
+        if len(incomplete) > max_visible_incomplete:
+            remaining = len(incomplete) - max_visible_incomplete
+            lines.append(f"... and {remaining} more pending task(s)")
+    else:
+        # Full list for short plans (<= 4 items)
+        for item in store.todos:
+            marker = ">" if focus_item and item.id == focus_item.id else "-"
+            lines.append(f"{marker} [{item.status.value}] {item.id}: {item.content}")
+
+    if focus_item:
+        lines.extend(
+            [
+                "",
+                f"Current focus: `{focus_item.id}` — {focus_item.content}",
+                "Mark items completed with `todo_write(merge=true)` as you finish them.",
+            ]
+        )
+
+    if all_incomplete_blocked:
+        lines.append(
+            "[ALL REMAINING TASKS BLOCKED] All uncompleted tasks are blocked by external dependencies. "
+            "You cannot proceed without resolution. Call `todo_write(merge=true)` to mark unachievable tasks as 'cancelled' "
+            "or update steps before finishing."
+        )
+    elif blocked_count > 0:
+        lines.append(
+            "[BLOCKED TASKS DETECTED] Focus on unblocked tasks first, or use `todo_write(merge=true)` to replan/cancel unexecutable steps."
+        )
+
+    return "\n".join(lines)
+
+
+def progress_middleware(
+    get_todos_fn: Callable[[str | None], Awaitable[TodoStore | None]],
+) -> Callable[[ModelRequest, Callable[[ModelRequest], Awaitable[ModelResponse]]], Awaitable[ModelResponse]]:
+    """Inject active todo focus into the last HumanMessage (non-persistent)."""
+
+    @wrap_model_call(name="progress_middleware")  # type: ignore[arg-type]
+    async def _middleware(
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
+    ) -> ModelResponse:
+        context = getattr(request.runtime, "context", None) if hasattr(request, "runtime") and request.runtime else None
+        workspace_root = None
+        if isinstance(context, dict):
+            workspace_root = context.get("workspace_root")
+
+        store = await get_todos_fn(str(workspace_root) if workspace_root else None)
+        if not store or not store.todos:
+            return await handler(request)
+
+        incomplete = store.incomplete_todos()
+        if not incomplete:
+            return await handler(request)
+
+        injection_text = _build_progress_injection(store, incomplete)
+
+        new_messages = list(request.messages)
+        if not new_messages:
+            return await handler(request)
+
+        # Append-Only cache preservation:
+        # In multi-turn tool loops (where last message is AIMessage or ToolMessage),
+        # past HumanMessages MUST NOT be rewritten or stripped, as modifying historical
+        # messages breaks KV cache prefix matching. The model already sees latest task
+        # state via the ToolMessage from todo_write.
+        if not isinstance(new_messages[-1], HumanMessage):
+            if not any(isinstance(m, HumanMessage) for m in new_messages):
+                # Fallback for synthetic requests without any HumanMessage
+                new_messages.append(HumanMessage(content=injection_text))
+                return await handler(request.override(messages=new_messages))
+            return await handler(request)
+
+        last_msg = new_messages[-1]
+        if isinstance(last_msg.content, str):
+            cleaned_content = _strip_previous_progress(last_msg.content)
+            new_messages[-1] = HumanMessage(
+                content=f"{cleaned_content}\n\n{injection_text}" if cleaned_content else injection_text,
+                id=last_msg.id,
+            )
+        elif isinstance(last_msg.content, list):
+            cleaned_parts: list[dict[str, object]] = []
+            for part in last_msg.content:
+                if isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str):
+                    cleaned_text = _strip_previous_progress(part["text"])
+                    if cleaned_text:
+                        cleaned_parts.append({**part, "text": cleaned_text})
+                else:
+                    cleaned_parts.append(part)
+            new_messages[-1] = HumanMessage(
+                content=[*cleaned_parts, {"type": "text", "text": f"\n\n{injection_text}"}],
+                id=last_msg.id,
+            )
+
+        return await handler(request.override(messages=new_messages))
+
+    return _middleware
+
+
+__all__ = ["progress_middleware"]

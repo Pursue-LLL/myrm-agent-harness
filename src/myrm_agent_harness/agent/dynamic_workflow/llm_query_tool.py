@@ -1,0 +1,474 @@
+"""DW PTC tools — LlmQueryTool and LlmQueryBatchedTool for Dynamic Workflows.
+
+[INPUT]
+- agent.base_agent::BaseAgent (POS: Parent agent providing llm / model_resolver)
+- agent.sub_agents.builder::resolve_llm (POS: 4-level model resolution chain)
+- agent.sub_agents.types::SubagentConfig (POS: Model routing carrier)
+- agent.skills.mcp.progress_payload::build_workflow_stage_event (POS: DW workflow_stage SSE event builder)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — str / block list / think 剥离 / reasoning 回退)
+- utils.token_economics.tracker::record_token_error (POS: Token/cost bookkeeping on failure)
+- utils.runtime.cancellation::CancellationToken
+
+[OUTPUT]
+- LlmQueryTool: PTC tool exposed as myrm_tools.llm_query — single lightweight LLM sub-call
+- LlmQueryBatchedTool: PTC tool exposed as myrm_tools.llm_query_batched — concurrent, order-preserving batch sub-calls
+- _MAX_BATCH_QUERIES: Hard cap on prompts per batched call
+- _MAX_BATCH_CONCURRENCY: Default concurrency bound for batched calls
+
+[POS]
+Bridges the PTC Python script to direct LLM calls without spawning a sub-agent.
+Suitable for cheap, focused sub-tasks (extraction, classification, summarization,
+fact-checking a chunk of text) where a full sub-agent loop would be wasteful.
+Token usage is accounted at the adapter layer (ChatLiteLLM non-streaming recording),
+so no manual bookkeeping is needed here; the tool honors cancellation and budget guards.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import hashlib
+import json
+import logging
+import time
+from typing import TYPE_CHECKING, Any, Protocol, cast
+
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.tools import BaseTool
+from pydantic import BaseModel, ConfigDict, Field
+
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.token_economics.tracker import record_token_error
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.base_agent import BaseAgent
+
+logger = logging.getLogger(__name__)
+
+_MAX_BATCH_QUERIES = 200
+_MAX_BATCH_CONCURRENCY = 10
+
+
+class _ChatLlm(Protocol):
+    """Minimal async LLM interface consumed by llm_query tools."""
+
+    async def ainvoke(self, messages: object, **kwargs: object) -> Any: ...
+
+
+class _BudgetChecker(Protocol):
+    """Minimal budget-checker surface consumed by llm_query tools."""
+
+    def get_remaining_budget(self) -> float | None: ...
+
+
+class LlmQueryInput(BaseModel):
+    prompt: str = Field(
+        ...,
+        description="The instruction or question to send to the LLM.",
+    )
+    system: str | None = Field(
+        default=None,
+        description="Optional system prompt. Helps ground the model when "
+        "processing a chunk of text or enforcing an output format.",
+    )
+    model: str | None = Field(
+        default=None,
+        description="Optional model override (e.g. 'openai/gpt-4o-mini'). "
+        "Defaults to the light tier of the current agent when available.",
+    )
+    max_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        le=8192,
+        description="Optional cap on output tokens. Defaults to the model's default.",
+    )
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description="Optional sampling temperature. Defaults to the model default.",
+    )
+
+
+class LlmQueryBatchedInput(BaseModel):
+    prompts: list[str] = Field(
+        ...,
+        description="List of prompts to process in parallel. Results preserve input order.",
+    )
+    system: str | None = Field(
+        default=None,
+        description="Optional shared system prompt applied to every prompt.",
+    )
+    model: str | None = Field(
+        default=None,
+        description="Optional model override shared by all prompts.",
+    )
+    max_tokens: int | None = Field(
+        default=None,
+        ge=1,
+        le=8192,
+        description="Optional cap on output tokens for each prompt.",
+    )
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description="Optional sampling temperature for all prompts.",
+    )
+    max_concurrent: int = Field(
+        default=5,
+        ge=1,
+        le=_MAX_BATCH_CONCURRENCY,
+        description="Max concurrent LLM calls. Bounded by the workflow hard cap.",
+    )
+
+
+def _extract_model_name(llm: object) -> str | None:
+    """Best-effort extraction of the resolved model name for cost accounting."""
+    for attr in ("model_name", "model", "model_id", "deployment_name"):
+        value = getattr(llm, attr, None)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _build_messages(prompt: str, system: str | None) -> list[HumanMessage | SystemMessage]:
+    messages: list[HumanMessage | SystemMessage] = []
+    if system:
+        messages.append(SystemMessage(content=system))
+    messages.append(HumanMessage(content=prompt))
+    return messages
+
+
+class LlmQueryTool(BaseTool):
+    """PTC tool that performs a single lightweight LLM sub-call without spawning a sub-agent."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    name: str = "llm_query"
+    description: str = (
+        "Call the LLM directly with a single prompt. Returns the model's text answer "
+        "without spawning a sub-agent — cheap and fast for focused sub-tasks such as "
+        "extraction, classification, summarization, or answering a question over a chunk of text. "
+        "For many independent prompts, prefer llm_query_batched (same work, far fewer calls)."
+    )
+    args_schema: type[BaseModel] = LlmQueryInput
+
+    parent_agent: object
+    cancel_token: object | None = None
+    event_queue: asyncio.Queue[dict[str, object]] | None = None
+    message_id: str | None = None
+    store: object | None = None
+    """Durable event store. When set, completed answers are replayed on retry so a
+    timed-out workflow does not re-bill the same prompts."""
+
+    def _run(
+        self,
+        prompt: str,
+        system: str | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> object:
+        raise NotImplementedError("LlmQueryTool only supports async execution.")
+
+    async def _arun(
+        self,
+        prompt: str,
+        system: str | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> object:
+        return await self._query_one(
+            prompt=prompt,
+            system=system,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+    async def _resolve_llm(self, model: str | None) -> _ChatLlm:
+        """Resolve an LLM via the shared 4-level chain, defaulting to the light tier."""
+        from myrm_agent_harness.agent.sub_agents.builder import resolve_llm
+        from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
+
+        resolver = getattr(self.parent_agent, "model_resolver", None)
+        config = SubagentConfig(
+            system_prompt="",
+            max_spawn_depth=0,
+            model=model or "",
+            model_resolver=resolver,
+        )
+        parent = cast("BaseAgent", self.parent_agent)
+        return cast(
+            _ChatLlm,
+            await resolve_llm(
+                config=config,
+                parent_agent=parent,
+                complexity_tier="simple",
+            ),
+        )
+
+    def _check_budget(self) -> str | None:
+        """Return an error message when the remaining budget is exhausted.
+
+        Mirrors the delegate path's budget checker lookup so llm_query is
+        subject to the same daily/session cost guards as spawned sub-agents.
+        """
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            get_budget_checker,
+        )
+
+        checker = get_budget_checker(cast("BaseAgent", self.parent_agent))
+        if checker is None or not hasattr(checker, "get_remaining_budget"):
+            return None
+        remaining = cast(_BudgetChecker, checker).get_remaining_budget()
+        if isinstance(remaining, int | float) and remaining <= 0:
+            return "Budget exhausted (remaining: $0.00). Refusing further LLM calls."
+        return None
+
+    async def _query_one(
+        self,
+        *,
+        prompt: str,
+        system: str | None,
+        model: str | None,
+        max_tokens: int | None,
+        temperature: float | None,
+        llm: _ChatLlm | None = None,
+        model_name: str | None = None,
+    ) -> dict[str, object]:
+        if self.cancel_token is not None and getattr(self.cancel_token, "is_cancelled", False):
+            return {"success": False, "error": "Workflow cancelled by user."}
+
+        budget_error = self._check_budget()
+        if budget_error is not None:
+            return {"success": False, "error": budget_error}
+
+        if llm is None:
+            llm = await self._resolve_llm(model)
+        if model_name is None:
+            model_name = _extract_model_name(llm)
+        messages = _build_messages(prompt, system)
+
+        cache_key = _llm_query_cache_key(prompt, system, model_name, max_tokens, temperature)
+        cached = self._read_cache(cache_key)
+        if cached is not None:
+            return {"success": True, "result": cached, "model": model_name or "", "cached": True}
+
+        invoke_kwargs: dict[str, Any] = {}
+        if max_tokens is not None:
+            invoke_kwargs["max_tokens"] = max_tokens
+        if temperature is not None:
+            invoke_kwargs["temperature"] = temperature
+
+        try:
+            response = await llm.ainvoke(messages, **invoke_kwargs)
+        except Exception as exc:
+            record_token_error(f"llm_query failed: {type(exc).__name__}: {exc}")
+            logger.warning("llm_query call failed: %s", exc)
+            return {"success": False, "error": f"{type(exc).__name__}: {exc}"}
+
+        content = extract_answer_text(response)
+        self._write_cache(cache_key, content, model_name or "")
+        return {"success": True, "result": content, "model": model_name or ""}
+
+    def _read_cache(self, cache_key: str) -> str | None:
+        """Return a durable answer for an identical request, if one exists."""
+        if self.store is None:
+            return None
+        getter = getattr(self.store, "get_cached_llm_query", None)
+        if getter is None:
+            return None
+        try:
+            return getter(cache_key)
+        except Exception as exc:
+            logger.warning("llm_query cache read failed: %s", exc)
+            return None
+
+    def _write_cache(self, cache_key: str, content: str, model_name: str) -> None:
+        """Persist an answer so a retry of the same script does not re-bill it."""
+        if self.store is None:
+            return
+        saver = getattr(self.store, "save_llm_query", None)
+        if saver is None:
+            return
+        try:
+            saver(cache_key, content, model=model_name)
+        except Exception as exc:
+            logger.warning("llm_query cache write failed: %s", exc)
+
+
+def _llm_query_cache_key(
+    prompt: str,
+    system: str | None,
+    model_name: str | None,
+    max_tokens: int | None,
+    temperature: float | None,
+) -> str:
+    """Hash everything that determines the answer.
+
+    Sampling parameters are part of the key: the same prompt at temperature 0 and
+    temperature 1 are different requests and must not share a cached answer.
+    """
+    payload = json.dumps(
+        {
+            "prompt": prompt,
+            "system": system or "",
+            "model": model_name or "",
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+class LlmQueryBatchedTool(LlmQueryTool):
+    """PTC tool that runs multiple lightweight LLM sub-calls concurrently.
+
+    Results preserve the order of the input prompts. Per-prompt failures are
+    isolated (returned as an error entry) and never abort the remaining calls.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    name: str = "llm_query_batched"
+    description: str = (
+        "Call the LLM directly with multiple prompts in parallel. Returns a list of "
+        "per-prompt results in the same order as the input. Far more efficient than a "
+        "loop of llm_query for many independent prompts. Each prompt should be "
+        "self-contained; do not expect cross-prompt context."
+    )
+    args_schema: type[BaseModel] = LlmQueryBatchedInput
+
+    def _run(  # type: ignore[override]
+        self,
+        prompts: list[str],
+        system: str | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        max_concurrent: int = 5,
+    ) -> object:
+        raise NotImplementedError("LlmQueryBatchedTool only supports async execution.")
+
+    async def _arun(  # type: ignore[override]
+        self,
+        prompts: list[str],
+        system: str | None = None,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        max_concurrent: int = 5,
+    ) -> object:
+        if not prompts:
+            return {"success": True, "results": [], "model": "", "failed": 0}
+        if len(prompts) > _MAX_BATCH_QUERIES:
+            return {
+                "success": False,
+                "error": f"Too many prompts: {len(prompts)} (max {_MAX_BATCH_QUERIES}). Batch in smaller groups.",
+            }
+
+        budget_error = self._check_budget()
+        if budget_error is not None:
+            return {"success": False, "error": budget_error}
+
+        # Resolve the shared LLM once; every sub-call reuses the same instance,
+        # avoiding N model-resolution round-trips for an N-prompt batch.
+        llm = await self._resolve_llm(model)
+        model_name = _extract_model_name(llm)
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+        started = time.perf_counter()
+        total_prompts = len(prompts)
+        completed_count = 0
+        lock = asyncio.Lock()
+
+        def _emit_stage(
+            message: str,
+            *,
+            current: int,
+            progress: int,
+            level: str = "info",
+        ) -> None:
+            if self.event_queue is None or not self.message_id:
+                return
+            from myrm_agent_harness.agent.skills.mcp.progress_payload import (
+                build_workflow_stage_event,
+            )
+
+            event = build_workflow_stage_event(
+                self.message_id,
+                message,
+                category="llm_query_batched",
+                step_index=current,
+                total_steps=total_prompts,
+                progress=progress,
+                level=level,
+            )
+            with contextlib.suppress(Exception):
+                self.event_queue.put_nowait(event)
+
+        _emit_stage(
+            f"Running {total_prompts} parallel LLM sub-queries...",
+            current=0,
+            progress=0,
+        )
+
+        async def _run_one(prompt: str) -> dict[str, object]:
+            nonlocal completed_count
+            if self.cancel_token is not None and getattr(self.cancel_token, "is_cancelled", False):
+                return {"success": False, "error": "Workflow cancelled by user."}
+
+            async with semaphore:
+                if self.cancel_token is not None and getattr(self.cancel_token, "is_cancelled", False):
+                    return {"success": False, "error": "Workflow cancelled by user."}
+                res = await self._query_one(
+                    prompt=prompt,
+                    system=system,
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    llm=llm,
+                    model_name=model_name,
+                )
+                async with lock:
+                    completed_count += 1
+                    current = completed_count
+                pct = int((current / total_prompts) * 100) if total_prompts > 0 else 100
+                _emit_stage(
+                    f"LLM sub-queries: {current}/{total_prompts} completed.",
+                    current=current,
+                    progress=pct,
+                )
+                return res
+
+        results = await asyncio.gather(*(_run_one(p) for p in prompts))
+        duration_ms = (time.perf_counter() - started) * 1000
+        failed = sum(1 for r in results if not r.get("success"))
+
+        if failed > 0:
+            _emit_stage(
+                f"LLM sub-queries finished: {total_prompts - failed}/{total_prompts} succeeded, {failed} failed.",
+                current=total_prompts,
+                progress=100,
+                level="warn",
+            )
+        else:
+            _emit_stage(
+                f"LLM sub-queries finished: {total_prompts}/{total_prompts} completed.",
+                current=total_prompts,
+                progress=100,
+                level="info",
+            )
+
+        return {
+            "success": True,
+            "results": results,
+            "model": model_name or "",
+            "failed": failed,
+            "duration_ms": round(duration_ms, 1),
+        }

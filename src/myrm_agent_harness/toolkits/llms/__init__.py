@@ -1,0 +1,132 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .adapters.thinking_adapter import ThinkingModelReasoningAdapter
+    from .core.credential_pool import CredentialPoolStrategy
+    from .core.llm import ChatLiteLLM, create_litellm_model
+    from .core.manager import LLMManager, llm_manager
+    from .errors.classifier import (
+        ErrorKind,
+        classify_error,
+        is_context_overflow,
+        is_payload_overflow,
+    )
+    from .errors.resilient import resilient_llm_call
+    from .fallback import FallbackModel, ManagedLLM, ScenarioType
+    from .probe import (
+        ProviderBalanceProbeProtocol,
+        ProviderBalanceResult,
+        ProviderBalanceStatus,
+    )
+    from .utils.no_proxy_bypass import LanEndpointNoProxyManager
+
+__all__ = [
+    "ChatLiteLLM",
+    "CredentialPoolStrategy",
+    "ErrorKind",
+    "FallbackModel",
+    "LLMManager",
+    "LanEndpointNoProxyManager",
+    "ManagedLLM",
+    "ProviderBalanceProbeProtocol",
+    "ProviderBalanceResult",
+    "ProviderBalanceStatus",
+    "ScenarioType",
+    "ThinkingModelReasoningAdapter",
+    "classify_error",
+    "create_litellm_model",
+    "is_context_overflow",
+    "is_payload_overflow",
+    "llm_manager",
+    "resilient_llm_call",
+]
+
+_LAZY_IMPORTS = {
+    "ChatLiteLLM": ("myrm_agent_harness.toolkits.llms.core.llm", "ChatLiteLLM"),
+    "CredentialPoolStrategy": (
+        "myrm_agent_harness.toolkits.llms.core.credential_pool",
+        "CredentialPoolStrategy",
+    ),
+    "ProviderBalanceProbeProtocol": (
+        "myrm_agent_harness.toolkits.llms.probe",
+        "ProviderBalanceProbeProtocol",
+    ),
+    "ProviderBalanceResult": (
+        "myrm_agent_harness.toolkits.llms.probe",
+        "ProviderBalanceResult",
+    ),
+    "ProviderBalanceStatus": (
+        "myrm_agent_harness.toolkits.llms.probe",
+        "ProviderBalanceStatus",
+    ),
+    "create_litellm_model": (
+        "myrm_agent_harness.toolkits.llms.core.llm",
+        "create_litellm_model",
+    ),
+    "LLMManager": ("myrm_agent_harness.toolkits.llms.core.manager", "LLMManager"),
+    "llm_manager": ("myrm_agent_harness.toolkits.llms.core.manager", "llm_manager"),
+    "FallbackModel": (
+        "myrm_agent_harness.toolkits.llms.fallback.managed_llm",
+        "FallbackModel",
+    ),
+    "ManagedLLM": (
+        "myrm_agent_harness.toolkits.llms.fallback.managed_llm",
+        "ManagedLLM",
+    ),
+    "ScenarioType": (
+        "myrm_agent_harness.toolkits.llms.fallback.scenario",
+        "ScenarioType",
+    ),
+    "ErrorKind": ("myrm_agent_harness.toolkits.llms.errors.classifier", "ErrorKind"),
+    "classify_error": (
+        "myrm_agent_harness.toolkits.llms.errors.classifier",
+        "classify_error",
+    ),
+    "is_context_overflow": (
+        "myrm_agent_harness.toolkits.llms.errors.classifier",
+        "is_context_overflow",
+    ),
+    "is_payload_overflow": (
+        "myrm_agent_harness.toolkits.llms.errors.classifier",
+        "is_payload_overflow",
+    ),
+    "LanEndpointNoProxyManager": (
+        "myrm_agent_harness.toolkits.llms.utils.no_proxy_bypass",
+        "LanEndpointNoProxyManager",
+    ),
+    "ThinkingModelReasoningAdapter": (
+        "myrm_agent_harness.toolkits.llms.adapters.thinking_adapter",
+        "ThinkingModelReasoningAdapter",
+    ),
+    "resilient_llm_call": (
+        "myrm_agent_harness.toolkits.llms.errors.resilient",
+        "resilient_llm_call",
+    ),
+}
+
+if __debug__:
+    _lazy_set = set(_LAZY_IMPORTS.keys())
+    _all_set = set(__all__)
+    _extra = _lazy_set - _all_set
+    if _extra:
+        raise RuntimeError(f"llms: _LAZY_IMPORTS has symbols not in __all__: {_extra}")
+
+
+def __getattr__(name: str):
+    """Lazy load llms components on first access."""
+    if name in _LAZY_IMPORTS:
+        from importlib import import_module
+
+        module_path, attr_name = _LAZY_IMPORTS[name]
+        module = import_module(module_path)
+
+        if attr_name == "llm_manager":
+            from myrm_agent_harness.toolkits.llms import (
+                config as _config,  # noqa: F401  # side-effect: ensure config loaded
+            )
+
+        value = getattr(module, attr_name)
+        globals()[name] = value
+        return value
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

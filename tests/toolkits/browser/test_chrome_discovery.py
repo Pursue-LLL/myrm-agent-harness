@@ -1,0 +1,356 @@
+"""Unit tests for chrome_discovery module.
+
+Tests the DevToolsActivePort-based browser discovery mechanism,
+including platform-specific directory scanning, port file parsing,
+HTTP/TCP probes, and the full discovery orchestration.
+
+All network I/O is mocked — no real browsers or ports needed.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from myrm_agent_harness.toolkits.browser.pool import chrome_discovery
+from myrm_agent_harness.toolkits.browser.pool.chrome_discovery import (
+    _build_ws_endpoint,
+    _read_devtools_active_port,
+    discover_chrome_cdp_endpoint,
+    get_chromium_data_dirs,
+    probe_cdp_endpoint,
+    resolve_e2e_cdp_endpoint,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_port_failure_cache() -> None:
+    """Isolate the module-level negative cache across tests (TTL 15s leak)."""
+    chrome_discovery._port_failure_cache.clear()
+    yield
+    chrome_discovery._port_failure_cache.clear()
+
+
+class TestGetChromiumDataDirs:
+    """Test platform-specific browser data directory discovery."""
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.platform")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._get_home")
+    def test_macos_directories(self, mock_home: MagicMock, mock_platform: MagicMock, tmp_path: Path) -> None:
+        mock_platform.system.return_value = "Darwin"
+        mock_home.return_value = tmp_path
+
+        base = tmp_path / "Library" / "Application Support"
+        chrome_dir = base / "Google" / "Chrome"
+        edge_dir = base / "Microsoft Edge"
+        chrome_dir.mkdir(parents=True)
+        edge_dir.mkdir(parents=True)
+
+        dirs = list(get_chromium_data_dirs())
+        assert chrome_dir in dirs
+        assert edge_dir in dirs
+        assert len(dirs) == 2
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.platform")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._get_home")
+    def test_linux_directories(self, mock_home: MagicMock, mock_platform: MagicMock, tmp_path: Path) -> None:
+        mock_platform.system.return_value = "Linux"
+        mock_home.return_value = tmp_path
+
+        base = tmp_path / ".config"
+        chrome_dir = base / "google-chrome"
+        chrome_dir.mkdir(parents=True)
+
+        dirs = list(get_chromium_data_dirs())
+        assert chrome_dir in dirs
+        assert len(dirs) == 1
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.platform")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._get_home")
+    def test_windows_directories(self, mock_home: MagicMock, mock_platform: MagicMock, tmp_path: Path) -> None:
+        mock_platform.system.return_value = "Windows"
+        mock_home.return_value = tmp_path
+
+        with patch.dict("os.environ", {"LOCALAPPDATA": str(tmp_path)}):
+            chrome_dir = tmp_path / "Google" / "Chrome" / "User Data"
+            chrome_dir.mkdir(parents=True)
+
+            dirs = list(get_chromium_data_dirs())
+            assert chrome_dir in dirs
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.platform")
+    def test_unsupported_os_yields_nothing(self, mock_platform: MagicMock) -> None:
+        mock_platform.system.return_value = "FreeBSD"
+        dirs = list(get_chromium_data_dirs())
+        assert dirs == []
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.platform")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._get_home")
+    def test_nonexistent_dirs_filtered(self, mock_home: MagicMock, mock_platform: MagicMock, tmp_path: Path) -> None:
+        mock_platform.system.return_value = "Darwin"
+        mock_home.return_value = tmp_path
+        dirs = list(get_chromium_data_dirs())
+        assert dirs == []
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.platform")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._get_home")
+    def test_priority_order_chrome_before_edge(
+        self, mock_home: MagicMock, mock_platform: MagicMock, tmp_path: Path
+    ) -> None:
+        mock_platform.system.return_value = "Darwin"
+        mock_home.return_value = tmp_path
+
+        base = tmp_path / "Library" / "Application Support"
+        for name in ["Google/Chrome", "Microsoft Edge", "Chromium", "BraveSoftware/Brave-Browser"]:
+            (base / name).mkdir(parents=True)
+
+        dirs = list(get_chromium_data_dirs())
+        names = [d.name for d in dirs]
+        assert names.index("Chrome") < names.index("Microsoft Edge")
+
+
+class TestReadDevToolsActivePort:
+    """Test DevToolsActivePort file parsing."""
+
+    def test_valid_two_line_file(self, tmp_path: Path) -> None:
+        port_file = tmp_path / "DevToolsActivePort"
+        port_file.write_text("54321\n/devtools/browser/abc-123\n")
+        result = _read_devtools_active_port(tmp_path)
+        assert result is not None
+        port, ws_path = result
+        assert port == 54321
+        assert ws_path == "/devtools/browser/abc-123"
+
+    def test_single_line_port_only(self, tmp_path: Path) -> None:
+        port_file = tmp_path / "DevToolsActivePort"
+        port_file.write_text("9222\n")
+        result = _read_devtools_active_port(tmp_path)
+        assert result is not None
+        port, ws_path = result
+        assert port == 9222
+        assert ws_path == "/devtools/browser"
+
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        assert _read_devtools_active_port(tmp_path) is None
+
+    def test_empty_file_returns_none(self, tmp_path: Path) -> None:
+        port_file = tmp_path / "DevToolsActivePort"
+        port_file.write_text("")
+        assert _read_devtools_active_port(tmp_path) is None
+
+    def test_invalid_port_returns_none(self, tmp_path: Path) -> None:
+        port_file = tmp_path / "DevToolsActivePort"
+        port_file.write_text("not_a_number\n")
+        assert _read_devtools_active_port(tmp_path) is None
+
+    def test_port_out_of_range_returns_none(self, tmp_path: Path) -> None:
+        port_file = tmp_path / "DevToolsActivePort"
+        port_file.write_text("99999\n")
+        assert _read_devtools_active_port(tmp_path) is None
+
+    def test_zero_port_returns_none(self, tmp_path: Path) -> None:
+        port_file = tmp_path / "DevToolsActivePort"
+        port_file.write_text("0\n")
+        assert _read_devtools_active_port(tmp_path) is None
+
+
+class TestDiscoverChromeEndpoint:
+    """Test the full discovery orchestration."""
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._read_devtools_active_port")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    def test_http_probe_success(
+        self, mock_dirs: MagicMock, mock_read: MagicMock, mock_probe: MagicMock, monkeypatch
+    ) -> None:
+        # Not E2E-bound: the Developer-browser path still scans data dirs.
+        monkeypatch.delenv("MYRM_CHROME_E2E", raising=False)
+        monkeypatch.delenv("MYRM_CHROME_E2E_PORT", raising=False)
+        mock_dirs.return_value = iter([Path("/fake/chrome")])
+        mock_read.return_value = (54321, "/devtools/browser/abc")
+        mock_probe.return_value = "ws://127.0.0.1:54321/devtools/browser/abc"
+
+        result = discover_chrome_cdp_endpoint()
+        assert result == "http://127.0.0.1:54321"
+        assert mock_probe.call_args_list[-1] == ((54321,),)
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    def test_myrm_e2e_port_priority(self, mock_probe: MagicMock, monkeypatch) -> None:
+        monkeypatch.setenv("MYRM_CHROME_E2E", "1")
+        mock_probe.return_value = "ws://127.0.0.1:9333/devtools/browser/abc"
+
+        result = discover_chrome_cdp_endpoint()
+
+        assert result == "http://127.0.0.1:9333"
+        mock_probe.assert_called_once_with(9333)
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    def test_e2e_bound_run_never_scans_local_browsers(
+        self, mock_probe: MagicMock, mock_dirs: MagicMock, monkeypatch
+    ) -> None:
+        """An E2E-bound run owns exactly one Chrome; the data-dir scan must stay off.
+
+        Regression: the scan used to run afterwards and could return a developer's own
+        Chrome (its stale ``DevToolsActivePort`` even passes the TCP probe), leaving the
+        pool connected to a foreign browser with no usable page.
+        """
+        monkeypatch.setenv("MYRM_CHROME_E2E", "1")
+        mock_probe.return_value = "ws://127.0.0.1:9333/devtools/browser/abc"
+
+        assert discover_chrome_cdp_endpoint() == "http://127.0.0.1:9333"
+        mock_dirs.assert_not_called()
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    def test_e2e_bound_run_fails_closed_when_chrome_unreachable(
+        self, mock_probe: MagicMock, mock_dirs: MagicMock, monkeypatch
+    ) -> None:
+        """A missing E2E Chrome must surface as None, never as somebody else's Chrome."""
+        monkeypatch.setenv("MYRM_CHROME_E2E", "1")
+        mock_probe.side_effect = lambda port: "ws" if port == 9222 else None
+
+        assert discover_chrome_cdp_endpoint() is None
+        mock_dirs.assert_not_called()
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    def test_e2e_port_env_alone_binds_without_the_switch(
+        self, mock_probe: MagicMock, mock_dirs: MagicMock, monkeypatch
+    ) -> None:
+        """`MYRM_CHROME_E2E_PORT` is unambiguous ownership intent on its own.
+
+        The two entry points (switch and port) are set by different E2E call sites, so
+        requiring both would leave the hijack reachable whenever one is missing.
+        """
+        monkeypatch.delenv("MYRM_CHROME_E2E", raising=False)
+        monkeypatch.setenv("MYRM_CHROME_E2E_PORT", "9777")
+        mock_probe.side_effect = lambda port: "ws" if port == 9222 else None
+
+        assert discover_chrome_cdp_endpoint() is None
+        mock_dirs.assert_not_called()
+
+    def test_resolve_e2e_cdp_endpoint_none_when_not_bound(self, monkeypatch) -> None:
+        monkeypatch.delenv("MYRM_CHROME_E2E", raising=False)
+        monkeypatch.delenv("MYRM_CHROME_E2E_PORT", raising=False)
+        assert resolve_e2e_cdp_endpoint() is None
+
+    def test_resolve_e2e_cdp_endpoint_uses_configured_port(self, monkeypatch) -> None:
+        monkeypatch.setenv("MYRM_CHROME_E2E", "1")
+        monkeypatch.setenv("MYRM_CHROME_E2E_PORT", "9444")
+        assert resolve_e2e_cdp_endpoint() == "http://127.0.0.1:9444"
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._port_is_open")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._read_devtools_active_port")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    def test_tcp_fallback_on_http_failure(
+        self, mock_dirs: MagicMock, mock_read: MagicMock, mock_probe: MagicMock, mock_tcp: MagicMock
+    ) -> None:
+        mock_dirs.return_value = iter([Path("/fake/chrome")])
+        mock_read.return_value = (54321, "/devtools/browser/abc")
+        mock_probe.side_effect = [None, None]
+        mock_tcp.return_value = True
+
+        result = discover_chrome_cdp_endpoint()
+        assert result == "ws://127.0.0.1:54321/devtools/browser/abc"
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    def test_fallback_to_9222(self, mock_dirs: MagicMock, mock_probe: MagicMock, monkeypatch) -> None:
+        # The 9222 fallback belongs to the non-E2E path only; an E2E-bound run must
+        # never reach a shared well-known port.
+        monkeypatch.delenv("MYRM_CHROME_E2E", raising=False)
+        monkeypatch.delenv("MYRM_CHROME_E2E_PORT", raising=False)
+        mock_dirs.return_value = iter([])
+        mock_probe.return_value = "ws://127.0.0.1:9222/devtools/browser"
+
+        result = discover_chrome_cdp_endpoint()
+        assert result == "http://127.0.0.1:9222"
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    def test_returns_none_when_nothing_found(self, mock_dirs: MagicMock, mock_probe: MagicMock) -> None:
+        mock_dirs.return_value = iter([])
+        mock_probe.return_value = None
+
+        result = discover_chrome_cdp_endpoint()
+        assert result is None
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._port_is_open")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._read_devtools_active_port")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    def test_skips_stale_port_file(
+        self, mock_dirs: MagicMock, mock_read: MagicMock, mock_probe: MagicMock, mock_tcp: MagicMock
+    ) -> None:
+        mock_dirs.return_value = iter([Path("/fake/chrome")])
+        mock_read.return_value = (54321, "/devtools/browser/abc")
+        mock_probe.side_effect = [None, None, None]
+        mock_tcp.return_value = False
+
+        result = discover_chrome_cdp_endpoint()
+        assert result is None
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._read_devtools_active_port")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    def test_tries_multiple_browsers_in_order(
+        self, mock_dirs: MagicMock, mock_read: MagicMock, mock_probe: MagicMock, monkeypatch
+    ) -> None:
+        # Non-E2E path: data dirs are scanned in order until one probes successfully.
+        monkeypatch.delenv("MYRM_CHROME_E2E", raising=False)
+        monkeypatch.delenv("MYRM_CHROME_E2E_PORT", raising=False)
+        chrome_dir = Path("/fake/chrome")
+        edge_dir = Path("/fake/edge")
+        mock_dirs.return_value = iter([chrome_dir, edge_dir])
+        mock_read.side_effect = [(1111, "/devtools/browser/aaa"), (3333, "/devtools/browser/xyz")]
+        mock_probe.side_effect = [None, "ws://127.0.0.1:3333/devtools/browser/xyz"]
+
+        result = discover_chrome_cdp_endpoint()
+        assert result == "http://127.0.0.1:3333"
+        assert mock_read.call_count == 2
+
+
+class TestBuildWsEndpoint:
+    def test_normalizes_path(self) -> None:
+        assert _build_ws_endpoint(9222, "/devtools/browser/abc") == "ws://127.0.0.1:9222/devtools/browser/abc"
+
+    def test_adds_leading_slash(self) -> None:
+        assert _build_ws_endpoint(9222, "devtools/browser/abc") == "ws://127.0.0.1:9222/devtools/browser/abc"
+
+
+class TestProbeCdpEndpoint:
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    def test_http_endpoint_success(self, mock_probe: MagicMock) -> None:
+        mock_probe.return_value = "ws://127.0.0.1:9222/devtools/browser"
+        assert probe_cdp_endpoint("http://127.0.0.1:9222") is True
+        mock_probe.assert_called_once_with(9222)
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
+    def test_http_endpoint_failure(self, mock_probe: MagicMock) -> None:
+        mock_probe.return_value = None
+        assert probe_cdp_endpoint("http://127.0.0.1:9222") is False
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._port_is_open")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._read_devtools_active_port")
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
+    def test_ws_endpoint_requires_matching_devtools_path(
+        self, mock_dirs: MagicMock, mock_read: MagicMock, mock_tcp: MagicMock
+    ) -> None:
+        mock_dirs.return_value = iter([Path("/fake/chrome")])
+        mock_read.return_value = (9222, "/devtools/browser/abc")
+        mock_tcp.return_value = True
+        assert probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/abc") is True
+        mock_dirs.return_value = iter([Path("/fake/chrome")])
+        assert probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/stale") is False
+
+    @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._port_is_open")
+    def test_ws_endpoint_tcp_closed(self, mock_tcp: MagicMock) -> None:
+        mock_tcp.return_value = False
+        assert probe_cdp_endpoint("ws://127.0.0.1:9222/devtools/browser/abc") is False
+
+    def test_invalid_endpoint(self) -> None:
+        assert probe_cdp_endpoint("ftp://127.0.0.1:9222") is False

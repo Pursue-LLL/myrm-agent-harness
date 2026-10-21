@@ -1,0 +1,481 @@
+"""BrowserSession navigation API.
+
+[INPUT]
+- navigation::Navigator (POS: throttled page navigation)
+- session.browser_session_tab_mixin::BrowserSessionTabMixin (POS: tab-management APIs for BrowserSession, inherited)
+- session.browser_session_captcha_mixin::BrowserSessionCaptchaMixin (POS: CAPTCHA step of BrowserSession navigation, inherited)
+- captcha protocols (POS: CAPTCHA result type consumed by the navigate() escalation path)
+- web_fetch site experience store (POS: post-navigation experience injection)
+- domain_skills::DomainSkillStore (POS: executable-layer domain skill registry)
+- exceptions::BrowserLaunchError, EngineUnavailableError (POS: launch failure vs. engine switch refused before any state change)
+- pool.engine_affinity::get_engine_affinity_store (POS: per-domain engine hint store)
+- utils.page_health::PageUnresponsiveError (POS: bounded browser and page health primitives)
+
+[OUTPUT]
+- BrowserSessionNavigationMixin: navigate, private-network extension routing, Stealth Ladder upgrade
+
+[POS]
+Navigation API for BrowserSession. Calls lifecycle mixin for component initialization; must
+appear before BrowserSessionLifecycleMixin in MRO. Tab management and CAPTCHA detection live in
+the mixins it inherits, so the aggregate root lists one entry for all three. Escalates Patchright
+to the optional Camoufox engine on unresolved blocks and falls back to human takeover when that
+engine is unavailable. A page that stopped answering during navigation is replaced via
+`recover_active_tab` before the error reaches the caller.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import NoReturn
+from urllib.parse import urlparse
+
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaHandleResult
+from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError, EngineUnavailableError
+from myrm_agent_harness.toolkits.browser.session.browser_session_captcha_mixin import BrowserSessionCaptchaMixin
+from myrm_agent_harness.toolkits.browser.session.browser_session_tab_mixin import BrowserSessionTabMixin
+from myrm_agent_harness.toolkits.browser.utils.page_health import PageUnresponsiveError
+
+logger = logging.getLogger(__name__)
+
+_NAVIGATE_INTERACTIVE_SUMMARY_MAX_TOKENS = 1500
+_NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES = 100
+
+_CAMOUFOX_UNAVAILABLE_HINT = (
+    "Enhanced anti-bot mode is unavailable here. Ask the user to complete the verification with "
+    "browser_ask_human_tool (reopen the page first if it is blank), or use another source."
+)
+
+
+def _domain_from_url(url: str) -> str:
+    return urlparse(url).netloc
+
+
+def _clear_engine_affinity_for_url(url: str) -> None:
+    domain = _domain_from_url(url)
+    if domain:
+        from myrm_agent_harness.toolkits.browser.pool.engine_affinity import (
+            get_engine_affinity_store,
+        )
+
+        get_engine_affinity_store().clear(domain)
+
+
+def _camoufox_launch_tool_error(exc: BrowserLaunchError) -> NoReturn:
+    from myrm_agent_harness.utils.errors import ToolError
+
+    raise ToolError(
+        message=f"Camoufox stealth engine unavailable: {exc}",
+        user_hint=_CAMOUFOX_UNAVAILABLE_HINT,
+        error_code="BROWSER_CAMOUFOX_UNAVAILABLE",
+        recovery_suggestions=[
+            "Ask the user to complete the verification with browser_ask_human_tool",
+            "Report the access issue to the user and suggest alternatives",
+        ],
+    ) from exc
+
+
+class BrowserSessionNavigationMixin(BrowserSessionTabMixin, BrowserSessionCaptchaMixin):
+    """navigate() and its dependencies: tab APIs and the CAPTCHA step are inherited."""
+
+    _TERMINAL_CHALLENGE_TTL_S = 600.0
+
+    def _hostname_blocked_by_policy(self, url: str) -> str | None:
+        """Return blocked hostname when URL matches configured blocklist."""
+        blocklist = getattr(self, "_domain_blocklist", None)
+        if blocklist is None or blocklist.is_empty:
+            return None
+        hostname = (urlparse(url).hostname or "").lower()
+        if hostname and blocklist.is_blocked(hostname):
+            return hostname
+        return None
+
+    async def _append_navigate_interactive_summary(self, result: str) -> str:
+        """Append a compact interactive ref preview to reduce post-nav snapshot round-trips."""
+        try:
+            snap = await self.snapshot(
+                scope="interactive",
+                compact=True,
+                diff=False,
+                max_tokens=_NAVIGATE_INTERACTIVE_SUMMARY_MAX_TOKENS,
+                update_baseline=False,
+            )
+            lines = [line for line in snap.aria_tree.splitlines() if line.strip()]
+            if not lines:
+                return result
+            capped = lines[:_NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES]
+            summary = "\n".join(capped)
+            if len(lines) > len(capped):
+                summary = f"{summary}\n... ({len(lines) - len(capped)} more refs; use browser_snapshot for full tree)"
+            return f"{result}\n\nInteractive refs (compact, max {_NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES}):\n{summary}"
+        except Exception:
+            logger.debug("Navigate interactive summary failed", exc_info=True)
+            return result
+
+    async def navigate(self, url: str, verify_goal: str | None = None) -> str:
+        """Navigate to URL (auto-injects site experience, auto-detects CAPTCHA)."""
+        await self._ensure_not_user_takeover()
+        if not self._tab_controller.list_tabs():
+            await self.new_tab()
+        await self._ensure_components()
+
+        blocked_host = self._hostname_blocked_by_policy(url)
+        if blocked_host:
+            from myrm_agent_harness.utils.errors import ToolError
+
+            raise ToolError(
+                f"Navigation blocked: domain '{blocked_host}' is on the URL blocklist.",
+                user_hint="This domain is blocked by your security policy. Choose another site or update Settings.",
+                error_code="BROWSER_URL_BLOCKLIST",
+            )
+
+        # Fast-fail: skip 240s timeout if domain is already known as terminal challenge
+        _nav_domain = urlparse(url).netloc
+        if _nav_domain and _nav_domain in self._terminal_challenges:
+            import time as _time
+
+            elapsed = _time.monotonic() - self._terminal_challenges[_nav_domain]
+            if elapsed < self._TERMINAL_CHALLENGE_TTL_S:
+                from myrm_agent_harness.utils.errors import ToolError
+
+                raise ToolError(
+                    f"[TERMINAL_CHALLENGE] Navigation to {_nav_domain} skipped — "
+                    f"this domain was blocked by an unsolvable verification challenge "
+                    f"{elapsed:.0f}s ago (TTL {self._TERMINAL_CHALLENGE_TTL_S:.0f}s).",
+                    user_hint=(
+                        "This domain is protected by anti-bot verification that cannot be bypassed. "
+                        "Do NOT retry. Report this to the user and suggest alternative sources."
+                    ),
+                    error_code="BROWSER_TERMINAL_CHALLENGE_CACHED",
+                )
+            else:
+                del self._terminal_challenges[_nav_domain]
+
+        from myrm_agent_harness.toolkits.browser.utils.proxy_error import (
+            is_blocked_response,
+            is_proxy_error,
+        )
+
+        if not self._allow_private_networks and self._extension_bridge is not None:
+            from myrm_agent_harness.toolkits.browser.url_routing import is_private_url
+
+            is_private = await asyncio.to_thread(is_private_url, url)
+            if is_private:
+                return await self._navigate_via_extension(url, verify_goal=verify_goal)
+
+        # Engine affinity: use remembered engine for this domain if available
+        if self._engine_preference is None:
+            from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
+            from myrm_agent_harness.toolkits.browser.pool.engine_affinity import (
+                get_engine_affinity_store,
+            )
+
+            domain = urlparse(url).netloc
+            if domain:
+                remembered = get_engine_affinity_store().get(domain)
+                if remembered is not None:
+                    logger.info("Engine affinity hit for %s → %s", domain, remembered.value)
+                    try:
+                        await self.restart(engine=remembered.value, restore_url=False)
+                    except EngineUnavailableError as exc:
+                        # The hint came from another session; this one just keeps its engine.
+                        logger.info("Engine affinity for %s not applied: %s", domain, exc)
+                    except BrowserLaunchError as exc:
+                        get_engine_affinity_store().clear(domain)
+                        if remembered == BrowserEngine.FIREFOX_CAMOUFOX:
+                            _camoufox_launch_tool_error(exc)
+                        raise
+                    except Exception:
+                        get_engine_affinity_store().clear(domain)
+                        raise
+
+        max_attempts = 3
+        attempt = 0
+
+        while attempt < max_attempts:
+            attempt += 1
+            navigator = self._require_navigator()
+            snapshot_manager = self._require_snapshot_manager()
+            page = self._tab_controller.get_active_page()
+
+            baseline_screenshot = None
+            if verify_goal:
+                try:
+                    from myrm_agent_harness.toolkits.browser.utils.selectors import (
+                        PASSWORD_FIELD_SELECTOR,
+                    )
+
+                    password_locator = page.locator(PASSWORD_FIELD_SELECTOR)
+                    baseline_screenshot = await page.screenshot(type="png", full_page=False, mask=[password_locator])
+                except Exception as e:
+                    logger.warning(
+                        "Failed to take baseline screenshot for navigation verification: %s",
+                        e,
+                    )
+
+            try:
+                title, final_url, status_code = await navigator.goto(url)
+
+                if is_blocked_response(status_code):
+                    if attempt < max_attempts:
+                        raise Exception(f"Blocked response detected: HTTP {status_code}")
+                    logger.warning(
+                        "Blocked HTTP %s after %s navigation attempts for %s; "
+                        "proceeding to CAPTCHA/stealth ladder with loaded page",
+                        status_code,
+                        max_attempts,
+                        redact_sensitive_text(url)[:80],
+                    )
+                    break
+
+                break  # Success, exit retry loop
+
+            except Exception as e:
+                if (is_proxy_error(e) or "Blocked response" in str(e)) and attempt < max_attempts:
+                    logger.warning(
+                        "Proxy error or block detected during navigation to %s: %s. "
+                        "Quarantining proxy and retrying (attempt %d/%d)...",
+                        redact_sensitive_text(url)[:80],
+                        e,
+                        attempt,
+                        max_attempts,
+                    )
+
+                    if self._context_key and self._browser_pool._proxy_pool:
+                        # Quarantine the bad proxy and release the sticky session
+                        # We use duck typing/hasattr in case it's not RoundRobinProxyPool
+                        if hasattr(self._browser_pool._proxy_pool, "report_failure"):
+                            self._browser_pool._proxy_pool.report_failure(self._context_key)
+                        else:
+                            self._browser_pool._proxy_pool.release_session(self._context_key)
+
+                    # Restart session to get a new proxy and migrate state losslessly
+                    await self.restart(restore_url=False)
+                    continue
+
+                # Retrying a stalled page would stall the same way; give the next call a working tab instead.
+                if isinstance(e, PageUnresponsiveError) and await self.recover_active_tab() is not None:
+                    raise PageUnresponsiveError(f"{e} {self.take_tab_reset_notice()}") from e
+
+                # If not a proxy error or out of retries, re-raise
+                raise
+
+        # The tab shows a loaded page again, so a pending "reset to a blank page" notice would only mislead.
+        self._pending_tab_reset = None
+
+        # CAPTCHA detection: inspect the loaded page for blocking CAPTCHAs
+        captcha_result: CaptchaHandleResult | None = None
+        if self._captcha_coordinator is not None:
+            captcha_result = await self._handle_captcha_if_detected()
+            if captcha_result is not None:
+                if not captcha_result.success:
+                    # Auto-fallback to CAMOUFOX if Chromium is blocked
+                    from myrm_agent_harness.toolkits.browser.pool.config import (
+                        BrowserEngine,
+                    )
+
+                    current_engine = self._engine_preference or BrowserEngine.CHROMIUM_PATCHRIGHT
+                    if current_engine != BrowserEngine.FIREFOX_CAMOUFOX:
+                        logger.warning(
+                            f"CAPTCHA not resolved with {current_engine.value}. Auto-upgrading to CAMOUFOX and retrying..."
+                        )
+                        await self.notify_progress(
+                            "Detected advanced anti-bot protection. Switching to enhanced stealth mode..."
+                        )
+                        try:
+                            await self.restart(
+                                engine=BrowserEngine.FIREFOX_CAMOUFOX.value,
+                                restore_url=False,
+                            )
+                        except BrowserLaunchError as exc:
+                            _clear_engine_affinity_for_url(url)
+                            _camoufox_launch_tool_error(exc)
+                        except Exception:
+                            _clear_engine_affinity_for_url(url)
+                            raise
+                        navigator = self._require_navigator()
+                        snapshot_manager = self._require_snapshot_manager()
+                        page = self._tab_controller.get_active_page()
+                        title, final_url, status_code = await navigator.goto(url)
+                        captcha_result = await self._handle_captcha_if_detected()
+                        if captcha_result is None or captcha_result.success:
+                            # CAMOUFOX succeeded — record affinity for this domain
+                            from myrm_agent_harness.toolkits.browser.pool.engine_affinity import (
+                                get_engine_affinity_store,
+                            )
+
+                            upgrade_domain = urlparse(url).netloc
+                            if upgrade_domain and not is_blocked_response(status_code):
+                                get_engine_affinity_store().record(upgrade_domain, BrowserEngine.FIREFOX_CAMOUFOX)
+                        else:
+                            title = await self._tab_controller.get_active_page().title()
+                            final_url = self._tab_controller.get_active_page().url
+
+                    # After all attempts, if CAPTCHA still unresolved → terminal challenge
+                    if captcha_result is not None and not captcha_result.success:
+                        import time as _time
+
+                        domain = urlparse(url).netloc
+                        _clear_engine_affinity_for_url(url)
+                        self._terminal_challenges[domain] = _time.monotonic()
+                        logger.warning(
+                            "Terminal challenge recorded for domain %s (%s)",
+                            domain,
+                            captcha_result.challenge_type,
+                        )
+                        from myrm_agent_harness.utils.errors import ToolError
+
+                        raise ToolError(
+                            f"[TERMINAL_CHALLENGE] Navigation to {domain} blocked by unsolvable "
+                            f"{captcha_result.challenge_type} verification challenge. "
+                            f"The page shows a bot-detection challenge instead of real content.",
+                            user_hint=(
+                                "Do NOT retry navigation to this domain — it will fail again. "
+                                "Report this access issue to the user and suggest alternatives."
+                            ),
+                            error_code="BROWSER_TERMINAL_CHALLENGE",
+                        )
+                else:
+                    title = await self._tab_controller.get_active_page().title()
+                    final_url = self._tab_controller.get_active_page().url
+
+        # Auto-dismiss cookie consent banners (post-CAPTCHA, before snapshot baseline)
+        consent_msg: str | None = None
+        if self._consent_dismisser.enabled:
+            page = self._tab_controller.get_active_page()
+            consent_msg = await self._consent_dismisser.dismiss(page)
+
+        snapshot_manager.reset_diff_baseline()
+        self._tab_controller.clear_text_snapshot()
+
+        captcha_msg = captcha_result.message if captcha_result is not None else None
+        result = f"Navigated to {final_url} (status={status_code}, title={title})"
+        if captcha_msg:
+            result = f"{result}\n{captcha_msg}"
+        if consent_msg:
+            result = f"{result}\n{consent_msg}"
+
+        experience_hint = self._get_site_experience_hint(final_url)
+        if experience_hint:
+            result = f"{result}\n{experience_hint}"
+
+        if verify_goal and baseline_screenshot:
+            await self.notify_progress(f"Verifying navigation goal: '{verify_goal}'...")
+            _success, verify_msg = await self._vision_verifier.verify_action(
+                page=page,
+                baseline_screenshot=baseline_screenshot,
+                verify_goal=verify_goal,
+            )
+            result = f"{result}\n\n{verify_msg}"
+
+        result = await self._append_navigate_interactive_summary(result)
+        await self._publish_inspector_view()
+        return result
+
+    async def _navigate_via_extension(self, url: str, *, verify_goal: str | None = None) -> str:
+        """Navigate to a private URL via the Extension Bridge (user's local browser).
+
+        Called when a private URL is detected and extension_bridge is available.
+        Raises a descriptive ToolError when capability or connectivity is missing.
+        """
+        from myrm_agent_harness.toolkits.browser.pool.extension_bridge import (
+            ExtensionBridgeNotAvailableError,
+        )
+        from myrm_agent_harness.utils.errors import ToolError
+
+        assert self._extension_bridge is not None
+
+        if not self._extension_bridge.is_connected():
+            raise ToolError(
+                message=f"Cannot navigate to private URL '{url}': browser extension is not connected.",
+                user_hint=(
+                    "This URL points to a private/local network address that is unreachable from "
+                    "the cloud sandbox. Install and connect the browser extension to access local services."
+                ),
+                error_code="PRIVATE_URL_NO_EXTENSION",
+                recovery_suggestions=[
+                    "Ask the user to install the browser extension and connect it",
+                    "Alternatively, use a publicly accessible URL",
+                ],
+            )
+
+        domain = urlparse(url).hostname or ""
+        try:
+            tab = await self._extension_bridge.navigate_to_url(
+                url,
+                domain=domain,
+                background=True,
+                timeout=20.0,
+            )
+            return f"Navigated to {tab.url} (title={tab.title}) [via extension bridge — private network]"
+        except ExtensionBridgeNotAvailableError as exc:
+            error_text = str(exc).lower()
+            if "not connected" in error_text or "disconnected" in error_text:
+                raise ToolError(
+                    message=f"Extension bridge lost connection while navigating to '{url}'.",
+                    user_hint="The browser extension disconnected. Please reconnect it and retry.",
+                    error_code="PRIVATE_URL_EXTENSION_LOST",
+                    recovery_suggestions=["Retry navigation after extension reconnects"],
+                ) from exc
+            if (
+                "missing required capability" in error_text
+                or "handshake is not completed" in error_text
+                or "unknown action" in error_text
+            ):
+                raise ToolError(
+                    message=f"Extension bridge cannot navigate private URL '{url}' with current extension version.",
+                    user_hint="Upgrade the browser extension to the latest version, reconnect it, then retry.",
+                    error_code="PRIVATE_URL_EXTENSION_UPGRADE_REQUIRED",
+                    recovery_suggestions=[
+                        "Upgrade myrm-agent-extension to latest",
+                        "Reconnect extension and retry",
+                    ],
+                ) from exc
+            else:
+                raise ToolError(
+                    message=f"Navigation to private URL '{url}' via extension failed: {exc}",
+                    user_hint="The browser extension is connected but failed to navigate this URL. Reconnect and retry.",
+                    error_code="PRIVATE_URL_NAV_FAILED",
+                ) from exc
+
+    @staticmethod
+    def _get_site_experience_hint(url: str) -> str:
+        """Query site experience and domain skill tools, format as injected text."""
+        parts: list[str] = []
+
+        try:
+            from ...web_fetch.router import (
+                get_global_domain_metrics_manager,
+                get_global_site_experience_store,
+            )
+
+            domain = urlparse(url).netloc.lower()
+            if not domain:
+                return ""
+
+            store = get_global_site_experience_store()
+            metrics_manager = get_global_domain_metrics_manager()
+            experience, possibly_stale = store.get(domain, domain_metrics_manager=metrics_manager)
+
+            if experience is not None and not experience.is_empty():
+                parts.append(experience.format_for_injection(possibly_stale=possibly_stale))
+        except Exception:
+            pass
+
+        try:
+            from ..domain_skills import get_global_domain_skill_store
+
+            skill_store = get_global_domain_skill_store()
+            matches = skill_store.match(url)
+            for manifest in matches:
+                sigs = manifest.tool_signatures()
+                if sigs:
+                    parts.append(f"Available domain tools (use browser_manage_tool action='run_site_tool'): {sigs}")
+                if manifest.known_traps:
+                    traps = "; ".join(manifest.known_traps)
+                    parts.append(f"Known traps: {traps}")
+        except Exception:
+            pass
+
+        return " | ".join(parts) if parts else ""

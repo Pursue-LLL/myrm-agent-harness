@@ -1,0 +1,104 @@
+"""ZIP 技能安装器
+
+从 URL 下载 ZIP 文件，通过框架层 safe_extract_zip 安全解压。
+
+[INPUT]
+- core.security.http.secure_fetch::secure_get (POS: SSRF-protected ZIP download)
+
+[OUTPUT]
+- ZipInstaller: class — Zip Installer
+
+[POS]
+Provides ZipInstaller.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from myrm_agent_harness.backends.skills.scanning import safe_extract_zip
+
+from .base import InstalledSkillFiles
+from .git_installer import _parse_skill_md_metadata
+
+logger = logging.getLogger(__name__)
+
+ZIP_DOWNLOAD_TIMEOUT = 30.0
+MAX_ZIP_SIZE = 50 * 1024 * 1024  # 50MB
+
+_EXCLUDED_SEGMENTS = frozenset({".git", ".venv", "__pycache__", "node_modules"})
+
+
+def _is_excluded_file(path: str) -> bool:
+    parts = path.split("/")
+    return any(part.startswith(".") or part in _EXCLUDED_SEGMENTS for part in parts)
+
+
+class ZipInstaller:
+    """ZIP 技能安装器
+
+    下载 ZIP → safe_extract_zip 安全解压 → 定位 SKILL.md → 收集文件。
+    """
+
+    async def download(self, install_url: str, subdirectory: str | None = None) -> InstalledSkillFiles:
+        zip_bytes = await self._download_zip(install_url)
+        return self._extract_skill(zip_bytes, subdirectory)
+
+    async def _download_zip(self, url: str) -> bytes:
+        from myrm_agent_harness.core.security.http.secure_fetch import (
+            ContentTooLargeError,
+            secure_get,
+        )
+
+        try:
+            response = await secure_get(
+                url,
+                timeout=ZIP_DOWNLOAD_TIMEOUT,
+                max_content_length=MAX_ZIP_SIZE,
+            )
+        except ContentTooLargeError as exc:
+            raise ValueError(f"ZIP too large (max {MAX_ZIP_SIZE} bytes)") from exc
+        if response.status_code != 200:
+            raise ValueError(f"ZIP download failed: HTTP {response.status_code}")
+
+        return response.content
+
+    def _extract_skill(self, zip_bytes: bytes, subdirectory: str | None) -> InstalledSkillFiles:
+        import json
+
+        all_files = safe_extract_zip(zip_bytes, strip_top_dir=True, forbidden_check=_is_excluded_file)
+
+        if subdirectory:
+            prefix = subdirectory.rstrip("/") + "/"
+            files = {k[len(prefix) :]: v for k, v in all_files.items() if k.startswith(prefix)}
+        elif "plugin.json" in all_files:
+            try:
+                manifest_data = json.loads(all_files["plugin.json"].decode("utf-8", errors="replace"))
+                name = str(manifest_data.get("name", "agent-plugin"))
+                description = str(manifest_data.get("description", ""))
+                return InstalledSkillFiles(name=name, description=description, files=all_files)
+            except Exception:
+                pass
+            files = all_files
+        else:
+            if "SKILL.md" in all_files:
+                files = all_files
+            else:
+                skill_md_candidates = [path for path in all_files if path.endswith("/SKILL.md")]
+                if not skill_md_candidates:
+                    raise ValueError("SKILL.md not found in ZIP")
+
+                # Keep backward-compatible behavior: auto-select the shallowest skill root.
+                skill_md_path = min(skill_md_candidates, key=lambda path: path.count("/"))
+                root = skill_md_path.removesuffix("/SKILL.md")
+                prefix = f"{root}/"
+                files = {k[len(prefix) :]: v for k, v in all_files.items() if k.startswith(prefix)}
+
+        if "SKILL.md" not in files and "plugin.json" not in files:
+            raise ValueError("SKILL.md or plugin.json not found in ZIP")
+
+        if "SKILL.md" in files:
+            name, description = _parse_skill_md_metadata(files["SKILL.md"])
+        else:
+            name, description = "agent-plugin", ""
+        return InstalledSkillFiles(name=name, description=description, files=files)

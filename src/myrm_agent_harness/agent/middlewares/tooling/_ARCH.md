@@ -1,0 +1,33 @@
+# tooling/
+
+## Overview
+
+Single interception point for all tool calls. The interceptor orchestrates
+stateless guards and lifecycle hooks; each guard is an independent module.
+
+Detailed design: [MIDDLEWARE_SYSTEM.md](../MIDDLEWARE_SYSTEM.md)
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Public exports for tool_interceptor and LoopGuard accessors. | — |
+| `tool_interceptor_middleware.py` | Core | Single interception point for all tool calls; session-key registry keeps LoopGuard across ContextVar loss after HITL resume; `reset_loop_guard(is_resume=True)` preserves error signatures and the CallRecord window. | ✅ |
+| `tool_executor.py` | Core | Tool execution with timeout/retry/backoff; propagates `ToolError.error_category` into ToolMessage for SSE. | ✅ |
+| `tool_history_hygiene.py` | Core | Sanitize pipeline: within-AIMessage re-id → ToolMessage dedup (keep-last) → cross-turn re-id; exports `sanitize_tool_history()` (step 1 of `agent.config.llm_safety.normalize_messages()`; also the oneshot duplicate-id retry). Runs before dangling repair. | ✅ |
+| `dangling_tool_call_middleware.py` | Core | Repair malformed tool histories for strict providers: sanitize malformed calls, quarantine invalid_tool_calls (upgrade to well-formed declarations via `utils/json_args_repair` — malformed raw text never replayed to the provider, unrepairable ones carry key-path diagnoses), promote args-recovery-withheld calls (`additional_kwargs["tool_call_recovery"]`, `safe=False`) into declarations so they get an informative invalid-args ToolMessage instead of being silently dropped, patch dangling tool_calls, drop orphan ToolMessages; exports `repair_dangling_tool_calls()` (step 2 of `agent.config.llm_safety.normalize_messages()`) for direct LLM invocations (grace call, summary prefix). | ✅ |
+| `_tool_guards.py` | Internal | Pre-call and post-call guard orchestration (e-stop, loop budget, circuit breaker, turn budget, and semantic failure sniffing elevation). | ✅ |
+| `semantic_failure_sniffer.py` | Core | MCP/External observation semantic failure sniffer and two-tier error classifier (transient retryable vs permanent non-retryable) for HTTP 200 pseudo-success responses. | ✅ |
+| `_tool_helpers.py` | Internal | Stateless helpers for `tool_interceptor_middleware` (output normalization, trust attenuation, retry classification, terminal error classification). | ✅ |
+| `_tool_execution_lifecycle.py` | Internal | Dynamic tool resolution, heartbeat emission during long-running tool execution, and execution lifecycle hooks. | ✅ |
+| `_runtime_tool_governance.py` | Internal | Per-turn intent-aware tool narrowing (UI + readonly gates) and `compute_turn_allowed_names()` merged allowlist (prefix-cache safe). | ✅ |
+| `_mutation_verifier.py` | Internal | Per-turn file mutation verifier → SSE on failure. | ✅ |
+| `_skill_failure_tracking.py` | Internal | Skill failure event tracking for interceptor; also counts each tool-call outcome (success, or a failure that is not a policy block) into the run's skill usage (`usage_recorder`) and the skill execution ledger while exactly one storage skill is loaded; the skill-load tool (`skill_select_tool`) is never an outcome. | ✅ |
+| `_skill_tool_choice.py` | Internal | Build OpenAI `allowed_tools` tool_choice for skill attenuation (prefix-cache safe). | ✅ |
+| `skill_attenuation_middleware.py` | Core | Skill attenuation via `tool_choice.allowed_tools` when provider supports it; skips model-layer hint otherwise; execution SSOT via ContextVar + `check_trust_attenuation`; dynamic tool resolution for ToolNode. Does not mutate `request.tools`. | ✅ |
+
+## Key Dependencies
+
+- `agent.middlewares._session_context` — shared ContextVars for the middleware chain
+- `agent.security.guards.loop_guard` — LoopGuard, CallRecord, ToolGroup
+- `agent.security` — tool result validation, guards

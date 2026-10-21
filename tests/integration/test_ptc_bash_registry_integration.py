@@ -1,0 +1,72 @@
+"""PTC builtin registry ↔ bash tool description integration.
+
+Verifies bash tool description is static (no dynamic registry append).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import TOOL_DESCRIPTION
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
+    create_bash_code_execute_tool,
+)
+from myrm_agent_harness.agent.skills.mcp.builtin_registry import (
+    get_builtin_tool_registry,
+)
+from myrm_agent_harness.agent.skills.mcp.ipc_proxy import (
+    IPCCallContext,
+    _ipc_call_context,
+)
+
+
+def _ipc_ctx(session_id: str, workspace_root: Path) -> IPCCallContext:
+    return IPCCallContext(
+        session_id=session_id,
+        workspace_root=str(workspace_root),
+        trace_id="integ",
+    )
+
+
+@pytest.mark.integration
+def test_bash_tool_description_is_static_without_registry_append() -> None:
+    bash_tool = create_bash_code_execute_tool()
+    description = bash_tool.description
+
+    assert "tools.session_store" not in TOOL_DESCRIPTION
+    assert "myrm_tools" not in TOOL_DESCRIPTION
+    assert "myrm_tools.web_search_tool" not in description
+    assert get_builtin_tool_registry().get_ptc_description() not in description
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_registry_dispatch_rejects_unknown_tool() -> None:
+    import myrm_agent_harness.agent.skills.mcp.builtin_registry as registry_mod
+
+    registry_mod._registry = None
+    registry = get_builtin_tool_registry()
+    with pytest.raises(KeyError, match="not found"):
+        await registry.dispatch("web_search", {"query": "x"})
+    registry_mod._registry = None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_registry_dispatch_notify_real_handler(tmp_path: Path) -> None:
+    import myrm_agent_harness.agent.skills.mcp.builtin_registry as registry_mod
+
+    registry_mod._registry = None
+    registry = get_builtin_tool_registry()
+    token = _ipc_call_context.set(_ipc_ctx("integ-session", tmp_path))
+    try:
+        result = await registry.dispatch(
+            "notify",
+            {"message": "hello", "level": "info"},
+        )
+        assert result is None
+    finally:
+        _ipc_call_context.reset(token)
+        registry_mod._registry = None

@@ -1,0 +1,22 @@
+# detection/
+
+## Overview
+Agent Security Detection module.
+
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| __init__.py | Package | Public API exports for detection subsystem (classify_content, redact_pii, scan_for_leaks, scan_dangerous_intent, etc.) | ✅ |
+| content_boundary.py | Core | Content boundary defense core. Five-layer defense-in-depth (Unicode folding, structural framing strip, marker sanitization, random boundaries, pattern detection) for prompt injection prevention. | ✅ |
+| intent_router.py | Core | Intake-stage dangerous intent router re-export facade (`DangerousIntent`, `IntentSafetyResult`, `scan_dangerous_intent`). | ✅ |
+| leak_detector.py | Core | Output-side credential leak detector. 40+ credential pattern matchers (API key prefixes + blockchain + cloud infra + ENV/JSON/Header context + mnemonic + Shannon entropy + PEM block-level multiline redaction) for preventing secret exfiltration. | ✅ |
+| pii_classifier.py | Core | Re-export of `core.security.detection.pii_classifier`: the input-side PII classification engine, which runs the built-in patterns (bilingual CN/EN, defined in `pii_patterns`) with short-circuit optimization for efficient content scanning. | ✅ |
+| pii_redactor.py | Core | PII redactor. `redact_pii(content, custom, levels)` applies the redactions of the given levels only (S3: passwords, identity documents, bank cards, credentials; S2: contact, location and bank-account (IBAN) patterns; both by default). Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retain their domain, IBANs their country and last 4 characters: `DE** **** **** 3000 [PII:iban]`). Passwords are replaced by span (`password_heuristic`, recall mode) before the regex stages, so the label and the punctuation around the value survive; the user's custom terms are replaced by span right after the passwords; at S3 the card numbers a card keyword introduces (`card_context`) are masked after the prefix table, as bank cards. A match its validator rejects (Luhn, ID checksum) is neither changed nor counted. | ✅ |
+| pseudonym_store.py | Core | Local SQLite store for reversible PII pseudonymization. Maps original_text to typed placeholders (<TYPE_N>) with cross-session persistence. | ✅ |
+| pseudonymizer.py | Core | Reversible PII pseudonymization engine. Replaces detected PII with typed placeholders via PseudonymStore, and provides a streaming-safe restorer with chunk-boundary buffering. | ✅ |
+| deep_pii_detector.py | Core | LLM-based non-structured PII detector for deep scan mode. Batch-processes texts to identify 20+ semantic PII types. Protocol-based, fail-open. | ✅ |
+| deep_pii_prompt.py | Core | Prompt template for LLM deep PII detection. PL2-PL4 classification with One-Shot example, covering 20+ non-structured privacy types. | ✅ |
+| canary_guard.py | Core | Output-side injection success detector. Deterministic canary token — zero false positives, zero dependencies, microsecond latency. | ✅ |
+| prompt_guard.py | Core | Input-side injection detector (re-export of `core.security.detection.prompt_guard`). 10 EN + 4 ZH injection categories with anti-obfuscation (leet speak, invisible Unicode, whitespace) and word-boundary precision. Two-tier score: `max_score` (every hit; audit trail and durable-store gates) vs `block_score` / `should_block` (only hits unambiguous on their own; consumed by the live-input guard and the rule-file loader, so plain role assignment like `Act as a translator` is audited but not blocked). Negated extraction verbs (`Never print the API keys`) are not reported. | ✅ |
+| tool_result_validator.py | Core | Provides ValidationResult, validate_tool_result, should_apply_validation. | ✅ |

@@ -1,0 +1,934 @@
+"""Memory type definitions — enums and Pydantic schemas.
+
+Zero ORM or backend dependencies. This is the foundation layer that
+all other memory modules depend on.
+
+[INPUT]
+- pydantic::BaseModel (POS: Validation + serialization layer)
+- datetime, uuid (POS: Standard library utilities)
+
+[OUTPUT]
+- MemoryType: Enum for memory classification (PROFILE/SEMANTIC/EPISODIC/CONVERSATION/PROCEDURAL/CLAIM/TASK_DIGEST/INTEGRATION)
+- MemoryStatus: Unified lifecycle status enum (ACTIVE/DISABLED/ARCHIVED)
+- MemoryMutationRef, MemoryMutationResult: Exact mutation outcome DTOs for audited delete/rollback flows
+- BaseMemory: Base class for all memory types (includes status field)
+- ProfileEntry: User profile key-value pairs
+- SemanticMemory: Extracted knowledge from conversations
+- EpisodicMemory: Timestamped events with entities
+- ConversationMemory: Verbatim conversation exchanges (dual-field: raw + summary, dual-embedding: precision + coverage)
+- ProceduralMemory: If-then rules for agent behavior
+- PendingRecord: Approval queue entry
+
+[POS]
+Memory type system foundation. Provides type-safe schema definitions for all
+memory types. ConversationMemory implements verbatim storage with dual-field
+(raw_exchange + content summary) and dual-embedding (raw + summary vectors)
+for lossless information preservation and adaptive retrieval optimization.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
+from typing import Literal, Self
+from uuid import uuid4
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from myrm_agent_harness.toolkits.memory.domain_types import (
+    MemoryDomain,
+    infer_domain_and_category,
+)
+from myrm_agent_harness.toolkits.memory.score_honesty.models import ScoreBreakdown
+
+
+class EvidenceReference(BaseModel):
+    """Structured evidence anchor linking extracted facts to raw interaction context."""
+
+    source_id: str = Field(..., description="Unique ID of source conversation, document or turn")
+    message_id: str | None = Field(default=None, description="Granular message ID if available")
+    channel_id: str | None = Field(default=None, description="Channel identifier (e.g. slack, telegram, web)")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Interaction timestamp")
+    quote_snippet: str | None = Field(default=None, description="Exact verbatim snippet serving as factual evidence")
+    author_id: str | None = Field(default=None, description="Sender ID of the evidentiary message")
+
+
+# ── Enums ───────────────────────────────────────────────────────────
+
+
+class MemoryType(StrEnum):
+    PROFILE = "profile"
+    SEMANTIC = "semantic"
+    EPISODIC = "episodic"
+    CONVERSATION = "conversation"
+    PROCEDURAL = "procedural"
+    CLAIM = "claim"
+    TASK_DIGEST = "task_digest"
+    INTEGRATION = "integration"
+
+
+class RuleSource(StrEnum):
+    USER_EXTRACTED = "user_extracted"
+    AGENT_SELF = "agent_self"
+    USER_EXPLICIT = "user_explicit"
+
+
+class MemoryTier(StrEnum):
+    L1 = "l1"
+    L2 = "l2"
+    L3 = "l3"
+
+
+class DigestKind(StrEnum):
+    TASK = "task"
+
+
+class EvaporationState(StrEnum):
+    PENDING = "pending"
+    EVAPORATED = "evaporated"
+
+
+class ClaimGraphState(StrEnum):
+    PENDING = "pending"
+    COMPILED = "compiled"
+
+
+class ClaimConflictState(StrEnum):
+    NONE = "none"
+    CONFLICTED = "conflicted"
+
+
+class ConflictResolution(StrEnum):
+    """Resolution action for a detected memory contradiction.
+
+    Used by the consolidation conflict callback to communicate
+    the user's decision back to the framework.
+    """
+
+    KEEP_OLD = "keep_old"
+    KEEP_NEW = "keep_new"
+    MERGE = "merge"
+    DISCARD_BOTH = "discard_both"
+    PENDING = "pending"
+
+
+class ToolRulePriority(StrEnum):
+    """Compression resistance level for procedural rules.
+
+    CRITICAL rules are excluded from TTL archiving (see
+    ``maintenance_rule_forgetting``), and AGENT_SELF rules are downgraded to
+    HIGH if they try to claim it (see ``write_service``). HIGH marks rules the
+    extractor judged important and is the ceiling for agent-written rules.
+    HIGH and NORMAL rules share the
+    same stable-layer prompt budget, so budget trimming can still drop them —
+    what guarantees a rule survives trimming is the user-endorsed lock
+    (``is_user_locked``).
+    """
+
+    CRITICAL = "critical"
+    HIGH = "high"
+    NORMAL = "normal"
+
+
+# Archived memories are recoverable for this window before maintenance purges
+# them. Every archival write path must stamp ``archive_expires_at`` from this
+# value so the purge scanner can reclaim them.
+ARCHIVE_RETENTION_DAYS = 7
+
+
+def archive_retention_stamps(now: datetime) -> dict[str, str]:
+    """Build the metadata pair every archival write path must stamp.
+
+    ``archived_at`` drives the trash listing order, and ``archive_expires_at``
+    is the retention deadline the purge scanner reads to reclaim the entry.
+    Deriving both from one instant keeps them consistent and guarantees the
+    entry is reclaimable, so no archival path can leak an immortal record.
+    """
+    return {
+        "archived_at": now.isoformat(),
+        "archive_expires_at": (now + timedelta(days=ARCHIVE_RETENTION_DAYS)).isoformat(),
+    }
+
+
+class MemoryStatus(StrEnum):
+    """Unified lifecycle status for all memory types."""
+
+    ACTIVE = "active"
+    DISABLED = "disabled"
+    ARCHIVED = "archived"
+
+
+class PendingResolutionAction(StrEnum):
+    """How an approved pending memory is applied to storage.
+
+    ``STORE`` persists the candidate as a new memory (default, non-destructive).
+    ``CORRECT`` demotes the targeted memory and stores the candidate as its linked
+    correction. ``DELETE`` retires the targeted memory that is now factually wrong
+    by archiving it (restorable until the archive retention purge).
+    """
+
+    STORE = "store"
+    CORRECT = "correct"
+    DELETE = "delete"
+
+
+class MemoryMutationRef(BaseModel):
+    """A single typed memory mutation outcome reference."""
+
+    memory_type: str
+    memory_id: str
+    backend: str
+    reason: str = ""
+
+
+class MemoryMutationResult(BaseModel):
+    """Exact outcome of a typed memory mutation request."""
+
+    deleted_refs: list[MemoryMutationRef] = Field(default_factory=list)
+    missing_refs: list[MemoryMutationRef] = Field(default_factory=list)
+    forbidden_refs: list[MemoryMutationRef] = Field(default_factory=list)
+    failed_refs: list[MemoryMutationRef] = Field(default_factory=list)
+
+    def deleted_counts_by_type(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for ref in self.deleted_refs:
+            counts[ref.memory_type] = counts.get(ref.memory_type, 0) + 1
+        return counts
+
+
+class ProfileAttributeSnapshot(BaseModel):
+    """Content-local profile attribute value and revision."""
+
+    key: str
+    value: str | None = None
+    exists: bool = False
+    revision: str = ""
+    updated_at: datetime | None = None
+
+
+# ── Base ────────────────────────────────────────────────────────────
+
+
+class MemoryScope(BaseModel):
+    """Deterministic ownership and session identity for a memory record.
+
+    ``primary_namespace`` is the authoritative single namespace used by the
+    vector layer for precise scope filtering (exact IN matching against the
+    single-value payload field), so one agent can never match another agent's
+    private memories through a shared broadcast namespace. ``namespaces`` is an
+    ordered broad-to-narrow scope list kept for display and scope
+    reconstruction only; it must not be used for permission filtering.
+    """
+
+    primary_namespace: str = ""
+    namespaces: list[str] = Field(default_factory=list)
+    client_id: str | None = None
+    agent_id: str | None = None
+    channel_id: str | None = None
+    conversation_id: str | None = None
+    task_id: str | None = None
+
+
+class MemoryLifecycle(BaseModel):
+    """Typed lifecycle state for compiled / staged memories.
+
+    This model replaces ad-hoc metadata strings for tiered memory flows such as
+    task digests and claim graph compilation.
+    """
+
+    tier: MemoryTier
+    digest_kind: DigestKind | None = None
+    evaporation_state: EvaporationState | None = None
+    evaporated_at: datetime | None = None
+    claim_graph_state: ClaimGraphState | None = None
+    claim_graph_node_id: str | None = None
+    claim_graph_updated_at: datetime | None = None
+    claim_graph_conflict: ClaimConflictState | None = None
+
+    @field_validator("evaporated_at", "claim_graph_updated_at", mode="before")
+    @classmethod
+    def _ensure_utc(cls, v: datetime | None) -> datetime | None:
+        if v is None:
+            return None
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=UTC)
+        return v
+
+    @classmethod
+    def new_task_digest(cls) -> MemoryLifecycle:
+        return cls(
+            tier=MemoryTier.L2,
+            digest_kind=DigestKind.TASK,
+            evaporation_state=EvaporationState.PENDING,
+            claim_graph_state=ClaimGraphState.PENDING,
+            claim_graph_conflict=ClaimConflictState.NONE,
+        )
+
+
+class BaseMemory(BaseModel):
+    """Common fields shared by all memory types.
+
+    Sharing is represented by ``scope.namespaces`` rather than business-specific
+    fields. Product layers can bind their own concepts to framework-safe
+    namespace strings, e.g. ``shared:customer-a``.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    user_id: str = Field(
+        default="",
+        description="Owner identifier persisted to the vector payload for ownership-scoped guards",
+    )
+    content: str = Field(..., description="Memory text content")
+    metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    access_count: int = Field(default=0)
+    last_accessed_at: datetime | None = None
+    user_rating: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="User feedback rating [0,1]. 0.5 = neutral (no feedback yet). Updated via EMA.",
+    )
+    pinned: bool = Field(default=False, description="User-pinned: immune to forgetting")
+    is_user_locked: bool = Field(
+        default=False,
+        description="Protected against automated background distillation and overwrite",
+    )
+    expected_valid_days: int | None = Field(
+        default=None,
+        description="LLM-estimated validity window in days. None = use global half-life fallback.",
+    )
+    status: MemoryStatus = Field(default=MemoryStatus.ACTIVE, description="Unified lifecycle status")
+    trace_id: str | None = Field(default=None, description="Execution trace ID that produced this memory commit")
+    scope: MemoryScope = Field(default_factory=MemoryScope)
+    lifecycle: MemoryLifecycle | None = None
+    evidence: list[EvidenceReference] = Field(
+        default_factory=list, description="Structured provenance evidence anchoring this fact"
+    )
+    is_exact_fact: bool = Field(
+        default=False,
+        description="Exact fact hard lock: zero-loss verbatim persistence and deterministic recall",
+    )
+    exact_identifiers: list[str] = Field(
+        default_factory=list,
+        description="Extracted high-entropy exact symbols (UUID, SHA, SemVer, config keys)",
+    )
+    summary_l0: str = Field(
+        default="",
+        description="L0 minimal semantic anchor (<=120 chars) for fast gating and token-efficient indexing",
+    )
+    overview_l1: str = Field(
+        default="",
+        description="L1 structured factual overview (<=400 chars) for default recall injection",
+    )
+    domain: MemoryDomain = Field(
+        default=MemoryDomain.USER,
+        description="Persona/experience domain partition (user, assistant, task)",
+    )
+    domain_category: str = Field(
+        default="",
+        description="Fine-grained category under the domain (profile, preferences, identity, soul, etc.)",
+    )
+
+    @model_validator(mode="after")
+    def _fill_progressive_defaults(self) -> Self:
+        if not self.summary_l0 and self.content:
+            clean = self.content.strip()
+            self.summary_l0 = clean[:120].strip()
+        if not self.domain_category:
+            mem_type = str(getattr(self, "memory_type", "semantic"))
+            ev_type = str(getattr(self, "event_type", ""))
+            pref_type = getattr(self, "preference_type", None)
+            tags = getattr(self, "tags", None)
+            inferred_domain, inferred_cat = infer_domain_and_category(
+                mem_type,
+                content=self.content,
+                event_type=ev_type,
+                preference_type=pref_type,
+                tags=tags,
+            )
+            if self.domain == MemoryDomain.USER and inferred_domain != MemoryDomain.USER:
+                self.domain = inferred_domain
+            self.domain_category = inferred_cat.value
+        return self
+
+    @property
+    def is_user_protected(self) -> bool:
+        """Whether the user's protection applies, whichever flag carries it.
+
+        ``pinned`` is the persisted lock for vector memories; ``is_user_locked``
+        is the persisted lock for procedural rules; ``is_exact_fact`` protects
+        exact identifiers against lossy compression. Automated writers check this
+        single predicate so neither flag can be silently bypassed.
+        """
+        return self.pinned or self.is_user_locked or self.is_exact_fact
+
+    @field_validator("created_at", "updated_at", "last_accessed_at", mode="before")
+    @classmethod
+    def _ensure_utc(cls, v: datetime | None) -> datetime | None:
+        if v is None:
+            return None
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=UTC)
+        return v
+
+
+# ── Concrete types ──────────────────────────────────────────────────
+
+
+class ProfileEntry(BaseModel):
+    """A single user-profile attribute (key-value pair).
+
+    Attributes:
+        language: Primary language of the value content ("zh" or "en")
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    key: str
+    value: str | int | float | bool | list[str] | dict[str, str] = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    language: Literal["zh", "en"] = "en"
+    scope: MemoryScope = Field(default_factory=MemoryScope)
+    evidence: list[EvidenceReference] = Field(
+        default_factory=list, description="Structured provenance evidence anchoring this profile fact"
+    )
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def _ensure_utc(cls, v: datetime | None) -> datetime | None:
+        if v is None:
+            return None
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=UTC)
+        return v
+
+
+PreferenceType = Literal["explicit", "implicit"]
+
+
+class SemanticMemory(BaseMemory):
+    """Factual knowledge stored with vector embeddings.
+
+    Preference-bearing memories additionally carry ``preference_type``
+    and ``preference_strength`` so the RRF retriever can boost them
+    automatically without a separate search path.
+
+    Attributes:
+        language: Primary language of the content ("zh" or "en")
+        merge_count: Number of times this memory has been merged/updated
+        merge_history: Compact text log of merge operations
+    """
+
+    memory_type: Literal[MemoryType.SEMANTIC] = MemoryType.SEMANTIC
+    embedding: list[float] | None = None
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    source_chat_id: str | None = None
+    source_message_id: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    preference_type: PreferenceType | None = None
+    preference_strength: float = Field(default=0.0, ge=0.0, le=1.0)
+    correction_of: str | None = Field(
+        default=None, description="ID of the memory this one corrects, forming a correction chain"
+    )
+    source_error: str | None = Field(
+        default=None, description="Description of the mistake being corrected (complements correction_of)"
+    )
+    language: Literal["zh", "en"] = "en"
+    merge_count: int = Field(default=0, ge=0, description="Number of merges applied to this memory")
+    merge_history: str = Field(default="", description="Compact merge log: timestamp|action|summary")
+
+
+class EpisodicMemory(BaseMemory):
+    """Conversation event stored with vector embeddings and optional graph.
+
+    Attributes:
+        language: Primary language of the content ("zh" or "en")
+        merge_count: Number of times this memory has been merged/updated
+        merge_history: Compact text log of merge operations
+        subtask_phase: Software engineering / task workflow phase ("analyze", "locate", "edit", "verify")
+        is_failure_attempt: Whether this episodic entry represents a failed attempt or dead-end
+        failure_reason: Root-cause error message or reason for failure
+        negative_lesson: Distilled negative rule / advice to avoid repeating this dead-end
+    """
+
+    memory_type: Literal[MemoryType.EPISODIC] = MemoryType.EPISODIC
+    embedding: list[float] | None = None
+    event_type: str = "conversation"
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    related_entities: list[str] = Field(default_factory=list)
+    source_chat_id: str | None = None
+    source_message_id: str | None = None
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    language: Literal["zh", "en"] = "en"
+    merge_count: int = Field(default=0, ge=0, description="Number of merges applied to this memory")
+    merge_history: str = Field(default="", description="Compact merge log: timestamp|action|summary")
+    subtask_phase: Literal["analyze", "locate", "edit", "verify"] | None = Field(
+        default=None,
+        description="Workflow phase for subtask-level episodic memory",
+    )
+    is_failure_attempt: bool = Field(
+        default=False,
+        description="Flag indicating this episodic entry captures a failed attempt or dead-end",
+    )
+    failure_reason: str | None = Field(
+        default=None,
+        description="Structured failure cause or error summary",
+    )
+    negative_lesson: str | None = Field(
+        default=None,
+        description="Negative guidance / rule to prevent repeating this failed attempt",
+    )
+    confidence_tier: Literal["strong", "weak", "shadow"] = Field(
+        default="strong",
+        description="Confidence tier for cross-task reuse: strong drives action, weak/shadow is read-only background",
+    )
+    relation_category: Literal["same_work_item", "same_problem", "reusable_sop", "shadow_context"] = Field(
+        default="same_work_item",
+        description="Category describing the cross-task relationship",
+    )
+
+
+class ConversationMemory(BaseMemory):
+    """Conversation exchange stored with dual-field verbatim + summary.
+
+    Dual-field storage prevents irreversible information loss:
+    - raw_exchange: User question + AI response verbatim (no LLM processing)
+    - content: LLM-extracted summary for context compression
+
+    Dual-embedding enables precision + coverage trade-off:
+    - raw_embedding: Embedding of raw_exchange (high precision)
+    - summary_embedding: Embedding of content (broad coverage)
+
+    Attributes:
+        raw_exchange: Verbatim Q+A pair, never modified
+        content: LLM extracted summary
+        raw_embedding: Vector embedding of raw_exchange
+        summary_embedding: Vector embedding of content
+        timestamp: When this exchange occurred
+        user_turn_only: Whether only user turns are indexed (default True)
+        related_entities: Entities mentioned in conversation
+        project_id: Project/wing hierarchy (optional)
+        topic_id: Topic/room hierarchy (optional)
+        language: Primary language ("zh" or "en")
+    """
+
+    memory_type: Literal[MemoryType.CONVERSATION] = MemoryType.CONVERSATION
+    raw_exchange: str = Field(..., description="User Q + AI A verbatim text")
+    raw_embedding: list[float] | None = None
+    summary_embedding: list[float] | None = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    user_turn_only: bool = Field(
+        default=True, description="Index only user turns (MemPalace strategy for 96.6% baseline)"
+    )
+    related_entities: list[str] = Field(default_factory=list)
+    source_chat_id: str | None = None
+    source_message_id: str | None = None
+    project_id: str | None = Field(default=None, description="Project/wing identifier")
+    topic_id: str | None = Field(default=None, description="Topic/room identifier")
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    language: Literal["zh", "en"] = "en"
+
+    def without_raw(self) -> ConversationMemory:
+        """Return copy without raw_exchange (for lazy loading)."""
+        return self.model_copy(update={"raw_exchange": "", "raw_embedding": None})
+
+    @property
+    def display_content(self) -> str:
+        """Return summary content for display (not raw verbatim)."""
+        return self.content
+
+
+class ProceduralMemory(BaseMemory):
+    """Behavioral rule: trigger -> action.
+
+    ``is_active`` is kept for SQLite column compatibility but derives from
+    ``status``. Prefer using ``status`` for new code.
+
+    Tool-scoped rules use ``tool_name`` to associate with a specific tool
+    and ``tool_rule_priority`` to record how durable the rule is:
+    - CRITICAL: user-mandated, excluded from TTL archiving
+    - HIGH: judged important by the extractor; ceiling for agent-written rules
+    - NORMAL: ordinary rule
+
+    Prompt-budget survival is governed by ``is_user_locked``, not by this
+    level: endorsed rules are ordered ahead of generic rules so unendorsed
+    ones are trimmed first.
+
+    Attributes:
+        language: Primary language of the rule content ("zh" or "en")
+        tool_name: Tool this rule is scoped to (None = global rule)
+        tool_rule_priority: Durability level for tool-scoped rules
+    """
+
+    memory_type: Literal[MemoryType.PROCEDURAL] = MemoryType.PROCEDURAL
+    content: str = Field(default="", description="Memory text content or rule summary")
+    trigger: str
+    action: str
+    reasoning: str = Field(default="", description="Why this rule exists (Context/Rationale)")
+    application: str = Field(default="", description="How to apply this rule (Nuances/Boundaries)")
+    priority: int = 0
+    is_active: bool = Field(default=True, description="Derived from status on save")
+    trigger_keywords: list[str] = Field(default_factory=list)
+    source: RuleSource = RuleSource.USER_EXTRACTED
+    language: Literal["zh", "en"] = "en"
+    tool_name: str | None = Field(default=None, description="Tool this rule is scoped to (None = global)")
+    tool_rule_priority: ToolRulePriority = Field(
+        default=ToolRulePriority.NORMAL,
+        description="Durability level: CRITICAL rules are excluded from TTL archiving",
+    )
+    error_fingerprint: str | None = Field(
+        default=None,
+        description="Normalized error signature or regex for fast deterministic matching",
+    )
+    resolution_steps: list[str] = Field(
+        default_factory=list,
+        description="Ordered corrective actions or instructions taken to resolve the error",
+    )
+    facets: list[str] = Field(
+        default_factory=lambda: ["global"],
+        description="Domain or role scopes (e.g. ['frontend', 'devops'])",
+    )
+    confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Crystallization confidence factor",
+    )
+    severity: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="Failure severity or impact factor",
+    )
+    success_count: int = Field(
+        default=0,
+        ge=0,
+        description="Total execution success occurrences",
+    )
+    fail_count: int = Field(
+        default=0,
+        ge=0,
+        description="Total execution failure occurrences",
+    )
+    lifecycle_state: str = Field(
+        default="active",
+        description="Lifecycle state: active, degraded, or retired",
+    )
+
+    def model_post_init(self, __context: object) -> None:
+        """Sync is_active ↔ status on construction for legacy data."""
+        if not self.content and (self.trigger or self.action):
+            self.content = f"{self.trigger} -> {self.action}".strip(" ->")
+        if not self.is_active and self.status == MemoryStatus.ACTIVE:
+            self.status = MemoryStatus.DISABLED
+        elif self.is_active and self.status == MemoryStatus.DISABLED:
+            self.is_active = False
+
+
+class ClaimMemory(BaseMemory):
+    """Compiled knowledge object produced from the claim graph.
+
+    ClaimMemory is retrieval-only: it represents L3 compiled knowledge and must
+    not be treated as a regular semantic fact written through vector storage.
+    """
+
+    memory_type: Literal[MemoryType.CLAIM] = MemoryType.CLAIM
+    claim_key: str
+    title: str
+    claim_text: str
+    model_summary: str = ""
+    last_result: str = ""
+    evidence_count: int = Field(default=0, ge=0)
+    freshness: str = "stale"
+    freshness_days: int = Field(default=0, ge=0)
+    contradiction_status: str = "none"
+    confidence: float = Field(default=0.75, ge=0.0, le=1.0)
+
+
+class IntegrationMemory(BaseMemory):
+    """External service data cached as local memory for semantic retrieval.
+
+    Integration memories are populated by pulling data from third-party services
+    (Gmail, GitHub, Slack, Notion, etc.) and indexing it locally. This enables
+    cross-source semantic retrieval without live API calls.
+    """
+
+    memory_type: Literal[MemoryType.INTEGRATION] = MemoryType.INTEGRATION
+    embedding: list[float] | None = None
+    provider: str = Field(..., description="Integration source identifier (e.g. 'gmail', 'github')")
+    account_key: str = Field(default="", description="Stable account identifier within the provider")
+    account_label: str = Field(default="", description="Human-readable account label")
+    source_type: str = Field(default="", description="Object type within the provider (e.g. 'email', 'pr')")
+    external_object_id: str | None = Field(default=None, description="Provider-side unique object ID")
+    external_object_type: str | None = Field(default=None, description="Provider-side object type label")
+    title: str = Field(default="", description="Human-readable title")
+    summary: str = Field(default="", description="Compact summary for tree aggregation")
+    tags: list[str] = Field(default_factory=list)
+    observed_at: datetime | None = Field(default=None, description="When this data was originally observed")
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    tree_id: str = Field(default="", description="ID of the integration tree this leaf belongs to")
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+
+    @field_validator("observed_at", mode="before")
+    @classmethod
+    def _ensure_observed_utc(cls, v: datetime | None) -> datetime | None:
+        if v is None:
+            return None
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=UTC)
+        return v
+
+
+class TaskDigestMemory(BaseMemory):
+    """Structured artifact summarizing a completed or interrupted long-horizon task session.
+
+    TaskDigestMemory stores the goal, milestones, modified/created artifact paths,
+    execution outcome, and key diagnostic metrics for post-session audit and cross-session resume.
+    """
+
+    content: str = Field(default="", description="Serialized summary or digest content")
+    memory_type: Literal[MemoryType.TASK_DIGEST] = MemoryType.TASK_DIGEST
+    task_goal: str = Field(..., description="Original high-level objective of the task session")
+    status: Literal["completed", "interrupted", "failed"] = Field(
+        default="completed", description="Final execution state of the task"
+    )
+    completed_steps: list[str] = Field(default_factory=list, description="Ordered summary of completed subtasks")
+    artifact_paths: list[str] = Field(default_factory=list, description="Output artifacts or files created/modified")
+    artifact_hashes: dict[str, str] = Field(
+        default_factory=dict, description="Artifact path -> sha256 fingerprint mappings"
+    )
+    key_findings: list[str] = Field(default_factory=list, description="Important discoveries or conclusions")
+    error_lessons: list[str] = Field(default_factory=list, description="Abstracted error avoidance rules")
+    tool_call_count: int = Field(default=0, ge=0, description="Total tool invocations during this task")
+    source_session_id: str = Field(default="", description="Session ID where this task was executed")
+
+    def model_post_init(self, __context: object) -> None:
+        """Ensure content field has informative human-readable text."""
+        if not self.content:
+            steps_preview = "; ".join(self.completed_steps[:3]) if self.completed_steps else "none"
+            self.content = f"Task Goal: {self.task_goal} | Status: {self.status} | Steps: {steps_preview}"
+
+
+# ── Search result & Recall Debug Trace ──────────────────────────────
+
+
+class HitSource(BaseModel):
+    """Source stream attribution and original rank for multi-source recall."""
+
+    source: str = Field(..., description="Name of the retrieval stream/source (e.g. 'vector', 'fts', 'graph')")
+    rank: int = Field(..., ge=0, description="0-indexed rank within that source stream")
+    score: float = Field(default=0.0, description="Original source-specific raw score if available")
+
+
+class RecallDebugTrace(BaseModel):
+    """White-box audit trail for multi-source RRF ranking decisions."""
+
+    hit_sources: list[HitSource] = Field(default_factory=list, description="All sources that retrieved this candidate")
+    hit_count: int = Field(default=0, ge=0, description="Total number of distinct streams that hit this candidate")
+    fused_score: float = Field(default=0.0, description="Composite score before normalization")
+    raw_score: float | None = Field(default=None, description="Underlying raw retrieval score")
+    tie_break_rank: int = Field(
+        default=0, ge=0, description="Rank resolved after deterministic three-tier tie-breaking"
+    )
+
+
+class MemorySearchResult(BaseModel):
+    """Search result with dual-track score honesty (raw similarity vs ranking score).
+
+    ``score`` is aligned with ``ranking_score`` for compatibility.
+    ``raw_score`` (and its alias ``raw_similarity``) retains the underlying physical
+    retrieval relevance (e.g. cosine similarity or BM25) before pipeline reranking.
+    ``ranking_score`` reflects the multi-stage pipeline ranking outcome.
+    """
+
+    memory: (
+        SemanticMemory
+        | EpisodicMemory
+        | ConversationMemory
+        | ProceduralMemory
+        | ClaimMemory
+        | IntegrationMemory
+        | TaskDigestMemory
+    )
+    score: float = Field(default=0.0, description="Normalized relevance score in [0, 1]")
+    raw_score: float | None = Field(
+        default=None, description="Physical cosine/BM25 similarity before multi-stage reranking"
+    )
+    raw_similarity: float | None = Field(
+        default=None, description="Physical cosine/BM25 similarity before multi-stage reranking (alias)"
+    )
+    ranking_score: float | None = Field(default=None, description="Composite ranking score after multi-stage pipeline")
+    score_breakdown: ScoreBreakdown | None = Field(
+        default=None, description="Detailed white-box attribution trace for composite score"
+    )
+    memory_type: MemoryType
+    recall_debug: RecallDebugTrace | None = Field(
+        default=None, description="Detailed white-box attribution trace for multi-source retrieval"
+    )
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def _clamp_score(cls, v: object) -> float:
+        try:
+            value = float(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return 0.0
+        if value != value:  # NaN
+            return 0.0
+        return min(1.0, max(0.0, value))
+
+    @field_validator("raw_score", "raw_similarity", "ranking_score", mode="before")
+    @classmethod
+    def _clamp_optional_score(cls, v: object) -> float | None:
+        if v is None:
+            return None
+        try:
+            value = float(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        if value != value:  # NaN
+            return 0.0
+        return min(1.0, max(0.0, value))
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_dual_track_scores(cls, data: object) -> object:
+        if isinstance(data, dict):
+            # Sync raw_score and raw_similarity
+            raw = data.get("raw_score")
+            raw_sim = data.get("raw_similarity")
+            if raw is None and raw_sim is not None:
+                data["raw_score"] = raw_sim
+            elif raw is not None and raw_sim is None:
+                data["raw_similarity"] = raw
+            elif raw is None and raw_sim is None and "score" in data:
+                # Default raw_score to initial input score if not explicitly set
+                data["raw_score"] = data["score"]
+                data["raw_similarity"] = data["score"]
+
+            # Sync score and ranking_score
+            if data.get("ranking_score") is None and "score" in data:
+                data["ranking_score"] = data["score"]
+        return data
+
+    @property
+    def id(self) -> str:
+        return self.memory.id
+
+    @property
+    def content(self) -> str:
+        return self.memory.content
+
+    @property
+    def trace_id(self) -> str | None:
+        """Execution trace ID associated with this memory."""
+        return getattr(self.memory, "trace_id", None)
+
+
+# ── Pending record ──────────────────────────────────────────────────
+
+
+class PendingRecord(BaseModel):
+    """A memory awaiting user approval or conflict resolution.
+
+    Stores the original memory object as JSON so it can be fully
+    reconstructed on approval without information loss.
+    When ``is_conflict`` is True, the record represents a detected memory
+    contradiction that requires user arbitration before automatic merging.
+    """
+
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    memory_type: MemoryType
+    content: str
+    memory_data: dict[str, object] = Field(
+        default_factory=dict, description="Serialised AnyMemory fields for lossless reconstruction"
+    )
+    source_chat_id: str | None = None
+    source_message_id: str | None = None
+    status: Literal["pending", "approved", "rejected", "resolved"] = "pending"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    resolved_at: datetime | None = None
+
+    is_conflict: bool = False
+    conflict_old_memory_id: str | None = None
+    conflict_old_content: str | None = None
+    conflict_accuracy_score: float | None = None
+    conflict_importance: float | None = None
+    conflict_auto_resolve_at: datetime | None = None
+
+    resolution_action: PendingResolutionAction = PendingResolutionAction.STORE
+    target_memory_id: str | None = None
+    target_content: str | None = Field(
+        default=None,
+        description="Content of the memory targeted by CORRECT/DELETE, captured for review display",
+    )
+
+    @property
+    def confidence(self) -> float | None:
+        """Confidence score of the candidate memory (0.0 to 1.0)."""
+        raw = self.memory_data.get("confidence")
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        return None
+
+    @property
+    def importance(self) -> float | None:
+        """Importance score of the candidate memory (0.0 to 1.0)."""
+        if self.conflict_importance is not None:
+            return self.conflict_importance
+        raw = self.memory_data.get("importance")
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        return None
+
+    @property
+    def kind(self) -> str | None:
+        """Projected category or kind of the candidate memory."""
+        raw = self.memory_data.get("projected_category") or self.memory_data.get("kind")
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return None
+
+    @property
+    def influence_explanation(self) -> str | None:
+        """Reasoning or explanation for why the candidate was extracted."""
+        raw = self.memory_data.get("influence_explanation") or self.memory_data.get("reasoning")
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return None
+
+    @property
+    def expected_valid_days(self) -> int | None:
+        """Estimated validity window in days."""
+        raw = self.memory_data.get("expected_valid_days")
+        if isinstance(raw, int):
+            return raw
+        if isinstance(raw, str) and raw.isdigit():
+            return int(raw)
+        return None
+
+    @property
+    def tags(self) -> list[str]:
+        """Tags attached to the candidate memory."""
+        raw = self.memory_data.get("tags")
+        if isinstance(raw, list):
+            return [str(item) for item in raw if isinstance(item, (str, int))]
+        return []
+
+
+# ── Type aliases ────────────────────────────────────────────────────
+
+AnyMemory = (
+    SemanticMemory | EpisodicMemory | ConversationMemory | ProceduralMemory | IntegrationMemory | TaskDigestMemory
+)
+
+BaseMemory.model_rebuild()
+SemanticMemory.model_rebuild()
+EpisodicMemory.model_rebuild()
+ProceduralMemory.model_rebuild()
+ClaimMemory.model_rebuild()
+IntegrationMemory.model_rebuild()
+TaskDigestMemory.model_rebuild()

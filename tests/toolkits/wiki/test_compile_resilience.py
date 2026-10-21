@@ -1,0 +1,194 @@
+"""Tests for wiki compile resilience (failure policy + circuit pause)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import AsyncMock
+
+import pytest
+
+from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
+from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
+from myrm_agent_harness.toolkits.wiki.pipeline.queue import WikiIngestionQueue
+from myrm_agent_harness.toolkits.wiki.pipeline.resilience import (
+    IO_MISSING,
+    evaluate_batch_pause,
+    is_transient_error_kind,
+    resolve_llm_failure,
+    sanitize_display_message,
+)
+from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
+
+
+@pytest.fixture
+def mock_indexer() -> AsyncMock:
+    indexer = AsyncMock(spec=WikiIndexer)
+    indexer.upsert = AsyncMock()
+    return indexer
+
+
+def test_resolve_a_missing_file_is_classified_as_io_missing() -> None:
+    assert IO_MISSING == "io_missing"
+
+
+def test_resolve_llm_auth_names_the_error_kind() -> None:
+    resolution = resolve_llm_failure(RuntimeError("Error 401 Unauthorized"))
+    assert resolution.error_kind == ErrorKind.AUTH.value
+    assert resolution.retry_after_seconds == 0
+
+
+def test_evaluate_batch_pause_on_auth_cluster() -> None:
+    should_pause, reason, kind = evaluate_batch_pause(
+        success_count=0,
+        failure_kinds=[ErrorKind.AUTH.value, ErrorKind.AUTH.value],
+    )
+    assert should_pause is True
+    assert reason
+    assert kind == ErrorKind.AUTH.value
+
+
+def test_evaluate_batch_pause_on_mixed_auth_and_io() -> None:
+    should_pause, reason, kind = evaluate_batch_pause(
+        success_count=0,
+        failure_kinds=[ErrorKind.AUTH.value, "io_missing"],
+    )
+    assert should_pause is True
+    assert reason
+    assert kind == ErrorKind.AUTH.value
+
+
+def test_evaluate_batch_pause_on_mixed_auth_and_transient() -> None:
+    should_pause, _, kind = evaluate_batch_pause(
+        success_count=0,
+        failure_kinds=[ErrorKind.AUTH.value, ErrorKind.RATE_LIMIT.value],
+    )
+    assert should_pause is True
+    assert kind == ErrorKind.AUTH.value
+
+
+def test_evaluate_batch_pause_skips_when_success() -> None:
+    should_pause, _, _ = evaluate_batch_pause(success_count=1, failure_kinds=[ErrorKind.AUTH.value])
+    assert should_pause is False
+
+
+def test_is_transient_error_kind() -> None:
+    assert is_transient_error_kind(ErrorKind.RATE_LIMIT.value) is True
+    assert is_transient_error_kind(ErrorKind.AUTH.value) is False
+
+
+def test_sanitize_display_message_redacts_api_key() -> None:
+    cleaned = sanitize_display_message("Invalid key sk-abcdefghijklmnopqrstuvwxyz123456")
+    assert "abcdefghijklmnopqrstuvwxyz123456" not in cleaned
+    assert "[REDACTED:high_entropy_token]" in cleaned
+
+
+def test_queue_mark_failed_stores_error_kind(tmp_path: Path) -> None:
+    from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+
+    structure = WikiStructure(tmp_path / "wiki")
+    structure.ensure_structure()
+    queue = WikiIngestionQueue(structure)
+    queue.add_item("/tmp/example.md")
+    item = queue.get_pending_items()[0]
+    queue.mark_failed(item["id"], "401 Unauthorized", error_kind=ErrorKind.AUTH.value)
+    failed = queue.get_failed_items(limit=1)[0]
+    assert failed["error_kind"] == ErrorKind.AUTH.value
+
+
+def test_queue_pause_and_resume(tmp_path: Path) -> None:
+    from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+
+    structure = WikiStructure(tmp_path / "wiki")
+    structure.ensure_structure()
+    queue = WikiIngestionQueue(structure)
+    assert queue.is_compile_paused() is False
+    queue.pause_compile("API auth failed", ErrorKind.AUTH.value)
+    snapshot = queue.get_compile_run()
+    assert snapshot.state == "paused"
+    assert snapshot.primary_error_kind == ErrorKind.AUTH.value
+    queue.resume_compile()
+    assert queue.get_compile_run().state == "running"
+
+
+@pytest.mark.asyncio
+async def test_worker_pauses_on_auth_batch(tmp_path: Path, mock_indexer: AsyncMock) -> None:
+    from unittest.mock import patch
+
+    from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+
+    structure = WikiStructure(tmp_path / "wiki")
+    structure.ensure_structure()
+    raw = structure.raw_dir / "doc.md"
+    raw.write_text("# Title\n\nBody", encoding="utf-8")
+
+    failing_llm = AsyncMock()
+    failing_llm.ainvoke.side_effect = RuntimeError("401 Unauthorized")
+
+    compiler = WikiCompiler(failing_llm, structure, WikiConfig(parallel_compilation=False), indexer=mock_indexer)
+    compiler._queue.add_item(raw)
+
+    with patch("asyncio.sleep", new=AsyncMock()):
+        await compiler._worker_loop()
+
+    assert compiler.get_compile_run().state == "paused"
+
+
+@pytest.mark.asyncio
+async def test_an_auth_failure_does_not_pause_a_batch_that_read_another_source(
+    tmp_path: Path, mock_indexer: AsyncMock
+) -> None:
+    from langchain_core.messages import AIMessage
+
+    from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+
+    structure = WikiStructure(tmp_path / "wiki")
+    structure.ensure_structure()
+    (structure.raw_dir / "good.md").write_text("good text", encoding="utf-8")
+    (structure.raw_dir / "bad.md").write_text("bad text", encoding="utf-8")
+
+    async def answer(messages: list[object]) -> AIMessage:
+        prompt = str(getattr(messages[-1], "content", ""))
+        if "# Document Content:" not in prompt:
+            return AIMessage(content="## Compiled Truth\nArticle.")
+        if "bad text" in prompt:
+            raise RuntimeError("401 Unauthorized")
+        return AIMessage(content='[{"name": "Good", "definition": "d"}]')
+
+    llm = AsyncMock()
+    llm.ainvoke.side_effect = answer
+    compiler = WikiCompiler(llm, structure, WikiConfig(parallel_compilation=False), indexer=mock_indexer)
+
+    await compiler.compile_all()
+
+    assert compiler.get_compile_run().state == "running"
+    with compiler._queue._get_conn() as conn:
+        rows = {
+            Path(r["file_path"]).name: (r["status"], r["error_kind"])
+            for r in conn.execute("SELECT * FROM ingestion_queue")
+        }
+    assert rows == {"good.md": ("completed", None), "bad.md": ("failed", ErrorKind.AUTH.value)}
+
+
+@pytest.mark.asyncio
+async def test_compile_all_skips_drain_when_paused(tmp_path: Path, mock_indexer: AsyncMock) -> None:
+    from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+
+    structure = WikiStructure(tmp_path / "wiki")
+    structure.ensure_structure()
+    raw = structure.raw_dir / "doc.md"
+    raw.write_text("# Title\n\nBody", encoding="utf-8")
+
+    llm = AsyncMock()
+    llm.ainvoke.return_value = type("Resp", (), {"content": "[]"})()
+
+    compiler = WikiCompiler(llm, structure, WikiConfig(), indexer=mock_indexer)
+    compiler._queue.add_item(raw)
+    compiler._queue.pause_compile("API auth failed", ErrorKind.AUTH.value)
+
+    result = await compiler.compile_all(batch_size=5)
+
+    assert result.concepts_count == 0
+    assert result.articles_generated == 0
+    llm.ainvoke.assert_not_called()
+    assert compiler.get_compile_run().state == "paused"

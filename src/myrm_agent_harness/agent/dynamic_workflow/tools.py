@@ -1,0 +1,782 @@
+"""DW PTC tools — SpawnSubagentTool and NotifyProgressTool for Dynamic Workflows.
+
+[INPUT]
+- base_agent::BaseAgent (POS: Parent agent with _spawn_child capability)
+- agent.sub_agents.orchestrator::run_with_verification (POS: Adversarial worker+verifier retry loop)
+- agent.sub_agents.verifier_selection::resolve_verifier (POS: Verifier choice shared with the delegate path; refuses a verifier that cannot run commands)
+- agent.sub_agents.spawn_prep (POS: Shared spawn prep SSOT with delegate path)
+- core.security.path::coerce_filesystem_path (POS: Runtime path coercion for workspace journal sidecar)
+- dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache)
+- dynamic_workflow.spawn_cache::SpawnCacheParams (POS: Cache fingerprint)
+- agent.skills.mcp.progress_payload::build_workflow_stage_event (POS: Shared notify field SSOT)
+- sub_agents.types::SubagentCatalog, SubagentConfig, SubAgentResult (POS: Agent configuration, workspace isolation, and structured spawn result SSOT)
+- utils.runtime.cancellation::CancellationToken
+
+[OUTPUT]
+- SpawnSubagentTool: PTC tool exposed as myrm_tools.spawn_subagent
+- NotifyProgressTool: PTC tool exposed as myrm_tools.notify — emits workflow stage events to the frontend
+- HumanAskTool: PTC tool exposed as myrm_tools.human_ask — suspends workflow for mid-run user input / decision
+- SteerChildTool: PTC tool exposed as myrm_tools.steer_child — dynamically injects corrective message into a running/warmed child subagent
+- WorkflowRunGuard: Per-workflow spawn counter, concurrency semaphore, parallel writer tracking
+
+[POS]
+Bridges the PTC Python script to the Harness delegate path. spawn_subagent() uses
+parent_agent._spawn_child() or run_with_verification() when verification_mode is
+adversarial. Shares spawn prep with delegate_task_tool via spawn_prep.py.
+WorkflowEventStore provides L2 persistent caching beyond the delegate's 60s TTL.
+NotifyProgressTool provides real-time workflow stage notifications from PTC scripts.
+HumanAskTool provides mid-run human-in-the-loop gate via PhaseWaiter.
+SteerChildTool provides runtime steering and redirection into child subagents.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections.abc import Awaitable, Callable
+from enum import StrEnum
+from typing import TYPE_CHECKING, Literal, cast
+
+from langchain_core.tools import BaseTool
+from pydantic import BaseModel, ConfigDict, Field
+
+from myrm_agent_harness.agent.dynamic_workflow.spawn_cache import SpawnCacheParams
+from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
+from myrm_agent_harness.agent.skills.mcp.progress_payload import (
+    build_workflow_stage_event,
+    normalize_dw_message,
+)
+from myrm_agent_harness.agent.sub_agents.spawn_prep import (
+    apply_readonly_to_config,
+    apply_spawn_workspace_isolation,
+    build_child_context_from_parent_agent,
+    coerce_spawn_readonly,
+    enforce_spawn_policy_on_config,
+    memory_isolation_scope,
+    merge_candidate_from_spawn_dict,
+    sanitize_spawn_result_for_store,
+)
+from myrm_agent_harness.agent.sub_agents.types import SubagentCatalog, SubAgentResult
+from myrm_agent_harness.core.security.path import coerce_filesystem_path
+from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.base_agent import BaseAgent
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_MAX_SPAWN_PER_WORKFLOW = 50
+DEFAULT_MAX_CONCURRENT_SPAWNS = 5
+
+
+class DwVerificationMode(StrEnum):
+    NONE = "none"
+    ADVERSARIAL = "adversarial"
+    AUDITOR_BLIND = "auditor_blind"
+    MULTI_SKEPTIC = "multi_skeptic"
+
+
+class WorkflowRunGuard:
+    """Hard cap on total spawns, concurrent in-flight sub-agents, and merge result collection."""
+
+    __slots__ = (
+        "_max_concurrent",
+        "_max_spawns",
+        "_merge_results",
+        "_semaphore",
+        "_spawn_count",
+    )
+
+    def __init__(
+        self,
+        *,
+        max_spawns: int = DEFAULT_MAX_SPAWN_PER_WORKFLOW,
+        max_concurrent: int = DEFAULT_MAX_CONCURRENT_SPAWNS,
+    ) -> None:
+        self._max_spawns = max_spawns
+        self._max_concurrent = max_concurrent
+        self._spawn_count = 0
+        self._merge_results: list[dict[str, object]] = []
+        self._semaphore = asyncio.Semaphore(max_concurrent)
+
+    @property
+    def spawn_count(self) -> int:
+        return self._spawn_count
+
+    @property
+    def merge_results(self) -> list[dict[str, object]]:
+        return list(self._merge_results)
+
+    async def acquire_spawn_slot(self, *, readonly: bool = False) -> str | None:
+        if self._spawn_count >= self._max_spawns:
+            return f"Workflow spawn limit reached ({self._max_spawns}). Reduce parallel tasks or split the workflow."
+        self._spawn_count += 1
+        await self._semaphore.acquire()
+        return None
+
+    def release_spawn_slot(self, *, readonly: bool = False) -> None:
+        self._semaphore.release()
+
+    def record_merge_candidate(self, result: dict[str, object]) -> None:
+        if not merge_candidate_from_spawn_dict(result):
+            return
+        task_id = result.get("task_id")
+        if isinstance(task_id, str):
+            for existing in self._merge_results:
+                if existing.get("task_id") == task_id:
+                    return
+        self._merge_results.append(result)
+
+
+def _normalize_spawn_result(result: object, *, task_id: str, agent_type: str) -> dict[str, object]:
+    if isinstance(result, dict):
+        return result
+
+    if isinstance(result, SubAgentResult):
+        return result.to_dict()
+
+    status_val = getattr(result, "status", None)
+    return {
+        "success": getattr(result, "success", False),
+        "task_id": getattr(result, "task_id", task_id),
+        "agent_type": getattr(result, "agent_type", agent_type),
+        "result": getattr(result, "result", None),
+        "error": getattr(result, "error", None),
+        "status": (
+            status_val.value
+            if status_val is not None and hasattr(status_val, "value")
+            else str(status_val or "unknown")
+        ),
+    }
+
+
+class SpawnSubagentInput(BaseModel):
+    task_id: str = Field(..., description="Unique identifier for this sub-agent task.")
+    agent_type: str = Field(
+        default="generalPurpose",
+        description="Type of agent to spawn (e.g., 'generalPurpose', 'shell').",
+    )
+    task_description: str = Field(..., description="The prompt/task for the sub-agent to execute.")
+    readonly: bool = Field(
+        default=False,
+        description="If true: no file writes, no bash, no MCP tools unless marked read-only. For analysis-only tasks.",
+    )
+    verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = Field(
+        default="none",
+        description='Verification: "none" (default), "adversarial" (standard retry loop), "auditor_blind" (omits worker narrative to eliminate confirmation bias), or "multi_skeptic" (parallel multi-verifier voting).',
+    )
+    verifier_agent_type: str | None = Field(
+        default=None,
+        description="Optional verifier agent type when verification_mode is adversarial.",
+    )
+    max_verification_rounds: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        description="Max adversarial verification rounds (1-5).",
+    )
+    complexity_tier: str | None = Field(
+        default=None,
+        description="Optional model tier hint ('simple', 'standard', 'reasoning').",
+    )
+
+
+class SpawnSubagentTool(BaseTool):
+    """PTC tool that spawns sub-agents through the parent agent's delegate path."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    name: str = "spawn_subagent"
+    description: str = "Spawn a sub-agent to execute a task. This tool blocks until the sub-agent completes."
+    args_schema: type[BaseModel] = SpawnSubagentInput
+
+    parent_agent: object
+    tool_registry_getter: Callable[[], list[object]]
+    workflow_id: str
+    catalog: object | None = None
+    store: WorkflowEventStore | None = None
+    cancel_token: object | None = None
+    event_queue: asyncio.Queue[dict[str, object]] | None = None
+    message_id: str = ""
+    run_guard: WorkflowRunGuard | None = None
+
+    async def _emit_spawn_stage(
+        self,
+        message: str,
+        *,
+        level: str = "info",
+        category: str = "subagent",
+    ) -> None:
+        if self.event_queue is None or not self.message_id:
+            return
+        event = build_workflow_stage_event(
+            self.message_id,
+            message,
+            level=level,
+            category=category,
+        )
+        await self.event_queue.put(event)
+
+    def _run(
+        self,
+        task_id: str,
+        agent_type: str,
+        task_description: str,
+        readonly: bool = False,
+        verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = "none",
+        verifier_agent_type: str | None = None,
+        max_verification_rounds: int = 2,
+        complexity_tier: str | None = None,
+    ) -> object:
+        raise NotImplementedError("SpawnSubagentTool only supports async execution.")
+
+    async def _arun(
+        self,
+        task_id: str,
+        agent_type: str = "generalPurpose",
+        task_description: str = "",
+        readonly: bool = False,
+        verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = "none",
+        verifier_agent_type: str | None = None,
+        max_verification_rounds: int = 2,
+        complexity_tier: str | None = None,
+    ) -> object:
+        if self.cancel_token and getattr(self.cancel_token, "is_cancelled", False):
+            return {
+                "success": False,
+                "task_id": task_id,
+                "agent_type": agent_type,
+                "result": None,
+                "error": "Workflow cancelled by user.",
+            }
+
+        readonly = coerce_spawn_readonly(self.parent_agent, readonly)
+
+        cache_params = SpawnCacheParams(
+            agent_type=agent_type,
+            task_description=task_description,
+            readonly=readonly,
+            verification_mode=verification_mode,
+            verifier_agent_type=verifier_agent_type,
+            max_verification_rounds=max_verification_rounds,
+            complexity_tier=complexity_tier,
+        )
+
+        if self.store:
+            cached = self.store.get_cached_result(
+                self.workflow_id,
+                task_id,
+                expected=cache_params,
+            )
+            if cached and cached.get("workspace_merge_status") == "pending":
+                logger.info(
+                    "DW cache miss (pending merge): workflow=%s task=%s",
+                    self.workflow_id,
+                    task_id,
+                )
+                cached = None
+            if cached:
+                logger.info("DW cache hit: workflow=%s task=%s", self.workflow_id, task_id)
+                await self._emit_spawn_stage(f"Using cached result for sub-agent `{task_id}`.")
+                if self.run_guard is not None and cached.get("workspace_merge_status") != "merged":
+                    self.run_guard.record_merge_candidate(cached)
+                return cached
+
+        guard_error: str | None = None
+        if self.run_guard is not None:
+            guard_error = await self.run_guard.acquire_spawn_slot(readonly=readonly)
+        if guard_error:
+            await self._emit_spawn_stage(
+                f"Sub-agent `{task_id}` blocked: {guard_error}",
+                level="warn",
+            )
+            return {
+                "success": False,
+                "task_id": task_id,
+                "agent_type": agent_type,
+                "result": None,
+                "error": guard_error,
+            }
+
+        from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
+
+        config = None
+        if self.catalog:
+            config = await cast("SubagentCatalog", self.catalog).resolve(agent_type)
+        if not config:
+            parent_resolver = getattr(self.parent_agent, "model_resolver", None)
+            config = SubagentConfig(
+                system_prompt="You are a sub-agent executing a specific task within a Dynamic Workflow.",
+                max_spawn_depth=0,
+                concurrency_limit=10,
+                max_cost_usd=2.0,
+                budget_tokens=200_000,
+                model_resolver=parent_resolver,
+            )
+
+        verifier_fallback = config
+        config = apply_readonly_to_config(config, readonly)
+        config = enforce_spawn_policy_on_config(config)
+
+        # DW non-readonly spawns always use ISOLATED_COPY; batch_merge runs after PTC execution.
+        parallel_batch = not readonly and self.run_guard is not None
+        child_context = build_child_context_from_parent_agent(self.parent_agent)
+        workspace_prep = apply_spawn_workspace_isolation(
+            config=config,
+            child_context=child_context,
+            readonly=readonly,
+            parallel_write_batch=parallel_batch,
+        )
+        config = workspace_prep.config
+        child_context = workspace_prep.child_context
+
+        use_verification = verification_mode in {
+            DwVerificationMode.ADVERSARIAL.value,
+            DwVerificationMode.AUDITOR_BLIND.value,
+            DwVerificationMode.MULTI_SKEPTIC.value,
+        }
+        stage_label = (
+            f"Spawning sub-agent `{task_id}` ({agent_type}) with {verification_mode} verification..."
+            if use_verification
+            else f"Spawning sub-agent `{task_id}` ({agent_type})..."
+        )
+        await self._emit_spawn_stage(stage_label)
+
+        try:
+            try:
+                with memory_isolation_scope(parent_agent=self.parent_agent, config=config):
+                    if use_verification:
+                        if not hasattr(self.parent_agent, "_subagent_manager"):
+                            logger.warning(
+                                "DW verification unavailable (no SubagentManager); falling back to direct spawn"
+                            )
+                            await self._emit_spawn_stage(
+                                f"Sub-agent `{task_id}`: verification unavailable, using direct spawn.",
+                                level="warn",
+                            )
+                            result = await cast("BaseAgent", self.parent_agent)._spawn_child(
+                                task_id=task_id,
+                                agent_type=agent_type,
+                                task_description=task_description,
+                                config=config,
+                                context=child_context,
+                                tool_registry_getter=cast(
+                                    "Callable[[], list[BaseTool]]",
+                                    self.tool_registry_getter,
+                                ),
+                                wait=True,
+                                cancel_token=cast("CancellationToken | None", self.cancel_token),
+                                complexity_tier=complexity_tier,
+                            )
+                        else:
+                            manager = getattr(self.parent_agent, "_subagent_manager", None)
+                            if manager is None:
+                                raise ValueError("Parent agent missing _subagent_manager")
+                            from myrm_agent_harness.agent.sub_agents.orchestrator import (
+                                run_with_verification,
+                            )
+                            from myrm_agent_harness.agent.sub_agents.verifier_selection import resolve_verifier
+
+                            registry_getter = cast("Callable[[], list[BaseTool]]", self.tool_registry_getter)
+                            v_type, verifier_config = await resolve_verifier(
+                                cast("SubagentCatalog | None", self.catalog),
+                                verifier_agent_type,
+                                agent_type,
+                                verifier_fallback,
+                                registry_getter(),
+                            )
+
+                            v_mode_param: Literal["adversarial", "auditor_blind", "multi_skeptic"] = (
+                                "auditor_blind"
+                                if verification_mode == DwVerificationMode.AUDITOR_BLIND.value
+                                else (
+                                    "multi_skeptic"
+                                    if verification_mode == DwVerificationMode.MULTI_SKEPTIC.value
+                                    else "adversarial"
+                                )
+                            )
+
+                            result = await run_with_verification(
+                                manager=manager,
+                                worker_type=agent_type,
+                                worker_config=config,
+                                worker_task=task_description,
+                                verifier_type=v_type,
+                                verifier_config=verifier_config,
+                                context=child_context,
+                                tool_registry_getter=registry_getter,
+                                max_rounds=max_verification_rounds,
+                                cancel_token=cast("CancellationToken | None", self.cancel_token),
+                                task_id=task_id,
+                                verification_mode=v_mode_param,
+                                complexity_tier=complexity_tier,
+                            )
+                    else:
+                        result = await cast("BaseAgent", self.parent_agent)._spawn_child(
+                            task_id=task_id,
+                            agent_type=agent_type,
+                            task_description=task_description,
+                            config=config,
+                            context=child_context,
+                            tool_registry_getter=cast(
+                                "Callable[[], list[BaseTool]]",
+                                self.tool_registry_getter,
+                            ),
+                            wait=True,
+                            cancel_token=cast("CancellationToken | None", self.cancel_token),
+                            complexity_tier=complexity_tier,
+                        )
+            except Exception as e:
+                logger.error("DW spawn failed: task=%s error=%s", task_id, e)
+                await self._emit_spawn_stage(
+                    f"Sub-agent `{task_id}` failed: {type(e).__name__}: {e}",
+                    level="warn",
+                )
+                return {
+                    "success": False,
+                    "task_id": task_id,
+                    "agent_type": agent_type,
+                    "result": None,
+                    "error": f"{type(e).__name__}: {e}",
+                }
+        finally:
+            if self.run_guard is not None:
+                self.run_guard.release_spawn_slot(readonly=readonly)
+
+        final_result = _normalize_spawn_result(result, task_id=task_id, agent_type=agent_type)
+
+        if self.run_guard is not None:
+            self.run_guard.record_merge_candidate(final_result)
+
+        if self.store:
+            stored_result = sanitize_spawn_result_for_store(final_result)
+            self.store.save_result(
+                workflow_id=self.workflow_id,
+                task_id=task_id,
+                agent_type=agent_type,
+                task_description=task_description,
+                result=stored_result,
+                spawn_params=cache_params,
+            )
+            # Sidecar journal mirror (best-effort workspace snapshot)
+            ws_root = None
+            if self.parent_agent:
+                parent_ctx = getattr(self.parent_agent, "context", None)
+                if parent_ctx is not None:
+                    raw_ws = getattr(parent_ctx, "workspace_dir", None)
+                    ws_root = coerce_filesystem_path(raw_ws)
+            if ws_root is not None:
+                journal_file = ws_root / ".myrm" / ".workflow-journal.jsonl"
+                self.store.append_journal_entry(
+                    journal_file,
+                    workflow_id=self.workflow_id,
+                    task_id=task_id,
+                    agent_type=agent_type,
+                    task_description=task_description,
+                    result=stored_result,
+                    spawn_params=cache_params,
+                )
+
+        if final_result.get("success"):
+            await self._emit_spawn_stage(f"Sub-agent `{task_id}` completed.")
+        else:
+            error_text = final_result.get("error") or "unknown error"
+            await self._emit_spawn_stage(
+                f"Sub-agent `{task_id}` failed: {error_text}",
+                level="warn",
+            )
+
+        return final_result
+
+
+# ---------------------------------------------------------------------------
+# NotifyProgressTool — real-time workflow stage notifications from PTC scripts
+# ---------------------------------------------------------------------------
+
+
+class NotifyProgressInput(BaseModel):
+    message: str = Field(..., description="Status message to display to the user.")
+    progress: int = Field(
+        default=-1,
+        description="Progress percentage (0-100). Use -1 for indeterminate.",
+    )
+    step_index: int = Field(
+        default=0,
+        description="Current step number (1-based). 0 if not applicable.",
+    )
+    total_steps: int = Field(
+        default=0,
+        description="Total number of steps. 0 if not applicable.",
+    )
+    category: str = Field(
+        default="",
+        description="Stage/phase label (e.g. 'data_collection', 'analysis'). Groups related notifications.",
+    )
+    level: str = Field(
+        default="info",
+        description="Notification level: 'info' (normal), 'warn' (attention), or 'alert' (critical).",
+    )
+
+
+class NotifyProgressTool(BaseTool):
+    """PTC tool that emits real-time workflow stage progress events to the frontend SSE stream."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    name: str = "notify"
+    description: str = (
+        "Report workflow stage progress to the user interface. "
+        "Call this at the start of each major phase to show real-time progress."
+    )
+    args_schema: type[BaseModel] = NotifyProgressInput
+
+    event_queue: asyncio.Queue[dict[str, object]]
+    message_id: str = ""
+
+    def _run(
+        self,
+        message: str,
+        progress: int = -1,
+        step_index: int = 0,
+        total_steps: int = 0,
+        category: str = "",
+        level: str = "info",
+    ) -> object:
+        raise NotImplementedError("NotifyProgressTool only supports async execution.")
+
+    async def _arun(
+        self,
+        message: str,
+        progress: int = -1,
+        step_index: int = 0,
+        total_steps: int = 0,
+        category: str = "",
+        level: str = "info",
+    ) -> object:
+        event = build_workflow_stage_event(
+            self.message_id,
+            message,
+            progress=progress,
+            step_index=step_index,
+            total_steps=total_steps,
+            category=category,
+            level=level,
+        )
+        await self.event_queue.put(event)
+        display_message = normalize_dw_message(message)
+        return {"success": True, "message": display_message}
+
+
+class HumanAskInput(BaseModel):
+    """Input schema for myrm_tools.human_ask mid-run human-in-the-loop gate."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    question: str = Field(
+        ...,
+        description="The question or decision prompt to present to the user.",
+    )
+    options: list[str] = Field(
+        default_factory=list,
+        description="Optional list of discrete options for multiple-choice decisions (e.g. ['continue', 'abort']).",
+    )
+    timeout_seconds: int = Field(
+        default=300,
+        description="Timeout in seconds to wait for user input (default 300s). Falls back to default_action on timeout.",
+    )
+    default_action: str = Field(
+        default="",
+        description="Fallback answer or action if user response times out.",
+    )
+
+
+AskGateCallable = Callable[[str, list[str], int, str], Awaitable[str | None]]
+
+
+class HumanAskTool(BaseTool):
+    """PTC tool that suspends the Dynamic Workflow execution and requests mid-run user input via PhaseWaiter."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    name: str = "human_ask"
+    description: str = (
+        "Ask the user a question or present a critical decision during Dynamic Workflow execution. "
+        "Suspends workflow execution until the user responds or timeout elapses."
+    )
+    args_schema: type[BaseModel] = HumanAskInput
+
+    event_queue: asyncio.Queue[dict[str, object]]
+    message_id: str = ""
+    ask_gate_callable: AskGateCallable | None = None
+    cancel_token: CancellationToken | None = None
+
+    def _run(
+        self,
+        question: str,
+        options: list[str] | None = None,
+        timeout_seconds: int = 300,
+        default_action: str = "",
+    ) -> object:
+        raise NotImplementedError("HumanAskTool only supports async execution.")
+
+    async def _arun(
+        self,
+        question: str,
+        options: list[str] | None = None,
+        timeout_seconds: int = 300,
+        default_action: str = "",
+    ) -> dict[str, object]:
+        if self.cancel_token and self.cancel_token.is_cancelled:
+            return {
+                "success": False,
+                "answer": default_action or None,
+                "error": "Workflow cancelled by user before human_ask",
+                "timed_out": False,
+            }
+
+        opts = options or []
+        timeout_sec = max(5, min(timeout_seconds, 1800))
+
+        # 1. Emit human_gate status event to frontend SSE
+        gate_event: dict[str, object] = {
+            "type": "status",
+            "messageId": self.message_id,
+            "data": {
+                "phase": "human_gate",
+                "status": "waiting",
+                "question": question,
+                "options": opts,
+                "timeout_seconds": timeout_sec,
+                "default_action": default_action,
+                "source": "dynamic_workflow",
+            },
+        }
+        await self.event_queue.put(gate_event)
+
+        # 2. Invoke server-provided approval gate (PhaseWaiter bridge)
+        answer: str | None = None
+        timed_out = False
+        error_msg = ""
+
+        try:
+            if self.ask_gate_callable is not None:
+                answer = await self.ask_gate_callable(question, opts, timeout_sec, default_action)
+            else:
+                # Direct fallback when gate callable is not injected (e.g. unattended tests)
+                logger.info(
+                    "HumanAskTool has no server ask_gate_callable; using default_action='%s'",
+                    default_action,
+                )
+                answer = default_action or (opts[0] if opts else "continue")
+        except TimeoutError:
+            timed_out = True
+            answer = default_action
+            error_msg = f"User response timed out after {timeout_sec}s; applied default: '{default_action}'"
+            logger.warning(
+                "HumanAskTool timed out: message_id=%s, applied default='%s'",
+                self.message_id,
+                default_action,
+            )
+        except Exception as exc:
+            error_msg = f"human_ask failed: {exc}"
+            logger.error("HumanAskTool error: %s", exc, exc_info=True)
+
+        # 3. Emit resolved status event to frontend SSE
+        resolved_event: dict[str, object] = {
+            "type": "status",
+            "messageId": self.message_id,
+            "data": {
+                "phase": "human_gate",
+                "status": "resolved",
+                "answer": answer,
+                "timed_out": timed_out,
+                "source": "dynamic_workflow",
+            },
+        }
+        await self.event_queue.put(resolved_event)
+
+        return {
+            "success": error_msg == "",
+            "answer": answer,
+            "error": error_msg,
+            "timed_out": timed_out,
+        }
+
+
+# ---------------------------------------------------------------------------
+# SteerChildTool — dynamically inject corrective messages into child subagents
+# ---------------------------------------------------------------------------
+
+
+class SteerChildInput(BaseModel):
+    """Input schema for myrm_tools.steer_child mid-run subagent steering."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    task_id: str = Field(
+        ...,
+        description="The unique task_id of the target sub-agent to steer.",
+    )
+    message: str = Field(
+        ...,
+        description="Corrective or follow-up instruction message injected into the sub-agent's next turn.",
+        max_length=4000,
+    )
+    config_overlay: dict[str, object] | None = Field(
+        default=None,
+        description="Optional Continual configuration overrides (timeout_seconds, retry_attempts, verification_mode, etc.) applied in-flight.",
+    )
+
+
+class SteerChildTool(BaseTool):
+    """PTC tool that injects steering messages into a child subagent."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    name: str = "steer_child"
+    description: str = (
+        "Inject a corrective or follow-up instruction into a running or active child sub-agent. "
+        "Allows dynamic redirection in multi-stage workflows without cold-respawning."
+    )
+    args_schema: type[BaseModel] = SteerChildInput
+
+    parent_agent: object
+
+    def _run(
+        self,
+        task_id: str,
+        message: str,
+        config_overlay: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        if not hasattr(self.parent_agent, "steer_child"):
+            return {
+                "success": False,
+                "task_id": task_id,
+                "error": "Parent agent does not support steer_child.",
+            }
+        try:
+            if config_overlay is not None:
+                steered = self.parent_agent.steer_child(task_id, message, config_overlay=config_overlay)
+            else:
+                steered = self.parent_agent.steer_child(task_id, message)
+        except TypeError:
+            steered = self.parent_agent.steer_child(task_id, message)
+        if steered:
+            return {
+                "success": True,
+                "task_id": task_id,
+                "message": f"Steering message successfully queued for sub-agent `{task_id}`.",
+            }
+        return {
+            "success": False,
+            "task_id": task_id,
+            "error": f"Could not steer `{task_id}`: sub-agent not found or already completed.",
+        }
+
+    async def _arun(
+        self,
+        task_id: str,
+        message: str,
+        config_overlay: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        return self._run(task_id=task_id, message=message, config_overlay=config_overlay)

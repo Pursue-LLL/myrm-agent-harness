@@ -1,0 +1,269 @@
+"""Streaming event types and enums — framework-agnostic.
+
+Provides AgentEventType (all event enums) and AgentStreamEvent (typed wrapper).
+Usable by both agent/ and toolkits/ without coupling to the agent runtime.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Any
+
+
+@dataclass
+class AgentStreamEvent:
+    """Strongly typed wrapper for agent stream events.
+
+    Supports arbitrary extra fields via ``extra_data`` for backward compatibility
+    with diverse SSE dictionary shapes.
+    """
+
+    type: AgentEventType | str
+    data: Any = None
+    messageId: str | None = None  # noqa: N815  frontend SSE camelCase contract
+    error: str | None = None
+    error_type: str | None = None
+    compression_exhausted: bool | None = None
+    extra_data: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> AgentStreamEvent:
+        """Create an event from a raw dictionary, preserving all extra fields."""
+        known_keys = {
+            "type",
+            "data",
+            "messageId",
+            "error",
+            "error_type",
+            "compression_exhausted",
+            "extra_data",
+        }
+        event = cls(
+            type=raw.get("type", "unknown"),
+            data=raw.get("data"),
+            messageId=raw.get("messageId"),
+            error=raw.get("error"),
+            error_type=raw.get("error_type"),
+            compression_exhausted=raw.get("compression_exhausted"),
+        )
+        for k, v in raw.items():
+            if k not in known_keys:
+                event.extra_data[k] = v
+        return event
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Backward compatibility for dict.get()"""
+        if hasattr(self, key):
+            return getattr(self, key)
+        return self.extra_data.get(key, default)
+
+    def __getitem__(self, item: str) -> Any:
+        """Backward compatibility for dict subscripting"""
+        if hasattr(self, item):
+            return getattr(self, item)
+        if item in self.extra_data:
+            return self.extra_data[item]
+        raise KeyError(item)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to raw dictionary for final SSE serialization."""
+        d: dict[str, Any] = {"type": (self.type.value if isinstance(self.type, AgentEventType) else self.type)}
+        if self.data is not None:
+            d["data"] = self.data
+        if self.messageId is not None:
+            d["messageId"] = self.messageId
+        if self.error is not None:
+            d["error"] = self.error
+        if self.error_type is not None:
+            d["error_type"] = self.error_type
+        if self.compression_exhausted is not None:
+            d["compression_exhausted"] = self.compression_exhausted
+
+        if self.extra_data:
+            d.update(self.extra_data)
+
+        return d
+
+
+class AgentEventType(StrEnum):
+    """Agent event types for streaming responses."""
+
+    TASKS_STEPS = "tasks_steps"
+    TOOL_HEARTBEAT = "tool_heartbeat"
+    SOURCES = "sources"
+    MESSAGE = "message"
+    MESSAGE_END = "message_end"
+    ERROR = "error"
+    CANCELLED = "cancelled"
+    ARTIFACTS = "artifacts"
+    ARTIFACTS_READY = "artifacts_ready"
+    ARTIFACT_FOCUS = "artifact_focus"
+    UI_UPDATE = "ui_update"
+    TOOL_START = "tool_start"
+    TOOL_END = "tool_end"
+    TOOL_FAILURE = "tool_failure"
+    TOOL_STDOUT_CHUNK = "tool_stdout_chunk"
+    TOOL_EVICTED_REF = "tool_evicted_ref"
+    TOOL_CANCELLED = "tool_cancelled"
+    TOOL_TIMEOUT = "tool_timeout"
+    TOOL_RETRY = "tool_retry"
+    TOOL_TOKEN_USAGE = "tool_token_usage"
+    ARTIFACT_CONTENT = "artifact_content"
+    TOKEN_USAGE = "token_usage"
+    REASONING = "reasoning"
+    STEERING = "steering"
+    REDIRECTED = "redirected"
+    TOOL_APPROVAL_REQUEST = "tool_approval_request"
+    STATUS = "status"
+    TOOLS_SNAPSHOT = "tools_snapshot"
+    ASYNC_WAKEUP = "async_wakeup"
+    PRIVACY_LEVEL = "privacy_level"
+    PRIVACY_ROUTE = "privacy_route"
+    SUBAGENT_START = "subagent_start"
+    SUBAGENT_PROGRESS = "subagent_progress"
+    SUBAGENT_LOG = "subagent_log"
+    BASH_COMMAND_EXECUTED = "bash_command_executed"
+    SUBAGENT_STALE = "subagent_stale"
+    SUBAGENT_COMPLETION = "subagent_completion"
+    CONTEXT_SNAPSHOT = "context_snapshot"
+    ITERATION_LIMIT_REACHED = "iteration_limit_reached"
+    APPROVAL_REQUIRED = "approval_required"
+    CLARIFICATION_REQUIRED = "clarification_required"
+    GOAL_STATUS = "goal_status"
+    ENGINE_LIMIT_REACHED = "engine_limit_reached"
+    FILE_DIFF = "file_diff"
+    CAPTCHA_DETECTED = "captcha_detected"
+    CAPTCHA_RESOLVED = "captcha_resolved"
+    CAPTCHA_TIMEOUT = "captcha_timeout"
+    MODEL_ESCALATED = "model_escalated"
+    WORKSPACE_MERGE_FAILED = "workspace_merge_failed"
+    FILE_MUTATION_FAILED = "file_mutation_failed"
+    TOOL_IMAGE_OUTPUT = "tool_image_output"
+    BROWSER_VIEW_UPDATE = "browser_view_update"
+    DESKTOP_VIEW_UPDATE = "desktop_view_update"
+    DESKTOP_CONTROL_APPROVAL_REQUEST = "desktop_control_approval_request"
+    DESKTOP_ENVELOPE_PROGRESS = "desktop_envelope_progress"
+    PTC_NOTIFY = "ptc_notify"
+    LOCATOR_SELF_HEALED = "locator_self_healed"
+    BROWSER_TAKEOVER_REQUESTED = "browser_takeover_requested"
+    BROWSER_TAKEOVER_COMPLETED = "browser_takeover_completed"
+    VERIFICATION_VERDICT = "verification_verdict"
+    COUNCIL_PHASE = "council_phase"
+    CAPABILITY_GAP = "capability_gap"
+    SKILL_GAP = "skill_gap"
+    PHASE_TRANSITION = "phase_transition"
+    WORKING_MEMORY = "working_memory"
+    CUSTOM = "custom"
+    CUSTOM_MESSAGE = "custom_message"
+    ASYNC_USER_MESSAGE = "async_user_message"
+
+
+class ExecutionPhase(StrEnum):
+    """The 3 macro stages in the production agent lifecycle."""
+
+    PLANNING = "planning"  # Phase 1: Request understanding & planning (Nodes 1-11)
+    EXECUTING = "executing"  # Phase 2: Tool execution & collaboration (Nodes 12-25)
+    VERIFYING = "verifying"  # Phase 3: Verification & delivery (Nodes 26-30)
+    COMPLETED = "completed"
+
+
+class ExecutionLane(StrEnum):
+    """The 6 active lanes in the multi-lane orchestration model."""
+
+    USER = "user"  # User / HITL approval
+    AGENT = "agent"  # Agent core workflow & steering
+    SKILLS = "skills"  # Agent skills & prompt templates
+    LLM = "llm"  # Deep inference & model reasoning
+    MCP = "mcp"  # Model Context Protocol external servers
+    SANDBOX = "sandbox"  # Sandbox code execution & filesystem tools
+
+
+@dataclass(frozen=True)
+class PhaseTransitionPayload:
+    """Standardized event payload for phase_transition streaming events."""
+
+    phase: str
+    phase_index: int
+    active_lane: str
+    node_id: int
+    node_label: str
+    duration_ms: int = 0
+
+    def to_dict(self) -> dict[str, str | int]:
+        return {
+            "phase": self.phase,
+            "phase_index": self.phase_index,
+            "active_lane": self.active_lane,
+            "node_id": self.node_id,
+            "node_label": self.node_label,
+            "duration_ms": self.duration_ms,
+        }
+
+
+@dataclass
+class ContextBudgetSnapshot:
+    """Lightweight snapshot of context window usage for frontend visualization.
+
+    Uses actual prompt_tokens from the LLM provider (more accurate than estimation).
+    health_status mirrors ContextHealthStatus from context_management but avoids
+    coupling to the full ContextBudget infrastructure.
+
+    Optional breakdown fields (messages / tool schemas / system / memory / rules / MCP / skills)
+    help the GUI explain why the context ring is high according to the AgentLens 6-bucket model.
+    """
+
+    current_tokens: int
+    max_context_tokens: int
+    usage_percent: float
+    health_status: str  # "healthy" | "warning" | "critical"
+    messages_estimated_tokens: int | None = None
+    bound_tools_overhead_tokens: int | None = None
+    other_tokens: int | None = None
+    turn_count: int | None = None
+    # AgentLens 6-category breakdown (SSOT)
+    system_prompt_tokens: int | None = None
+    memory_tokens: int | None = None
+    workspace_rules_tokens: int | None = None
+    mcp_tools_tokens: int | None = None
+    skills_tools_tokens: int | None = None
+    builtin_tools_tokens: int | None = None
+
+    def to_dict(self) -> dict[str, int | float | str]:
+        payload: dict[str, int | float | str] = {
+            "current_tokens": self.current_tokens,
+            "max_context_tokens": self.max_context_tokens,
+            "usage_percent": round(self.usage_percent, 1),
+            "health_status": self.health_status,
+        }
+        if self.messages_estimated_tokens is not None:
+            payload["messages_estimated_tokens"] = self.messages_estimated_tokens
+        if self.bound_tools_overhead_tokens is not None:
+            payload["bound_tools_overhead_tokens"] = self.bound_tools_overhead_tokens
+        if self.other_tokens is not None:
+            payload["other_tokens"] = self.other_tokens
+        if self.turn_count is not None:
+            payload["turn_count"] = self.turn_count
+        if self.system_prompt_tokens is not None:
+            payload["system_prompt_tokens"] = self.system_prompt_tokens
+        if self.memory_tokens is not None:
+            payload["memory_tokens"] = self.memory_tokens
+        if self.workspace_rules_tokens is not None:
+            payload["workspace_rules_tokens"] = self.workspace_rules_tokens
+        if self.mcp_tools_tokens is not None:
+            payload["mcp_tools_tokens"] = self.mcp_tools_tokens
+        if self.skills_tools_tokens is not None:
+            payload["skills_tools_tokens"] = self.skills_tools_tokens
+        if self.builtin_tools_tokens is not None:
+            payload["builtin_tools_tokens"] = self.builtin_tools_tokens
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class AsyncUserMessageEventData:
+    """Strongly typed payload for AgentEventType.ASYNC_USER_MESSAGE."""
+
+    message: str
+    category: str = "progress"
+    recommendation: str | None = None
+    call_id: str = ""

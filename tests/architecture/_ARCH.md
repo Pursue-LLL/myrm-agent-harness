@@ -1,0 +1,83 @@
+# tests/architecture/ 模块架构
+
+## 架构概述
+
+CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool registry 一致性。
+
+## 文件清单
+
+| 文件 | 地位 | 职责 | I/O/P |
+| --- | --- | --- | --- |
+| `test_toolkits_agent_boundary.py` | Gate | AST：`toolkits/` 禁止 import `myrm_agent_harness.agent` | — |
+| `test_no_out_of_repo_imports.py` | Gate | AST：禁止 module-level 把仓库外路径注入 `sys.path` 后再 import（含检测器自证 sample，防退化为 no-op） | — |
+| `test_sub_agents_types_boundary.py` | Gate | `sub_agents/types.py` 禁止依赖 `agent.meta_tools.*`，并锁定 `hitl_tool_policy` canonical SSOT 导入 | — |
+| `test_toolkits_test_mirror.py` | Gate | `tests/toolkits/<name>/` 须镜像 `src/.../toolkits/<name>/` 且含 `test_*.py` | — |
+| `test_backends_agent_boundary.py` | Gate | AST：`backends/` 禁止 module-level import `myrm_agent_harness.agent` | — |
+| `test_no_src_test_support.py` | Gate | `src/myrm_agent_harness/test_support/` 目录不得存在 | — |
+| `test_toolkits_vendor_boundary.py` | Gate | `toolkits/` 禁止 top-level vendor 包名 / vendor 前缀模块名 | — |
+| `test_artifact_vault_path_boundary.py` | Gate | harness `src/` 禁止 `.myrm/vault` 等品牌 vault 路径字面量 | — |
+| `test_harness_boundary.py` | Gate | harness 禁止 import 业务层（server/control-plane） | — |
+| `test_wheel_browser_assets.py` | Gate | wheel 须含 `browser/assets/ad_domains.txt`（≥3500 域） | — |
+| `test_package_root_flat_layout.py` | Gate | 包根禁止平铺实现模块；`tests/` 根禁止散落测试模块；`runtime/install_guard/` 子包 layout 与 legacy 文件名回归 |
+| `test_distribution_packaging.py` | Gate | 分发打包管线不变量（wheel build/install；`slow` 标记项在 CI `distribution-packaging-slow` job） | — |
+| `test_distribution_wheel_artifact.py` | Gate | release/core wheel zip + `finalize_stripped_release_wheel` strip+verify | — |
+| `distribution_wheel_helpers.py` | 辅助 | architecture 测试用最小合法 wheel zip 构造 | — |
+| `test_distribution_manifest_gate.py` | Gate | 算法区新增模块须 manifest 或 `@distribution-public` | — |
+| `test_distribution_codegen.py` | Gate | manifest codegen 新鲜度 + core IP import 可加载 | — |
+| `test_distribution_module.py` | Gate | install_guard probe/platform/verify 单元覆盖（≥90%） | — |
+| `test_no_legacy_distribution_imports.py` | Gate | 禁止 Python 源码 reintroduce `myrm_agent_harness.distribution` import | — |
+| `test_outbound_model_calls.py` | Gate | AST：`src/` 内直接调用 litellm 对话接口（`litellm.acompletion` 等）的文件必须登记并写明其文本不含用户对话的理由；`toolkits/llms/`（出站隐私闸所在的 ChatLiteLLM）除外；自带检测器正反例与过期登记检查 | — |
+| `test_public_api.py` | Gate | 公开 API 边界 smoke | — |
+| `test_arch_no_placeholder.py` | Gate | `_ARCH.md` 禁止「见源码」等占位语 | — |
+| `test_no_temp_docs_links.py` | Gate | tracked markdown 禁止链到 dev-shell `temp-docs/` | — |
+| `test_no_star_imports.py` | Gate | 禁止 star import | — |
+| `test_no_delta_channel.py` | Gate | AST：harness `src/` 不得使用 `DeltaChannel`（检查点历史剪枝会让其丢失状态；含检测器正反例自证） | — |
+| `test_event_bus_naming_boundary.py` | Gate | 禁止 stale `EventBus` import（pubsub/broadcast rename 回归） | — |
+| `test_manager_shared_barrel.py` | Gate | manager 共享 barrel 约束 | — |
+| `test_tool_registry.py` | Gate | tool registry 与 `_TOOL_LAYERS` 一致 | — |
+| `test_tool_registry_exemptions.py` | Gate | `LAYER_EXEMPT_TOOLS` 带到期日：未到期豁免才隐藏未挂载工具，过期后工具重新报缺；对应工具已删除或已登记的豁免按过期条目报错（合成 `ScanReport`，不扫源码） | — |
+| `test_mcp_routing_two_outcomes.py` | Gate | MCP 路由仅 direct/PTC 两结局；禁止 catalog_invoke 模块回归 | — |
+| `test_openapi_fail_loud_gate.py` | Gate | OpenAPI enabled 但 0 tools 须 fail-loud（`openapi_load_failed`）；预算 guard 回归 | — |
+| `test_skill_tool_boundary.py` | Gate | `skill_search_tool` ↔ `skill_market_tool` description 互指 + `<BoundSkills>` 运行时 XML 不回归（单元/集成覆盖） | — |
+| `test_boundary_config.py` | Gate | boundary 配置完整性 | — |
+| `test_boundary_autofix.py` | Gate | boundary `--fix` 行为 | — |
+| `test_verify_release_tag.py` | Gate | release tag 与 `project.version` 对齐 | — |
+| `test_verify_pypi_publish.py` | Gate | PyPI 发布后索引校验 | — |
+| `test_validate_pypi_wheels.py` | Gate | wheel 产物数量/版本 + zip 内容 artifact 校验 | — |
+| `test_check_fractal_docs.py` | Gate | 分形 `_ARCH.md` + strict IOP 头（`fractal_header_baseline.txt`）+ api/ 无 stub | — |
+| `test_file_line_limit.py` | Gate | 单文件行数 baseline grandfather（新文件≤500；legacy 登记只许瘦） | — |
+| `test_mixin_mro.py` | Gate | BrowserSession / ChatLiteLLM / SubagentExecutor / BashExecutor mixin MRO 顺序锁 | — |
+| `test_executor_reexport.py` | Gate | `sub_agents/executor.py` `__all__` 聚合 re-export 完整性 | — |
+| `test_bash_executor_reexport.py` | Gate | `meta_tools/bash/bash_executor.py` `__all__` 聚合 re-export 完整性 | — |
+| `test_bash_code_execute_tool_reexport.py` | Gate | `meta_tools/bash/bash_code_execute_tool.py` `__all__` 聚合 re-export 完整性 | — |
+| `test_bash_native_ptc_removed.py` | Gate | bash 路径禁止 Turn1 native PTC stub（`_ptc_tools_ref` / `inject_ptc_for_python_execution` / `get_ptc_description`） | — |
+| `test_no_ghost_registry_metadata.py` | Gate | `tool_registry.py` metadata maps 不得含无 @tool 源的幽灵键 | — |
+| `test_types_reexport.py` | Gate | `backends/skills/types/` `__all__` 聚合 re-export 完整性 | — |
+| `test_validate_arch_inventory.py` | Gate | `_ARCH.md` 文件表 vs 同级 `.py` 一致性（table-only 解析）；含 agent/ 与全 harness subprocess gate、单测与跨仓 server md-refs gate | — |
+| `test_md_ref_inline_links.py` | Gate | md 反引号 span 与内联链接统一解析回归（链接提取·anchor 剥离、裸文件名链接、`{placeholder}` 符号行跳过、导入规格表首列源文件锚定、TS/JS 扩展名探测、拒绝截断父级标记、非 UTF-8 跳过） | — |
+| `test_readme_claims.py` | Gate | README 声明与实际代码/性能基准一致性校验 | — |
+| `test_md_python_imports.py` | Gate | tracked md 的 python 围栏只解析不执行，其中 `myrm_agent_harness` 的 import 经 `scripts/import_resolvability_engine` 静态解析（模块与名称须存在）；含 harness import 却无法解析的围栏同样判错；自带缺失模块/缺失名称/不可解析围栏的检测器自证，防退化为 no-op；只校验 import，不校验调用签名 | — |
+| `test_core_dependencies.py` | Gate | core vs optional/dev 分层：4 项 optional-only 包不得回 core；uv.lock core 与 pyproject 严格对齐；uv.lock 只解析自 PyPI 本身（registry 与下载主机），镜像源生成的 lock 被拒（失配或被拒时运行 `UV_DEFAULT_INDEX=https://pypi.org/simple uv lock`） | — |
+| `test_orchestration_registry_parity.py` | Gate | `tool_registry_config` 与 orchestration SSOT 对齐（hook / signal 命名回归） | — |
+| `test_ruff_security_rules.py` | Gate | ruff S（security/bandit）规则保持激活，误报抑制不回归 | — |
+| `test_skill_analyze_tool_removed.py` | Gate | `skill_analyze` Agent tool 包不得存在（Curator GUI 为 SSOT） | — |
+| `test_ssrf_single_source.py` | Gate | SSRF 校验仅允许位于 `core/security/guards`，禁止散落 | — |
+| `test_tool_catalog_product_id.py` | Gate | `tool_catalog` product_id 须派生自已有 group SSOT | — |
+| `test_tool_layer_boundary.py` | Gate | harness 与 external tool 层 SSOT 边界 | — |
+| `test_tool_prompt_placement.py` | Gate | harness tool invoke 规则须留在 tool schema | — |
+| `test_component_snapshot_bounded_diff.py` | Gate | 4 大核心组件快照与有界差分门禁（Prompt Cache 前缀稳定性） | — |
+| `test_no_web_corpus_regression.py` | Gate | 已移除的 `web_corpus` / `corpus=web` 不得回归（静态守卫） | — |
+| `test_tool_env_dependency_correlation.py` | Gate | Tool 宿主环境依赖双向映射与探针健康门禁 | — |
+| `test_pytest_warning_gate.py` | Gate | Pytest 零告警容忍（Zero-Warning / filterwarnings = error）CI 门禁 | — |
+| `test_toolkits_llms_media_layout.py` | Gate | LLM 媒体理解归属 `toolkits/llms/`，禁止顶层平铺 | — |
+| `test_prompt_token_budget_gate.py` | Gate | Turn-1 默认工具集与系统提示词 Token 预算上限与压缩比 CI 门禁 | — |
+
+## 运行
+
+```bash
+pytest tests/architecture/ -m "architecture and not slow"
+pytest tests/architecture/test_distribution_packaging.py -m "architecture and slow"
+uv run python scripts/check_fractal_docs.py
+uv run python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
+uv run python scripts/check_file_line_limit.py
+```

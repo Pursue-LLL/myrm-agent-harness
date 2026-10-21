@@ -1,0 +1,145 @@
+"""Untrusted Ingress Fence — runtime tool privilege stripping for external inbound messages.
+
+When an Agent session processes untrusted external messages (e.g., A2A tasks from
+external peers, webhook triggers, public bot mentions), this fence denies high-privilege
+destructive tools (arbitrary execution, file mutation, persistent-memory mutation,
+desktop control and screen capture, subagent escalation, cron backdoors, and
+skill manipulation) at tool-call time, restricting the Agent to read-only exploration
+and safe operations. Memory mutations are fenced independently of how a host scopes the
+memory namespaces: a persisted instruction steers every later turn that reads that
+namespace, and memory_manage_tool resolves ids across the whole bound namespace chain
+(including shared contexts) and applies delete/update without a pending review.
+
+[INPUT]
+- Tool names or tool instances from ToolRegistry / Agent runtime
+- External ingress activation flag
+
+[OUTPUT]
+- is_untrusted_ingress_active(): ContextVar check
+- set_untrusted_ingress() / reset_untrusted_ingress(): ContextVar mutators
+- untrusted_ingress_scope(): Scoped mutator that marks everything run or spawned inside it, then restores the prior state
+- is_tool_allowed_under_untrusted_ingress(): Single tool authorization check
+- filter_untrusted_ingress_tools(): Tool list filtering for LLM tool binding
+
+[POS]
+Layer 2 runtime security guard. Sits between Inbound Task Ingress and Agent Tool Registry.
+Enforces physical least-privilege tool stripping to prevent prompt-injection attacks
+from executing arbitrary system commands, destroying user workspace source code, or
+rewriting the owner's long-term memory.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+
+from myrm_agent_harness.core.security.tool_registry.registry import resolve_permission_type
+
+logger = logging.getLogger(__name__)
+
+# Tools strictly disallowed when handling untrusted external inputs.
+# These tools possess destructive host privileges (arbitrary shell, file mutation) or mutate
+# long-term memory (save a new entry, update/delete/correct an existing one).
+DISALLOWED_UNTRUSTED_TOOLS: frozenset[str] = frozenset(
+    {
+        "bash_code_execute_tool",
+        "shell_exec",
+        "file_write_tool",
+        "file_edit_tool",
+        "memory_save_tool",
+        "memory_manage_tool",
+    }
+)
+
+# High-risk abstract permission types strictly disallowed under untrusted ingress.
+# Automatically blocks code execution, file mutation, desktop capture and control,
+# subagent escalation, cron backdoors, and dynamic skill manipulation.
+DISALLOWED_UNTRUSTED_PERMISSIONS: frozenset[str] = frozenset(
+    {
+        "code_interpreter",
+        "file_write",
+        "desktop_control",
+        "desktop_capture",
+        "spawn_subagent",
+        "invoke_external_agent",
+        "cron_manage",
+        "skill_manage",
+    }
+)
+
+_untrusted_ingress_var: ContextVar[bool] = ContextVar("untrusted_ingress_active", default=False)
+
+
+def is_untrusted_ingress_active() -> bool:
+    """Check if the current async execution context is marked as untrusted ingress."""
+    return _untrusted_ingress_var.get()
+
+
+def set_untrusted_ingress(active: bool = True) -> None:
+    """Set the untrusted ingress status for the current async execution context."""
+    _untrusted_ingress_var.set(active)
+    if active:
+        logger.warning("[INGRESS_FENCE] Untrusted ingress context activated. Destructive tools stripped.")
+
+
+def reset_untrusted_ingress() -> None:
+    """Reset the untrusted ingress status for the current async execution context."""
+    _untrusted_ingress_var.set(False)
+
+
+@contextmanager
+def untrusted_ingress_scope() -> Iterator[None]:
+    """Mark everything run or spawned inside the block as untrusted ingress, then restore the prior state.
+
+    Hosts that fan work out from a long-lived context (a message router's consume loop) need the
+    restore: asyncio tasks copy the context when created, so tasks spawned inside the block stay fenced
+    while the loop itself, and every later message it handles, is unaffected.
+    """
+    token = _untrusted_ingress_var.set(True)
+    try:
+        yield
+    finally:
+        _untrusted_ingress_var.reset(token)
+
+
+def is_tool_allowed_under_untrusted_ingress(tool_name: str) -> bool:
+    """Check whether a specific tool is permitted under an untrusted ingress session.
+
+    Blocks if the tool name is in DISALLOWED_UNTRUSTED_TOOLS or if its resolved
+    abstract permission type is in DISALLOWED_UNTRUSTED_PERMISSIONS.
+    """
+    clean_name = tool_name.strip().lower()
+    if clean_name in DISALLOWED_UNTRUSTED_TOOLS:
+        return False
+
+    perm_type = resolve_permission_type(clean_name)
+    return perm_type not in DISALLOWED_UNTRUSTED_PERMISSIONS
+
+
+def filter_untrusted_ingress_tools(tool_names: Iterable[str]) -> list[str]:
+    """Filter an iterable of tool names, stripping destructive privileges if untrusted.
+
+    If untrusted ingress is NOT active, returns all tool names unchanged.
+    If untrusted ingress IS active, filters out any tool present in DISALLOWED_UNTRUSTED_TOOLS.
+    """
+    if not is_untrusted_ingress_active():
+        return list(tool_names)
+
+    allowed: list[str] = []
+    stripped: list[str] = []
+    for name in tool_names:
+        if is_tool_allowed_under_untrusted_ingress(name):
+            allowed.append(name)
+        else:
+            stripped.append(name)
+
+    if stripped:
+        logger.info(
+            "[INGRESS_FENCE] Stripped %d high-privilege tools: %s",
+            len(stripped),
+            ", ".join(stripped),
+        )
+
+    return allowed

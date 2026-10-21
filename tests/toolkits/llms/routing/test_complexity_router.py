@@ -1,0 +1,838 @@
+"""Tests for ComplexityRouter — 3-tier task routing engine.
+
+Covers:
+- Phase 1 rule-based classification (keywords, structural, contextual signals)
+- Unified scoring with weighted keywords
+- Session momentum (MR-17)
+- Content dedup (MR-18)
+- Min-tier floor enforcement and dedup bypass
+- Model selection per tier with graceful degradation
+- LLM judge (Phase 2) with caching
+- Empty/multimodal query handling
+"""
+
+from __future__ import annotations
+
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from myrm_agent_harness.core.config.llm import LLMConfig
+from myrm_agent_harness.toolkits.llms.routing.complexity_router import (
+    DEFAULT_REASONING_KEYWORDS,
+    DEFAULT_SIMPLE_INDICATORS,
+    DEFAULT_STANDARD_KEYWORDS,
+    RoutingResult,
+    RoutingTier,
+    _apply_momentum,
+    _compute_unified_score,
+    _dedup_cache,
+    _dedup_check,
+    _dedup_store,
+    _has_code_content,
+    _has_math_content,
+    _is_simple_greeting,
+    _judge_cache,
+    _normalize_query,
+    _rule_based_classify,
+    _score_contextual_signals,
+    _score_structural_signals,
+    _select_model_for_tier,
+    _word_count,
+    route_task,
+)
+
+_DUMMY_KEY = "sk-test-key-for-routing"
+
+
+def _cfg(model: str) -> LLMConfig:
+    return LLMConfig(model=model, api_key=_DUMMY_KEY)
+
+
+STD_CFG = _cfg("gpt-4o")
+LIGHT_CFG = _cfg("gpt-4o-mini")
+REASON_CFG = _cfg("o1-preview")
+STD_FALLBACK = _cfg("claude-3-sonnet")
+LIGHT_FALLBACK = _cfg("claude-3-haiku")
+REASON_FALLBACK = _cfg("claude-3-opus")
+
+
+@pytest.fixture(autouse=True)
+def _clear_caches():
+    _judge_cache.clear()
+    _dedup_cache.clear()
+    yield
+    _judge_cache.clear()
+    _dedup_cache.clear()
+
+
+# ─── Helper utilities ───────────────────────────────────────────────
+
+
+class TestNormalizeQuery:
+    def test_string_input(self) -> None:
+        text, has_image = _normalize_query("hello world")
+        assert text == "hello world"
+        assert has_image is False
+
+    def test_multimodal_with_image(self) -> None:
+        query = [
+            {"type": "text", "text": "describe this"},
+            {"type": "image_url", "url": "https://example.com/img.png"},
+        ]
+        text, has_image = _normalize_query(query)
+        assert "describe this" in text
+        assert has_image is True
+
+    def test_multimodal_text_only(self) -> None:
+        query = [{"type": "text", "text": "just text"}]
+        text, has_image = _normalize_query(query)
+        assert text == "just text"
+        assert has_image is False
+
+    def test_multimodal_with_video(self) -> None:
+        query = [
+            {"type": "text", "text": "analyze this clip"},
+            {"type": "video_url", "video_url": {"url": "https://example.com/clip.mp4"}},
+        ]
+        text, has_image = _normalize_query(query)
+        assert "analyze this clip" in text
+        assert has_image is True
+
+
+class TestWordCount:
+    def test_english_words(self) -> None:
+        assert _word_count("hello world") == 2
+
+    def test_chinese_chars(self) -> None:
+        assert _word_count("你好世界") == 4
+
+    def test_mixed(self) -> None:
+        count = _word_count("hello 你好 world 世界")
+        assert count == 6
+
+
+class TestCodeDetection:
+    def test_code_block(self) -> None:
+        assert _has_code_content("```python\nprint('hi')\n```") is True
+
+    def test_inline_code(self) -> None:
+        assert _has_code_content("use `pip install`") is True
+
+    def test_no_code(self) -> None:
+        assert _has_code_content("just plain text") is False
+
+
+class TestMathDetection:
+    def test_latex_formula(self) -> None:
+        assert _has_math_content(r"\frac{a}{b}") is True
+
+    def test_latex_block(self) -> None:
+        assert _has_math_content("$$E = mc^2$$") is True
+
+    def test_no_math(self) -> None:
+        assert _has_math_content("plain text no math") is False
+
+
+class TestSimpleGreeting:
+    def test_exact_greeting(self) -> None:
+        assert _is_simple_greeting("hello", DEFAULT_SIMPLE_INDICATORS) is True
+
+    def test_greeting_with_punctuation(self) -> None:
+        assert _is_simple_greeting("你好！", DEFAULT_SIMPLE_INDICATORS) is True
+
+    def test_not_greeting(self) -> None:
+        assert _is_simple_greeting("implement a feature", DEFAULT_SIMPLE_INDICATORS) is False
+
+
+# ─── Structural & Contextual signals ────────────────────────────────
+
+
+class TestStructuralSignals:
+    def test_urls_scored(self) -> None:
+        scores = _score_structural_signals("check https://example.com and https://test.org")
+        assert scores.get("urls", 0) > 0
+
+    def test_file_paths_scored(self) -> None:
+        scores = _score_structural_signals("edit /src/main.py and utils.ts")
+        assert scores.get("file_paths", 0) > 0
+
+    def test_no_signals(self) -> None:
+        scores = _score_structural_signals("plain text")
+        assert len(scores) == 0
+
+
+class TestContextualSignals:
+    def test_image_input(self) -> None:
+        scores = _score_contextual_signals("describe", has_image=True, word_count=1)
+        assert scores.get("image_input", 0) == 6.0
+
+    def test_long_input(self) -> None:
+        scores = _score_contextual_signals("word " * 60, has_image=False, word_count=60)
+        assert scores.get("long_input", 0) > 0
+
+    def test_repetition_request(self) -> None:
+        scores = _score_contextual_signals("give me 5 variations", has_image=False, word_count=5)
+        assert scores.get("repetition_request", 0) > 0
+
+
+# ─── Unified Scoring ────────────────────────────────────────────────
+
+
+class TestUnifiedScoring:
+    def test_greeting_scores_simple_high(self) -> None:
+        scores = _compute_unified_score(
+            "hello", False, DEFAULT_STANDARD_KEYWORDS, DEFAULT_REASONING_KEYWORDS, DEFAULT_SIMPLE_INDICATORS
+        )
+        assert scores[RoutingTier.SIMPLE] > scores[RoutingTier.STANDARD]
+        assert scores[RoutingTier.SIMPLE] > scores[RoutingTier.REASONING]
+
+    def test_debug_keyword_scores_standard(self) -> None:
+        scores = _compute_unified_score(
+            "debug this function",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert scores[RoutingTier.STANDARD] > 0
+
+    def test_proof_keyword_scores_reasoning(self) -> None:
+        scores = _compute_unified_score(
+            "prove this theorem step by step",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert scores[RoutingTier.REASONING] > 0
+
+    def test_code_content_boosts_standard(self) -> None:
+        scores = _compute_unified_score(
+            "fix ```python\ndef foo(): pass\n```",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert scores[RoutingTier.STANDARD] >= 2.0
+
+    def test_short_message_boosts_simple(self) -> None:
+        scores = _compute_unified_score(
+            "ok", False, DEFAULT_STANDARD_KEYWORDS, DEFAULT_REASONING_KEYWORDS, DEFAULT_SIMPLE_INDICATORS
+        )
+        assert scores[RoutingTier.SIMPLE] > 0
+
+    def test_image_boosts_standard(self) -> None:
+        scores = _compute_unified_score(
+            "describe this", True, DEFAULT_STANDARD_KEYWORDS, DEFAULT_REASONING_KEYWORDS, DEFAULT_SIMPLE_INDICATORS
+        )
+        assert scores[RoutingTier.STANDARD] >= 6.0
+
+
+# ─── Rule-based Classification ──────────────────────────────────────
+
+
+class TestRuleBasedClassify:
+    def test_greeting_classified_simple(self) -> None:
+        result = _rule_based_classify(
+            "hello", False, DEFAULT_STANDARD_KEYWORDS, DEFAULT_REASONING_KEYWORDS, DEFAULT_SIMPLE_INDICATORS
+        )
+        assert result == RoutingTier.SIMPLE
+
+    def test_debug_classified_standard(self) -> None:
+        result = _rule_based_classify(
+            "debug this authentication error",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert result == RoutingTier.STANDARD
+
+    def test_proof_classified_reasoning(self) -> None:
+        result = _rule_based_classify(
+            "prove the theorem and derive the equation step by step",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
+        )
+        assert result == RoutingTier.REASONING
+
+    def test_ambiguous_returns_none(self) -> None:
+        result = _rule_based_classify(
+            "tell me about cats",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
+        )
+        # May return None (ambiguous) or SIMPLE depending on length
+        assert result is None or result in RoutingTier
+
+
+# ─── Model Selection ────────────────────────────────────────────────
+
+
+class TestModelSelection:
+    def test_simple_uses_light(self) -> None:
+        cfg, fb = _select_model_for_tier(
+            RoutingTier.SIMPLE, STD_CFG, LIGHT_CFG, REASON_CFG, STD_FALLBACK, LIGHT_FALLBACK, REASON_FALLBACK
+        )
+        assert cfg.model == "gpt-4o-mini"
+        assert fb is not None and fb.model == "claude-3-haiku"
+
+    def test_standard_uses_standard(self) -> None:
+        cfg, fb = _select_model_for_tier(
+            RoutingTier.STANDARD, STD_CFG, LIGHT_CFG, REASON_CFG, STD_FALLBACK, LIGHT_FALLBACK, REASON_FALLBACK
+        )
+        assert cfg.model == "gpt-4o"
+        assert fb is not None and fb.model == "claude-3-sonnet"
+
+    def test_reasoning_uses_reasoning(self) -> None:
+        cfg, fb = _select_model_for_tier(
+            RoutingTier.REASONING, STD_CFG, LIGHT_CFG, REASON_CFG, STD_FALLBACK, LIGHT_FALLBACK, REASON_FALLBACK
+        )
+        assert cfg.model == "o1-preview"
+        assert fb is not None and fb.model == "claude-3-opus"
+
+    def test_graceful_degradation_no_light(self) -> None:
+        cfg, _fb = _select_model_for_tier(
+            RoutingTier.SIMPLE, STD_CFG, None, REASON_CFG, STD_FALLBACK, None, REASON_FALLBACK
+        )
+        assert cfg.model == "gpt-4o"
+
+    def test_graceful_degradation_no_reasoning(self) -> None:
+        cfg, _fb = _select_model_for_tier(
+            RoutingTier.REASONING, STD_CFG, LIGHT_CFG, None, STD_FALLBACK, LIGHT_FALLBACK, None
+        )
+        assert cfg.model == "gpt-4o"
+
+
+# ─── Session Momentum ───────────────────────────────────────────────
+
+
+class TestMomentum:
+    def test_no_history_no_change(self) -> None:
+        tier, overridden = _apply_momentum(RoutingTier.SIMPLE, "hi", None)
+        assert tier == RoutingTier.SIMPLE
+        assert overridden is False
+
+    def test_short_msg_with_reasoning_history_upgrades(self) -> None:
+        recent = [RoutingTier.REASONING] * 5
+        tier, _overridden = _apply_momentum(RoutingTier.SIMPLE, "ok", recent)
+        assert tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
+
+    def test_long_msg_no_momentum(self) -> None:
+        recent = [RoutingTier.REASONING] * 5
+        long_msg = "x" * 200
+        tier, overridden = _apply_momentum(RoutingTier.SIMPLE, long_msg, recent)
+        assert tier == RoutingTier.SIMPLE
+        assert overridden is False
+
+    def test_empty_history_no_change(self) -> None:
+        tier, overridden = _apply_momentum(RoutingTier.STANDARD, "test", [])
+        assert tier == RoutingTier.STANDARD
+        assert overridden is False
+
+    def test_image_query_not_downgraded_to_simple(self) -> None:
+        """Image queries must never be dragged to the light SIMPLE tier by a
+        text-only conversation history (vision floor, MR-17)."""
+        recent = [RoutingTier.SIMPLE] * 5
+        tier, overridden = _apply_momentum(RoutingTier.STANDARD, "这是什么", recent, has_image=True)
+        assert tier == RoutingTier.STANDARD
+        assert overridden is False
+
+    def test_image_query_can_upgrade(self) -> None:
+        """Image queries keep momentum upgrades: a reasoning-heavy history may
+        still pull the tier up (REASONING is vision-contract, unlike SIMPLE)."""
+        recent = [RoutingTier.REASONING] * 5
+        tier, overridden = _apply_momentum(RoutingTier.STANDARD, "ok", recent, has_image=True)
+        assert tier == RoutingTier.REASONING
+        assert overridden is True
+
+    def test_text_query_still_downgrades(self) -> None:
+        """Regression guard: text-only queries keep the legacy downgrade
+        behavior (momentum must still prevent over-routing)."""
+        recent = [RoutingTier.SIMPLE] * 5
+        tier, overridden = _apply_momentum(RoutingTier.STANDARD, "ok", recent)
+        assert tier == RoutingTier.SIMPLE
+        assert overridden is True
+
+
+# ─── Content Dedup ───────────────────────────────────────────────────
+
+
+class TestContentDedup:
+    def test_dedup_miss(self) -> None:
+        assert _dedup_check("unique query", False) is None
+
+    def test_dedup_hit(self) -> None:
+        _dedup_store("cached query", False, RoutingTier.STANDARD)
+        assert _dedup_check("cached query", False) == RoutingTier.STANDARD
+
+    def test_dedup_different_text(self) -> None:
+        _dedup_store("query A", False, RoutingTier.SIMPLE)
+        assert _dedup_check("query B", False) is None
+
+    def test_dedup_image_flag_scoped(self) -> None:
+        """Image presence is part of the cache key — a text-only verdict must
+        never satisfy an image query (image tasks need vision-capable models)."""
+        _dedup_store("describe this", False, RoutingTier.SIMPLE)
+        assert _dedup_check("describe this", True) is None
+        assert _dedup_check("describe this", False) == RoutingTier.SIMPLE
+
+
+# ─── route_task integration ──────────────────────────────────────────
+
+
+class TestRouteTask:
+    @pytest.mark.asyncio
+    async def test_greeting_routes_to_simple(self) -> None:
+        result = await route_task("hello", STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.SIMPLE
+        assert result.model_cfg.model == "gpt-4o-mini"
+        assert result.reason in ("rule_based", "content_dedup")
+
+    @pytest.mark.asyncio
+    async def test_debug_routes_to_standard(self) -> None:
+        result = await route_task("debug this authentication error in production", STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.STANDARD
+        assert result.model_cfg.model == "gpt-4o"
+
+    @pytest.mark.asyncio
+    async def test_proof_routes_to_reasoning(self) -> None:
+        result = await route_task(
+            "prove the theorem and derive the equation step by step",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+        )
+        assert result.tier == RoutingTier.REASONING
+        assert result.model_cfg.model == "o1-preview"
+
+    @pytest.mark.asyncio
+    async def test_empty_query_defaults_standard(self) -> None:
+        result = await route_task("", STD_CFG)
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "empty_query"
+
+    @pytest.mark.asyncio
+    async def test_multimodal_with_image(self) -> None:
+        query = [
+            {"type": "text", "text": "describe this"},
+            {"type": "image_url", "url": "https://example.com/img.png"},
+        ]
+        result = await route_task(query, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.STANDARD
+
+    @pytest.mark.asyncio
+    async def test_fallback_models_returned(self) -> None:
+        result = await route_task(
+            "debug this error",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            standard_fallback_cfg=STD_FALLBACK,
+        )
+        assert result.fallback_model_cfg is not None
+        assert result.fallback_model_cfg.model == "claude-3-sonnet"
+
+    @pytest.mark.asyncio
+    async def test_no_light_model_degrades_to_standard(self) -> None:
+        result = await route_task("hello", STD_CFG)
+        assert result.tier == RoutingTier.SIMPLE
+        assert result.model_cfg.model == "gpt-4o"
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_called_for_ambiguous(self) -> None:
+        mock_response = MagicMock()
+        mock_response.content = '{"tier":"STANDARD"}'
+        judge_llm = AsyncMock()
+        judge_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await route_task(
+            "tell me about interesting things in the world of technology",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+        )
+        assert judge_llm.ainvoke.call_count == 1
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "llm_judge"
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_applies_momentum(self) -> None:
+        """A short ambiguous follow-up judged SIMPLE must be lifted by session
+        momentum during a multi-turn complex task (mirrors the rule path)."""
+        mock_response = MagicMock()
+        mock_response.content = '{"tier":"SIMPLE"}'
+        judge_llm = AsyncMock()
+        judge_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await route_task(
+            "tell me about interesting things in the world of technology",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        assert judge_llm.ainvoke.call_count == 1
+        assert result.tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
+        assert result.reason == "momentum_override"
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_timeout_falls_back_to_standard(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A hung judge call must not block routing: wait_for timeout degrades to
+        STANDARD with a distinct reason instead of stalling the request."""
+        from myrm_agent_harness.toolkits.llms.routing import complexity_router
+
+        monkeypatch.setattr(complexity_router, "_JUDGE_TIMEOUT_S", 0.01)
+        judge_llm = AsyncMock()
+
+        async def _slow(*_args: object, **_kwargs: object) -> MagicMock:
+            await asyncio.sleep(0.5)
+            return MagicMock(content='{"tier":"REASONING"}')
+
+        judge_llm.ainvoke = _slow
+
+        result = await route_task(
+            "tell me about interesting things in the world of technology",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+        )
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "llm_judge_unavailable"
+        # 降级不是判定，不得写入任何缓存：恢复后的 judge 必须能重新判定。
+        assert _judge_cache == {}
+        assert _dedup_cache == {}
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_unparseable_not_cached(self) -> None:
+        """Unparseable judge output degrades to STANDARD and must not pollute
+        the judge cache (a transient model blip must not pin the tier)."""
+        mock_response = MagicMock()
+        mock_response.content = "I'm not sure what tier this should be"
+        judge_llm = AsyncMock()
+        judge_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await route_task(
+            "tell me about interesting things in the world of technology",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+        )
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "llm_judge_unavailable"
+        assert _judge_cache == {}
+        assert _dedup_cache == {}
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_cached_with_momentum(self) -> None:
+        """A cached judge verdict is still subject to session momentum: cache
+        stores the raw classification; momentum re-applies per-turn so a short
+        follow-up cannot downgrade an ongoing complex task."""
+        mock_response = MagicMock()
+        mock_response.content = '{"tier":"SIMPLE"}'
+        judge_llm = AsyncMock()
+        judge_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        text = "tell me about interesting things in the world of technology"
+        first = await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+        )
+        assert first.reason == "llm_judge"
+        assert judge_llm.ainvoke.call_count == 1
+
+        second = await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        # 缓存命中：不发起第二次 judge 调用；momentum 仍生效。
+        assert judge_llm.ainvoke.call_count == 1
+        assert second.reason == "momentum_override"
+        assert second.tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
+
+    @pytest.mark.asyncio
+    async def test_momentum_override(self) -> None:
+        result = await route_task(
+            "ok",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        assert result.tier in (RoutingTier.STANDARD, RoutingTier.REASONING, RoutingTier.SIMPLE)
+
+    @pytest.mark.asyncio
+    async def test_content_dedup_returns_cached(self) -> None:
+        result1 = await route_task("debug this error", STD_CFG, light_model_cfg=LIGHT_CFG)
+        result2 = await route_task("debug this error", STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result2.reason == "content_dedup"
+        assert result2.tier == result1.tier
+
+    @pytest.mark.asyncio
+    async def test_dedup_hit_still_applies_momentum(self) -> None:
+        """A dedup hit returns the pure cached tier but must still apply session
+        momentum — the cache never carries context across sessions."""
+        text = "ok"
+        # 会话 A：无历史，rule 判 SIMPLE 入缓存
+        first = await route_task(text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert first.tier == RoutingTier.SIMPLE
+        # 会话 B：同一文本命中缓存，但当前会话是 REASONING 复杂任务
+        second = await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        assert second.tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
+        assert second.reason == "momentum_override"
+
+    @pytest.mark.asyncio
+    async def test_dedup_cache_stores_pure_verdict_not_momentum(self) -> None:
+        """The dedup cache must store the pure rule verdict, not the
+        momentum-elevated tier — otherwise a later context-free request leaks
+        the previous session's momentum."""
+        text = "ok"
+        await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        # 新会话无历史：命中缓存应为纯 rule 档位 SIMPLE，而非 REASONING
+        result = await route_task(text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.SIMPLE
+        assert result.reason == "content_dedup"
+
+    @pytest.mark.asyncio
+    async def test_min_tier_not_cached(self) -> None:
+        """min_tier escalation is session-local and must not be written to the
+        dedup cache — a later plain request must not inherit the escalation."""
+        text = "hello"
+        await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            min_tier=RoutingTier.REASONING,
+        )
+        result = await route_task(text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.SIMPLE
+        assert result.reason != "content_dedup"
+
+    @pytest.mark.asyncio
+    async def test_dedup_image_scoped_in_route(self) -> None:
+        """A text-only verdict cached under one text must not be returned for an
+        image query of the same text (image tasks require STANDARD tier)."""
+        text = "describe this"
+        await route_task(text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        multimodal = [{"type": "text", "text": text}, {"type": "image_url", "url": "https://example.com/img.png"}]
+        result = await route_task(multimodal, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason != "content_dedup"
+
+    @pytest.mark.asyncio
+    async def test_dedup_video_scoped_in_route(self) -> None:
+        """Video queries share the image vision floor: a text-only verdict must
+        not satisfy a video query of the same text (video analysis requires a
+        vision-capable tier)."""
+        text = "analyze this clip"
+        await route_task(text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        multimodal = [
+            {"type": "text", "text": text},
+            {"type": "video_url", "video_url": {"url": "https://example.com/clip.mp4"}},
+        ]
+        result = await route_task(multimodal, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason != "content_dedup"
+
+    @pytest.mark.asyncio
+    async def test_dedup_image_hit_momentum_not_downgrade(self) -> None:
+        """Image query dedup-hit + SIMPLE history: momentum must not drop below
+        STANDARD (vision floor applies on the dedup path too)."""
+        query = [
+            {"type": "text", "text": "hello"},
+            {"type": "image_url", "url": "https://example.com/img.png"},
+        ]
+        first = await route_task(query, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert first.tier == RoutingTier.STANDARD
+        second = await route_task(
+            query,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            recent_tiers=[
+                RoutingTier.SIMPLE,
+                RoutingTier.SIMPLE,
+                RoutingTier.SIMPLE,
+            ],
+        )
+        assert second.tier == RoutingTier.STANDARD
+
+    @pytest.mark.asyncio
+    async def test_judge_verdict_not_in_dedup_cache(self) -> None:
+        """Judge verdicts live only in the TTL-bounded judge cache — never the
+        unbounded dedup cache: a stale judge tier must not become readable by the
+        rule branch, whose verdicts follow deterministic rule scoring only."""
+        mock_response = MagicMock()
+        mock_response.content = '{"tier":"SIMPLE"}'
+        judge_llm = AsyncMock()
+        judge_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        text = "tell me about interesting things in the world of technology"
+        elevated = await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        assert elevated.tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
+        assert elevated.reason == "momentum_override"
+        # judge 纯判定 SIMPLE 只进 judge 缓存（纯值）；dedup 保持纯净（仅 rule 判定）。
+        assert _judge_cache != {}
+        assert _dedup_check(text, False) is None
+
+    @pytest.mark.asyncio
+    async def test_traceback_routes_to_standard(self) -> None:
+        traceback_text = 'Traceback (most recent call last):\n  File "main.py", line 42\nTypeError: unsupported operand'
+        result = await route_task(traceback_text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.STANDARD
+
+    @pytest.mark.asyncio
+    async def test_chinese_keywords_recognized(self) -> None:
+        result = await route_task("请帮我重构这段代码并分析性能", STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.STANDARD
+
+    @pytest.mark.asyncio
+    async def test_math_content_routes_reasoning(self) -> None:
+        result = await route_task(
+            r"Solve $$\int_0^{\infty} e^{-x^2} dx$$ and prove \frac{a}{b} = c",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+        )
+        assert result.tier == RoutingTier.REASONING
+
+    @pytest.mark.asyncio
+    async def test_min_tier_escalates_simple_to_standard(self) -> None:
+        result = await route_task(
+            "hello",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            min_tier=RoutingTier.STANDARD,
+        )
+        assert result.tier == RoutingTier.STANDARD
+        assert "min_tier_escalation" in result.reason
+
+    @pytest.mark.asyncio
+    async def test_min_tier_none_preserves_original(self) -> None:
+        result = await route_task(
+            "hello",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            min_tier=None,
+        )
+        assert result.tier == RoutingTier.SIMPLE
+
+    @pytest.mark.asyncio
+    async def test_min_tier_bypasses_content_dedup(self) -> None:
+        await route_task("debug this specific error", STD_CFG, light_model_cfg=LIGHT_CFG)
+        result = await route_task(
+            "debug this specific error",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            min_tier=RoutingTier.REASONING,
+        )
+        assert result.tier == RoutingTier.REASONING
+        assert result.reason != "content_dedup"
+
+    @pytest.mark.asyncio
+    async def test_min_tier_no_effect_when_tier_already_higher(self) -> None:
+        result = await route_task(
+            "prove the theorem and derive the equation step by step",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            min_tier=RoutingTier.SIMPLE,
+        )
+        assert result.tier == RoutingTier.REASONING
+        assert "min_tier_escalation" not in result.reason
+
+    # ─── RoutingResult dataclass ─────────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_image_only_query_defaults_standard(self) -> None:
+        """Image-only multimodal query (no text) still routes STANDARD (empty_query floor)."""
+        query = [
+            {"type": "image_url", "url": "https://example.com/img.png"},
+            {"type": "image_url", "url": "https://example.com/img2.png"},
+        ]
+        result = await route_task(query, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "empty_query"
+        assert result.model_cfg.model == "gpt-4o"
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_no_judge_defaults_standard(self) -> None:
+        """Ambiguous rule verdict without judge LLM safely defaults to STANDARD."""
+        result = await route_task(
+            "the quick brown fox jumps over the lazy dog near the river bank",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            judge_llm=None,
+        )
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "default_standard"
+
+
+class TestRoutingResult:
+    def test_frozen(self) -> None:
+        r = RoutingResult(tier=RoutingTier.STANDARD, model_cfg=STD_CFG, fallback_model_cfg=None, reason="test")
+        with pytest.raises(AttributeError):
+            r.tier = RoutingTier.SIMPLE  # type: ignore[misc]
+
+    def test_fields(self) -> None:
+        r = RoutingResult(
+            tier=RoutingTier.REASONING, model_cfg=REASON_CFG, fallback_model_cfg=STD_FALLBACK, reason="rule_based"
+        )
+        assert r.tier == RoutingTier.REASONING
+        assert r.model_cfg.model == "o1-preview"
+        assert r.fallback_model_cfg is not None
+        assert r.reason == "rule_based"
+
+
+# ─── RoutingTier enum ────────────────────────────────────────────────
+
+
+class TestRoutingTier:
+    def test_values(self) -> None:
+        assert RoutingTier.SIMPLE == "simple"
+        assert RoutingTier.STANDARD == "standard"
+        assert RoutingTier.REASONING == "reasoning"
+
+    def test_from_string(self) -> None:
+        assert RoutingTier("simple") == RoutingTier.SIMPLE
+        assert RoutingTier("standard") == RoutingTier.STANDARD
+        assert RoutingTier("reasoning") == RoutingTier.REASONING

@@ -1,0 +1,351 @@
+"""Eval Runner — executes eval cases against an AgentExecutor.
+
+[INPUT]
+- protocol::AgentExecutor, (POS: Protocol contract. Framework provides FileEventLogBackend; business layer may extend with SQLite / PostgreSQL implementations.)
+- assertions::ToolAssertion, (POS: Provides pass/fail verification of agent tool calls, output text, sandbox states, task-native test suites, and subjective semantic evaluations via lightweight LLMs.)
+
+[OUTPUT]
+- EvalRunner: main eval runner with single-turn, multi-turn, and concurrent support
+
+[POS]
+Orchestrates eval execution. Supports concurrent case execution via asyncio.Semaphore,
+optional progress callbacks, configurable multi-turn on_turn_fail strategy
+(continue/skip_remaining/abort), and graceful error handling (single case failure
+does not abort the entire run). Framework-only — no business-layer imports.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager
+from typing import TYPE_CHECKING, Any
+
+from .assertions import (
+    ToolAssertion,
+    evaluate_post_episode_assertions,
+    evaluate_retrieval_assertions,
+    evaluate_sandbox_assertions,
+    evaluate_semantic_assertions,
+    evaluate_state_assertions,
+    evaluate_tool_assertions,
+)
+from .canary import CANARY_GUID, EvalCanaryGate
+from .compaction_assertions import evaluate_compaction_assertions
+from .contamination import audit_episode_trajectory_for_contamination
+from .protocols import (
+    AgentResponse,
+    EvalCase,
+    EvalManifest,
+    EvalResult,
+    EvalTimings,
+    EvalTurnResult,
+    JudgeConfig,
+    MultiTurnEvalCase,
+)
+
+if TYPE_CHECKING:
+    from .protocols import AgentExecutor
+
+logger = logging.getLogger(__name__)
+
+
+class EvalRunner:
+    """Executes eval cases against an AgentExecutor implementation.
+
+    Features:
+    - Single-turn and multi-turn eval
+    - Concurrent execution with configurable concurrency limit
+    - Progress callback for real-time monitoring
+    - Graceful error handling per case
+    """
+
+    def __init__(
+        self,
+        executor: AgentExecutor,
+        *,
+        max_concurrency: int = 1,
+        on_case_complete: Callable[[EvalTurnResult], None] | None = None,
+        yielding_strategy: AbstractAsyncContextManager[None] | None = None,
+        judge_config: JudgeConfig | None = None,
+    ) -> None:
+        self._executor = executor
+        self._max_concurrency = max(1, max_concurrency)
+        self._on_case_complete = on_case_complete
+        self._yielding_strategy = yielding_strategy
+        self._judge_config = judge_config
+        self._abort_requested = False
+
+    def abort(self) -> None:
+        """Signal the runner to abort evaluation gracefully."""
+        self._abort_requested = True
+
+    async def run(
+        self,
+        cases: list[EvalCase],
+        *,
+        manifest: EvalManifest | None = None,
+    ) -> EvalResult:
+        """Run single-turn eval cases, optionally concurrently."""
+        start = time.perf_counter()
+        semaphore = self._yielding_strategy or asyncio.Semaphore(self._max_concurrency)
+
+        async def _run_one(case: EvalCase) -> EvalTurnResult | None:
+            if self._abort_requested:
+                return None
+            async with semaphore:
+                if self._abort_requested:
+                    return None
+                return await self._execute_single(case)
+
+        raw_results = await asyncio.gather(
+            *[_run_one(c) for c in cases],
+            return_exceptions=False,
+        )
+        turn_results = [r for r in raw_results if r is not None]
+
+        total_ms = (time.perf_counter() - start) * 1000
+        return EvalResult(turn_results=list(turn_results), total_ms=total_ms, manifest=manifest)
+
+    async def run_multi_turn(
+        self,
+        cases: list[MultiTurnEvalCase],
+        *,
+        manifest: EvalManifest | None = None,
+    ) -> EvalResult:
+        """Run multi-turn eval cases, optionally concurrently.
+
+        Each MultiTurnEvalCase creates one session; turns execute sequentially
+        within a session, but different sessions can run concurrently.
+        """
+        start = time.perf_counter()
+        semaphore = self._yielding_strategy or asyncio.Semaphore(self._max_concurrency)
+
+        async def _run_one_multi(mt_case: MultiTurnEvalCase) -> list[EvalTurnResult]:
+            if self._abort_requested:
+                return []
+            async with semaphore:
+                if self._abort_requested:
+                    return []
+                return await self._execute_multi_turn(mt_case)
+
+        nested_results = await asyncio.gather(
+            *[_run_one_multi(c) for c in cases],
+            return_exceptions=False,
+        )
+
+        all_results: list[EvalTurnResult] = []
+        for session_results in nested_results:
+            all_results.extend(session_results)
+
+        total_ms = (time.perf_counter() - start) * 1000
+        return EvalResult(turn_results=all_results, total_ms=total_ms, manifest=manifest)
+
+    async def _execute_single(
+        self,
+        case: EvalCase,
+        *,
+        session_id: str | None = None,
+    ) -> EvalTurnResult:
+        """Execute a single eval case and return the result."""
+        turn_start = time.perf_counter()
+
+        try:
+            sid = session_id or await self._executor.create_session()
+            response = await self._executor.execute(case.message, session_id=sid)
+        except Exception as exc:
+            import traceback
+
+            traceback.print_exc()
+            logger.warning("Eval case failed: %s — %s", case.message[:60], exc)
+            result = EvalTurnResult(
+                case=case,
+                response=AgentResponse(answer=""),
+                error=str(exc),
+                timings=EvalTimings(total_ms=(time.perf_counter() - turn_start) * 1000),
+            )
+            self._notify(result)
+            return result
+
+        assertion = (
+            ToolAssertion(
+                expected_tools=case.expected_tools,
+                require_all=case.require_all,
+            )
+            if case.expected_tools
+            else None
+        )
+
+        passed, details = evaluate_tool_assertions(response.tools_called, assertion)
+        sb_scores: dict[str, float] = {}
+
+        if passed is not False and case.sandbox_assertions:
+            # Pass sid to get the sandbox executor for this specific session
+            sandbox_executor = getattr(self._executor, "get_sandbox_executor", lambda session_id: None)(session_id=sid)
+            sb_passed, sb_details = await evaluate_sandbox_assertions(
+                case.sandbox_assertions,
+                sandbox_executor,
+                scores_out=sb_scores,
+            )
+            if sb_passed is not None:
+                passed = sb_passed if passed is None else (passed and sb_passed)
+                if sb_details:
+                    details = f"{details} | {sb_details}" if details else sb_details
+
+        if passed is not False and getattr(case, "state_assertions", None):
+            state_passed, state_details = evaluate_state_assertions(case.state_assertions, response.answer)
+            if state_passed is not None:
+                passed = state_passed if passed is None else (passed and state_passed)
+                if state_details:
+                    details = f"{details} | {state_details}" if details else state_details
+
+        if passed is not False and getattr(case, "semantic_assertions", None):
+            sem_passed, sem_details = await evaluate_semantic_assertions(
+                case.semantic_assertions,
+                response.answer,
+                judge_override=self._judge_config,
+            )
+            if sem_passed is not None:
+                passed = sem_passed if passed is None else (passed and sem_passed)
+                if sem_details:
+                    details = f"{details} | {sem_details}" if details else sem_details
+
+        if passed is not False and getattr(case, "retrieval_assertions", None):
+            ret_passed, ret_details = evaluate_retrieval_assertions(
+                case.retrieval_assertions, response.retrieved_hits, scores_out=sb_scores
+            )
+            if ret_passed is not None:
+                passed = ret_passed if passed is None else (passed and ret_passed)
+                if ret_details:
+                    details = f"{details} | {ret_details}" if details else ret_details
+
+        if passed is not False and getattr(case, "compaction_assertions", None):
+            comp_passed, comp_details = await evaluate_compaction_assertions(
+                case.compaction_assertions,
+                response,
+                scores_out=sb_scores,
+                judge_override=self._judge_config,
+            )
+            if comp_passed is not None:
+                passed = comp_passed if passed is None else (passed and comp_passed)
+                if comp_details:
+                    details = f"{details} | {comp_details}" if details else comp_details
+
+        # Post-episode assertion evaluation in isolation
+        post_ep_passed: bool | None = None
+        post_ep_details: list[dict[str, Any]] = []
+        if getattr(case, "post_episode_assertions", None):
+            sandbox_executor = getattr(self._executor, "get_sandbox_executor", lambda session_id: None)(session_id=sid)
+            post_ep_passed, post_ep_details = await evaluate_post_episode_assertions(
+                case.post_episode_assertions,
+                sandbox_executor=sandbox_executor,
+            )
+            if post_ep_passed is not None:
+                passed = post_ep_passed if passed is None else (passed and post_ep_passed)
+
+        canary_ok: bool | None = None
+        if getattr(case, "canary_protected", False):
+            canary_ok = EvalCanaryGate.check_presence(case.message)
+            if canary_ok is False:
+                passed = False
+                details = f"{details} | Canary signature missing" if details else "Canary signature missing"
+
+        # Trajectory anti-contamination audit
+        contamination_audit_dict: dict[str, object] | None = None
+        if response.tool_call_details:
+            dynamic_canaries = [CANARY_GUID]
+            case_canary = getattr(case, "canary_token", None)
+            if case_canary and case_canary not in dynamic_canaries:
+                dynamic_canaries.append(case_canary)
+            audit_res = audit_episode_trajectory_for_contamination(
+                response.tool_call_details,
+                canary_tokens=dynamic_canaries,
+            )
+            contamination_audit_dict = audit_res.to_dict()
+            if audit_res.cheat_detected:
+                passed = False
+                cheat_msg = "Anti-contamination violation: cheat attempt detected in trajectory"
+                details = f"{details} | {cheat_msg}" if details else cheat_msg
+
+        timings = EvalTimings(
+            total_ms=(time.perf_counter() - turn_start) * 1000,
+            extra=response.extra_timings,
+        )
+
+        result = EvalTurnResult(
+            case=case,
+            response=response,
+            assertion_passed=passed,
+            assertion_details=details,
+            post_episode_passed=post_ep_passed,
+            canary_verified=canary_ok,
+            post_episode_details=post_ep_details,
+            contamination_audit=contamination_audit_dict,
+            timings=timings,
+            scores=sb_scores,
+        )
+
+        self._notify(result)
+        return result
+
+    async def _execute_multi_turn(
+        self,
+        mt_case: MultiTurnEvalCase,
+    ) -> list[EvalTurnResult]:
+        """Execute a multi-turn case — turns are sequential within a session.
+
+        Respects ``mt_case.on_turn_fail`` strategy when a turn's assertion
+        fails (``assertion_passed is False``):
+        - ``continue``       — run all remaining turns regardless (default).
+        - ``skip_remaining`` — mark unexecuted turns as skipped and stop.
+        - ``abort``          — stop immediately, do not emit skipped turns.
+
+        Execution errors (``result.error is not None``) always abort the
+        session regardless of the strategy setting.
+        """
+        session_id = await self._executor.create_session()
+        results: list[EvalTurnResult] = []
+        strategy = mt_case.on_turn_fail
+
+        for idx, turn in enumerate(mt_case.turns):
+            result = await self._execute_single(turn, session_id=session_id)
+            results.append(result)
+
+            if result.error is not None:
+                logger.warning(
+                    "Multi-turn session %s aborted at turn %d due to error",
+                    session_id,
+                    len(results),
+                )
+                break
+
+            if result.assertion_passed is False and strategy != "continue":
+                remaining = len(mt_case.turns) - idx - 1
+                logger.info(
+                    "Multi-turn session %s: turn %d assertion failed, strategy=%s, %d remaining turns",
+                    session_id,
+                    idx + 1,
+                    strategy,
+                    remaining,
+                )
+                if strategy == "skip_remaining":
+                    for skipped_turn in mt_case.turns[idx + 1 :]:
+                        skipped = EvalTurnResult(
+                            case=skipped_turn,
+                            response=AgentResponse(answer=""),
+                            assertion_details="skipped: prior turn assertion failed",
+                        )
+                        results.append(skipped)
+                        self._notify(skipped)
+                break
+
+        return results
+
+    def _notify(self, result: EvalTurnResult) -> None:
+        if self._on_case_complete is not None:
+            try:
+                self._on_case_complete(result)
+            except Exception:
+                logger.warning("on_case_complete callback raised", exc_info=True)

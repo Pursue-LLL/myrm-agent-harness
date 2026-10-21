@@ -1,0 +1,158 @@
+"""LLM configuration — framework-agnostic model config.
+
+[INPUT]
+- pydantic::BaseModel (POS: Pydantic data validation base class)
+- pydantic::Field (POS: Pydantic field metadata and constraints)
+
+[OUTPUT]
+- CustomModelDef: self-hosted endpoint model capability definition (Ollama/LM Studio/vLLM)
+- LLMConfig: framework-agnostic LLM configuration with from_env() loader
+
+[POS]
+Framework-agnostic LLM configuration SSOT. Defines CustomModelDef and LLMConfig for agent/ and toolkits/ without runtime coupling.
+"""
+
+import os
+from dataclasses import dataclass
+
+from pydantic import BaseModel, Field, field_validator
+
+from myrm_agent_harness.core.config.wire import DEFAULT_WIRE_PROTOCOL, WireProtocol
+
+
+@dataclass(frozen=True)
+class CustomModelDef:
+    """Custom model definition for self-hosted endpoints (Ollama/LM Studio/vLLM).
+
+    Provides sensible defaults for model capabilities, enabling zero-config usage.
+
+    Example:
+        >>> custom_def = CustomModelDef(
+        ...     model_id="ollama/llama3.2",
+        ...     context_length=8192,
+        ...     max_tokens=4096
+        ... )
+    """
+
+    model_id: str
+    context_length: int = 8192
+    max_tokens: int = 4096
+    supports_tools: bool = True
+    supports_streaming: bool = True
+    supports_vision: bool = False
+    supports_video: bool = False
+    reasoning_effort: str | None = None
+
+
+class LLMConfig(BaseModel):
+    """LLM configuration.
+
+    Primary constructor accepts plain parameters (no env reads).
+    Use ``from_env()`` for convenient environment variable initialization.
+
+    Environment variables (MYRM_ prefix):
+    - MYRM_MODEL_NAME: Model name (required)
+    - MYRM_API_KEY: API key (required)
+    - MYRM_BASE_URL: API base URL
+    - MYRM_TEMPERATURE: Temperature parameter (default 0.2)
+    - MYRM_STREAMING: Enable streaming (default true)
+    - MYRM_MAX_CONTEXT_TOKENS: Max context window
+
+    Example:
+        >>> config = LLMConfig(model="gpt-4", api_key="sk-...", max_context_tokens=128000)
+        >>> config = LLMConfig.from_env()
+    """
+
+    model: str = Field(..., description="Model name", min_length=1)
+    api_key: str = Field(..., description="API key", min_length=1)
+    base_url: str | None = Field(default=None, description="API base URL")
+    temperature: float | None = Field(default=None, description="Temperature parameter")
+    streaming: bool = Field(default=True, description="Enable streaming")
+    model_kwargs: dict[str, object] | None = Field(default=None, description="Model-specific parameters")
+    max_context_tokens: int | None = Field(
+        default=None,
+        description="Context window size for dynamic compression and summary thresholds",
+    )
+    supports_vision: bool = Field(default=False, description="Whether the model supports vision/image input")
+    supports_video: bool = Field(
+        default=False, description="Whether the model supports native video input (e.g. Gemini)"
+    )
+    custom_model_def: CustomModelDef | None = Field(
+        default=None,
+        description="Custom model definition for self-hosted endpoints (Ollama/LM Studio/vLLM)",
+    )
+    wire_protocol: WireProtocol = Field(
+        default=DEFAULT_WIRE_PROTOCOL,
+        description="HTTP wire transport: chat_completions, responses, or anthropic_messages",
+    )
+    reasoning_effort: str | None = Field(
+        default=None,
+        description="Reasoning effort level (e.g. low, medium, high, max, or token budget)",
+    )
+    egress_proxy: str | None = Field(
+        default=None,
+        description="Dedicated egress proxy URL for LLM calls (e.g. http://127.0.0.1:7890 or socks5://127.0.0.1:1080)",
+    )
+
+    model_config = {
+        "frozen": True,
+    }
+
+    @field_validator("model", "api_key", mode="before")
+    @classmethod
+    def _strip_whitespace(cls, v: str) -> str:
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("base_url", mode="before")
+    @classmethod
+    def _normalize_base_url(cls, v: str | None) -> str | None:
+        if not isinstance(v, str):
+            return v
+        cleaned = v.strip().rstrip("/")
+        return cleaned or None
+
+    @field_validator("reasoning_effort", mode="before")
+    @classmethod
+    def _normalize_reasoning_effort(cls, v: str | None) -> str | None:
+        if not isinstance(v, str):
+            return v
+        cleaned = v.strip()
+        return cleaned or None
+
+    @field_validator("egress_proxy", mode="before")
+    @classmethod
+    def _normalize_egress_proxy(cls, v: str | None) -> str | None:
+        if not isinstance(v, str):
+            return v
+        cleaned = v.strip()
+        return cleaned or None
+
+    @classmethod
+    def from_env(cls) -> "LLMConfig":
+        """Load config from MYRM_* environment variables.
+
+        Raises:
+            ValueError: If MYRM_MODEL_NAME or MYRM_API_KEY is not set
+        """
+        model = os.getenv("MYRM_MODEL_NAME")
+        api_key = os.getenv("MYRM_API_KEY")
+
+        if not model:
+            raise ValueError("MYRM_MODEL_NAME environment variable is required")
+        if not api_key:
+            raise ValueError("MYRM_API_KEY environment variable is required")
+
+        max_ctx_str = os.getenv("MYRM_MAX_CONTEXT_TOKENS")
+        temp_str = os.getenv("MYRM_TEMPERATURE")
+        effort_str = os.getenv("MYRM_REASONING_EFFORT")
+        proxy_str = os.getenv("MYRM_EGRESS_PROXY") or os.getenv("MYRM_LLM_PROXY") or os.getenv("ALL_PROXY")
+        return cls(
+            model=model,
+            api_key=api_key,
+            base_url=os.getenv("MYRM_BASE_URL"),
+            temperature=float(temp_str) if temp_str is not None else None,
+            streaming=os.getenv("MYRM_STREAMING", "true").lower() == "true",
+            max_context_tokens=int(max_ctx_str) if max_ctx_str else None,
+            reasoning_effort=effort_str.strip() if effort_str else None,
+            egress_proxy=proxy_str.strip() if proxy_str else None,
+        )

@@ -1,0 +1,23 @@
+# toolkits/mobile_adb 模块架构
+
+## 架构概述
+
+移动端 Wireless ADB 控制工具包。提供 Android 设备的无线发现、ADB 命令执行、UI 层次结构解析与语义化交互支持，由服务端设备检查器（Device Inspector）使用；不向 Agent 暴露内置工具。
+
+## 文件清单
+
+| 文件 | 地位 | 职责 | I/O/P |
+|------|------|------|-------|
+| `__init__.py` | 包门面 | 导出 `MobileSession`、`AdbDeviceDriver`、`MobileUIParser`、`MobileSafetyGuard` 等核心符号 | ✅ |
+| `types.py` | 领域模型 | 定义 `MobileDeviceConnectionStatus`、`MobileUIElement`、`MobileDeviceState`、`MobileActionResult` | ✅ |
+| `driver.py` | 驱动核心 | 底层异步 ADB 命令执行器，管理设备连接与 low-level 执行 | ✅ |
+| `parser.py` | 解析器 | 解析 Android dump 结构与节点属性，构建 `MobileUIElement` 层次结构 | ✅ |
+| `session.py` | 会话编排 | 移动端设备交互核心会话管理器，协调驱动执行与状态同步 | ✅ |
+| `safety.py` | 安全护栏 | 支付/凭据/恢复出厂等高风险 UI 与危险 shell 序列拦截 | ✅ |
+| `compressor.py` | 传输优化 | 截屏 PNG 降采样并重编码为 WebP/JPEG，降低无线 ADB 带宽与 LLM 上下文开销 | ✅ |
+| `text_injection.py` | 输入原语 | UTF-8 文本注入（剪贴板广播 + 转义兜底），突破 `adb shell input text` 的 ASCII 限制 | ✅ |
+
+## 模块依赖
+
+- 依赖 `core/`、`utils/` 基础能力。
+- 严禁依赖 `agent/`（零耦合）。

@@ -1,0 +1,315 @@
+import pytest
+
+from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+
+
+@pytest.fixture
+def temp_wiki_dir(tmp_path):
+    structure = WikiStructure(base_dir=tmp_path)
+    structure.ensure_structure()
+    return structure
+
+
+def test_sanitize_path():
+    assert WikiStructure._sanitize_path("Work/Project A/Design Doc") == "work/project-a/design-doc"
+    assert WikiStructure._sanitize_path("///Empty//Dirs///") == "empty/dirs"
+    assert WikiStructure._sanitize_path("Root") == "root"
+
+
+def test_get_concept_file_path(temp_wiki_dir):
+    path = temp_wiki_dir.get_concept_file_path("Work/ProjectA/Design")
+    assert path.name == "design.md"
+    assert path.parent.name == "projecta"
+    assert path.parent.parent.name == "work"
+    assert path.parent.exists()  # Should create parents
+
+
+def test_list_concepts(temp_wiki_dir):
+    # Create some nested files
+    p1 = temp_wiki_dir.get_concept_file_path("A/B/C")
+    p1.write_text("test")
+    p2 = temp_wiki_dir.get_concept_file_path("A/D")
+    p2.write_text("test")
+
+    concepts = temp_wiki_dir.list_concepts()
+    assert len(concepts) == 2
+    assert p1 in concepts
+    assert p2 in concepts
+
+
+def test_list_concepts_excludes_directory_sidecars(temp_wiki_dir):
+    article = temp_wiki_dir.get_concept_file_path("A/B/Topic")
+    article.write_text("## Compiled Truth\nTopic")
+    abstract_path, overview_path = temp_wiki_dir.get_directory_sidecar_paths("A/B")
+    abstract_path.write_text("L0 summary")
+    overview_path.write_text("L1 summary")
+
+    concepts = temp_wiki_dir.list_concepts()
+    assert article in concepts
+    assert abstract_path not in concepts
+    assert overview_path not in concepts
+
+
+def test_get_directory_sidecar_paths(temp_wiki_dir):
+    abstract_path, overview_path = temp_wiki_dir.get_directory_sidecar_paths("Work/ProjectA")
+    assert abstract_path.name == ".abstract.md"
+    assert overview_path.name == ".overview.md"
+    assert abstract_path.parent.name == "projecta"
+
+
+@pytest.mark.asyncio
+async def test_delete_folder_safe(temp_wiki_dir):
+    class MockIndexer:
+        def __init__(self):
+            self.deleted = []
+
+        async def delete(self, name):
+            self.deleted.append(name)
+
+    indexer = MockIndexer()
+
+    # Create files
+    p1 = temp_wiki_dir.get_concept_file_path("FolderA/File1")
+    p1.write_text("test")
+    p2 = temp_wiki_dir.get_concept_file_path("FolderA/Sub/File2")
+    p2.write_text("test")
+
+    # Delete folder
+    deleted_count = await temp_wiki_dir.delete_folder_safe("FolderA", indexer)
+
+    assert deleted_count == 2
+    assert "foldera/file1" in indexer.deleted
+    assert "foldera/sub/file2" in indexer.deleted
+    assert not (temp_wiki_dir.concepts_dir / "foldera").exists()
+
+
+# --- scan_folder tests ---
+
+
+class TestScanFolder:
+    """Tests for WikiStructure.scan_folder with directory filtering."""
+
+    def test_scans_normal_files(self, tmp_path):
+        ws = WikiStructure(tmp_path / "wiki")
+        src = tmp_path / "source"
+        src.mkdir()
+        (src / "doc.md").write_text("# Doc")
+        (src / "sub").mkdir()
+        (src / "sub" / "note.txt").write_text("note")
+        (src / "deep" / "nested").mkdir(parents=True)
+        (src / "deep" / "nested" / "file.org").write_text("* Org")
+
+        files = ws.scan_folder(src)
+        assert len(files) == 3
+        names = {f.name for f in files}
+        assert names == {"doc.md", "note.txt", "file.org"}
+
+    def test_filters_git_directory(self, tmp_path):
+        ws = WikiStructure(tmp_path / "wiki")
+        src = tmp_path / "source"
+        src.mkdir()
+        (src / "real.md").write_text("# Real")
+        (src / ".git" / "objects").mkdir(parents=True)
+        (src / ".git" / "objects" / "info.txt").write_text("git internal")
+
+        files = ws.scan_folder(src)
+        assert len(files) == 1
+        assert files[0].name == "real.md"
+
+    def test_filters_node_modules(self, tmp_path):
+        ws = WikiStructure(tmp_path / "wiki")
+        src = tmp_path / "source"
+        src.mkdir()
+        (src / "notes.md").write_text("# Notes")
+        (src / "node_modules" / "react").mkdir(parents=True)
+        (src / "node_modules" / "react" / "README.md").write_text("# React")
+        (src / "node_modules" / "lodash").mkdir(parents=True)
+        (src / "node_modules" / "lodash" / "README.md").write_text("# Lodash")
+
+        files = ws.scan_folder(src)
+        assert len(files) == 1
+        assert files[0].name == "notes.md"
+
+    def test_filters_hidden_directories_but_keeps_hidden_files(self, tmp_path):
+        ws = WikiStructure(tmp_path / "wiki")
+        src = tmp_path / "source"
+        src.mkdir()
+        (src / ".hidden-note.md").write_text("# Hidden")
+        (src / ".obsidian" / "plugins").mkdir(parents=True)
+        (src / ".obsidian" / "plugins" / "config.md").write_text("cfg")
+        (src / ".venv" / "lib").mkdir(parents=True)
+        (src / ".venv" / "lib" / "req.txt").write_text("deps")
+
+        files = ws.scan_folder(src)
+        assert len(files) == 1
+        assert files[0].name == ".hidden-note.md"
+
+    def test_custom_extensions(self, tmp_path):
+        ws = WikiStructure(tmp_path / "wiki")
+        src = tmp_path / "source"
+        src.mkdir()
+        (src / "doc.md").write_text("md")
+        (src / "doc.rst").write_text("rst")
+        (src / "doc.txt").write_text("txt")
+
+        files = ws.scan_folder(src, [".rst"])
+        assert len(files) == 1
+        assert files[0].name == "doc.rst"
+
+    def test_nonexistent_directory_raises(self, tmp_path):
+        ws = WikiStructure(tmp_path / "wiki")
+        with pytest.raises(FileNotFoundError):
+            ws.scan_folder(tmp_path / "nonexistent")
+
+    def test_filters_pycache(self, tmp_path):
+        ws = WikiStructure(tmp_path / "wiki")
+        src = tmp_path / "source"
+        src.mkdir()
+        (src / "readme.md").write_text("# Readme")
+        (src / "__pycache__").mkdir()
+        (src / "__pycache__" / "cache.txt").write_text("cached")
+
+        files = ws.scan_folder(src)
+        assert len(files) == 1
+        assert files[0].name == "readme.md"
+
+    def test_empty_directory(self, tmp_path):
+        ws = WikiStructure(tmp_path / "wiki")
+        src = tmp_path / "source"
+        src.mkdir()
+
+        files = ws.scan_folder(src)
+        assert files == []
+
+
+class TestGetRawFilePathBoundary:
+    """Boundary validation tests for get_raw_file_path (path traversal defense)."""
+
+    def test_normal_filename(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("my_document.md")
+        assert path.name == "my_document.md"
+        assert path.parent == ws.raw_dir
+
+    def test_nested_subfolder(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("research/ai/paper.md")
+        assert str(path).endswith("raw/research/ai/paper.md")
+
+    def test_url_hash_filename(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("web_abc123def456.md")
+        assert path.name == "web_abc123def456.md"
+
+    def test_rejects_path_traversal(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        with pytest.raises(ValueError, match="traversal"):
+            ws.get_raw_file_path("../../../tmp/evil.sh")
+
+    def test_rejects_deep_traversal(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        with pytest.raises(ValueError, match="traversal"):
+            ws.get_raw_file_path("../../../../../../../../etc/cron.d/evil")
+
+    def test_rejects_absolute_path(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        with pytest.raises(ValueError, match="Absolute"):
+            ws.get_raw_file_path("/etc/passwd")
+
+    def test_rejects_null_byte(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        with pytest.raises(ValueError, match="Null byte"):
+            ws.get_raw_file_path("file.md\x00.sh")
+
+    def test_filename_with_spaces(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("my document (draft).md")
+        assert path.name == "my document (draft).md"
+        assert path.parent == ws.raw_dir
+
+    def test_double_dot_without_slash(self, tmp_path):
+        """'..evil.md' is a valid filename, not a traversal attempt."""
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        path = ws.get_raw_file_path("..evil.md")
+        assert path.parent == ws.raw_dir
+
+    def test_rejects_mixed_traversal_with_valid_segments(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        with pytest.raises(ValueError, match="traversal"):
+            ws.get_raw_file_path("research/../../outside.md")
+
+    def test_deeply_nested_valid_path(self, tmp_path):
+        ws = WikiStructure(tmp_path)
+        ws.ensure_structure()
+        assert ws.get_raw_file_path("a/b/c/d/e/deep.md").name == "deep.md"
+
+
+class TestFederatedPublicDirsStructure:
+    """Tests for federated public_dirs read-only mounts in WikiStructure."""
+
+    def test_list_concepts_includes_public_dirs(self, tmp_path):
+        primary = tmp_path / "primary"
+        pub1 = tmp_path / "pub1"
+        pub2 = tmp_path / "pub2"
+
+        ws = WikiStructure(primary, public_dirs=[pub1, pub2])
+        ws.ensure_structure()
+
+        # Primary concept
+        (primary / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        (primary / "wiki" / "concepts" / "concept_primary.md").write_text("# Primary")
+
+        # Public 1 concept
+        (pub1 / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        (pub1 / "wiki" / "concepts" / "concept_pub1.md").write_text("# Pub 1")
+
+        # Public 2 concept
+        (pub2 / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        (pub2 / "wiki" / "concepts" / "concept_pub2.md").write_text("# Pub 2")
+
+        concepts = ws.list_concepts()
+        concept_names = {p.name for p in concepts}
+        assert "concept_primary.md" in concept_names
+        assert "concept_pub1.md" in concept_names
+        assert "concept_pub2.md" in concept_names
+
+    def test_resolve_concept_file_path_falls_back_to_public_mount(self, tmp_path):
+        primary = tmp_path / "primary"
+        pub = tmp_path / "pub"
+
+        ws = WikiStructure(primary, public_dirs=[pub])
+        ws.ensure_structure()
+
+        (pub / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        target = pub / "wiki" / "concepts" / "team_handbook.md"
+        target.write_text("# Handbook")
+
+        resolved = ws.resolve_concept_file_path("team_handbook")
+        assert resolved == target
+
+    def test_resolve_concept_file_path_handles_prefixes_and_labels(self, tmp_path):
+        primary = tmp_path / "primary"
+        pub = tmp_path / "pub"
+        labels = {str(pub): "Engineering Handbook"}
+
+        ws = WikiStructure(primary, public_dirs=[pub], public_dir_labels=labels)
+        ws.ensure_structure()
+
+        (pub / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        target = pub / "wiki" / "concepts" / "architecture.md"
+        target.write_text("# Architecture")
+
+        assert ws.resolve_concept_file_path("wiki/concepts/architecture.md") == target
+        assert ws.resolve_concept_file_path("concepts/architecture") == target
+        assert ws.resolve_concept_file_path("architecture.md") == target
+        assert ws.public_dir_labels.get(str(pub)) == "Engineering Handbook"
