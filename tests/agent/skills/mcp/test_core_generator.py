@@ -26,6 +26,11 @@ from myrm_agent_harness.backends.skills.types import SkillMetadata
 from myrm_agent_harness.backends.skills.types.types_requires import MCPSkillData
 
 
+def _tool_section(generator, tools, schemas, **kwargs):
+    """L2 tool-section text for the tier the budget ladder picks."""
+    return generator._build_tool_section(tools, schemas, kwargs.get("skill_name", ""))[0]
+
+
 def _skill_meta(
     server: str,
     tools: list[str],

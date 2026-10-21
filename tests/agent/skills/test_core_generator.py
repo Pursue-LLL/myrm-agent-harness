@@ -22,6 +22,11 @@ from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
 from myrm_agent_harness.utils.text_utils import get_token_count
 
 
+def _tool_section(generator, tools, schemas, **kwargs):
+    """L2 tool-section text for the tier the budget ladder picks."""
+    return generator._build_tool_section(tools, schemas, kwargs.get("skill_name", ""))[0]
+
+
 @pytest.fixture
 def generator() -> MCPSkillGenerator:
     return MCPSkillGenerator()
@@ -149,7 +154,8 @@ class TestBuildToolListFewTools:
         self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata
     ) -> None:
         assert sample_skill_meta.mcp is not None
-        tool_list = generator._build_tool_list(
+        tool_list = _tool_section(
+            generator,
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
             skill_name=sample_skill_meta.name,
@@ -161,7 +167,8 @@ class TestBuildToolListFewTools:
 
     def test_inlines_short_pattern(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
         assert sample_skill_meta.mcp is not None
-        tool_list = generator._build_tool_list(
+        tool_list = _tool_section(
+            generator,
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
         )
@@ -170,7 +177,8 @@ class TestBuildToolListFewTools:
     def test_omits_long_enum(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
         """A four-value enum exceeds the inline budget and stays in the doc."""
         assert sample_skill_meta.mcp is not None
-        tool_list = generator._build_tool_list(
+        tool_list = _tool_section(
+            generator,
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
         )
@@ -178,7 +186,8 @@ class TestBuildToolListFewTools:
 
     def test_no_inline_returns_block(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
         assert sample_skill_meta.mcp is not None
-        tool_list = generator._build_tool_list(
+        tool_list = _tool_section(
+            generator,
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
         )
@@ -192,7 +201,8 @@ class TestBuildToolListIndex:
         self, generator: MCPSkillGenerator, large_skill_meta: SkillMetadata
     ) -> None:
         assert large_skill_meta.mcp is not None
-        tool_list = generator._build_tool_list(
+        tool_list = _tool_section(
+            generator,
             large_skill_meta.mcp.tools,
             large_skill_meta.mcp.tool_schemas,
         )
@@ -204,7 +214,7 @@ class TestBuildToolListIndex:
         schemas = {
             name: {"description": "Query", "inputSchema": {"properties": {"a": {"type": "string"}}}} for name in tools
         }
-        tool_list = generator._build_tool_list(tools, schemas)
+        tool_list = _tool_section(generator, tools, schemas)
         # Both stay callable: the second takes a deterministic suffix instead of being marked dead.
         assert "get_ticket(a?:string)" in tool_list
         assert "get_ticket_2(a?:string)" in tool_list
@@ -302,7 +312,8 @@ class TestSchemaConstraintsInInline:
 
     def test_inline_pattern_hint(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
         assert sample_skill_meta.mcp is not None
-        tool_list = generator._build_tool_list(
+        tool_list = _tool_section(
+            generator,
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
         )
@@ -318,7 +329,7 @@ class TestSchemaConstraintsInInline:
                 },
             }
         }
-        tool_list = generator._build_tool_list(["fmt"], schemas)
+        tool_list = _tool_section(generator, ["fmt"], schemas)
         assert "=text|csv|json" in tool_list
 
 
@@ -688,14 +699,14 @@ class TestToolSectionLadder:
     def test_twenty_one_tools_keep_full_signatures(self) -> None:
         # The old count threshold dropped every parameter at 21 tools.
         schemas = self._schemas(21)
-        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas)
+        tool_list = _tool_section(mcp_skill_generator, list(schemas), schemas)
         assert "p5?:string" in tool_list
         assert "…" not in tool_list
         assert get_token_count(tool_list) <= TOOL_SECTION_BUDGET
 
     def test_fifty_tools_drop_optionals_but_keep_required(self) -> None:
         schemas = self._schemas(50)
-        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas)
+        tool_list = _tool_section(mcp_skill_generator, list(schemas), schemas)
         assert "p0:string" in tool_list
         assert "p5?:string" not in tool_list
         assert "…" in tool_list
@@ -703,6 +714,6 @@ class TestToolSectionLadder:
 
     def test_two_hundred_tools_fall_back_to_names(self) -> None:
         schemas = self._schemas(200)
-        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas)
+        tool_list = _tool_section(mcp_skill_generator, list(schemas), schemas)
         assert "(" not in tool_list
         assert tool_list.count("- tool_") == 200

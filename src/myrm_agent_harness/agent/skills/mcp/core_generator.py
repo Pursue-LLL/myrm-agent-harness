@@ -59,11 +59,14 @@ SIGNATURE_TOKENS_PER_TOOL = 120
 TOOL_LINE_DESC_CHARS = 60
 """Characters of tool description kept after a signature line."""
 
-L2_SOFT_TOKEN_BUDGET = 3_000
-"""Warn when a generated SKILL.md exceeds this; signature/index growth is bounded elsewhere."""
-
 INSTRUCTIONS_TOKEN_LIMIT = 2_000
 """Server instructions are capped here so one verbose server cannot blow up L2."""
+
+L2_FIXED_ALLOWANCE = 400
+"""Header + calling contract measured on 12306; the only L2 parts without their own cap."""
+
+L2_SOFT_TOKEN_BUDGET = INSTRUCTIONS_TOKEN_LIMIT + TOOL_SECTION_BUDGET + L2_FIXED_ALLOWANCE
+"""Warn when L2 exceeds the sum of its parts' caps — i.e. only when a cap was bypassed."""
 
 
 def _text_field(schema: JsonDict, key: str, default: str) -> str:
@@ -191,8 +194,7 @@ class MCPSkillGenerator:
         # here would print an import path that no skill answers to.
         skill_name = skill_meta.name
         tools = skill_meta.mcp.tools
-        tier = self._select_tool_tier(tools, tool_schemas, skill_name)
-        tool_list = self._build_tool_list(tools, tool_schemas, skill_name=skill_name, tier=tier)
+        tool_list, tier = self._build_tool_section(tools, tool_schemas, skill_name)
 
         usage_section = SKILL_USAGE_TEMPLATE.format(skill_name=skill_name)
         index_note = {
@@ -346,25 +348,16 @@ class MCPSkillGenerator:
 
     # ========== Internal: Tool List & Documentation ==========
 
-    def _build_tool_list(
-        self,
-        tools: list[str],
-        tool_schemas: dict[str, JsonDict],
-        *,
-        skill_name: str = "",
-        tier: str | None = None,
-    ) -> str:
-        """Build the L2 tool section through the budget ladder (full → required → names)."""
-        resolved = tier or self._select_tool_tier(tools, tool_schemas, skill_name)
-        return self._render_tool_tier(tools, tool_schemas, build_tool_name_map(tools), skill_name, resolved)
-
-    def _select_tool_tier(self, tools: list[str], tool_schemas: dict[str, JsonDict], skill_name: str) -> str:
+    def _build_tool_section(
+        self, tools: list[str], tool_schemas: dict[str, JsonDict], skill_name: str
+    ) -> tuple[str, str]:
+        """Render the L2 tool section once and return it with the tier that was chosen."""
         name_map = build_tool_name_map(tools)
         for tier in ("full", "required"):
             text = self._render_tool_tier(tools, tool_schemas, name_map, skill_name, tier)
             if get_token_count(text) <= TOOL_SECTION_BUDGET:
-                return tier
-        return "names"
+                return text, tier
+        return self._build_tool_index(tools), "names"
 
     def _render_tool_tier(
         self,
@@ -405,7 +398,8 @@ class MCPSkillGenerator:
         100-tool set, a 40-character hint still costs ~3,500 tok, so there is no
         useful middle ground — the model reads the doc for the one or two tools it needs.
         """
-        return "\n".join(f"- {build_tool_name_map(tools)[tool_name]}" for tool_name in tools)
+        name_map = build_tool_name_map(tools)
+        return "\n".join(f"- {name_map[tool_name]}" for tool_name in tools)
 
     def _build_tool_detail_doc(
         self,
@@ -474,6 +468,11 @@ class MCPSkillGenerator:
             _, skill_name = self._get_safe_names(server_name)
 
         skill_description = self._resolve_description(user_description, instructions, tools, server_name)
+        # L1 is the only rendered text that bypassed the load-time scan L2 goes through.
+        from myrm_agent_harness.backends.skills.scanning.scanner import ScanSeverity, scan_skill_content
+
+        if any(f.severity >= ScanSeverity.HIGH for f in scan_skill_content(skill_name, skill_description).findings):
+            logger.warning("MCP L1 description for '%s' has high-risk scan findings", skill_name)
 
         tool_schemas: dict[str, dict[str, object]] = {}
         for tool in tools:
