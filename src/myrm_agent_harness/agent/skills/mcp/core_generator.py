@@ -28,9 +28,12 @@ from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import (
     TOOL_DOC_TEMPLATE,
     build_call_example,
     build_params_section,
+    build_tool_index,
     cap_instructions,
     normalize_input_schema,
-    render_signature,
+    render_tool_tier,
+    text_field,
+    truncate_to_sentence,
 )
 from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
     build_tool_name_map,
@@ -58,18 +61,6 @@ L2_FIXED_TOKENS = 224  # header + calling contract, measured on 12306
 
 MIN_TOOL_SECTION_TOKENS = L2_MAX_TOKENS - INSTRUCTIONS_TOKEN_LIMIT - L2_FIXED_TOKENS
 """Floor left for tools when instructions use their whole cap (776)."""
-
-SIGNATURE_TOKENS_PER_TOOL = 120
-"""Budget for one signature line; past it the line degrades to ``name(…)`` + a doc pointer."""
-
-TOOL_LINE_DESC_CHARS = 60
-"""Characters of tool description kept after a signature line."""
-
-
-def _text_field(schema: JsonDict, key: str, default: str) -> str:
-    """Return the string stored under *key* in a tool schema, or *default* when it is absent or not a string."""
-    value = schema.get(key)
-    return value if isinstance(value, str) else default
 
 
 SKILL_USAGE_TEMPLATE = """
@@ -356,52 +347,10 @@ class MCPSkillGenerator:
         limit = budget if budget is not None else L2_MAX_TOKENS - L2_FIXED_TOKENS
         name_map = build_tool_name_map(tools)
         for tier in ("full", "required"):
-            text = self._render_tool_tier(tools, tool_schemas, name_map, skill_name, tier)
+            text = render_tool_tier(tools, tool_schemas, name_map, skill_name, tier)
             if get_token_count(text) <= limit:
                 return text, tier
-        return self._build_tool_index(tools), "names"
-
-    def _render_tool_tier(
-        self,
-        tools: list[str],
-        tool_schemas: dict[str, JsonDict],
-        name_map: dict[str, str],
-        skill_name: str,
-        tier: str,
-    ) -> str:
-        """Render the tool section for one ladder tier."""
-        if tier == "names":
-            return self._build_tool_index(tools)
-
-        lines: list[str] = []
-        for tool_name in tools:
-            schema = tool_schemas.get(tool_name, {})
-            func_name = name_map[tool_name]
-            desc = self._truncate_to_sentence(
-                _text_field(schema, "description", ""), max_len=TOOL_LINE_DESC_CHARS
-            ).strip()
-
-            signature = render_signature(
-                func_name, normalize_input_schema(schema.get("inputSchema")), required_only=tier == "required"
-            )
-            line = f"- {signature} — {desc}" if desc else f"- {signature}"
-            if get_token_count(line) > SIGNATURE_TOKENS_PER_TOOL:
-                pointer = f"/mcp/{skill_name}/{func_name}.md" if skill_name else "the function doc"
-                line = f"- {func_name}(…) — {desc or 'no description'}（参数见 {pointer}）"
-            lines.append(line)
-
-        return "\n".join(lines)
-
-    def _build_tool_index(self, tools: list[str]) -> str:
-        """Name-only index, the last rung of the budget ladder.
-
-        Descriptions are dropped on purpose: a 100-tool server with first-sentence
-        hints costs ~3,800 tok, while names alone cost ~800. Measured on a realistic
-        100-tool set, a 40-character hint still costs ~3,500 tok, so there is no
-        useful middle ground — the model reads the doc for the one or two tools it needs.
-        """
-        name_map = build_tool_name_map(tools)
-        return "\n".join(f"- {name_map[tool_name]}" for tool_name in tools)
+        return build_tool_index(tools, name_map), "names"
 
     def _build_tool_detail_doc(
         self,
@@ -410,7 +359,7 @@ class MCPSkillGenerator:
         schema: JsonDict,
     ) -> str:
         """Build detailed tool documentation (Level 3)."""
-        tool_desc = _text_field(schema, "description", "No description available")
+        tool_desc = text_field(schema, "description", "No description available")
         input_schema = normalize_input_schema(schema.get("inputSchema"))
         params_section = build_params_section(input_schema)
         python_func_name = build_tool_name_map(skill_meta.mcp.tools if skill_meta.mcp else [])[tool_name]
@@ -426,15 +375,7 @@ class MCPSkillGenerator:
 
     # ========== Internal: Text Processing ==========
 
-    @staticmethod
-    def _truncate_to_sentence(text: str, max_len: int = 150) -> str:
-        """Truncate text at the first sentence boundary, or at max_len."""
-        match = re.search(r"[。.\n]", text)
-        if match and match.end() <= max_len:
-            return text[: match.end()].strip()
-        if len(text) > max_len:
-            return text[:max_len].strip() + "..."
-        return text
+    _truncate_to_sentence = staticmethod(truncate_to_sentence)
 
     @staticmethod
     def _clean_markdown(text: str) -> str:
