@@ -37,10 +37,11 @@ def build_reload_summary(skill_meta: SkillMetadata) -> str:
     """Build a concise summary for an already-loaded skill."""
     if skill_meta.is_mcp_skill and skill_meta.mcp:
         from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
-            mcp_tool_short_name,
+            build_tool_name_map,
         )
 
-        short_names = [mcp_tool_short_name(name) for name in skill_meta.mcp.tools[:20]]
+        name_map = build_tool_name_map(skill_meta.mcp.tools)
+        short_names = [name_map[name] for name in skill_meta.mcp.tools[:20]]
         tools_section = f"\nAvailable tools: {', '.join(short_names)}" if short_names else ""
         return (
             f"# {skill_meta.name} (already loaded)\n\n"

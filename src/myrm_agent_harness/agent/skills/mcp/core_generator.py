@@ -33,7 +33,7 @@ from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import (
     render_signature,
 )
 from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
-    mcp_tool_short_name,
+    build_tool_name_map,
     resolve_mcp_tool_name,
 )
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
@@ -359,26 +359,13 @@ class MCPSkillGenerator:
             return self._build_tool_index(tools)
 
         lines: list[str] = []
-        claimed: dict[str, str] = {}
+        name_map = build_tool_name_map(tools)
         for tool_name in tools:
             schema = tool_schemas.get(tool_name, {})
-            func_name = mcp_tool_short_name(tool_name)
+            func_name = name_map[tool_name]
             desc = self._truncate_to_sentence(
                 _text_field(schema, "description", ""), max_len=TOOL_LINE_DESC_CHARS
             ).strip()
-
-            canonical = claimed.get(func_name)
-            if canonical is not None:
-                logger.warning(
-                    "MCP tool name collision in '%s': '%s' and '%s' both map to '%s'",
-                    skill_name or tool_name,
-                    canonical,
-                    tool_name,
-                    func_name,
-                )
-                lines.append(f"- {func_name} — {desc or 'no description'} （不可直接调用：与 {canonical} 归一同名）")
-                continue
-            claimed[func_name] = tool_name
 
             signature = render_signature(func_name, normalize_input_schema(schema.get("inputSchema")))
             line = f"- {signature} — {desc}" if desc else f"- {signature}"
@@ -397,7 +384,7 @@ class MCPSkillGenerator:
         100-tool set, a 40-character hint still costs ~3,500 tok, so there is no
         useful middle ground — the model reads the doc for the one or two tools it needs.
         """
-        return "\n".join(f"- {mcp_tool_short_name(tool_name)}" for tool_name in tools)
+        return "\n".join(f"- {build_tool_name_map(tools)[tool_name]}" for tool_name in tools)
 
     def _build_tool_detail_doc(
         self,
@@ -409,7 +396,7 @@ class MCPSkillGenerator:
         tool_desc = _text_field(schema, "description", "No description available")
         input_schema = normalize_input_schema(schema.get("inputSchema"))
         params_section = build_params_section(input_schema)
-        python_func_name = mcp_tool_short_name(tool_name)
+        python_func_name = build_tool_name_map(skill_meta.mcp.tools if skill_meta.mcp else [])[tool_name]
         call_example = build_call_example(input_schema)
 
         return TOOL_DOC_TEMPLATE.format(

@@ -107,12 +107,13 @@ class MCPFileSystemStrategy(FileSystemStrategy):
 
         result = []
         from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
-            mcp_tool_short_name,
+            build_tool_name_map,
         )
 
+        name_map = build_tool_name_map(skill_meta.mcp.tools)
         for tool_name in skill_meta.mcp.tools:
             # Return short .md filenames aligned with SKILL.md and file_read paths
-            filename = f"{mcp_tool_short_name(tool_name)}.md"
+            filename = f"{name_map[tool_name]}.md"
             # 估算大小（使用缓存或默认值）
             size = len(skill_meta.mcp.tool_docs.get(tool_name, "")) or 1024
             result.append((filename, False, size))

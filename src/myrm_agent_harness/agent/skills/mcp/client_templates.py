@@ -167,9 +167,9 @@ class _SkillFunction:
         self._skill, self._func = skill, func
 
     async def __call__(self, **kwargs):
-        # 将下划线转为连字符（Python 命名 -> MCP 工具名）
-        tool_name = self._func.replace("_", "-")
-        return await _call(self._skill, tool_name, kwargs)
+        # The identifier is already the map-assigned Python name; the proxy resolves it
+        # back to the canonical MCP tool with the same per-skill map.
+        return await _call(self._skill, self._func, kwargs)
 
 class _SkillModule(types.ModuleType):
     """技能模块代理"""

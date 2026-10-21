@@ -203,14 +203,15 @@ class TestBuildToolListIndex:
         assert "(" not in tool_list
         assert "tool_0" in tool_list
 
-    def test_duplicate_short_names_are_marked(self, generator: MCPSkillGenerator) -> None:
+    def test_duplicate_short_names_get_distinct_identifiers(self, generator: MCPSkillGenerator) -> None:
         tools = ["mcp__srv__get-ticket", "mcp__srv__get_ticket"]
         schemas = {
             name: {"description": "Query", "inputSchema": {"properties": {"a": {"type": "string"}}}} for name in tools
         }
         tool_list = generator._build_tool_list(tools, schemas, len(tools))
-        assert tool_list.count("get_ticket") >= 2
-        assert "不可直接调用" in tool_list
+        # Both stay callable: the second takes a deterministic suffix instead of being marked dead.
+        assert "get_ticket(a?:string)" in tool_list
+        assert "get_ticket_2(a?:string)" in tool_list
 
     def test_large_server_lists_names_without_descriptions(
         self, generator: MCPSkillGenerator, large_skill_meta: SkillMetadata
