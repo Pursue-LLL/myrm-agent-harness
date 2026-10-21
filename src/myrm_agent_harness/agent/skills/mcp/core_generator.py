@@ -45,28 +45,25 @@ logger = logging.getLogger(__name__)
 
 type JsonDict = dict[str, object]
 
-TOOL_SECTION_BUDGET = 1_600
-"""Token ceiling for the L2 tool section.
+INSTRUCTIONS_TOKEN_LIMIT = 2_000
+"""Server instructions are capped here so one verbose server cannot blow up L2."""
 
-Derived from the skill-body contract (2,000 tokens, ``SKILL_SYSTEM.md`` §4.1): the
-fixed parts measured ~400 on 12306, leaving 1,600 for tools. A budget, not a tool
-count, so 21 tools never carry less information than 20.
+L2_MAX_TOKENS = 3_000
+"""Hard ceiling for one generated SKILL.md body (1.5x the 2,000-token authored band).
+
+Every part is bounded below, so the assembled body can never exceed this.
 """
+
+L2_FIXED_TOKENS = 224  # header + calling contract, measured on 12306
+
+MIN_TOOL_SECTION_TOKENS = L2_MAX_TOKENS - INSTRUCTIONS_TOKEN_LIMIT - L2_FIXED_TOKENS
+"""Floor left for tools when instructions use their whole cap (776)."""
 
 SIGNATURE_TOKENS_PER_TOOL = 120
 """Budget for one signature line; past it the line degrades to ``name(…)`` + a doc pointer."""
 
 TOOL_LINE_DESC_CHARS = 60
 """Characters of tool description kept after a signature line."""
-
-INSTRUCTIONS_TOKEN_LIMIT = 2_000
-"""Server instructions are capped here so one verbose server cannot blow up L2."""
-
-L2_FIXED_ALLOWANCE = 400
-"""Header + calling contract measured on 12306; the only L2 parts without their own cap."""
-
-L2_SOFT_TOKEN_BUDGET = INSTRUCTIONS_TOKEN_LIMIT + TOOL_SECTION_BUDGET + L2_FIXED_ALLOWANCE
-"""Warn when L2 exceeds the sum of its parts' caps — i.e. only when a cap was bypassed."""
 
 
 def _text_field(schema: JsonDict, key: str, default: str) -> str:
@@ -194,7 +191,9 @@ class MCPSkillGenerator:
         # here would print an import path that no skill answers to.
         skill_name = skill_meta.name
         tools = skill_meta.mcp.tools
-        tool_list, tier = self._build_tool_section(tools, tool_schemas, skill_name)
+        tool_list, tier = self._build_tool_section(
+            tools, tool_schemas, skill_name, self._tool_section_budget(instructions)
+        )
 
         usage_section = SKILL_USAGE_TEMPLATE.format(skill_name=skill_name)
         index_note = {
@@ -224,12 +223,12 @@ class MCPSkillGenerator:
 
         skill_meta.mcp.skill_content = content
         tokens = get_token_count(content)
-        if tokens > L2_SOFT_TOKEN_BUDGET:
+        if tokens > L2_MAX_TOKENS:
             logger.warning(
                 "MCP SKILL.md for '%s' is %d tokens (soft budget %d); server instructions may need trimming",
                 skill_meta.name,
                 tokens,
-                L2_SOFT_TOKEN_BUDGET,
+                L2_MAX_TOKENS,
             )
         return content
 
@@ -340,14 +339,25 @@ class MCPSkillGenerator:
 
     # ========== Internal: Tool List & Documentation ==========
 
+    @staticmethod
+    def _tool_section_budget(instructions: str) -> int:
+        """Tools get whatever the instructions leave inside the L2 ceiling, with a floor."""
+        used = get_token_count(instructions) if instructions else 0
+        return max(MIN_TOOL_SECTION_TOKENS, L2_MAX_TOKENS - L2_FIXED_TOKENS - used)
+
     def _build_tool_section(
-        self, tools: list[str], tool_schemas: dict[str, JsonDict], skill_name: str
+        self,
+        tools: list[str],
+        tool_schemas: dict[str, JsonDict],
+        skill_name: str,
+        budget: int | None = None,
     ) -> tuple[str, str]:
         """Render the L2 tool section once and return it with the tier that was chosen."""
+        limit = budget if budget is not None else L2_MAX_TOKENS - L2_FIXED_TOKENS
         name_map = build_tool_name_map(tools)
         for tier in ("full", "required"):
             text = self._render_tool_tier(tools, tool_schemas, name_map, skill_name, tier)
-            if get_token_count(text) <= TOOL_SECTION_BUDGET:
+            if get_token_count(text) <= limit:
                 return text, tier
         return self._build_tool_index(tools), "names"
 
