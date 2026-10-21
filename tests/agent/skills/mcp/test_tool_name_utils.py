@@ -112,3 +112,27 @@ class TestRuntimeProxyNameRoundTrip:
 
         tools = ["mcp__srv__get-ticket", "mcp__srv__get_ticket"]
         assert resolve_mcp_tool_name("get_ticket_2", tools) == "mcp__srv__get_ticket"
+
+
+class TestRenderedL2Names:
+    """Every identifier printed in L2 must resolve back to a canonical tool."""
+
+    def test_each_rendered_function_name_resolves(self) -> None:
+        from myrm_agent_harness.agent.skills.mcp.core_generator import mcp_skill_generator
+        from myrm_agent_harness.backends.skills.types import SkillMetadata
+        from myrm_agent_harness.backends.skills.types.types_requires import MCPSkillData
+
+        tools = ["mcp__srv__foo.bar", "mcp__srv__foo-bar", "mcp__srv__1foo", "mcp__srv__foo__bar"]
+        schemas = {
+            tool: {"description": "Query.", "inputSchema": {"properties": {"a": {"type": "string"}}}} for tool in tools
+        }
+        meta = SkillMetadata(
+            name="mcp_srv_skill",
+            description="d",
+            mcp=MCPSkillData(server="srv", tools=tools, config=[], skill_content=None, tool_schemas=schemas),
+        )
+        content = mcp_skill_generator.generate_skill_content(meta)
+        rendered = [line[2 : line.index("(")] for line in content.splitlines() if line.startswith("- ") and "(" in line]
+        assert len(rendered) == len(tools)
+        for func_name in rendered:
+            assert resolve_mcp_tool_name(func_name, tools) is not None, func_name
