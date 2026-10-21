@@ -716,6 +716,14 @@ class TestToolSectionLadder:
         assert tool_section_budget("") == L2_MAX_TOKENS - L2_FIXED_TOKENS - INDEX_NOTE_TOKENS
         assert tool_section_budget("token " * 3_000) == MIN_TOOL_SECTION_TOKENS
 
+        long_skill = "mcp_" + "x" * 200 + "_skill"
+        note = (
+            f"\nThis server exposes 300 tools, so only names are listed. "
+            f"Read `/mcp/{long_skill}/<func_name>.md` with `file_read_tool` for the 1-2 tools "
+            "you will call, then write the call.\n"
+        )
+        assert get_token_count(note) <= INDEX_NOTE_TOKENS
+
     def test_names_tier_respects_budget(self) -> None:
         # A verbose server with hundreds of tools cannot fit every name inside the ceiling.
         schemas = self._schemas(300)
