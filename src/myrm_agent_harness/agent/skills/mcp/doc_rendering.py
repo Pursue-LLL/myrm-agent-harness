@@ -14,7 +14,7 @@
 [POS]
 Pure rendering layer for the generated MCP SKILL.md. Token-budget arithmetic and
 the full -> required -> names degradation live here so the generator stays an
-orchestrator and the file-line gate is not the only thing separating the concerns.
+orchestrator and each concern has one implementation.
 """
 
 from __future__ import annotations
@@ -42,10 +42,14 @@ L2_MAX_TOKENS = 3_000
 Every part is bounded below, so the assembled body can never exceed this.
 """
 
-L2_FIXED_TOKENS = 224  # header + calling contract, measured on 12306
+L2_FIXED_TOKENS = 224
+"""Header + calling contract, measured on 12306."""
 
-MIN_TOOL_SECTION_TOKENS = L2_MAX_TOKENS - INSTRUCTIONS_TOKEN_LIMIT - L2_FIXED_TOKENS
-"""Floor left for tools when instructions use their whole cap (776)."""
+INDEX_NOTE_TOKENS = 40
+"""Reserve for the tier note the generator appends after the tool section."""
+
+MIN_TOOL_SECTION_TOKENS = L2_MAX_TOKENS - INSTRUCTIONS_TOKEN_LIMIT - L2_FIXED_TOKENS - INDEX_NOTE_TOKENS
+"""Floor left for tools when instructions use their whole cap (736)."""
 
 SIGNATURE_TOKENS_PER_TOOL = 120
 """Budget for one signature line; past it the line degrades to ``name(…)`` + a doc pointer."""
@@ -108,21 +112,20 @@ def clean_markdown(text: str) -> str:
 def tool_section_budget(instructions: str) -> int:
     """Tools get whatever the instructions leave inside the L2 ceiling, with a floor."""
     used = get_token_count(instructions) if instructions else 0
-    return max(MIN_TOOL_SECTION_TOKENS, L2_MAX_TOKENS - L2_FIXED_TOKENS - used)
+    return max(MIN_TOOL_SECTION_TOKENS, L2_MAX_TOKENS - L2_FIXED_TOKENS - INDEX_NOTE_TOKENS - used)
 
 
 def build_tool_section(
     tools: list[str],
     tool_schemas: dict[str, JsonDict],
     skill_name: str,
-    budget: int | None = None,
+    budget: int,
 ) -> tuple[str, str]:
     """Render the L2 tool section once and return it with the tier that was chosen."""
-    limit = budget if budget is not None else L2_MAX_TOKENS - L2_FIXED_TOKENS
     name_map = build_tool_name_map(tools)
     for tier in ("full", "required"):
         text = render_tool_tier(tools, tool_schemas, name_map, skill_name, tier)
-        if get_token_count(text) <= limit:
+        if get_token_count(text) <= budget:
             return text, tier
     return build_tool_index(tools, name_map), "names"
 
@@ -159,9 +162,8 @@ def render_tool_tier(
 def build_tool_index(tools: list[str], name_map: dict[str, str]) -> str:
     """Name-only index, the last rung of the budget ladder.
 
-    Descriptions are dropped on purpose: a 100-tool server with first-sentence
-    hints costs ~3,800 tok, while names alone cost ~800. Measured on a realistic
-    100-tool set, a 40-character hint still costs ~3,500 tok, so there is no
-    useful middle ground — the model reads the doc for the one or two tools it needs.
+    Descriptions are dropped on purpose: name-only costs 960 tokens for 100 tools
+    and 2,360 for 300, while a first-sentence hint per tool would exceed the L2
+    ceiling. The model reads the doc for the one or two tools it needs.
     """
     return "\n".join(f"- {name_map[tool_name]}" for tool_name in tools)

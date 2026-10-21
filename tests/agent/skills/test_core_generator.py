@@ -13,9 +13,20 @@ import pytest
 
 from myrm_agent_harness.agent.skills.mcp.core_generator import (
     SKILL_USAGE_TEMPLATE,
-    L2_MAX_TOKENS,
     MCPSkillGenerator,
     mcp_skill_generator,
+)
+from myrm_agent_harness.agent.skills.mcp.description import resolve_description
+from myrm_agent_harness.agent.skills.mcp.doc_rendering import (
+    INDEX_NOTE_TOKENS,
+    INSTRUCTIONS_TOKEN_LIMIT,
+    L2_FIXED_TOKENS,
+    L2_MAX_TOKENS,
+    MIN_TOOL_SECTION_TOKENS,
+    build_tool_section,
+    clean_markdown,
+    tool_section_budget,
+    truncate_to_sentence,
 )
 from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import TOOL_DOC_TEMPLATE, render_signature
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
@@ -24,7 +35,7 @@ from myrm_agent_harness.utils.text_utils import get_token_count
 
 def _tool_section(generator, tools, schemas, **kwargs):
     """L2 tool-section text for the tier the budget ladder picks."""
-    return generator._build_tool_section(tools, schemas, kwargs.get("skill_name", ""))[0]
+    return build_tool_section(tools, schemas, kwargs.get("skill_name", ""), tool_section_budget(""))[0]
 
 
 @pytest.fixture
@@ -514,25 +525,23 @@ class TestResolveDescriptionPriority:
     """_resolve_description priority: user > instructions > auto-generated."""
 
     def test_user_description_wins(self, generator: MCPSkillGenerator) -> None:
-        desc = generator._resolve_description("user desc", "instr", [], "srv")
+        desc = resolve_description("user desc", "instr", [], "srv")
         assert desc == "user desc"
 
     def test_no_trigger_sentence_is_appended(self, generator: MCPSkillGenerator) -> None:
         # The catalog routing rules own skill selection; per-server imperatives contradicted them.
-        assert generator._resolve_description("Use when handling tickets", "instr", [], "srv") == (
-            "Use when handling tickets"
-        )
-        assert "必须首先选择本技能" not in generator._resolve_description("tickets", "", [], "srv")
+        assert resolve_description("Use when handling tickets", "instr", [], "srv") == ("Use when handling tickets")
+        assert "必须首先选择本技能" not in resolve_description("tickets", "", [], "srv")
 
     def test_instructions_fallback_cleans_markdown(self, generator: MCPSkillGenerator) -> None:
-        desc = generator._resolve_description("", "**Hello** world.\n\nExtra", [], "srv")
+        desc = resolve_description("", "**Hello** world.\n\nExtra", [], "srv")
         assert "Hello world" in desc
 
     def test_auto_generated_from_tool_descriptions(self, generator: MCPSkillGenerator) -> None:
         from types import SimpleNamespace
 
         tools = [SimpleNamespace(description="Query tickets quickly.")]
-        desc = generator._resolve_description("", None, tools, "srv")
+        desc = resolve_description("", None, tools, "srv")
         assert "Query tickets quickly" in desc
         assert "srv" in desc
 
@@ -540,14 +549,14 @@ class TestResolveDescriptionPriority:
         from types import SimpleNamespace
 
         tools = [SimpleNamespace(description=""), SimpleNamespace(description="")]
-        desc = generator._resolve_description("", None, tools, "my-server")
+        desc = resolve_description("", None, tools, "my-server")
         assert desc == "My Server (2 tools available)"
 
     def test_auto_generated_more_than_three(self, generator: MCPSkillGenerator) -> None:
         from types import SimpleNamespace
 
         tools = [SimpleNamespace(description=f"Desc {i} tool.") for i in range(5)]
-        desc = generator._resolve_description("", None, tools, "srv")
+        desc = resolve_description("", None, tools, "srv")
         assert "and 2 more" in desc
 
 
@@ -594,18 +603,18 @@ class TestTextProcessing:
     """_truncate_to_sentence and _clean_markdown."""
 
     def test_truncate_at_sentence_boundary(self) -> None:
-        assert MCPSkillGenerator._truncate_to_sentence("Hello world. Next", max_len=20) == "Hello world."
+        assert truncate_to_sentence("Hello world. Next", max_len=20) == "Hello world."
 
     def test_truncate_long_text(self) -> None:
-        result = MCPSkillGenerator._truncate_to_sentence("x" * 100, max_len=50)
+        result = truncate_to_sentence("x" * 100, max_len=50)
         assert result == "x" * 50 + "..."
         assert len(result) == 53
 
     def test_truncate_short_text(self) -> None:
-        assert MCPSkillGenerator._truncate_to_sentence("short", max_len=50) == "short"
+        assert truncate_to_sentence("short", max_len=50) == "short"
 
     def test_clean_markdown(self) -> None:
-        assert MCPSkillGenerator._clean_markdown("**bold** and *italic* and # heading") == "bold and italic and heading"
+        assert clean_markdown("**bold** and *italic* and # heading") == "bold and italic and heading"
 
 
 class TestGenerateMetadataOnly:
@@ -696,14 +705,14 @@ class TestToolSectionLadder:
     def test_twenty_one_tools_keep_full_signatures(self) -> None:
         # The old count threshold dropped every parameter at 21 tools.
         schemas = self._schemas(21)
-        tool_list = mcp_skill_generator._build_tool_section(list(schemas), schemas, "x", budget=1_600)[0]
+        tool_list = build_tool_section(list(schemas), schemas, "x", 1_600)[0]
         assert "p5?:string" in tool_list
         assert "…" not in tool_list
         assert get_token_count(tool_list) <= 1_600
 
     def test_fifty_tools_drop_optionals_but_keep_required(self) -> None:
         schemas = self._schemas(50)
-        tool_list = mcp_skill_generator._build_tool_section(list(schemas), schemas, "x", budget=1_200)[0]
+        tool_list = build_tool_section(list(schemas), schemas, "x", 1_200)[0]
         assert "p0:string" in tool_list
         assert "p5?:string" not in tool_list
         assert "…" in tool_list

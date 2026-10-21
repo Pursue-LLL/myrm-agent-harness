@@ -21,6 +21,13 @@ from myrm_agent_harness.agent.skills.mcp.core_generator import (
     MCPSkillGenerator,
     mcp_skill_generator,
 )
+from myrm_agent_harness.agent.skills.mcp.description import build_description_from_tools, resolve_description
+from myrm_agent_harness.agent.skills.mcp.doc_rendering import (
+    build_tool_section,
+    clean_markdown,
+    tool_section_budget,
+    truncate_to_sentence,
+)
 from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import render_signature
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 from myrm_agent_harness.backends.skills.types.types_requires import MCPSkillData
@@ -29,7 +36,7 @@ from myrm_agent_harness.utils.text_utils import get_token_count
 
 def _tool_section(generator, tools, schemas, **kwargs):
     """L2 tool-section text for the tier the budget ladder picks."""
-    return generator._build_tool_section(tools, schemas, kwargs.get("skill_name", ""))[0]
+    return build_tool_section(tools, schemas, kwargs.get("skill_name", ""), tool_section_budget(""))[0]
 
 
 def _skill_meta(
@@ -160,30 +167,25 @@ class TestDescriptionResolution:
         return SimpleNamespace(name=name, description=description, args_schema=None)
 
     def test_user_description_priority(self) -> None:
-        gen = MCPSkillGenerator()
-        desc = gen._resolve_description("user desc", "instructions", [self._tool("a", "t")], "srv")
+        desc = resolve_description("user desc", "instructions", [self._tool("a", "t")], "srv")
         assert desc == "user desc"
 
     def test_existing_trigger_phrase_is_not_duplicated(self) -> None:
-        gen = MCPSkillGenerator()
-        assert gen._resolve_description("Use when checking tickets", "", [], "srv") == ("Use when checking tickets")
+        assert resolve_description("Use when checking tickets", "", [], "srv") == ("Use when checking tickets")
 
     def test_instructions_fallback(self) -> None:
-        gen = MCPSkillGenerator()
-        desc = gen._resolve_description("", "**bold** instructions\nhere", [], "srv")
+        desc = resolve_description("", "**bold** instructions\nhere", [], "srv")
         assert "bold" in desc and "**" not in desc
 
     def test_tool_based_description(self) -> None:
-        gen = MCPSkillGenerator()
         tools = [self._tool(f"t{i}", f"Get {i} value.") for i in range(5)]
-        desc = gen._resolve_description("", None, tools, "srv")
+        desc = resolve_description("", None, tools, "srv")
         assert desc.startswith("MCP srv:")
         assert "and 2 more" in desc
 
     def test_tool_based_description_no_descriptions(self) -> None:
-        gen = MCPSkillGenerator()
         tools = [self._tool(f"t{i}", "") for i in range(3)]
-        desc = gen._build_description_from_tools(tools, "my-server")
+        desc = build_description_from_tools(tools, "my-server")
         assert "My Server" in desc
         assert "3 tools available" in desc
 
@@ -280,18 +282,18 @@ class TestRenderSignature:
 
 class TestTextProcessing:
     def test_truncate_at_sentence_boundary(self) -> None:
-        out = MCPSkillGenerator._truncate_to_sentence("First sentence. Second", max_len=50)
+        out = truncate_to_sentence("First sentence. Second", max_len=50)
         assert out == "First sentence."
 
     def test_truncate_at_max_len(self) -> None:
-        out = MCPSkillGenerator._truncate_to_sentence("x" * 200, max_len=150)
+        out = truncate_to_sentence("x" * 200, max_len=150)
         assert out == "x" * 150 + "..."
 
     def test_truncate_short_text_unchanged(self) -> None:
-        assert MCPSkillGenerator._truncate_to_sentence("short") == "short"
+        assert truncate_to_sentence("short") == "short"
 
     def test_clean_markdown(self) -> None:
-        out = MCPSkillGenerator._clean_markdown("## **bold** and *em*\nnext")
+        out = clean_markdown("## **bold** and *em*\nnext")
         assert out == "bold and em next"
         assert "**" not in out
 

@@ -24,19 +24,14 @@ import re
 
 from langchain_core.tools import BaseTool
 
-from myrm_agent_harness.agent.skills.mcp.description import (
-    build_description_from_tools,
-    resolve_description,
-)
+from myrm_agent_harness.agent.skills.mcp.description import resolve_description
 from myrm_agent_harness.agent.skills.mcp.doc_rendering import (
     INSTRUCTIONS_TOKEN_LIMIT,
     L2_MAX_TOKENS,
     build_tool_section,
     cap_instructions,
-    clean_markdown,
     text_field,
     tool_section_budget,
-    truncate_to_sentence,
 )
 from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import (
     TOOL_DOC_TEMPLATE,
@@ -279,35 +274,6 @@ class MCPSkillGenerator:
             index += 1
         return f"{base}_{index}"
 
-    # ========== Internal: facades over the pure L1/L2 renderers ==========
-
-    def _resolve_description(
-        self,
-        user_description: str,
-        instructions: str | None,
-        tools: list[BaseTool],
-        server_name: str,
-    ) -> str:
-        """Delegate to :func:`description.resolve_description`."""
-        return resolve_description(user_description, instructions, tools, server_name)
-
-    def _build_description_from_tools(self, tools: list[BaseTool], server_name: str) -> str:
-        """Delegate to :func:`description.build_description_from_tools`."""
-        return build_description_from_tools(tools, server_name)
-
-    def _build_tool_section(
-        self,
-        tools: list[str],
-        tool_schemas: dict[str, JsonDict],
-        skill_name: str,
-        budget: int | None = None,
-    ) -> tuple[str, str]:
-        """Delegate to :func:`doc_rendering.build_tool_section`."""
-        return build_tool_section(tools, tool_schemas, skill_name, budget)
-
-    _truncate_to_sentence = staticmethod(truncate_to_sentence)
-    _clean_markdown = staticmethod(clean_markdown)
-
     # ========== Internal: Tool Documentation ==========
 
     def _build_tool_detail_doc(
@@ -356,7 +322,7 @@ class MCPSkillGenerator:
         if skill_name is None:
             _, skill_name = self._get_safe_names(server_name)
 
-        skill_description = self._resolve_description(user_description, instructions, tools, server_name)
+        skill_description = resolve_description(user_description, instructions, tools, server_name)
         # L1 is the only rendered text that bypassed the load-time scan L2 goes through.
         from myrm_agent_harness.backends.skills.scanning.scanner import ScanSeverity, scan_skill_content
 
