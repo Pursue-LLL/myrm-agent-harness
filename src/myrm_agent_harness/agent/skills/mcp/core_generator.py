@@ -45,12 +45,12 @@ logger = logging.getLogger(__name__)
 
 type JsonDict = dict[str, object]
 
-TOOL_SECTION_BUDGET = 1_800
-"""Token ceiling for the L2 tool section, chosen by a degradation ladder.
+TOOL_SECTION_BUDGET = 1_600
+"""Token ceiling for the L2 tool section.
 
-Full signatures, then required-only signatures, then names. A count threshold would
-make 21 tools carry less information than 20 (the same cliff the catalog had), while
-a budget keeps the section bounded at any N without a sudden drop.
+Derived from the skill-body contract (2,000 tokens, ``SKILL_SYSTEM.md`` §4.1): the
+fixed parts measured ~400 on 12306, leaving 1,600 for tools. A budget, not a tool
+count, so 21 tools never carry less information than 20.
 """
 
 SIGNATURE_TOKENS_PER_TOOL = 120
