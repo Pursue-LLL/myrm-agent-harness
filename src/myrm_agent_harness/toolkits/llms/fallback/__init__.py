@@ -12,6 +12,8 @@ Provides sophisticated model fallback management with:
 - ModelFallbackManager: model fallback manager
 - ModelCandidate: model candidate dataclass
 - ManagedLLM: LLM wrapper integrating ModelFallbackManager
+- HealthProbeResult: structured liveness probe outcome (ok / error_kind / error / latency_ms)
+- probe_llm_health: classify a probe failure (timeout vs provider error) instead of flattening it
 
 [POS]
 Enhanced model fallback management. Supports cooldown periods, candidate pools, and decision logging.
@@ -25,7 +27,13 @@ from .context import (
     with_failover_emitter,
 )
 from .events import FailoverCallback, FailoverEvent, RecoveryCallback, RecoveryEvent
-from .health_check import lightweight_health_check
+from .health_check import (
+    DEFAULT_HEALTH_PROBE_TIMEOUT_S,
+    HealthProbeErrorKind,
+    HealthProbeResult,
+    lightweight_health_check,
+    probe_llm_health,
+)
 from .logger import log_fallback_attempt, log_fallback_decision
 from .managed_llm import FallbackModel, ManagedLLM
 from .manager import ModelCandidate, ModelFallbackManager
@@ -45,6 +53,7 @@ from .recommendations import (
 from .scenario import ModelMetrics, ScenarioType, select_by_scenario, select_by_scenario_with_quality
 
 __all__ = [
+    "DEFAULT_HEALTH_PROBE_TIMEOUT_S",
     "PRESET_CONFIGS",
     "PRESET_STRATEGIES",
     "FailoverCallback",
@@ -55,6 +64,8 @@ __all__ = [
     "FallbackStrategy",
     "GlobalProbeThrottle",
     "ManagedLLM",
+    "HealthProbeErrorKind",
+    "HealthProbeResult",
     "ModelCandidate",
     "ModelFallbackManager",
     "ModelMetrics",
@@ -73,6 +84,7 @@ __all__ = [
     "lightweight_health_check",
     "log_fallback_attempt",
     "log_fallback_decision",
+    "probe_llm_health",
     "recommend_fallback",
     "select_by_scenario",
     "select_by_scenario_with_quality",

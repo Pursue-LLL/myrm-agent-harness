@@ -1,4 +1,4 @@
-"""Tests for the lightweight liveness probe: a deadline that really applies, and a request left unaltered."""
+"""Tests for the liveness probe: a deadline that really applies, a request left unaltered, and classified failures."""
 
 from __future__ import annotations
 
@@ -10,7 +10,10 @@ from langchain_core.messages import AIMessage, HumanMessage
 from litellm.types.utils import Choices, Message, ModelResponse
 
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM
-from myrm_agent_harness.toolkits.llms.fallback.health_check import lightweight_health_check
+from myrm_agent_harness.toolkits.llms.fallback.health_check import (
+    lightweight_health_check,
+    probe_llm_health,
+)
 
 
 async def test_answering_model_is_healthy_and_gets_a_plain_request() -> None:
@@ -94,3 +97,64 @@ async def test_probe_leaves_the_models_token_budget_alone() -> None:
     assert await lightweight_health_check(model) is True
 
     assert model.client.acreate.call_args.kwargs["max_tokens"] == 4096
+
+
+async def test_probe_reports_a_healthy_model_with_its_latency() -> None:
+    llm = AsyncMock()
+    llm.ainvoke.return_value = AIMessage(content="response")
+
+    result = await probe_llm_health(llm)
+
+    assert result.ok is True
+    assert result.error_kind == "none"
+    assert result.error is None
+    assert result.latency_ms is not None
+
+
+async def test_probe_classifies_a_deadline_miss_as_timeout() -> None:
+    async def hang(*_: object, **__: object) -> None:
+        await asyncio.Event().wait()
+
+    llm = MagicMock()
+    llm.ainvoke = hang
+
+    result = await probe_llm_health(llm, timeout_s=0.05)
+
+    assert result.ok is False
+    assert result.error_kind == "timeout"
+    assert result.error is not None and "0.05" in result.error
+
+
+async def test_probe_keeps_the_provider_reason_and_labels_it_as_provider_error() -> None:
+    llm = AsyncMock()
+    llm.ainvoke.side_effect = RuntimeError("Invalid credential")
+
+    result = await probe_llm_health(llm)
+
+    assert result.ok is False
+    assert result.error_kind == "provider_error"
+    assert result.error is not None
+    assert "RuntimeError" in result.error
+    assert "Invalid credential" in result.error
+
+
+async def test_probe_does_not_mistake_a_provider_timeout_for_our_deadline() -> None:
+    llm = AsyncMock()
+    llm.ainvoke.side_effect = TimeoutError("upstream read timeout")
+
+    result = await probe_llm_health(llm, timeout_s=30.0)
+
+    assert result.ok is False
+    assert result.error_kind == "provider_error"
+    assert result.error is not None and "upstream read timeout" in result.error
+
+
+async def test_probe_classifies_an_empty_answer_as_provider_error() -> None:
+    llm = AsyncMock()
+    llm.ainvoke.return_value = None
+
+    result = await probe_llm_health(llm)
+
+    assert result.ok is False
+    assert result.error_kind == "provider_error"
+    assert result.error is not None and "empty" in result.error.lower()
