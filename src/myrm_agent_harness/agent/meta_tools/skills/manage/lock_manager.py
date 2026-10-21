@@ -16,6 +16,7 @@ Framework-layer utility, can be used across business layers.
 from __future__ import annotations
 
 import asyncio
+from typing import ClassVar
 from weakref import WeakValueDictionary
 
 
@@ -34,8 +35,8 @@ class SkillLockManager:
             await backend.save_skill(...)
     """
 
-    _locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
-    _global_lock: asyncio.Lock = asyncio.Lock()
+    _locks: ClassVar[WeakValueDictionary[str, asyncio.Lock]] = WeakValueDictionary()
+    _global_lock: ClassVar[asyncio.Lock] = asyncio.Lock()
 
     @classmethod
     def get_lock(cls, skill_name: str, user_id: str) -> asyncio.Lock:

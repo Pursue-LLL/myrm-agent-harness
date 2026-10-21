@@ -12,12 +12,14 @@ from __future__ import annotations
 import pytest
 
 from myrm_agent_harness.agent.skills.mcp.core_generator import (
-    SIGNATURE_TOOL_LIMIT,
     SKILL_USAGE_TEMPLATE,
+    TOOL_SECTION_BUDGET,
     MCPSkillGenerator,
+    mcp_skill_generator,
 )
 from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import TOOL_DOC_TEMPLATE, render_signature
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
+from myrm_agent_harness.utils.text_utils import get_token_count
 
 
 @pytest.fixture
@@ -93,8 +95,8 @@ def many_tools_skill_meta() -> SkillMetadata:
 
 @pytest.fixture
 def large_skill_meta() -> SkillMetadata:
-    """SkillMetadata above SIGNATURE_TOOL_LIMIT (index path)."""
-    tools = [f"tool-{i}" for i in range(SIGNATURE_TOOL_LIMIT + 5)]
+    """SkillMetadata whose tool section exceeds the budget ladder's signature rungs."""
+    tools = [f"tool-{i}" for i in range(200)]
     schemas: dict[str, dict[str, object]] = {
         name: {"description": f"Tool {i} description", "inputSchema": {}} for i, name in enumerate(tools)
     }
@@ -199,7 +201,6 @@ class TestBuildToolListIndex:
             large_skill_meta.mcp.tool_schemas,
             len(large_skill_meta.mcp.tools),
         )
-        assert len(large_skill_meta.mcp.tools) > SIGNATURE_TOOL_LIMIT
         assert "(" not in tool_list
         assert "tool_0" in tool_list
 
@@ -672,3 +673,42 @@ class TestGenerateMetadataOnly:
             ]
         )
         assert [skill.name for skill in skills] == ["mcp_weather_skill", "mcp_weather_skill_2"]
+
+
+class TestToolSectionLadder:
+    """The tool section degrades by budget, never by a raw tool count."""
+
+    @staticmethod
+    def _schemas(count: int) -> dict[str, dict[str, object]]:
+        return {
+            f"tool_{i}": {
+                "description": "Query records and return matches.",
+                "inputSchema": {
+                    "properties": {f"p{j}": {"type": "string"} for j in range(6)},
+                    "required": ["p0", "p1"],
+                },
+            }
+            for i in range(count)
+        }
+
+    def test_twenty_one_tools_keep_full_signatures(self) -> None:
+        # The old count threshold dropped every parameter at 21 tools.
+        schemas = self._schemas(21)
+        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas, 21)
+        assert "p5?:string" in tool_list
+        assert "…" not in tool_list
+        assert get_token_count(tool_list) <= TOOL_SECTION_BUDGET
+
+    def test_fifty_tools_drop_optionals_but_keep_required(self) -> None:
+        schemas = self._schemas(50)
+        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas, 50)
+        assert "p0:string" in tool_list
+        assert "p5?:string" not in tool_list
+        assert "…" in tool_list
+        assert get_token_count(tool_list) <= TOOL_SECTION_BUDGET
+
+    def test_two_hundred_tools_fall_back_to_names(self) -> None:
+        schemas = self._schemas(200)
+        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas, 200)
+        assert "(" not in tool_list
+        assert tool_list.count("- tool_") == 200

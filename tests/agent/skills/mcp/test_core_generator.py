@@ -17,7 +17,6 @@ from types import SimpleNamespace
 import pytest
 
 from myrm_agent_harness.agent.skills.mcp.core_generator import (
-    SIGNATURE_TOOL_LIMIT,
     SKILL_USAGE_TEMPLATE,
     MCPSkillGenerator,
     mcp_skill_generator,
@@ -224,12 +223,13 @@ class TestToolList:
         assert "- fn_0()" in out
         assert "42" not in out
 
-    def test_above_limit_falls_back_to_index(self) -> None:
+    def test_above_budget_falls_back_to_index(self) -> None:
+        count = 200
         schemas: dict[str, dict[str, object]] = {
             f"fn_{i}": {"description": "Desc", "inputSchema": {"properties": {"x": {"type": "string"}}}}
-            for i in range(SIGNATURE_TOOL_LIMIT + 1)
+            for i in range(count)
         }
-        meta = self._tool_list_meta(SIGNATURE_TOOL_LIMIT + 1, schemas=schemas)
+        meta = self._tool_list_meta(count, schemas=schemas)
         out = mcp_skill_generator.generate_skill_content(meta)
         assert "x:string" not in out
         assert "fn_0" in out

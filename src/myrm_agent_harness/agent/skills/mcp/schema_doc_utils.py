@@ -277,11 +277,14 @@ def render_constraint(info: JsonDict) -> str:
     return ""
 
 
-def render_signature(func_name: str, input_schema: JsonDict) -> str:
+def render_signature(func_name: str, input_schema: JsonDict, *, required_only: bool = False) -> str:
     """Render ``name(param:type, optional?:type~constraint)`` for one tool.
 
     Required parameters come first so a long optional tail cannot bury them; both
     groups keep the schema's (canonicalised) order for a deterministic prompt.
+
+    ``required_only`` is the middle rung of the L2 budget ladder: optionals are
+    replaced by ``…`` so the model knows they exist and can read the tool doc for them.
 
     A schema that declares properties but none of them renderable echoes ``(…)``
     rather than ``()``: an empty signature would read as a zero-argument tool and
@@ -293,12 +296,18 @@ def render_signature(func_name: str, input_schema: JsonDict) -> str:
     required = input_schema.get("required")
     required_names = set(required) if isinstance(required, list) else set()
     params: list[tuple[bool, str]] = []
+    omitted = False
     for name, info in properties.items():
         if not isinstance(info, dict):
             continue
         is_optional = name not in required_names
+        if required_only and is_optional:
+            omitted = True
+            continue
         marker = "?" if is_optional else ""
         params.append((is_optional, f"{name}{marker}:{render_type(info)}{render_constraint(info)}"))
+    if omitted:
+        params.append((True, "…"))
     if not params:
         return f"{func_name}(…)"
     params.sort(key=lambda item: (item[0], item[1]))

@@ -45,12 +45,12 @@ logger = logging.getLogger(__name__)
 
 type JsonDict = dict[str, object]
 
-SIGNATURE_TOOL_LIMIT = 20
-"""Servers with at most this many tools list compact signatures in SKILL.md.
+TOOL_SECTION_BUDGET = 1_800
+"""Token ceiling for the L2 tool section, chosen by a degradation ladder.
 
-Above the limit the tool section degrades to ``name`` + first sentence: full signatures
-would push the skill body past the 500-2,000 token band a SKILL.md is expected to
-occupy (``SKILL_SYSTEM.md`` §4.1), which is also where prompt cost stops being cached.
+Full signatures, then required-only signatures, then names. A count threshold would
+make 21 tools carry less information than 20 (the same cliff the catalog had), while
+a budget keeps the section bounded at any N without a sudden drop.
 """
 
 SIGNATURE_TOKENS_PER_TOOL = 120
@@ -190,16 +190,23 @@ class MCPSkillGenerator:
         # a server whose name collided was renamed, and recomputing from server_name
         # here would print an import path that no skill answers to.
         skill_name = skill_meta.name
-        tool_list = self._build_tool_list(skill_meta.mcp.tools, tool_schemas, tool_count, skill_name=skill_name)
+        tools = skill_meta.mcp.tools
+        name_map = build_tool_name_map(tools)
+        tier = self._select_tool_tier(tools, tool_schemas, skill_name)
+        tool_list = self._render_tool_tier(tools, tool_schemas, name_map, skill_name, tier)
 
         usage_section = SKILL_USAGE_TEMPLATE.format(skill_name=skill_name)
-        index_note = (
-            f"\nThis server exposes {tool_count} tools, so only names are listed. "
-            f"Read `/mcp/{skill_name}/<func_name>.md` with `file_read_tool` for the 1-2 tools "
-            "you will call, then write the call.\n"
-            if tool_count > SIGNATURE_TOOL_LIMIT
-            else ""
-        )
+        index_note = {
+            "names": (
+                f"\nThis server exposes {tool_count} tools, so only names are listed. "
+                f"Read `/mcp/{skill_name}/<func_name>.md` with `file_read_tool` for the 1-2 tools "
+                "you will call, then write the call.\n"
+            ),
+            "required": (
+                "\nSignatures list required parameters only (`…` marks the omitted optionals); "
+                "read the tool doc when an optional parameter matters.\n"
+            ),
+        }.get(tier, "")
         instructions = cap_instructions(instructions, skill_meta.name, INSTRUCTIONS_TOKEN_LIMIT)
 
         intro = f"{instructions}\n\n" if instructions else ""
@@ -348,18 +355,31 @@ class MCPSkillGenerator:
         *,
         skill_name: str = "",
     ) -> str:
-        """Build the L2 tool section.
+        """Build the L2 tool section through the budget ladder (full → required → names)."""
+        tier = self._select_tool_tier(tools, tool_schemas, skill_name)
+        return self._render_tool_tier(tools, tool_schemas, build_tool_name_map(tools), skill_name, tier)
 
-        Up to ``SIGNATURE_TOOL_LIMIT`` tools: one line per tool carrying a compact
-        signature, so the model can write a correct call without reading L3.
-        Above the limit: name + first sentence only (a full signature table would push
-        SKILL.md past the token band a skill body is expected to occupy).
-        """
-        if tool_count > SIGNATURE_TOOL_LIMIT:
+    def _select_tool_tier(self, tools: list[str], tool_schemas: dict[str, JsonDict], skill_name: str) -> str:
+        name_map = build_tool_name_map(tools)
+        for tier in ("full", "required"):
+            text = self._render_tool_tier(tools, tool_schemas, name_map, skill_name, tier)
+            if get_token_count(text) <= TOOL_SECTION_BUDGET:
+                return tier
+        return "names"
+
+    def _render_tool_tier(
+        self,
+        tools: list[str],
+        tool_schemas: dict[str, JsonDict],
+        name_map: dict[str, str],
+        skill_name: str,
+        tier: str,
+    ) -> str:
+        """Render the tool section for one ladder tier."""
+        if tier == "names":
             return self._build_tool_index(tools)
 
         lines: list[str] = []
-        name_map = build_tool_name_map(tools)
         for tool_name in tools:
             schema = tool_schemas.get(tool_name, {})
             func_name = name_map[tool_name]
@@ -367,7 +387,9 @@ class MCPSkillGenerator:
                 _text_field(schema, "description", ""), max_len=TOOL_LINE_DESC_CHARS
             ).strip()
 
-            signature = render_signature(func_name, normalize_input_schema(schema.get("inputSchema")))
+            signature = render_signature(
+                func_name, normalize_input_schema(schema.get("inputSchema")), required_only=tier == "required"
+            )
             line = f"- {signature} — {desc}" if desc else f"- {signature}"
             if get_token_count(line) > SIGNATURE_TOKENS_PER_TOOL:
                 pointer = f"/mcp/{skill_name}/{func_name}.md" if skill_name else "the function doc"
@@ -377,7 +399,7 @@ class MCPSkillGenerator:
         return "\n".join(lines)
 
     def _build_tool_index(self, tools: list[str]) -> str:
-        """Name-only index for servers above ``SIGNATURE_TOOL_LIMIT``.
+        """Name-only index, the last rung of the budget ladder.
 
         Descriptions are dropped on purpose: a 100-tool server with first-sentence
         hints costs ~3,800 tok, while names alone cost ~800. Measured on a realistic
