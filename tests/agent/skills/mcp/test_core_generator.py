@@ -486,7 +486,7 @@ class TestL2Bounded:
     """Every cap is enforced, so the assembled L2 can never exceed their sum."""
 
     def test_verbose_instructions_and_twenty_tools_stay_bounded(self) -> None:
-        from myrm_agent_harness.agent.skills.mcp.core_generator import L2_SOFT_TOKEN_BUDGET
+        from myrm_agent_harness.agent.skills.mcp.core_generator import L2_MAX_TOKENS
 
         tools = [f"tool_{i}" for i in range(20)]
         schemas: dict[str, dict[str, object]] = {
@@ -502,4 +502,4 @@ class TestL2Bounded:
         schemas["__instructions__"] = {"content": "规则。" * 2_000}
         meta = _skill_meta("verbose", tools, schemas=schemas)
         content = mcp_skill_generator.generate_skill_content(meta)
-        assert get_token_count(content) <= L2_SOFT_TOKEN_BUDGET
+        assert get_token_count(content) <= L2_MAX_TOKENS
