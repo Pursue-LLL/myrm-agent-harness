@@ -191,9 +191,8 @@ class MCPSkillGenerator:
         # here would print an import path that no skill answers to.
         skill_name = skill_meta.name
         tools = skill_meta.mcp.tools
-        name_map = build_tool_name_map(tools)
         tier = self._select_tool_tier(tools, tool_schemas, skill_name)
-        tool_list = self._render_tool_tier(tools, tool_schemas, name_map, skill_name, tier)
+        tool_list = self._build_tool_list(tools, tool_schemas, skill_name=skill_name, tier=tier)
 
         usage_section = SKILL_USAGE_TEMPLATE.format(skill_name=skill_name)
         index_note = {
@@ -351,13 +350,13 @@ class MCPSkillGenerator:
         self,
         tools: list[str],
         tool_schemas: dict[str, JsonDict],
-        tool_count: int,
         *,
         skill_name: str = "",
+        tier: str | None = None,
     ) -> str:
         """Build the L2 tool section through the budget ladder (full → required → names)."""
-        tier = self._select_tool_tier(tools, tool_schemas, skill_name)
-        return self._render_tool_tier(tools, tool_schemas, build_tool_name_map(tools), skill_name, tier)
+        resolved = tier or self._select_tool_tier(tools, tool_schemas, skill_name)
+        return self._render_tool_tier(tools, tool_schemas, build_tool_name_map(tools), skill_name, resolved)
 
     def _select_tool_tier(self, tools: list[str], tool_schemas: dict[str, JsonDict], skill_name: str) -> str:
         name_map = build_tool_name_map(tools)

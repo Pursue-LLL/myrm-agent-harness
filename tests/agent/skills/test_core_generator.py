@@ -152,7 +152,6 @@ class TestBuildToolListFewTools:
         tool_list = generator._build_tool_list(
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
-            len(sample_skill_meta.mcp.tools),
             skill_name=sample_skill_meta.name,
         )
         assert "get_tickets(" in tool_list
@@ -165,7 +164,6 @@ class TestBuildToolListFewTools:
         tool_list = generator._build_tool_list(
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
-            len(sample_skill_meta.mcp.tools),
         )
         assert "~^[GDCZTKL]*$" in tool_list
 
@@ -175,7 +173,6 @@ class TestBuildToolListFewTools:
         tool_list = generator._build_tool_list(
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
-            len(sample_skill_meta.mcp.tools),
         )
         assert "hard_sleeper" not in tool_list
 
@@ -184,7 +181,6 @@ class TestBuildToolListFewTools:
         tool_list = generator._build_tool_list(
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
-            len(sample_skill_meta.mcp.tools),
         )
         assert "Returns:" not in tool_list
 
@@ -199,7 +195,6 @@ class TestBuildToolListIndex:
         tool_list = generator._build_tool_list(
             large_skill_meta.mcp.tools,
             large_skill_meta.mcp.tool_schemas,
-            len(large_skill_meta.mcp.tools),
         )
         assert "(" not in tool_list
         assert "tool_0" in tool_list
@@ -209,7 +204,7 @@ class TestBuildToolListIndex:
         schemas = {
             name: {"description": "Query", "inputSchema": {"properties": {"a": {"type": "string"}}}} for name in tools
         }
-        tool_list = generator._build_tool_list(tools, schemas, len(tools))
+        tool_list = generator._build_tool_list(tools, schemas)
         # Both stay callable: the second takes a deterministic suffix instead of being marked dead.
         assert "get_ticket(a?:string)" in tool_list
         assert "get_ticket_2(a?:string)" in tool_list
@@ -310,7 +305,6 @@ class TestSchemaConstraintsInInline:
         tool_list = generator._build_tool_list(
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
-            len(sample_skill_meta.mcp.tools),
         )
         assert "~^[GDCZTKL]*$" in tool_list
 
@@ -324,7 +318,7 @@ class TestSchemaConstraintsInInline:
                 },
             }
         }
-        tool_list = generator._build_tool_list(["fmt"], schemas, 1)
+        tool_list = generator._build_tool_list(["fmt"], schemas)
         assert "=text|csv|json" in tool_list
 
 
@@ -694,14 +688,14 @@ class TestToolSectionLadder:
     def test_twenty_one_tools_keep_full_signatures(self) -> None:
         # The old count threshold dropped every parameter at 21 tools.
         schemas = self._schemas(21)
-        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas, 21)
+        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas)
         assert "p5?:string" in tool_list
         assert "…" not in tool_list
         assert get_token_count(tool_list) <= TOOL_SECTION_BUDGET
 
     def test_fifty_tools_drop_optionals_but_keep_required(self) -> None:
         schemas = self._schemas(50)
-        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas, 50)
+        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas)
         assert "p0:string" in tool_list
         assert "p5?:string" not in tool_list
         assert "…" in tool_list
@@ -709,6 +703,6 @@ class TestToolSectionLadder:
 
     def test_two_hundred_tools_fall_back_to_names(self) -> None:
         schemas = self._schemas(200)
-        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas, 200)
+        tool_list = mcp_skill_generator._build_tool_list(list(schemas), schemas)
         assert "(" not in tool_list
         assert tool_list.count("- tool_") == 200
