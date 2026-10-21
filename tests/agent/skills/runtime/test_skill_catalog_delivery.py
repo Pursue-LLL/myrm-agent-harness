@@ -241,8 +241,8 @@ def test_resolve_catalog_display_skills_prefers_always_skills_when_over_threshol
     ]
     resolution = resolve_catalog_display_skills(skills)
     assert resolution.display_skills[0].name == "skill_0_skill"
-    # The old SKILL_CORE_MAX cap collapsed 21+ skills to 10 visible; the always band
-    # plus the remaining slots must now fill the catalog instead.
+    # The always band plus the remaining slots fill the catalog; a bound set just over
+    # the threshold must not collapse to a smaller visible count.
     assert len(resolution.display_skills) == 20
     assert resolution.hidden_skill_count == 5
     assert {skill.name for skill in resolution.hidden_skills} | {

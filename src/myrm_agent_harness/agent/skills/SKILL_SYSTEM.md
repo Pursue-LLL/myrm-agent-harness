@@ -296,19 +296,22 @@ Level 3: 资源（Resources）
 - ❌ **不**写入 SystemMessage。目录块本身是 HumanMessage 的一段（`skill_catalog_delivery.py`），正文从不进 system prompt。
 - ❌ **在技能总数 ≤ 20 时完全无效**。`catalog_display.resolve_catalog_display_skills()` 的分支是 `elif len(model_visible) > SKILL_INLINE_THRESHOLD`，未超阈值时全部内联，`always` 不参与任何决策（已实测：`total=1` 时 `always=True` 与 `False` 结果相同）。
 
-**它的真实分配行为**（`catalog_display.py:76-86`）：
+**它的真实分配行为**（`catalog_display.py:81-120`）：
 
 ```
 always_skills  = 所有 always=True 的技能（无上限）
 remaining      = SKILL_SELECT_INLINE_MAX(20) - len(always_skills)，下限 0
-core_non_always= non_always[: min(SKILL_CORE_MAX(10), remaining)]
-display_skills = always_skills + core_non_always  （再按名字排序后截断到 20）
+non_always     = 非 always 技能，按名字排序
+display_skills = always_skills + non_always[:remaining]  （再按名字排序后截断到 20）
+hidden_skills  = model_visible - display_skills
 ```
 
 **两个后果必须知道**：
 
-1. `always` 无数量上限。MCP 技能全部由 `core_generator.py` 硬编码 `always=True`，因此接入的 MCP 服务器越多，非 always 技能（典型是用户手写技能）能拿到的名额越少；`always` 数量 ≥ 20 时，用户技能在目录里**完全不可见**（仍可通过 `skill_search_tool` 检索到并选中，因为该工具的索引与 `skill_select_tool` 的白名单都取自全量 `filtered_skills`）。
-2. 进入该分支后，非 always 技能实际最多只取 `SKILL_CORE_MAX = 10` 个，即使 `remaining` 还有 20 个名额。所以技能总数从 20 涨到 21 时，目录可见数量会从 20 掉到 10。这是**当前代码行为**；`TOOL_DESIGN_STRATEGY.md §三` 的"核心/外围技能"分层只描述了设计意图，没有对这个 10 的截断给出说明。
+1. `always` 无数量上限。MCP 技能全部由 `core_generator.py` 硬编码 `always=True`，因此接入的 MCP 服务器越多，非 always 技能（典型是用户手写技能）能拿到的完整条目越少；`always` 数量 ≥ 20 时，用户技能只出现在 `<hidden_skills>` 名单里，**仍有名字，可直接传给 `skill_select_tool`**。
+2. 目录是**单调**的：20 个技能 → 20 条完整条目；21 个 → 20 条 + 1 个隐藏名。落选技能以 `<hidden_skills count="N">name1, name2, …</hidden_skills>` 附在目录末尾，routing_rules 会说明「这些名字可直接传给 `skill_select_tool`」。因此「名字是地板」：目录再拥挤，也不会出现模型完全不知道某技能存在的情况。
+
+**如何被发现**：不在完整条目里的技能会以名字出现在 `<hidden_skills>`；模型可以按名字直接 `skill_select_tool`，也可以用 `skill_search_tool`（BM25 + jieba，索引全量绑定技能）检索。**目录只影响「看到多少细节」，不影响「能否被选中」，也不影响「是否知道它存在」。**
 
 **如何被发现**：不在目录里的技能不会被模型「自然想到」，但仍有两条路可达 —— `skill_search_tool`（BM25 + jieba，索引全量绑定技能）检索出名字，然后 `skill_select_tool` 按名字加载。**目录只影响「能否被看见」，不影响「能否被选中」。**
 
@@ -1093,8 +1096,8 @@ STATIC_SKILL_SLUGS: list[str] = [
    - **适用场景**：用户在 GUI 标记为核心、对当前智能体高频使用的技能。
 
 2. **L2 外围技能 (Peripheral Skills)**：
-   - **机制**：将技能的 `[名称: 简短描述]` 注入首条用户消息的 ``<bound_skills>`` 块（`SKILL_SELECT_INLINE_MAX = 20` 上限；超出部分以 ``hidden_count`` 标注并通过 `skill_search_tool` 发现），``skill_select_tool.description`` 保持字节稳定。
-   - **注意**：进入"超出"分支后，非 `always` 技能的实际名额还要再过一道 `SKILL_CORE_MAX = 10` 的截断（见 §4.3 与 `catalog_display.py` 模块注释）。所以"最多 20 个"只在未超阈值时成立；技能总数从 20 变为 21 时，可见数量会从 20 落到 10。
+   - **机制**：将技能的 `[名称: 简短描述]` 注入首条用户消息的 ``<bound_skills>`` 块（`SKILL_SELECT_INLINE_MAX = 20` 上限；超出部分以 ``hidden_count`` 标注、名字列在 ``<hidden_skills>`` 中，并通过 `skill_search_tool` 或直接按名 `skill_select_tool` 发现），``skill_select_tool.description`` 保持字节稳定。
+   - **注意**：目录是单调的 —— 20 个技能显示 20 条，21 个显示 20 条 + 1 个隐藏名。落选技能的名字仍然可见，可直接传给 ``skill_select_tool``。
    - **特点**：极低 Token 消耗，0 认知负担。LLM 知道其存在，需要时通过 `skill_select_tool` 渐进式加载完整 SOP。
    - **适用场景**：低频使用、长尾技能。
 
