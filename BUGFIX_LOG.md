@@ -1667,3 +1667,19 @@
 | **踩坑** | 用户提交表单交互必须遵循「乐观即时响应」原则，先置空输入区与依赖状态，再进行异步网络和后续遥测上报，避免极端高频或并发断言产生时序抖动 |
 | **回归** | 真实 Chrome 浏览器端到端闭环 `test_composer_context_chip_strip_chrome_e2e.py`（3/3 passed）、前端 Vitest 单元测试 `useComposerContextChips.test.ts` 与 `ComposerContextChipStrip.test.tsx` 100% 满分通过（0 Lint 错误） |
 | **代码位置** | `myrm-agent-frontend/src/hooks/message-input/useMessageInput.ts` |
+
+### BUG-HARNESS-2026-10-21-001 · 健康探测把 provider 自身的 TimeoutError 误判为我们的截止时间，且失败原因被压平成布尔——调用方只能报「无响应」
+
+| 字段 | 内容 |
+| --- | --- |
+| **状态** | FIXED |
+| **发现时间** | 2026-10-21 |
+| **修复时间** | 2026-10-21 |
+| **症状** | ① `lightweight_health_check()` 只返回布尔：超时、provider 报错（key 被拒、模型名非法、网关 4xx）全部压成 `False`，调用方无从区分，只能统一报「无响应」；② provider **自己**抛出的 `TimeoutError`（上游读超时）会被判成「我们 5s 截止时间到」——两者都归为 timeout；③ 真实厂商首 token 常超过 5s（实测 MiniMax M3.1 Flash 直连一次 `pong` 需 **7.34s**），默认 5s 截止把健康端点判成不可达 |
+| **关联产品** | `myrm-agent-server` 的 `/integrations/llm/check-reachability`（连接测试）、`toolkits/llms/fallback/manager.py`（冷却候选探活） |
+| **根因** | 探测函数用 `except Exception → False` 把所有失败原因吞掉，并把「provider 侧超时」与「我们的截止时间到」混为一谈；截止时间硬编码 5s，未反映真实厂商首 token 延迟 |
+| **修复** | ① 新增 `probe_llm_health() → HealthProbeResult{ok, error_kind, error, latency_ms}`：`error_kind` 区分 `timeout` / `provider_error`，`error` 保留上游原始原因（截断 500 字符）；② provider 侧 `TimeoutError` 先被翻译成内部 `_ProviderTimeoutError`，只有 `asyncio.wait_for` 到点才判 `timeout`；③ `lightweight_health_check()` 改为结构化探测的薄封装，布尔契约不变（既有调用方与 failover manager 无需改动） |
+| **反复次数** | 第 1 次发现（根因长期存在，只是调用方从不区分失败类型，问题被掩盖） |
+| **踩坑** | 「探测返回布尔」会把「慢」和「坏」压成同一个信号——**可诊断性是探测 API 的一等契约**，不是日志的事；provider 自己抛的超时必须与本地截止时间分开判定，否则文案必然误导 |
+| **回归** | `tests/toolkits/llms/fallback/test_health_check.py` 12 例通过（新增 5 例覆盖：健康/截止超时/provider 报错/provider 自身超时/空响应）；`tests/toolkits/llms` 全量 **2681 passed**（ruff 0 错误） |
+| **代码位置** | `toolkits/llms/fallback/health_check.py` · `toolkits/llms/fallback/__init__.py` |

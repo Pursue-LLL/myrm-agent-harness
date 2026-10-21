@@ -23,7 +23,7 @@ Toolkits Llms module.
 | adapters/ | LLM layer: LangChain , messageconverts, handles, toolcallsparse, Schema normalize; **wire/** Responses API transport; `image_payload_evictor.py` framework-neutral 400/413 image eviction |
 | core/ | LLM core: LLM classes, strategy-aware manager, and credential pool. |
 | errors/ | LLM error processing layer: three-tier error classification, fault-tolerant calls, and standardized  |
-| fallback/ | Enhanced model fallback management. Contains ManagedLLM with Direct Preflight Guard (zero-cost local token overflow prevention), cooldown periods, candidate pools, and decision logging |
+| fallback/ | Enhanced model fallback management. Contains ManagedLLM with Direct Preflight Guard (zero-cost local token overflow prevention), cooldown periods, candidate pools, and decision logging. Health probe is structured (`probe_llm_health` → `HealthProbeResult`): it separates a deadline miss (`timeout`) from an upstream rejection (`provider_error`) and keeps the provider's own reason, so callers can explain an unreachable model instead of reporting a flat "no response" |
 | image/ | Image submodule. |
 | providers/ | Providers submodule. |
 | routing/ | Pre-agent routing layer: task complexity routing and privacy routing. |
