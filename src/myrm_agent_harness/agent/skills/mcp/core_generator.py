@@ -177,9 +177,7 @@ class MCPSkillGenerator:
         # here would print an import path that no skill answers to.
         skill_name = skill_meta.name
         tools = skill_meta.mcp.tools
-        tool_list, tier = self._build_tool_section(
-            tools, tool_schemas, skill_name, self._tool_section_budget(instructions)
-        )
+        tool_list, tier = build_tool_section(tools, tool_schemas, skill_name, tool_section_budget(instructions))
 
         usage_section = SKILL_USAGE_TEMPLATE.format(skill_name=skill_name)
         index_note = {
@@ -281,7 +279,7 @@ class MCPSkillGenerator:
             index += 1
         return f"{base}_{index}"
 
-    # ========== Internal: Description Building ==========
+    # ========== Internal: facades over the pure L1/L2 renderers ==========
 
     def _resolve_description(
         self,
@@ -290,46 +288,12 @@ class MCPSkillGenerator:
         tools: list[BaseTool],
         server_name: str,
     ) -> str:
-        """Resolve skill description with 3-tier priority.
-
-        Priority: user_description > instructions > auto-generated from tools
-        """
-        if user_description:
-            return user_description.strip()
-
-        if instructions:
-            return self._truncate_to_sentence(self._clean_markdown(instructions), max_len=200)
-
-        # The catalog's routing_rules already say when to select a skill; repeating an
-        # imperative in every server's line contradicts "ask the user when several apply".
-        return self._build_description_from_tools(tools, server_name).rstrip("。.")
+        """Delegate to :func:`description.resolve_description`."""
+        return resolve_description(user_description, instructions, tools, server_name)
 
     def _build_description_from_tools(self, tools: list[BaseTool], server_name: str) -> str:
-        """Build a concise description from tool descriptions (for metadata)."""
-        functions: list[str] = []
-        for tool in tools:
-            desc = getattr(tool, "description", "")
-            if not desc:
-                continue
-            short = self._truncate_to_sentence(desc, max_len=80)
-            if short:
-                functions.append(short.rstrip("。."))
-
-        if not functions:
-            display = server_name.replace("_", " ").replace("-", " ").title()
-            return f"{display} ({len(tools)} tools available)"
-
-        joined = "; ".join(functions[:3])
-        suffix = f" and {len(functions) - 3} more" if len(functions) > 3 else ""
-        return f"MCP {server_name}: {joined}{suffix}"
-
-    # ========== Internal: Tool List & Documentation ==========
-
-    @staticmethod
-    def _tool_section_budget(instructions: str) -> int:
-        """Tools get whatever the instructions leave inside the L2 ceiling, with a floor."""
-        used = get_token_count(instructions) if instructions else 0
-        return max(MIN_TOOL_SECTION_TOKENS, L2_MAX_TOKENS - L2_FIXED_TOKENS - used)
+        """Delegate to :func:`description.build_description_from_tools`."""
+        return build_description_from_tools(tools, server_name)
 
     def _build_tool_section(
         self,
@@ -338,14 +302,13 @@ class MCPSkillGenerator:
         skill_name: str,
         budget: int | None = None,
     ) -> tuple[str, str]:
-        """Render the L2 tool section once and return it with the tier that was chosen."""
-        limit = budget if budget is not None else L2_MAX_TOKENS - L2_FIXED_TOKENS
-        name_map = build_tool_name_map(tools)
-        for tier in ("full", "required"):
-            text = render_tool_tier(tools, tool_schemas, name_map, skill_name, tier)
-            if get_token_count(text) <= limit:
-                return text, tier
-        return build_tool_index(tools, name_map), "names"
+        """Delegate to :func:`doc_rendering.build_tool_section`."""
+        return build_tool_section(tools, tool_schemas, skill_name, budget)
+
+    _truncate_to_sentence = staticmethod(truncate_to_sentence)
+    _clean_markdown = staticmethod(clean_markdown)
+
+    # ========== Internal: Tool Documentation ==========
 
     def _build_tool_detail_doc(
         self,
@@ -367,18 +330,6 @@ class MCPSkillGenerator:
             params_section=params_section,
             call_example=call_example,
         )
-
-    # ========== Internal: Text Processing ==========
-
-    _truncate_to_sentence = staticmethod(truncate_to_sentence)
-
-    @staticmethod
-    def _clean_markdown(text: str) -> str:
-        """Strip markdown formatting from text."""
-        text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
-        text = re.sub(r"\*([^*]+)\*", r"\1", text)
-        text = re.sub(r"#+\s*", "", text)
-        return re.sub(r"\n+", " ", text).strip()
 
     def _create_skill_metadata(
         self,
