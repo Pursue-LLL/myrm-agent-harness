@@ -16,6 +16,7 @@ into human-readable markdown, enabling Agent LLMs to generate correct MCP tool a
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 type JsonDict = dict[str, Any]
@@ -32,7 +33,7 @@ TOOL_DOC_TEMPLATE = """# {tool_name}
 
 Returns a **parsed Python object** (dict, list, str, int, etc.), NOT a JSON string.
 Do NOT call `json.loads()` on the result. Only access fields explicitly documented above;
-if the return structure is not specified, inspect the real result before composing dependent calls.
+if the return structure is not specified, print it as `[OBSERVATION]` first and continue in a later call.
 
 ## Import & Call Example
 
@@ -124,35 +125,49 @@ def extract_schema_constraints(param_info: JsonDict) -> list[str]:
     return lines
 
 
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+
+
+def _render_value(info: JsonDict, ptype: str) -> str:
+    """Render a placeholder value for a parameter in a call example."""
+    example = info.get("examples", [None])[0] if info.get("examples") else None
+    if example is not None:
+        return f'"{example}"' if ptype == "string" else str(example)
+    if ptype == "string":
+        return '"..."'
+    if ptype in ("integer", "number"):
+        return "0"
+    if ptype == "boolean":
+        return "True"
+    return "..."
+
+
 def build_call_example(input_schema: JsonDict) -> str:
     """Build a minimal call example string from required parameters.
 
-    Generates `name="..."` style arguments for each required parameter,
-    using example values from JSON Schema when available.
+    Flattened schemas use dot-path names (``config.timeout``) which are not valid
+    Python keywords, so those examples switch to a ``**{...}`` dict splat; emitting
+    ``config.timeout=...`` directly would be a SyntaxError the model would copy.
     """
     if not isinstance(input_schema, dict) or "properties" not in input_schema:
         return ""
     properties = input_schema.get("properties", {})
     required = set(input_schema.get("required", []))
-    parts: list[str] = []
+    names: list[str] = []
+    values: list[str] = []
     for name, info in properties.items():
-        if name not in required:
-            continue
-        if not isinstance(info, dict):
+        if name not in required or not isinstance(info, dict):
             continue
         ptype = info.get("type", "string")
-        example = info.get("examples", [None])[0] if info.get("examples") else None
-        if example is not None:
-            parts.append(f'{name}="{example}"' if ptype == "string" else f"{name}={example}")
-        elif ptype == "string":
-            parts.append(f'{name}="..."')
-        elif ptype in ("integer", "number"):
-            parts.append(f"{name}=0")
-        elif ptype == "boolean":
-            parts.append(f"{name}=True")
-        else:
-            parts.append(f"{name}=...")
-    return ", ".join(parts)
+        names.append(name)
+        values.append(_render_value(info, ptype))
+
+    if not names:
+        return ""
+    if all(_IDENTIFIER.match(name) for name in names):
+        return ", ".join(f"{name}={value}" for name, value in zip(names, values, strict=True))
+    pairs = ", ".join(f'"{name}": {value}' for name, value in zip(names, values, strict=True))
+    return f"**{{{pairs}}}"
 
 
 def normalize_input_schema(raw: object) -> JsonDict:
@@ -167,3 +182,73 @@ def normalize_input_schema(raw: object) -> JsonDict:
         if isinstance(result, dict):
             return result
     return {}
+
+
+# --- Compact signatures (SKILL.md / L2) -------------------------------------------------
+
+ENUM_INLINE_MAX_CHARS = 28
+"""Longest rendered enum list inlined into a signature; longer sets stay in the doc."""
+
+PATTERN_INLINE_MAX_CHARS = 20
+"""Longest regex inlined into a signature; longer patterns stay in the doc."""
+
+
+def render_type(info: JsonDict) -> str:
+    """Render a JSON Schema property type as a compact signature type."""
+    declared = info.get("type")
+    if isinstance(declared, str):
+        return declared
+    if isinstance(declared, list):
+        non_null = [str(item) for item in declared if item != "null"]
+        return "|".join(non_null) if non_null else "any"
+    for key in ("anyOf", "oneOf"):
+        branches = info.get(key)
+        if not isinstance(branches, list):
+            continue
+        names: list[str] = []
+        for branch in branches:
+            if not isinstance(branch, dict):
+                continue
+            branch_type = branch.get("type")
+            if isinstance(branch_type, str) and branch_type != "null" and branch_type not in names:
+                names.append(branch_type)
+            elif "items" in branch and "array" not in names:
+                names.append("array")
+        if names:
+            return "|".join(names)
+    return "string" if "enum" in info else "any"
+
+
+def render_constraint(info: JsonDict) -> str:
+    """Render an enum or regex constraint when it fits inline."""
+    enum_values = info.get("enum")
+    if isinstance(enum_values, list) and enum_values:
+        rendered = "|".join(str(value) for value in enum_values)
+        if 0 < len(rendered) <= ENUM_INLINE_MAX_CHARS:
+            return f"={rendered}"
+    pattern = info.get("pattern")
+    if isinstance(pattern, str) and 0 < len(pattern) <= PATTERN_INLINE_MAX_CHARS:
+        return f"~{pattern}"
+    return ""
+
+
+def render_signature(func_name: str, input_schema: JsonDict) -> str:
+    """Render ``name(param:type, optional?:type~constraint)`` for one tool.
+
+    Required parameters come first so a long optional tail cannot bury them; both
+    groups keep the schema's (canonicalised) order for a deterministic prompt.
+    """
+    properties = input_schema.get("properties")
+    if not isinstance(properties, dict) or not properties:
+        return f"{func_name}()"
+    required = input_schema.get("required")
+    required_names = set(required) if isinstance(required, list) else set()
+    params: list[tuple[bool, str]] = []
+    for name, info in properties.items():
+        if not isinstance(info, dict):
+            continue
+        is_optional = name not in required_names
+        marker = "?" if is_optional else ""
+        params.append((is_optional, f"{name}{marker}:{render_type(info)}{render_constraint(info)}"))
+    params.sort(key=lambda item: (item[0], item[1]))
+    return f"{func_name}({', '.join(text for _, text in params)})"

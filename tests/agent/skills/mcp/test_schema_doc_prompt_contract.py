@@ -39,6 +39,13 @@ def test_mcp_skill_usage_template_owns_workflow_sop() -> None:
     assert "/mcp/{skill_name}/<function_name>.md" in SKILL_USAGE_TEMPLATE
     assert "file_read_tool" in SKILL_USAGE_TEMPLATE
     assert "bash_code_execute_tool" in SKILL_USAGE_TEMPLATE
-    assert "Scenario B" in SKILL_USAGE_TEMPLATE
+    assert "ONE `bash_code_execute_tool`" in SKILL_USAGE_TEMPLATE
     assert "timeout=120" in SKILL_USAGE_TEMPLATE
     assert "OBSERVATION" in SKILL_USAGE_TEMPLATE
+    assert "[RESULT]" in SKILL_USAGE_TEMPLATE
+
+
+def test_mcp_usage_template_does_not_force_a_doc_read() -> None:
+    """L3 is optional: reading docs must not be a precondition for writing the call."""
+    assert "Do NOT start bash until" not in SKILL_USAGE_TEMPLATE
+    assert "Get docs first" not in SKILL_USAGE_TEMPLATE

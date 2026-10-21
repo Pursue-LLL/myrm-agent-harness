@@ -2,8 +2,8 @@
 
 Validates that:
 - TOOL_DOC_TEMPLATE includes Returns section
-- SKILL_USAGE_TEMPLATE includes json.loads() warning
-- _build_tool_list includes returns hint for few-tool skills
+- SKILL_USAGE_TEMPLATE carries the call contract without duplicating bash guidance
+- _build_tool_list renders compact signatures (N<=limit) or an index (N>limit)
 - generate_tool_doc produces correct documentation
 """
 
@@ -12,11 +12,11 @@ from __future__ import annotations
 import pytest
 
 from myrm_agent_harness.agent.skills.mcp.core_generator import (
+    SIGNATURE_TOOL_LIMIT,
     SKILL_USAGE_TEMPLATE,
-    USAGE_GUIDE_TOOL_THRESHOLD,
     MCPSkillGenerator,
 )
-from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import TOOL_DOC_TEMPLATE
+from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import TOOL_DOC_TEMPLATE, render_signature
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
 
 
@@ -82,13 +82,24 @@ def sample_skill_meta() -> SkillMetadata:
 
 @pytest.fixture
 def many_tools_skill_meta() -> SkillMetadata:
-    """SkillMetadata with 5 tools (above threshold)."""
+    """SkillMetadata with 5 tools (signature path)."""
     tools = [f"tool-{i}" for i in range(5)]
     schemas: dict[str, dict[str, object]] = {
         name: {"description": f"Tool {i} description", "inputSchema": {}} for i, name in enumerate(tools)
     }
     mcp = MCPSkillData(server="multi-tool", tools=tools, config=[], tool_schemas=schemas)
     return SkillMetadata(name="mcp_multi_tool_skill", description="Many tools", mcp=mcp)
+
+
+@pytest.fixture
+def large_skill_meta() -> SkillMetadata:
+    """SkillMetadata above SIGNATURE_TOOL_LIMIT (index path)."""
+    tools = [f"tool-{i}" for i in range(SIGNATURE_TOOL_LIMIT + 5)]
+    schemas: dict[str, dict[str, object]] = {
+        name: {"description": f"Tool {i} description", "inputSchema": {}} for i, name in enumerate(tools)
+    }
+    mcp = MCPSkillData(server="large", tools=tools, config=[], tool_schemas=schemas)
+    return SkillMetadata(name="mcp_large_skill", description="Large server", mcp=mcp)
 
 
 class TestToolDocTemplate:
@@ -105,7 +116,7 @@ class TestToolDocTemplate:
 
 
 class TestSkillUsageTemplate:
-    """SKILL_USAGE_TEMPLATE must guide agents on return value handling."""
+    """SKILL_USAGE_TEMPLATE carries the MCP-specific call contract only."""
 
     def test_warns_against_json_loads(self) -> None:
         assert "json.loads()" in SKILL_USAGE_TEMPLATE
@@ -113,53 +124,93 @@ class TestSkillUsageTemplate:
     def test_mentions_direct_field_access(self) -> None:
         assert "access fields" in SKILL_USAGE_TEMPLATE
 
-    def test_mentions_parallel_pattern(self) -> None:
-        assert "asyncio.gather()" in SKILL_USAGE_TEMPLATE
+    def test_mentions_one_bash_per_task(self) -> None:
+        assert "ONE `bash_code_execute_tool`" in SKILL_USAGE_TEMPLATE
+        assert "[RESULT]" in SKILL_USAGE_TEMPLATE
 
     def test_timeout_guidance_present(self) -> None:
         assert "timeout=120" in SKILL_USAGE_TEMPLATE
 
-    def test_performance_rules_present(self) -> None:
-        assert "Performance Rules" in SKILL_USAGE_TEMPLATE
+    def test_does_not_duplicate_bash_scenarios(self) -> None:
+        """Scenario A/B/C live in bash_code_execute_tool's own description."""
+        assert "Scenario A" not in SKILL_USAGE_TEMPLATE
+        assert "Scenario B" not in SKILL_USAGE_TEMPLATE
+
+    def test_does_not_force_doc_read_before_bash(self) -> None:
+        assert "Do NOT start bash until" not in SKILL_USAGE_TEMPLATE
 
 
 class TestBuildToolListFewTools:
-    """_build_tool_list with few tools (<=3) should include returns hint."""
+    """_build_tool_list renders a signature line per tool."""
 
-    def test_includes_returns_hint(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
+    def test_includes_parameter_names_and_types(
+        self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata
+    ) -> None:
+        assert sample_skill_meta.mcp is not None
+        tool_list = generator._build_tool_list(
+            sample_skill_meta.mcp.tools,
+            sample_skill_meta.mcp.tool_schemas,
+            len(sample_skill_meta.mcp.tools),
+            skill_name=sample_skill_meta.name,
+        )
+        assert "get_tickets(" in tool_list
+        assert "date:string" in tool_list
+        assert "from_station:string" in tool_list
+        assert "seat_type?:string" in tool_list
+
+    def test_inlines_short_pattern(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
         assert sample_skill_meta.mcp is not None
         tool_list = generator._build_tool_list(
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
             len(sample_skill_meta.mcp.tools),
         )
-        assert len(sample_skill_meta.mcp.tools) <= USAGE_GUIDE_TOOL_THRESHOLD
-        assert "json.loads()" in tool_list
-        assert "Returns:" in tool_list
+        assert "~^[GDCZTKL]*$" in tool_list
 
-    def test_includes_parameters(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
+    def test_omits_long_enum(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
+        """A four-value enum exceeds the inline budget and stays in the doc."""
         assert sample_skill_meta.mcp is not None
         tool_list = generator._build_tool_list(
             sample_skill_meta.mcp.tools,
             sample_skill_meta.mcp.tool_schemas,
             len(sample_skill_meta.mcp.tools),
         )
-        assert "Parameters:" in tool_list
-        assert "date" in tool_list
+        assert "hard_sleeper" not in tool_list
 
-
-class TestBuildToolListManyTools:
-    """_build_tool_list with many tools (>3) should NOT inline returns (handled by usage guide)."""
-
-    def test_no_inline_returns(self, generator: MCPSkillGenerator, many_tools_skill_meta: SkillMetadata) -> None:
-        assert many_tools_skill_meta.mcp is not None
+    def test_no_inline_returns_block(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
+        assert sample_skill_meta.mcp is not None
         tool_list = generator._build_tool_list(
-            many_tools_skill_meta.mcp.tools,
-            many_tools_skill_meta.mcp.tool_schemas,
-            len(many_tools_skill_meta.mcp.tools),
+            sample_skill_meta.mcp.tools,
+            sample_skill_meta.mcp.tool_schemas,
+            len(sample_skill_meta.mcp.tools),
         )
-        assert len(many_tools_skill_meta.mcp.tools) > USAGE_GUIDE_TOOL_THRESHOLD
         assert "Returns:" not in tool_list
+
+
+class TestBuildToolListIndex:
+    """Above the signature limit only names and first sentences are listed."""
+
+    def test_large_server_has_no_signatures(
+        self, generator: MCPSkillGenerator, large_skill_meta: SkillMetadata
+    ) -> None:
+        assert large_skill_meta.mcp is not None
+        tool_list = generator._build_tool_list(
+            large_skill_meta.mcp.tools,
+            large_skill_meta.mcp.tool_schemas,
+            len(large_skill_meta.mcp.tools),
+        )
+        assert len(large_skill_meta.mcp.tools) > SIGNATURE_TOOL_LIMIT
+        assert "(" not in tool_list
+        assert "tool_0" in tool_list
+
+    def test_duplicate_short_names_are_marked(self, generator: MCPSkillGenerator) -> None:
+        tools = ["mcp__srv__get-ticket", "mcp__srv__get_ticket"]
+        schemas = {
+            name: {"description": "Query", "inputSchema": {"properties": {"a": {"type": "string"}}}} for name in tools
+        }
+        tool_list = generator._build_tool_list(tools, schemas, len(tools))
+        assert tool_list.count("get_ticket") >= 2
+        assert "不可直接调用" in tool_list
 
 
 class TestGenerateToolDoc:
@@ -214,16 +265,7 @@ class TestSchemaConstraintsInDoc:
 
 
 class TestSchemaConstraintsInInline:
-    """_format_params_inline for few-tool skills must show key constraints."""
-
-    def test_inline_enum_hint(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
-        assert sample_skill_meta.mcp is not None
-        tool_list = generator._build_tool_list(
-            sample_skill_meta.mcp.tools,
-            sample_skill_meta.mcp.tool_schemas,
-            len(sample_skill_meta.mcp.tools),
-        )
-        assert "enum:" in tool_list
+    """Signature lines must keep constraint hints that fit inline."""
 
     def test_inline_pattern_hint(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
         assert sample_skill_meta.mcp is not None
@@ -232,23 +274,40 @@ class TestSchemaConstraintsInInline:
             sample_skill_meta.mcp.tool_schemas,
             len(sample_skill_meta.mcp.tools),
         )
-        assert "pattern:" in tool_list
+        assert "~^[GDCZTKL]*$" in tool_list
+
+    def test_inline_short_enum_hint(self, generator: MCPSkillGenerator) -> None:
+        schemas: dict[str, dict[str, object]] = {
+            "fmt": {
+                "description": "Format",
+                "inputSchema": {
+                    "properties": {"f": {"type": "string", "enum": ["text", "csv", "json"]}},
+                    "required": ["f"],
+                },
+            }
+        }
+        tool_list = generator._build_tool_list(["fmt"], schemas, 1)
+        assert "=text|csv|json" in tool_list
 
 
 class TestGenerateSkillContent:
-    """generate_skill_content (Level 2) should include usage guide for many-tool skills."""
+    """generate_skill_content (Level 2) always carries the calling contract."""
 
-    def test_many_tools_includes_usage_guide(
+    def test_many_tools_includes_calling_guide(
         self, generator: MCPSkillGenerator, many_tools_skill_meta: SkillMetadata
     ) -> None:
         content = generator.generate_skill_content(many_tools_skill_meta)
-        assert "Usage Guide" in content
+        assert "## Calling" in content
         assert "json.loads()" in content
 
-    def test_few_tools_no_usage_guide(self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata) -> None:
+    def test_few_tools_also_includes_calling_guide(
+        self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata
+    ) -> None:
+        """Small servers used to get no import path at all; the contract is unconditional now."""
         content = generator.generate_skill_content(sample_skill_meta)
-        assert "Usage Guide" not in content
-        assert "Returns:" in content
+        assert "## Calling" in content
+        assert "from skills." in content
+        assert "file_read_tool" in content
 
     def test_skill_content_includes_skill_name(
         self, generator: MCPSkillGenerator, many_tools_skill_meta: SkillMetadata
@@ -327,12 +386,20 @@ class TestBuildCallExample:
         assert build_call_example({}) == ""
         assert build_call_example({"properties": {}}) == ""
 
+    def test_dot_path_uses_dict_splat(self) -> None:
+        """Flattened schemas use dotted names that are not valid Python keywords."""
+        from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import (
+            build_call_example,
+        )
+
+        schema = {"properties": {"config.timeout": {"type": "integer"}}, "required": ["config.timeout"]}
+        example = build_call_example(schema)
+        assert example == '**{"config.timeout": 0}'
+        compile(f"async def _m():\n    await call({example})", "<example>", "exec")
+
 
 class TestSkillUsageTemplateSecurity:
-    """SKILL_USAGE_TEMPLATE should warn against bash cat and wrong import paths."""
-
-    def test_forbids_bash_cat(self) -> None:
-        assert "NOT bash/cat" in SKILL_USAGE_TEMPLATE or "Do NOT use" in SKILL_USAGE_TEMPLATE
+    """SKILL_USAGE_TEMPLATE keeps import-path and literal guidance."""
 
     def test_import_path_guidance(self) -> None:
         assert "from skills." in SKILL_USAGE_TEMPLATE
@@ -345,7 +412,6 @@ class TestSkillUsageTemplateSecurity:
     def test_python_syntax_guidance(self) -> None:
         assert "None" in SKILL_USAGE_TEMPLATE and "null" in SKILL_USAGE_TEMPLATE
         assert "True" in SKILL_USAGE_TEMPLATE and "False" in SKILL_USAGE_TEMPLATE
-        assert "var" in SKILL_USAGE_TEMPLATE or "let" in SKILL_USAGE_TEMPLATE
 
 
 class TestCreateSkillMetadata:
@@ -445,15 +511,42 @@ class TestResolveDescriptionPriority:
         assert "and 2 more" in desc
 
 
-class TestFormatParamsInlineEdge:
-    """_format_params_inline edge paths."""
+class TestRenderSignatureEdge:
+    """Signature rendering edge paths."""
 
-    def test_empty_schema(self, generator: MCPSkillGenerator) -> None:
-        assert generator._format_params_inline({}) == ""
+    def test_empty_schema_renders_zero_args(self, generator: MCPSkillGenerator) -> None:
+        assert render_signature("noop", {}) == "noop()"
 
     def test_non_dict_param_info_skipped(self, generator: MCPSkillGenerator) -> None:
         schema = {"type": "object", "properties": {"weird": "not-a-dict"}}
-        assert generator._format_params_inline(schema) == ""
+        assert render_signature("fn", schema) == "fn()"
+
+    def test_type_list_drops_null(self, generator: MCPSkillGenerator) -> None:
+        schema = {"properties": {"q": {"type": ["string", "null"]}}}
+        assert render_signature("fn", schema) == "fn(q?:string)"
+
+    def test_anyof_union(self, generator: MCPSkillGenerator) -> None:
+        schema = {"properties": {"q": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}}}
+        assert render_signature("fn", schema) == "fn(q?:string|array)"
+
+    def test_missing_type_defaults_to_any(self, generator: MCPSkillGenerator) -> None:
+        schema = {"properties": {"q": {"description": "free form"}}}
+        assert render_signature("fn", schema) == "fn(q?:any)"
+
+    def test_long_pattern_not_inlined(self, generator: MCPSkillGenerator) -> None:
+        schema = {"properties": {"q": {"type": "string", "pattern": "x" * 40}}}
+        assert "~" not in render_signature("fn", schema)
+
+
+class TestSafeNames:
+    """Skill names become Python package segments."""
+
+    def test_dot_is_sanitized(self, generator: MCPSkillGenerator) -> None:
+        _, skill_name = generator._get_safe_names("my.server")
+        assert skill_name == "mcp_my_server_skill"
+
+    def test_colliding_servers_normalize_to_the_same_name(self, generator: MCPSkillGenerator) -> None:
+        assert generator._get_safe_names("weather")[1] == generator._get_safe_names("weather-skill")[1]
 
 
 class TestTextProcessing:
@@ -514,3 +607,30 @@ class TestGenerateMetadataOnly:
         assert len(skills) == 1
         assert skills[0].is_mcp_skill is True
         assert skills[0].name == "mcp_srv_skill"
+
+    async def test_colliding_skill_names_keep_first(
+        self, generator: MCPSkillGenerator, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """weather and weather-skill normalize to the same skill name; the later one is skipped."""
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+
+        from myrm_agent_harness.toolkits.mcp import connection_manager as cm
+        from myrm_agent_harness.toolkits.mcp.config import MCPConfig
+
+        fake_manager = MagicMock()
+        fake_conn = MagicMock()
+        fake_conn.tools_by_server = {
+            "weather": [SimpleNamespace(name="mcp__weather__get", description="Weather", args_schema=None)]
+        }
+        fake_conn.instructions_by_server = {}
+        fake_manager.get_connection = AsyncMock(return_value=fake_conn)
+        monkeypatch.setattr(cm, "get_mcp_connection_manager", AsyncMock(return_value=fake_manager))
+
+        skills = await generator.generate_metadata_only(
+            [
+                MCPConfig(name="weather", type="stdio", command="echo"),
+                MCPConfig(name="weather-skill", type="stdio", command="echo"),
+            ]
+        )
+        assert [skill.name for skill in skills] == ["mcp_weather_skill"]

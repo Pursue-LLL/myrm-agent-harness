@@ -69,7 +69,7 @@ Harness 区分两类配置，避免「零 env」与「生产需要路径注入�
 | 结局 | 机制 | SSOT |
 |------|------|------|
 | 小 MCP | Direct FC Turn1（schema compaction + aggregate ≤15K tok） | `agent/_factory/mcp_routing.py` |
-| 大 / 多 MCP | **MCP PTC**：`skill_select` → `file_read(/mcp/.../*.md)` → `bash_code_execute` | `agent/skills/mcp/core_generator.py` |
+| 大 / 多 MCP | **MCP PTC**：`skill_select`（L2 携带工具签名）→ `bash_code_execute`；`file_read(/mcp/.../*.md)` 按需 | `agent/skills/mcp/core_generator.py` |
 
 详见 `agent/tool_management/TOOL_DESIGN_STRATEGY.md` **§2.5 MCP 路由铁律**。
 

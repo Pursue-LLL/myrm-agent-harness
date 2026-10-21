@@ -57,10 +57,11 @@ class TestReadAndExists:
         assert isinstance(lines, list)
         assert any("Query train tickets" in line for line in lines)
 
-    async def test_read_file_appends_call_rules(self, strategy) -> None:
+    async def test_read_file_does_not_repeat_call_rules(self, strategy) -> None:
+        """Import/Returns already live in the doc template, so the read must not append them again."""
         lines = await strategy.read_file("/mcp/mcp_12306_mcp_skill/get-tickets.md")
         joined = "\n".join(lines)
-        assert "MCP Function Call Rules" in joined
+        assert "MCP Function Call Rules" not in joined
         assert "get_tickets" in joined
 
     async def test_get_file_size_positive(self, strategy) -> None:
@@ -152,13 +153,10 @@ class TestReadDocErrors:
             strategy._read_mcp_function_doc("/mcp/mcp_12306_mcp_skill/missing.md")
 
 
-class TestGetMcpCallRules:
-    def test_example_code_block_has_no_undefined_variable(self) -> None:
-        rules = MCPFileSystemStrategy._get_mcp_call_rules()
-        example_block = rules.split("```python")[1].split("```")[0]
-        assert "{variable}" not in example_block
-        assert "{result}" in example_block
+class TestDocTemplateOwnsCallContract:
+    def test_doc_template_names_observation(self) -> None:
+        """L3 must still tell the model how to inspect an undocumented return shape."""
+        from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import TOOL_DOC_TEMPLATE
 
-    def test_format_guidance_line_keeps_variable_placeholder(self) -> None:
-        rules = MCPFileSystemStrategy._get_mcp_call_rules()
-        assert 'print(f"[OBSERVATION] {variable}")' in rules
+        assert "[OBSERVATION]" in TOOL_DOC_TEMPLATE
+        assert "json.loads()" in TOOL_DOC_TEMPLATE

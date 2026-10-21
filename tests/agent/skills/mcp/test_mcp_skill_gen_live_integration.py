@@ -109,22 +109,21 @@ async def test_skill_gen_live_chain_prompt_fixes(_reset_manager: object) -> None
         assert skill_meta.is_mcp_skill is True
         assert len(skill_meta.mcp.tools) == 4
 
-        # --- Level 2 SKILL.md: prompt fix B (conditional timeout) ---
+        # --- Level 2 SKILL.md: calling contract is unconditional ---
         content = generator.generate_skill_content(skill_meta)
-        assert "Usage Guide" in content  # 4 tools > threshold 3
-        assert "If a tool doc declares a `timeout` parameter, set `timeout=120`" in content
+        assert "## Calling" in content
+        assert "Set `timeout=120` when declared" in content
         assert "Always set" not in content
 
-        # --- Level 3 doc via MCPFileSystemStrategy: prompt fix A ---
+        # --- Level 3 doc via MCPFileSystemStrategy: doc template owns the call contract ---
         skill_name = skill_meta.name
         strategy = MCPFileSystemStrategy([skill_meta])
         lines = await strategy.read_file(f"/mcp/{skill_name}/echo.md")
         joined = "\n".join(lines)
-        assert "MCP Function Call Rules" in joined
-        # Fix A: the generic example (last code block) resolves through `result`.
-        assert 'print(f"[OBSERVATION] {result}")' in joined
+        assert "MCP Function Call Rules" not in joined
+        assert "[OBSERVATION]" in joined
         example_block = joined.split("```python")[-1].split("```")[0]
         assert "{variable}" not in example_block
-        assert "result = await function_name(param1=" in example_block
+        assert "result = await echo(" in example_block
     finally:
         await teardown()

@@ -17,11 +17,12 @@ from types import SimpleNamespace
 import pytest
 
 from myrm_agent_harness.agent.skills.mcp.core_generator import (
+    SIGNATURE_TOOL_LIMIT,
     SKILL_USAGE_TEMPLATE,
-    USAGE_GUIDE_TOOL_THRESHOLD,
     MCPSkillGenerator,
     mcp_skill_generator,
 )
+from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import render_signature
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 from myrm_agent_harness.backends.skills.types.types_requires import MCPSkillData
 
@@ -53,37 +54,36 @@ class TestGenerateSkillContent:
         meta = _skill_meta("weather", ["get_temp"], cached_content="# cached")
         assert mcp_skill_generator.generate_skill_content(meta) == "# cached"
 
-    def test_few_tools_omit_usage_guide(self) -> None:
+    def test_few_tools_still_get_calling_contract(self) -> None:
+        """A small server used to get no import path at all."""
         meta = _skill_meta("weather", ["get_temp"])
         out = mcp_skill_generator.generate_skill_content(meta)
-        assert "Usage Guide" not in out
+        assert "## Calling" in out
+        assert "from skills." in out
         assert "get_temp" in out
 
-    def test_many_tools_embed_usage_guide(self) -> None:
-        tools = [f"func_{i}" for i in range(USAGE_GUIDE_TOOL_THRESHOLD + 1)]
+    def test_many_tools_embed_calling_contract(self) -> None:
+        tools = [f"func_{i}" for i in range(5)]
         meta = _skill_meta("weather", tools)
         out = mcp_skill_generator.generate_skill_content(meta)
-        assert "Usage Guide (Must Follow)" in out
+        assert "## Calling" in out
         assert "Skill Name" in out
         assert "mcp_weather_skill" in out
         for fragment in (
-            "Scenario A",
-            "Scenario B",
-            "Scenario C",
             "[RESULT]",
-            "FORBIDDEN",
+            "OBSERVATION",
             "skills.mcp_weather_skill",
             "file_read_tool",
         ):
             assert fragment in out, fragment
 
     def test_skill_content_cached_after_generation(self) -> None:
-        tools = [f"func_{i}" for i in range(USAGE_GUIDE_TOOL_THRESHOLD + 1)]
+        tools = [f"func_{i}" for i in range(5)]
         meta = _skill_meta("weather", tools)
         mcp_skill_generator.generate_skill_content(meta)
         assert meta.mcp is not None
         assert meta.mcp.skill_content is not None
-        assert "Usage Guide" in meta.mcp.skill_content
+        assert "## Calling" in meta.mcp.skill_content
 
 
 class TestGenerateToolDoc:
@@ -190,7 +190,7 @@ class TestToolList:
         tools = [f"fn_{i}" for i in range(count)]
         return _skill_meta("weather", tools, schemas=schemas)
 
-    def test_few_tools_include_params_and_returns(self) -> None:
+    def test_few_tools_include_params(self) -> None:
         schemas: dict[str, dict[str, object]] = {
             "fn_0": {
                 "description": "Desc A",
@@ -203,9 +203,8 @@ class TestToolList:
         }
         meta = self._tool_list_meta(1, schemas=schemas)
         out = mcp_skill_generator.generate_skill_content(meta)
-        assert "Parameters:" in out
-        assert "Returns" in out
-        assert "`x`" in out
+        assert "fn_0(x:string)" in out
+        assert "Parameters:" not in out
 
     def test_many_tools_truncate_description(self) -> None:
         schemas: dict[str, dict[str, object]] = {
@@ -219,12 +218,27 @@ class TestToolList:
         out = mcp_skill_generator.generate_skill_content(meta)
         assert "Parameters:" not in out
 
+    def test_non_string_description_is_omitted(self) -> None:
+        schemas: dict[str, dict[str, object]] = {"fn_0": {"description": 42, "inputSchema": None}}
+        out = mcp_skill_generator.generate_skill_content(self._tool_list_meta(1, schemas=schemas))
+        assert "- fn_0()" in out
+        assert "42" not in out
 
-class TestFormatParamsInline:
+    def test_above_limit_falls_back_to_index(self) -> None:
+        schemas: dict[str, dict[str, object]] = {
+            f"fn_{i}": {"description": "Desc", "inputSchema": {"properties": {"x": {"type": "string"}}}}
+            for i in range(SIGNATURE_TOOL_LIMIT + 1)
+        }
+        meta = self._tool_list_meta(SIGNATURE_TOOL_LIMIT + 1, schemas=schemas)
+        out = mcp_skill_generator.generate_skill_content(meta)
+        assert "x:string" not in out
+        assert "fn_0" in out
+
+
+class TestRenderSignature:
     def test_empty_schema(self) -> None:
-        assert MCPSkillGenerator._format_params_inline({}) == ""
-        assert MCPSkillGenerator._format_params_inline({"type": "object"}) == ""
-        assert MCPSkillGenerator._format_params_inline(None) == ""  # type: ignore[arg-type]
+        assert render_signature("fn", {}) == "fn()"
+        assert render_signature("fn", {"type": "object"}) == "fn()"
 
     def test_required_and_hints(self) -> None:
         schema = {
@@ -236,10 +250,28 @@ class TestFormatParamsInline:
             },
             "required": ["city"],
         }
-        out = MCPSkillGenerator._format_params_inline(schema)
-        assert "`city` (string) **(required)**: City [enum: ['bj', 'sh']]" in out
-        assert "default: `3`" in out
-        assert "pattern: `^[0-9]+$`" in out
+        out = render_signature("fn", schema)
+        assert "city:string=bj|sh" in out
+        assert "days?:integer" in out
+        assert "code?:string~^[0-9]+$" in out
+
+    def test_boolean_property_schemas_are_skipped(self) -> None:
+        """JSON Schema allows ``true`` as a property schema; it carries nothing to render."""
+        schema = {
+            "type": "object",
+            "properties": {"anything": True, "city": {"type": "string"}},
+            "required": ["city"],
+        }
+        assert render_signature("fn", schema) == "fn(city:string)"
+
+    def test_non_object_properties_are_ignored(self) -> None:
+        assert render_signature("fn", {"properties": None}) == "fn()"
+        assert render_signature("fn", {"properties": ["city"]}) == "fn()"
+
+    def test_required_must_be_a_list_of_names(self) -> None:
+        """A string ``required`` must not mark every parameter required."""
+        schema = {"type": "object", "properties": {"c": {"type": "string"}}, "required": "city"}
+        assert render_signature("fn", schema) == "fn(c?:string)"
 
 
 class TestTextProcessing:
@@ -350,10 +382,10 @@ class TestGenerateMetadataOnly:
 
 class TestUsageTemplateShape:
     def test_template_contains_pipeline_contract(self) -> None:
-        assert "Step 1" in SKILL_USAGE_TEMPLATE
-        assert "Step 2" in SKILL_USAGE_TEMPLATE
-        assert "skills." in SKILL_USAGE_TEMPLATE
+        assert "from skills." in SKILL_USAGE_TEMPLATE
         assert "file_read_tool" in SKILL_USAGE_TEMPLATE
+        assert "ONE `bash_code_execute_tool`" in SKILL_USAGE_TEMPLATE
+        assert "/mcp/{skill_name}/<function_name>.md" in SKILL_USAGE_TEMPLATE
 
     def test_template_format_only_injects_skill_name(self) -> None:
         rendered = SKILL_USAGE_TEMPLATE.format(skill_name="mcp_weather_skill")

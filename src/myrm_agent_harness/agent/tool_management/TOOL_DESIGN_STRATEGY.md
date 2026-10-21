@@ -175,7 +175,7 @@ class ToolLayer(IntEnum):
 | 结局 | 条件 | LLM 如何调用 |
 |------|------|-------------|
 | **Direct FC** | 单服 schema ≤ `compute_direct_threshold()`（`FALLBACK_PTC_OVERHEAD_TOKENS` 450 × `PTC_OVERHEAD_MULTIPLIER` 25 = **11,250 tok**）且 aggregate direct ≤ `AGGREGATE_DIRECT_TOKEN_BUDGET`（**15,000 tok**） | Turn1 完整 JSON Schema，`tool_call` |
-| **MCP PTC** | 单服超大 **或** aggregate 超标（最大服优先 demote） | `skill_select` → `file_read(/mcp/...)` → `bash_code_execute` Python |
+| **MCP PTC** | 单服超大 **或** aggregate 超标（最大服优先 demote） | `skill_select`（L2 携带工具签名）→ `bash_code_execute` Python；`file_read(/mcp/...)` 仅在签名被缩写或需要返回结构时按需读取 |
 | **OpenAPI direct** | 选中 endpoint 生成 schema ≤ `AGGREGATE_DIRECT_TOKEN_BUDGET`（**15,000 tok**） | Turn1 direct tools |
 | **OpenAPI 拒绝** | enabled 但 0 tools 加载失败 | `ConfigIncompleteError`（`openapi_load_failed`）；检查 spec/认证/endpoint |
 | **OpenAPI 拒绝** | schema > `AGGREGATE_DIRECT_TOKEN_BUDGET`（非 `direct_fc`） | `ConfigIncompleteError`（`openapi_direct_budget_exceeded`）；Agent 设置减少 endpoint |

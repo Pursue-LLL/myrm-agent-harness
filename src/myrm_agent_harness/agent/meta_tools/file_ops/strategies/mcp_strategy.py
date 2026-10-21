@@ -190,32 +190,4 @@ class MCPFileSystemStrategy(FileSystemStrategy):
         generator = MCPSkillGenerator()
         doc = generator.generate_tool_doc(skill_meta, function_name)
 
-        return f" /mcp/{skill_name}/{function_name}.md:\n{doc}\n\n{self._get_mcp_call_rules()}"
-
-    @staticmethod
-    def _get_mcp_call_rules() -> str:
-        """获取 MCP 调用规则"""
-        return """
-
-## MCP Function Call Rules
-
-1. **Import**: `from skills.skill_name import function_name` (Do NOT use `from skills import skill_name`)
-2. **Async**: Use standard async/await pattern, use async def main() + asyncio.run(main())
-3. **Output Format** (only these two are allowed):
-  - Intermediate observation: `print(f"[OBSERVATION] {variable}")`
-  - Final result: `print(f"[RESULT] {result}")`
-4. **Note**: When return value structure is unclear, use `[OBSERVATION]` first to inspect the structure.
-
-**Example**:
-```python
-import asyncio
-from skills.{skill_name} import function_name # skill_name replace with the actual skill name
-
-async def main():
-    result = await function_name(param1="value1", param2=123)
-    print(f"[OBSERVATION] {result}")  # Intermediate observation
-    print(f"[RESULT] {result}")  # Final result
-
-asyncio.run(main())
-```
-"""
+        return f" /mcp/{skill_name}/{function_name}.md:\n{doc}"

@@ -102,8 +102,17 @@ class TestBuildReloadSummary:
 
         assert "bash_code_execute_tool" in result
 
-    def test_output_suggests_file_path_for_auxiliary_files(self) -> None:
+    def test_output_points_mcp_docs_at_file_read(self) -> None:
+        """MCP docs live under /mcp/, which skill_select(file_path=) cannot reach."""
         skill = _make_mcp_skill()
+        result = build_reload_summary(skill)
+
+        assert "file_read_tool" in result
+        assert "/mcp/" in result
+        assert "skill_select_tool(file_path=...)" not in result
+
+    def test_output_points_storage_skills_at_file_path(self) -> None:
+        skill = _make_storage_skill()
         result = build_reload_summary(skill)
 
         assert "file_path" in result

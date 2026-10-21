@@ -35,19 +35,26 @@ _DYNAMIC_CMD_MAX_OUTPUT = 2000
 
 def build_reload_summary(skill_meta: SkillMetadata) -> str:
     """Build a concise summary for an already-loaded skill."""
-    tool_names: list[str] = []
     if skill_meta.is_mcp_skill and skill_meta.mcp:
-        tool_names = list(skill_meta.mcp.tools[:20])
+        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
+            mcp_tool_short_name,
+        )
 
-    tools_section = ""
-    if tool_names:
-        tools_list = ", ".join(tool_names[:20])
-        tools_section = f"\nAvailable tools: {tools_list}"
+        short_names = [mcp_tool_short_name(name) for name in skill_meta.mcp.tools[:20]]
+        tools_section = f"\nAvailable tools: {', '.join(short_names)}" if short_names else ""
+        return (
+            f"# {skill_meta.name} (already loaded)\n\n"
+            f"This skill's SOP was loaded earlier in this session. "
+            f"You already know how to use it.{tools_section}\n\n"
+            f"Proceed directly with bash_code_execute_tool to call the tools. "
+            f"If a parameter contract is unclear, read `/mcp/{skill_meta.name}/<func_name>.md` "
+            f"with file_read_tool(paths=[...])."
+        )
 
     return (
         f"# {skill_meta.name} (already loaded)\n\n"
         f"This skill's SOP was loaded earlier in this session. "
-        f"You already know how to use it.{tools_section}\n\n"
+        f"You already know how to use it.\n\n"
         f"Proceed directly with bash_code_execute_tool to call the tools. "
         f"If you need auxiliary files, use skill_select_tool(file_path=...) "
         f"for paths under scripts/, references/, templates/, or assets/."
