@@ -310,22 +310,14 @@ class MCPSkillGenerator:
         Priority: user_description > instructions > auto-generated from tools
         """
         if user_description:
-            desc = user_description.strip()
-            if not re.search(r"(use when|whenever|必须|优先选择|选择本技能|触发)", desc, re.IGNORECASE):
-                desc = f"{desc.rstrip('。.')}。当任务涉及相关功能时，必须首先选择本技能。"
-            return desc
+            return user_description.strip()
 
         if instructions:
-            clean = self._clean_markdown(instructions)
-            truncated = self._truncate_to_sentence(clean, max_len=200)
-            if not re.search(r"(use when|whenever|必须|优先选择|选择本技能|触发)", truncated, re.IGNORECASE):
-                truncated = f"{truncated.rstrip('。.')}。当任务涉及相关功能时，必须首先选择本技能。"
-            return truncated
+            return self._truncate_to_sentence(self._clean_markdown(instructions), max_len=200)
 
-        built = self._build_description_from_tools(tools, server_name)
-        if not re.search(r"(use when|whenever|必须|优先选择|选择本技能|触发)", built, re.IGNORECASE):
-            built = f"{built.rstrip('。.')}。当任务涉及相关功能时，优先选择本技能。"
-        return built
+        # The catalog's routing_rules already say when to select a skill; repeating an
+        # imperative in every server's line contradicts "ask the user when several apply".
+        return self._build_description_from_tools(tools, server_name).rstrip("。.")
 
     def _build_description_from_tools(self, tools: list[BaseTool], server_name: str) -> str:
         """Build a concise description from tool descriptions (for metadata)."""

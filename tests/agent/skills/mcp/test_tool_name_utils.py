@@ -81,3 +81,34 @@ class TestResolveMcpToolName:
 
     def test_no_match(self) -> None:
         assert resolve_mcp_tool_name("missing", ["create_issue"]) is None
+
+
+class TestRuntimeProxyNameRoundTrip:
+    """The identifier L2 prints is the one the generated runtime proxy hands to the resolver."""
+
+    def test_generated_skill_function_passes_the_python_name_through(self, monkeypatch) -> None:
+        import asyncio
+        import sys
+        import types
+
+        from myrm_agent_harness.agent.skills.mcp import client_templates
+
+        calls: list[tuple[str, str]] = []
+
+        async def _fake_call(skill: str, tool: str, kwargs: dict[str, object]) -> str:
+            calls.append((skill, tool))
+            return "ok"
+
+        namespace: dict[str, object] = {
+            "_call": _fake_call,
+            "asyncio": asyncio,
+            "sys": sys,
+            "types": types,
+        }
+        exec(client_templates._generate_module_system(), namespace)  # noqa: S102 - the generated runtime source
+        skill_function = namespace["_SkillFunction"]
+        assert asyncio.run(skill_function("mcp_x_skill", "get_ticket_2")(a="1")) == "ok"
+        assert calls == [("mcp_x_skill", "get_ticket_2")]
+
+        tools = ["mcp__srv__get-ticket", "mcp__srv__get_ticket"]
+        assert resolve_mcp_tool_name("get_ticket_2", tools) == "mcp__srv__get_ticket"

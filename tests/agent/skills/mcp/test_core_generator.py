@@ -161,9 +161,7 @@ class TestDescriptionResolution:
     def test_user_description_priority(self) -> None:
         gen = MCPSkillGenerator()
         desc = gen._resolve_description("user desc", "instructions", [self._tool("a", "t")], "srv")
-        # 用户描述优先，且缺少触发语时自动补引导语
-        assert desc.startswith("user desc")
-        assert "必须首先选择本技能" in desc
+        assert desc == "user desc"
 
     def test_existing_trigger_phrase_is_not_duplicated(self) -> None:
         gen = MCPSkillGenerator()
@@ -305,8 +303,7 @@ class TestCreateSkillMetadata:
             "weather", tools, user_description="Weather skill", instructions="Handle weather"
         )
         assert meta.name == "mcp_weather_skill"
-        assert meta.description.startswith("Weather skill")
-        assert "必须首先选择本技能" in meta.description
+        assert meta.description == "Weather skill"
         assert meta.mcp is not None
         assert meta.mcp.server == "weather"
         assert meta.mcp.tools == ["get_temp"]
